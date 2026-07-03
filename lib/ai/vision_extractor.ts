@@ -12,7 +12,7 @@ export interface VisionProvider {
  * Swap for a real GPT Vision (or equivalent) client in a later phase.
  */
 export class MockVisionProvider implements VisionProvider {
-  async extract(_imagePath: string): Promise<string> {
+  async extract(): Promise<string> {
     const mockResponse: PersonnelExtraction = {
       rank: "Sergeant",
       first_name: "John",

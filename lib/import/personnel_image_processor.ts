@@ -7,11 +7,13 @@
  * same code path — no duplicated pipeline logic between them.
  *
  * Pipeline: Local Image -> Layout Detector -> Prompt Builder -> Vision
- * Extractor -> Validator -> Normalizer -> Career Engine -> PersonnelResult.
+ * Extractor -> Validator -> Normalization Engine -> Career Engine ->
+ * PersonnelResult.
  *
- * Every collaborator is injected via `PersonnelImageProcessorDependencies`
- * with the same defaults `run_real_import.ts` used, so behavior is
- * unchanged; this module only relocates the logic, it does not alter it.
+ * Every collaborator is injected via `PersonnelImageProcessorDependencies`.
+ * This is the single reuse point for both `scripts/run_real_import.ts` and
+ * `scripts/run_batch_import.ts` — the Phase 7.5 Normalization Engine is
+ * wired in exactly once, here, rather than duplicated in either script.
  */
 
 import fs from "node:fs";
@@ -26,6 +28,8 @@ import { TemplateDetector } from "@/lib/layout/template_detector";
 import type { LayoutDetectorStage } from "@/lib/import/import_pipeline";
 import { DefaultCareerEngine, type CareerEngine, type CareerIntelligence } from "@/lib/career/career_engine";
 import type { PersonnelExtraction, ValidationResult } from "@/lib/types/vision";
+import { PersonnelNormalizationEngine } from "@/lib/normalize/normalization_engine";
+import type { NormalizationEngine, NormalizedPersonnelExtraction } from "@/lib/normalize/normalization_types";
 
 export interface ProcessingMetadata {
   image: string;
@@ -40,7 +44,7 @@ export interface ProcessingMetadata {
 
 export interface PersonnelResult {
   original_extraction: PersonnelExtraction;
-  normalized_extraction: PersonnelExtraction;
+  normalized_extraction: NormalizedPersonnelExtraction;
   career_intelligence: CareerIntelligence;
   validation: ValidationResult;
   confidence: number;
@@ -58,6 +62,7 @@ export function loadImageAsDataUri(imagePath: string): string {
 export interface PersonnelImageProcessorDependencies {
   layoutDetector?: LayoutDetectorStage;
   visionProvider?: VisionProvider;
+  normalizationEngine?: NormalizationEngine;
   careerEngine?: CareerEngine;
   tokenEstimator?: TokenEstimator;
   costEstimator?: CostEstimator;
@@ -84,6 +89,7 @@ export async function processPersonnelImage(
   const startedAt = Date.now();
 
   const layoutDetector = dependencies.layoutDetector ?? new TemplateDetector();
+  const normalizationEngine = dependencies.normalizationEngine ?? new PersonnelNormalizationEngine();
   const careerEngine = dependencies.careerEngine ?? new DefaultCareerEngine();
   const tokenEstimator = dependencies.tokenEstimator ?? new HeuristicTokenEstimator();
   const costEstimator = dependencies.costEstimator ?? new DefaultCostEstimator();
@@ -97,8 +103,11 @@ export async function processPersonnelImage(
 
   const { data: originalExtraction, validation } = await extractPersonnelFromImage(dataUri, provider);
 
-  // Normalizer stage: identity, matching Phase 3's IdentityNormalizer default.
-  const normalizedExtraction: PersonnelExtraction = { ...originalExtraction };
+  // Phase 7.5: Validation -> Normalization Engine -> Career Engine.
+  // Replaces the earlier identity-only normalizer with real field
+  // normalization (Thai numerals, whitespace/dash/punctuation, phone
+  // format, year/timeline ordering and dedup — see lib/normalize/).
+  const normalizedExtraction = normalizationEngine.normalize(originalExtraction);
 
   const careerIntelligence = careerEngine.analyze(normalizedExtraction);
 

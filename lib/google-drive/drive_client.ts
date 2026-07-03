@@ -72,7 +72,7 @@ export class InMemoryDriveClient implements DriveClient {
     return folder;
   }
 
-  async listFolderChildren(folderId: string, _options?: ListFolderOptions): Promise<ListFolderPage> {
+  async listFolderChildren(folderId: string): Promise<ListFolderPage> {
     return {
       files: this.filesByFolder.get(folderId) ?? [],
       subfolders: this.subfoldersByFolder.get(folderId) ?? [],

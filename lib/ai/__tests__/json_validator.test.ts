@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validatePersonnelExtraction } from "@/lib/ai/json_validator";
-import type { PersonnelExtraction } from "@/lib/types/vision";
+import type { PersonnelExtraction, TimelineEntry } from "@/lib/types/vision";
 
 function validRecord(overrides: Partial<PersonnelExtraction> = {}): Partial<PersonnelExtraction> {
   return {
@@ -34,7 +34,7 @@ test("fully populated record is valid with no errors or warnings", () => {
 
 test("timeline[].unit missing (omitted) produces a warning, not an error", () => {
   const record = validRecord({
-    timeline: [{ year: "2018", position: "Officer" } as any],
+    timeline: [{ year: "2018", position: "Officer" }],
   });
   const result = validatePersonnelExtraction(record);
 
@@ -127,7 +127,7 @@ test("timeline not an array still fails validation (fatal)", () => {
 
 test("timeline[].year missing still fails validation (fatal)", () => {
   const record = validRecord({
-    timeline: [{ position: "Officer", unit: "Unit A" } as any],
+    timeline: [{ position: "Officer", unit: "Unit A" } as unknown as TimelineEntry],
   });
   const result = validatePersonnelExtraction(record);
 
@@ -137,7 +137,7 @@ test("timeline[].year missing still fails validation (fatal)", () => {
 
 test("timeline[].position missing still fails validation (fatal)", () => {
   const record = validRecord({
-    timeline: [{ year: "2018", unit: "Unit A" } as any],
+    timeline: [{ year: "2018", unit: "Unit A" } as unknown as TimelineEntry],
   });
   const result = validatePersonnelExtraction(record);
 

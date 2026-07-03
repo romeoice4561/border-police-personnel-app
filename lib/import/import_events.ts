@@ -68,17 +68,22 @@ export interface ImportEventEmitter {
  * interface if the pipeline is scaled across multiple processes.
  */
 export class InMemoryImportEventEmitter implements ImportEventEmitter {
-  private readonly listeners = new Map<ImportEventType, Set<ImportEventListener<any>>>();
+  // Listeners for different event subtypes are stored in one heterogeneous
+  // map keyed by event type; each bucket is narrowed back to its specific
+  // listener type at the `on`/`off` call site (where T is known), and
+  // `emit` only ever invokes a bucket with events matching its own key, so
+  // this is sound despite the widened value type.
+  private readonly listeners = new Map<ImportEventType, Set<ImportEventListener<ImportEvent>>>();
 
   on<T extends ImportEventType>(type: T, listener: ImportEventListener<Extract<ImportEvent, { type: T }>>): void {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set());
     }
-    this.listeners.get(type)!.add(listener);
+    this.listeners.get(type)!.add(listener as ImportEventListener<ImportEvent>);
   }
 
   off<T extends ImportEventType>(type: T, listener: ImportEventListener<Extract<ImportEvent, { type: T }>>): void {
-    this.listeners.get(type)?.delete(listener);
+    this.listeners.get(type)?.delete(listener as ImportEventListener<ImportEvent>);
   }
 
   emit(event: ImportEvent): void {

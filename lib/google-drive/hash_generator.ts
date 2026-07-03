@@ -28,7 +28,7 @@ export interface HashGenerator {
 export class StubSha256HashGenerator implements HashGenerator {
   readonly algorithm: HashAlgorithm = "sha256";
 
-  async hash(_content: Uint8Array): Promise<string> {
+  async hash(): Promise<string> {
     throw new Error("StubSha256HashGenerator.hash is not implemented in this phase");
   }
 }
@@ -41,7 +41,7 @@ export class StubSha256HashGenerator implements HashGenerator {
 export class StubMd5HashGenerator implements HashGenerator {
   readonly algorithm: HashAlgorithm = "md5";
 
-  async hash(_content: Uint8Array): Promise<string> {
+  async hash(): Promise<string> {
     throw new Error("StubMd5HashGenerator.hash is not implemented in this phase");
   }
 }
