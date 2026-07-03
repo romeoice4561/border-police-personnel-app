@@ -26,6 +26,10 @@ export interface DriveFileMetadata {
   parents: string[];
   webViewLink?: string;
   thumbnailLink?: string;
+  /** ISO timestamp the file was created in Drive, if the provider reports it. */
+  createdTime?: string;
+  /** MD5 checksum reported directly by the provider (e.g. Drive API's `md5Checksum`), when available. Never computed locally in this phase — see hash_generator.ts. */
+  md5Checksum?: string;
 }
 
 /** A folder node as seen by a provider, before being mapped to an organizational unit. */
