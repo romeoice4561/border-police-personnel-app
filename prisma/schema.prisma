@@ -1,0 +1,115 @@
+// Production Persistence Layer (Phase 12).
+//
+// Relational schema for persisting exported personnel data (exports/*.json)
+// into PostgreSQL (Supabase-compatible). This schema does NOT change the AI
+// pipeline — it is a downstream sink for the JSON the pipeline already
+// produces. No UI, no business logic here; just the persistence model.
+//
+// Idempotency is enforced at the schema level: Officer.officerId is unique
+// (upsert key) and each Timeline row is unique per (officerId, sequence), so
+// re-importing the same exports creates no duplicate officers or timelines.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: connection URLs live in prisma.config.ts (for migrate/
+  // introspection) and the PrismaClient driver adapter (for runtime) — not in
+  // this schema file. See lib/database/database.ts and prisma.config.ts.
+}
+
+/// One officer. `officerId` is the deterministic id from the knowledge layer
+/// (region/source-file), used as the idempotent upsert key.
+model Officer {
+  id               Int        @id @default(autoincrement())
+  officerId        String     @unique
+  rank             String
+  firstName        String
+  lastName         String
+  currentPosition  String?
+  currentUnit      String?
+  phone            String?
+  careerYears      Int        @default(0)
+  qualityScore     Int?
+  knowledgeScore   Int?
+  region           String?
+  confidence       Int?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  timeline         Timeline[]
+  phones           Phone[]
+
+  @@index([rank])
+  @@index([currentUnit])
+  @@index([phone])
+  @@index([lastName])
+}
+
+/// One career-timeline row for an officer. Unique per (officer, sequence) so
+/// re-import replaces rather than duplicates. `year` is stored as the raw
+/// source string (never re-derived here) plus a parsed numeric year when known.
+model Timeline {
+  id         Int     @id @default(autoincrement())
+  officer    Officer @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId  Int
+  sequence   Int
+  year       String
+  yearValue  Int?
+  position   String
+  unit       String?
+
+  @@unique([officerId, sequence])
+  @@index([yearValue])
+  @@index([unit])
+}
+
+/// A distinct organizational unit. Deduplicated by unique `name`.
+model Unit {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  officerCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([name])
+}
+
+/// A phone number associated with an officer. Unique per (officer, number).
+model Phone {
+  id        Int     @id @default(autoincrement())
+  officer   Officer @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId Int
+  number    String
+
+  @@unique([officerId, number])
+  @@index([number])
+}
+
+/// One database-import run, for auditing/idempotency reporting.
+model ImportJob {
+  id                Int         @id @default(autoincrement())
+  startedAt         DateTime    @default(now())
+  finishedAt        DateTime?
+  images            Int         @default(0)
+  imported          Int         @default(0)
+  skipped           Int         @default(0)
+  errors            Int         @default(0)
+
+  logs              ImportLog[]
+}
+
+/// A per-record log line for an import job (created/updated/skipped/error).
+model ImportLog {
+  id          Int       @id @default(autoincrement())
+  job         ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId       Int
+  officerId   String
+  action      String
+  message     String?
+  createdAt   DateTime  @default(now())
+
+  @@index([jobId])
+  @@index([officerId])
+}
