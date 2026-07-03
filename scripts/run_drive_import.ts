@@ -61,14 +61,25 @@ import type { ImageSource } from "@/lib/import/image_source";
 import { BatchReportBuilder } from "@/lib/import/batch_report";
 import { ImageClassifier } from "@/lib/classifier/image_classifier";
 import { DefaultClassificationStatisticsBuilder } from "@/lib/classifier/classification_statistics";
+import { TesseractOCREngine } from "@/lib/ocr/tesseract_engine";
+import { CachingOCREngine } from "@/lib/ocr/ocr_engine";
+import { DefaultOCRStatisticsBuilder } from "@/lib/ocr/ocr_statistics";
+import { OcrTextSampleProvider } from "@/lib/ocr/ocr_text_sample_provider";
 import { createDriveAuthClient, DriveAuthConfigError } from "@/lib/google-drive/drive_auth";
 import { GoogleDriveClient } from "@/lib/google-drive/google_drive_client";
 import { GoogleDriveImageSource } from "@/lib/google-drive/google_drive_image_source";
 import { DriveProviderError } from "@/lib/google-drive/drive_errors";
 import { resumeDecision, resumePathsFor } from "@/lib/import/drive_import_resume";
 
-const EXPORTS_DIR = path.join(process.cwd(), "exports");
-const LOGS_DIR = path.join(process.cwd(), "logs");
+// Default output locations; overridable via env for isolated verification
+// runs (e.g. a throwaway exports dir) without touching the real exports/logs.
+// Absent overrides, behaviour is exactly as before.
+const EXPORTS_DIR = process.env.DRIVE_IMPORT_EXPORTS_DIR
+  ? path.resolve(process.env.DRIVE_IMPORT_EXPORTS_DIR)
+  : path.join(process.cwd(), "exports");
+const LOGS_DIR = process.env.DRIVE_IMPORT_LOGS_DIR
+  ? path.resolve(process.env.DRIVE_IMPORT_LOGS_DIR)
+  : path.join(process.cwd(), "logs");
 
 /** The Phase 9C import-summary shape: total / processed / skipped / failed / duration_ms. */
 interface DriveImportSummary {
@@ -171,7 +182,21 @@ async function main() {
     report.recordSkipped(skippedFile.file, skippedFile.region, skippedFile.reason);
   }
 
-  const classifier = new ImageClassifier();
+  // Phase 10A: real local OCR feeds the classifier. The Tesseract engine is
+  // wrapped in a CachingOCREngine (an image is never OCR'd twice), and its
+  // text output is injected into the ImageClassifier via OcrTextSampleProvider
+  // — the existing classifier/rules read `textSample` unchanged. OCR happens
+  // AFTER download and BEFORE the classifier's decision, so OpenAI Vision is
+  // still only reached for PERSONNEL_PROFILE images.
+  const ocrStats = new DefaultOCRStatisticsBuilder();
+  const tesseractEngine = new TesseractOCREngine({ defaultLanguage: "mixed" });
+  const ocrEngine = new CachingOCREngine({
+    baseEngine: tesseractEngine,
+    onResolved: (result, ocrSource) => ocrStats.add(result, ocrSource),
+  });
+  const classifier = new ImageClassifier({
+    textSampleProvider: new OcrTextSampleProvider({ engine: ocrEngine, language: "mixed" }),
+  });
   const classificationStats = new DefaultClassificationStatisticsBuilder();
 
   let failedCount = 0;
@@ -286,13 +311,21 @@ async function main() {
     duration_ms: Date.now() - startedAt,
   };
 
+  // Release the Tesseract worker(s) before writing reports/exiting.
+  await tesseractEngine.terminate();
+
+  const ocrSummary = ocrStats.build();
+
   writeJson(path.join(LOGS_DIR, "drive_import_summary.json"), driveImportSummary);
   writeJson(path.join(LOGS_DIR, "drive_import_failed.json"), report.buildFailedReport());
   writeJson(path.join(LOGS_DIR, "drive_import_skipped.json"), report.buildSkippedReport());
   writeJson(path.join(LOGS_DIR, "drive_import_classification.json"), classificationStats.build());
+  writeJson(path.join(LOGS_DIR, "ocr_summary.json"), ocrSummary);
 
   console.log("Completed");
   console.log(JSON.stringify(driveImportSummary, null, 2));
+  console.log("OCR:");
+  console.log(JSON.stringify(ocrSummary, null, 2));
   console.log(`Summary saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "drive_import_summary.json"))}`);
 }
 
