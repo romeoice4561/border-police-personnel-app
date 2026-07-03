@@ -1,0 +1,140 @@
+{
+  "source_file": "5.jpg",
+  "region": "ภาค3",
+  "processing_timestamp": "2026-07-03T10:01:17.747Z",
+  "processing_duration_ms": 5487,
+  "original_extraction": {
+    "rank": "พ.ต.ท.",
+    "first_name": "สุขสันต์",
+    "last_name": "อินทรุข",
+    "position": "สว.ฝอ.บก.ตชด.ภาค 3 (ขว.)",
+    "unit": "บก.ตชด.ภาค 3",
+    "phone": "094-184-5471",
+    "timeline": [
+      {
+        "year": "1 ก.พ. 2531",
+        "position": "ลูกแถว กองร้อยที่ 2 กก.รร.ภ.3",
+        "unit": ""
+      },
+      {
+        "year": "1 ก.พ. 2532",
+        "position": "ผบ.หมู่ (บ.) สภ.นาโพธิ์",
+        "unit": "อ.บุญฑริก จว.อุบลราชธานี"
+      },
+      {
+        "year": "10 พ.ค. 2545",
+        "position": "ผบ.หมู่ (ป.) สภ.บึงสามพัน",
+        "unit": "อ.บึงสามพัน จว.เพชรบูรณ์"
+      },
+      {
+        "year": "12 มี.ค. 2551",
+        "position": "รอง สว.สป. สภ.บึงสามพัน",
+        "unit": "อ.บึงสามพัน จว.เพชรบูรณ์"
+      },
+      {
+        "year": "1 เม.ย. 2557",
+        "position": "รอง สว.สส. สภ.บึงสามพัน",
+        "unit": "อ.บึงสามพัน จว.เพชรบูรณ์"
+      },
+      {
+        "year": "13 ธ.ค. 2562",
+        "position": "สว.ฝอ.กวอ.อุตรดิตถ์",
+        "unit": ""
+      },
+      {
+        "year": "10 ก.พ. 2566",
+        "position": "สว.ฝอ.บก.ตชด.ภาค 3",
+        "unit": ""
+      }
+    ],
+    "notes": "TIME LINE; ในภาพมีข้อความไทยระบุชื่อและตำแหน่งกลางภาพ รวมถึงหมายเลขโทรศัพท์ 'โทร 094-184-5471'.",
+    "confidence": 86
+  },
+  "normalized_extraction": {
+    "rank": "พ.ต.ท.",
+    "first_name": "สุขสันต์",
+    "last_name": "อินทรุข",
+    "position": "สว.ฝอ.บก.ตชด.ภาค 3 (ขว.)",
+    "unit": "บก.ตชด.ภาค 3",
+    "phone": "094-184-5471",
+    "timeline": [
+      {
+        "year": "1 ก.พ. 2531",
+        "position": "ลูกแถว กองร้อยที่ 2 กก.รร.ภ.3",
+        "unit": ""
+      },
+      {
+        "year": "1 ก.พ. 2532",
+        "position": "ผบ.หมู่ (บ.) สภ.นาโพธิ์",
+        "unit": "อ.บุญฑริก จว.อุบลราชธานี"
+      },
+      {
+        "year": "10 พ.ค. 2545",
+        "position": "ผบ.หมู่ (ป.) สภ.บึงสามพัน",
+        "unit": "อ.บึงสามพัน จว.เพชรบูรณ์"
+      },
+      {
+        "year": "12 มี.ค. 2551",
+        "position": "รอง สว.สป. สภ.บึงสามพัน",
+        "unit": "อ.บึงสามพัน จว.เพชรบูรณ์"
+      },
+      {
+        "year": "1 เม.ย. 2557",
+        "position": "รอง สว.สส. สภ.บึงสามพัน",
+        "unit": "อ.บึงสามพัน จว.เพชรบูรณ์"
+      },
+      {
+        "year": "13 ธ.ค. 2562",
+        "position": "สว.ฝอ.กวอ.อุตรดิตถ์",
+        "unit": ""
+      },
+      {
+        "year": "10 ก.พ. 2566",
+        "position": "สว.ฝอ.บก.ตชด.ภาค 3",
+        "unit": ""
+      }
+    ],
+    "notes": "TIME LINE; ในภาพมีข้อความไทยระบุชื่อและตำแหน่งกลางภาพ รวมถึงหมายเลขโทรศัพท์ 'โทร 094-184-5471'.",
+    "confidence": 86
+  },
+  "career_intelligence": {
+    "careerYears": 12,
+    "unitCount": 2,
+    "timelineEntryCount": 7,
+    "units": [
+      "อ.บุญฑริก จว.อุบลราชธานี",
+      "อ.บึงสามพัน จว.เพชรบูรณ์"
+    ],
+    "earliestYear": 1,
+    "latestYear": 13
+  },
+  "validation": {
+    "valid": true,
+    "errors": [],
+    "warnings": [
+      {
+        "field": "timeline[0].unit",
+        "message": "unit is missing"
+      },
+      {
+        "field": "timeline[5].unit",
+        "message": "unit is missing"
+      },
+      {
+        "field": "timeline[6].unit",
+        "message": "unit is missing"
+      }
+    ]
+  },
+  "confidence": 86,
+  "processing_metadata": {
+    "image": "5.jpg",
+    "processing_time_ms": 5487,
+    "model": "gpt-5.4-mini",
+    "prompt_tokens": 944,
+    "completion_tokens": 218,
+    "estimated_cost_usd": 0.00799,
+    "template": "unknown",
+    "confidence": 86
+  }
+}

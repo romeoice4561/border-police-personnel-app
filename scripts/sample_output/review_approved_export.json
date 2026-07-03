@@ -1,0 +1,32 @@
+{
+  "sessionId": "review-1783055204988-eowf2a",
+  "status": "Approved",
+  "extraction": {
+    "rank": "Sergeant",
+    "first_name": "John",
+    "last_name": "Doe",
+    "position": "Field Supervisor",
+    "unit": "Southern Border Division",
+    "phone": "555-123-9999",
+    "timeline": [
+      {
+        "year": "2018",
+        "position": "Officer",
+        "unit": "Southern Border Division"
+      },
+      {
+        "year": "2021",
+        "position": "Field Supervisor",
+        "unit": "Southern Border Division"
+      },
+      {
+        "year": "2023",
+        "position": "Senior Field Supervisor",
+        "unit": "Southern Border Division"
+      }
+    ],
+    "notes": "Extracted from mock provider for prototype testing.",
+    "confidence": 100
+  },
+  "approvedAt": "2026-07-03T05:06:44.988Z"
+}

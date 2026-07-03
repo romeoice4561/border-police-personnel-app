@@ -1,0 +1,191 @@
+{
+  "session": {
+    "id": "review-1783055204988-eowf2a",
+    "aiResult": {
+      "original_extraction": {
+        "rank": "Sergeant",
+        "first_name": "John",
+        "last_name": "Doe",
+        "position": "Field Supervisor",
+        "unit": "Southern Border Division",
+        "phone": "555-123-4567",
+        "timeline": [
+          {
+            "year": "2018",
+            "position": "Officer",
+            "unit": "Southern Border Division"
+          },
+          {
+            "year": "2021",
+            "position": "Field Supervisor",
+            "unit": "Southern Border Division"
+          }
+        ],
+        "notes": "Extracted from mock provider for prototype testing.",
+        "confidence": 100
+      },
+      "normalized_extraction": {
+        "rank": "Sergeant",
+        "first_name": "John",
+        "last_name": "Doe",
+        "position": "Field Supervisor",
+        "unit": "Southern Border Division",
+        "phone": "555-123-4567",
+        "timeline": [
+          {
+            "year": "2018",
+            "position": "Officer",
+            "unit": "Southern Border Division"
+          },
+          {
+            "year": "2021",
+            "position": "Field Supervisor",
+            "unit": "Southern Border Division"
+          }
+        ],
+        "notes": "Extracted from mock provider for prototype testing.",
+        "confidence": 100
+      },
+      "career_intelligence": {
+        "careerYears": 3,
+        "unitCount": 1,
+        "timelineEntryCount": 2,
+        "units": [
+          "Southern Border Division"
+        ],
+        "earliestYear": 2018,
+        "latestYear": 2021
+      },
+      "validation": {
+        "valid": true,
+        "errors": []
+      },
+      "confidence": 100,
+      "processing_metadata": {
+        "image": "career_card_001.jpg",
+        "processing_time_ms": 2140,
+        "model": "gpt-5.5",
+        "prompt_tokens": 944,
+        "completion_tokens": 97,
+        "estimated_cost_usd": 0.006175,
+        "template": "timeline_v2",
+        "confidence": 100
+      }
+    },
+    "editedExtraction": {
+      "rank": "Sergeant",
+      "first_name": "John",
+      "last_name": "Doe",
+      "position": "Field Supervisor",
+      "unit": "Southern Border Division",
+      "phone": "555-123-9999",
+      "timeline": [
+        {
+          "year": "2018",
+          "position": "Officer",
+          "unit": "Southern Border Division"
+        },
+        {
+          "year": "2021",
+          "position": "Field Supervisor",
+          "unit": "Southern Border Division"
+        },
+        {
+          "year": "2023",
+          "position": "Senior Field Supervisor",
+          "unit": "Southern Border Division"
+        }
+      ],
+      "notes": "Extracted from mock provider for prototype testing.",
+      "confidence": 100
+    },
+    "status": "Approved",
+    "concerns": [],
+    "history": [
+      {
+        "timestamp": "2026-07-03T05:06:44.988Z",
+        "reviewer": {
+          "id": "r1",
+          "name": "Alex Reviewer"
+        },
+        "action": "Created"
+      },
+      {
+        "timestamp": "2026-07-03T05:06:44.988Z",
+        "reviewer": {
+          "id": "r1",
+          "name": "Alex Reviewer"
+        },
+        "action": "Edited",
+        "changes": {
+          "added": [
+            {
+              "field": "timeline[2]",
+              "type": "added",
+              "after": {
+                "year": "2023",
+                "position": "Senior Field Supervisor",
+                "unit": "Southern Border Division"
+              }
+            }
+          ],
+          "removed": [],
+          "changed": [
+            {
+              "field": "phone",
+              "type": "changed",
+              "before": "555-123-4567",
+              "after": "555-123-9999"
+            }
+          ],
+          "hasChanges": true
+        },
+        "note": "Corrected phone typo; added recent promotion"
+      },
+      {
+        "timestamp": "2026-07-03T05:06:44.988Z",
+        "reviewer": {
+          "id": "r1",
+          "name": "Alex Reviewer"
+        },
+        "action": "NeedsCorrection",
+        "note": "Needs a second reviewer sign-off"
+      },
+      {
+        "timestamp": "2026-07-03T05:06:44.988Z",
+        "reviewer": {
+          "id": "r1",
+          "name": "Alex Reviewer"
+        },
+        "action": "Approved",
+        "note": "Confirmed with unit records"
+      }
+    ],
+    "createdAt": "2026-07-03T05:06:44.986Z",
+    "updatedAt": "2026-07-03T05:06:44.988Z"
+  },
+  "diff": {
+    "added": [
+      {
+        "field": "timeline[2]",
+        "type": "added",
+        "after": {
+          "year": "2023",
+          "position": "Senior Field Supervisor",
+          "unit": "Southern Border Division"
+        }
+      }
+    ],
+    "removed": [],
+    "changed": [
+      {
+        "field": "phone",
+        "type": "changed",
+        "before": "555-123-4567",
+        "after": "555-123-9999"
+      }
+    ],
+    "hasChanges": true
+  },
+  "report": "# Review Report — review-1783055204988-eowf2a\n\n**Status:** Approved\n**Created:** 2026-07-03T05:06:44.986Z\n**Updated:** 2026-07-03T05:06:44.988Z\n**Source Image:** career_card_001.jpg\n**Template:** timeline_v2\n\n## Extraction\n\n- **Name:** John Doe\n- **Rank:** Sergeant\n- **Position:** Field Supervisor\n- **Unit:** Southern Border Division\n- **Phone:** 555-123-9999\n- **Timeline Entries:** 3\n- **Overall Confidence:** 100%\n\n## Confidence Concerns\n\nNone.\n\n## Changes from AI Extraction\n\n- **Added** `timeline[2]`: {\"year\":\"2023\",\"position\":\"Senior Field Supervisor\",\"unit\":\"Southern Border Division\"}\n- **Changed** `phone`: \"555-123-4567\" → \"555-123-9999\"\n\n## History\n\n- 2026-07-03T05:06:44.988Z — **Alex Reviewer** — Created\n- 2026-07-03T05:06:44.988Z — **Alex Reviewer** — Edited: Corrected phone typo; added recent promotion\n- 2026-07-03T05:06:44.988Z — **Alex Reviewer** — NeedsCorrection: Needs a second reviewer sign-off\n- 2026-07-03T05:06:44.988Z — **Alex Reviewer** — Approved: Confirmed with unit records"
+}

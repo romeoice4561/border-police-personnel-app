@@ -1,0 +1,28 @@
+{
+  "data": {
+    "rank": "Sergeant",
+    "first_name": "John",
+    "last_name": "Doe",
+    "position": "Field Supervisor",
+    "unit": "Southern Border Division",
+    "phone": "555-123-4567",
+    "timeline": [
+      {
+        "year": "2018",
+        "position": "Officer",
+        "unit": "Southern Border Division"
+      },
+      {
+        "year": "2021",
+        "position": "Field Supervisor",
+        "unit": "Southern Border Division"
+      }
+    ],
+    "notes": "Extracted from mock provider for prototype testing.",
+    "confidence": 100
+  },
+  "validation": {
+    "valid": true,
+    "errors": []
+  }
+}

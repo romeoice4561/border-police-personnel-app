@@ -1,0 +1,190 @@
+{
+  "source_file": "officer001.jpg",
+  "region": "ภาค1",
+  "processing_timestamp": "2026-07-03T10:04:58.963Z",
+  "processing_duration_ms": 5169,
+  "original_extraction": {
+    "rank": "พ.ต.อ.",
+    "first_name": "อภิชาต",
+    "last_name": "พุทธบุญ",
+    "position": "รอง ผบก.ตชด.ภาค 1",
+    "unit": "ผบก.ตชด.ภาค 1",
+    "phone": "082-754-8244",
+    "timeline": [
+      {
+        "year": "ปัจจุบัน",
+        "position": "รอง ผบก.ตชด.ภาค 1",
+        "unit": "ผบก.ตชด.ภาค 1"
+      },
+      {
+        "year": "พ.ศ.2567",
+        "position": "รอง ผบก.ภ.จว.ประจวบคีรีขันธ์",
+        "unit": ""
+      },
+      {
+        "year": "พ.ศ.2563",
+        "position": "ผกก.สส.3",
+        "unit": "บก.สส.ภ.7"
+      },
+      {
+        "year": "พ.ศ.2562",
+        "position": "ผกก.สภ.เมืองสมุทรสงคราม",
+        "unit": "ภ.จว.สมุทรสงคราม"
+      },
+      {
+        "year": "พ.ศ.2559",
+        "position": "ผกก.สภ.ราชบุรี",
+        "unit": "ภ.จว.ราชบุรี"
+      },
+      {
+        "year": "พ.ศ.2557",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "สภ.เมืองอุบลราชธานี ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2556",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "สภ.เมืองอำนาจเจริญ ภ.จว.อำนาจเจริญ"
+      },
+      {
+        "year": "พ.ศ.2550",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2549",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "ภ.จว.ยโสธร"
+      },
+      {
+        "year": "พ.ศ.2546",
+        "position": "สว.สส.สภ.เมืองอุบล",
+        "unit": "ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2545",
+        "position": "สว.สส.สภ.เดชอุดม",
+        "unit": "ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2543",
+        "position": "รอง สว.สส.อ.เมืองอุบลราชธานี",
+        "unit": ""
+      }
+    ],
+    "notes": "Timeline รับราชการ; profile image shows officer portrait and phone number 082-754-8244.",
+    "confidence": 94
+  },
+  "normalized_extraction": {
+    "rank": "พ.ต.อ.",
+    "first_name": "อภิชาต",
+    "last_name": "พุทธบุญ",
+    "position": "รอง ผบก.ตชด.ภาค 1",
+    "unit": "ผบก.ตชด.ภาค 1",
+    "phone": "082-754-8244",
+    "timeline": [
+      {
+        "year": "ปัจจุบัน",
+        "position": "รอง ผบก.ตชด.ภาค 1",
+        "unit": "ผบก.ตชด.ภาค 1"
+      },
+      {
+        "year": "พ.ศ.2567",
+        "position": "รอง ผบก.ภ.จว.ประจวบคีรีขันธ์",
+        "unit": ""
+      },
+      {
+        "year": "พ.ศ.2563",
+        "position": "ผกก.สส.3",
+        "unit": "บก.สส.ภ.7"
+      },
+      {
+        "year": "พ.ศ.2562",
+        "position": "ผกก.สภ.เมืองสมุทรสงคราม",
+        "unit": "ภ.จว.สมุทรสงคราม"
+      },
+      {
+        "year": "พ.ศ.2559",
+        "position": "ผกก.สภ.ราชบุรี",
+        "unit": "ภ.จว.ราชบุรี"
+      },
+      {
+        "year": "พ.ศ.2557",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "สภ.เมืองอุบลราชธานี ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2556",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "สภ.เมืองอำนาจเจริญ ภ.จว.อำนาจเจริญ"
+      },
+      {
+        "year": "พ.ศ.2550",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2549",
+        "position": "รอง ผกก.สืบสวน",
+        "unit": "ภ.จว.ยโสธร"
+      },
+      {
+        "year": "พ.ศ.2546",
+        "position": "สว.สส.สภ.เมืองอุบล",
+        "unit": "ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2545",
+        "position": "สว.สส.สภ.เดชอุดม",
+        "unit": "ภ.จว.อุบลราชธานี"
+      },
+      {
+        "year": "พ.ศ.2543",
+        "position": "รอง สว.สส.อ.เมืองอุบลราชธานี",
+        "unit": ""
+      }
+    ],
+    "notes": "Timeline รับราชการ; profile image shows officer portrait and phone number 082-754-8244.",
+    "confidence": 94
+  },
+  "career_intelligence": {
+    "careerYears": 0,
+    "unitCount": 8,
+    "timelineEntryCount": 12,
+    "units": [
+      "ผบก.ตชด.ภาค 1",
+      "บก.สส.ภ.7",
+      "ภ.จว.สมุทรสงคราม",
+      "ภ.จว.ราชบุรี",
+      "สภ.เมืองอุบลราชธานี ภ.จว.อุบลราชธานี",
+      "สภ.เมืองอำนาจเจริญ ภ.จว.อำนาจเจริญ",
+      "ภ.จว.อุบลราชธานี",
+      "ภ.จว.ยโสธร"
+    ]
+  },
+  "validation": {
+    "valid": true,
+    "errors": [],
+    "warnings": [
+      {
+        "field": "timeline[1].unit",
+        "message": "unit is missing"
+      },
+      {
+        "field": "timeline[11].unit",
+        "message": "unit is missing"
+      }
+    ]
+  },
+  "confidence": 94,
+  "processing_metadata": {
+    "image": "officer001.jpg",
+    "processing_time_ms": 5169,
+    "model": "gpt-5.4-mini",
+    "prompt_tokens": 944,
+    "completion_tokens": 295,
+    "estimated_cost_usd": 0.009145,
+    "template": "unknown",
+    "confidence": 94
+  }
+}

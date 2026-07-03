@@ -1,0 +1,36 @@
+{
+  "total_images": 21,
+  "processed": 21,
+  "success": 6,
+  "failed": 0,
+  "skipped": 1,
+  "resume_skipped": 15,
+  "average_confidence": 87.33,
+  "average_processing_time_ms": 5095,
+  "regions": {
+    "ภาค1": {
+      "total": 6,
+      "success": 6,
+      "failed": 0,
+      "skipped": 1
+    },
+    "ภาค2": {
+      "total": 5,
+      "success": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ภาค3": {
+      "total": 5,
+      "success": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ภาค4": {
+      "total": 5,
+      "success": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  }
+}
