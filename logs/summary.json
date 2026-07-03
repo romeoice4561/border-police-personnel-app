@@ -1,12 +1,12 @@
 {
   "total_images": 21,
   "processed": 21,
-  "success": 1,
+  "success": 0,
   "failed": 0,
   "skipped": 0,
-  "resume_skipped": 20,
-  "average_confidence": 94,
-  "average_processing_time_ms": 5087,
+  "resume_skipped": 21,
+  "average_confidence": 0,
+  "average_processing_time_ms": 0,
   "regions": {
     "ภาค1": {
       "total": 6,

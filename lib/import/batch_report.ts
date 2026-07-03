@@ -39,6 +39,9 @@ export interface SkippedImageEntry {
   region: string;
   reason: string;
   timestamp: string;
+  /** Present only when the skip came from the Smart Image Classification Engine (Phase 8.5), not from e.g. an unsupported file extension. */
+  category?: string;
+  confidence?: number;
 }
 
 /**
@@ -96,10 +99,21 @@ export class BatchReportBuilder {
     this.failedEntries.push({ file, region, reason, timestamp: new Date().toISOString() });
   }
 
-  recordSkipped(file: string, region: string, reason: string): void {
+  recordSkipped(
+    file: string,
+    region: string,
+    reason: string,
+    classification?: { category: string; confidence: number }
+  ): void {
     this.skippedCount += 1;
     this.regionFor(region).skipped += 1;
-    this.skippedEntries.push({ file, region, reason, timestamp: new Date().toISOString() });
+    this.skippedEntries.push({
+      file,
+      region,
+      reason,
+      timestamp: new Date().toISOString(),
+      ...(classification ? { category: classification.category, confidence: classification.confidence } : {}),
+    });
   }
 
   recordResumeSkipped(region: string): void {

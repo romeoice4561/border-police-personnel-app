@@ -48,10 +48,15 @@ if (!loadedEnvFile) {
 import { processPersonnelImage } from "@/lib/import/personnel_image_processor";
 import { FilesystemImageSource, type DiscoveredImage, type ImageSource } from "@/lib/import/image_source";
 import { BatchReportBuilder } from "@/lib/import/batch_report";
+import { ImageClassifier } from "@/lib/classifier/image_classifier";
+import { DefaultClassificationStatisticsBuilder } from "@/lib/classifier/classification_statistics";
 
 const IMPORTS_DIR = path.join(process.cwd(), "imports");
 const EXPORTS_DIR = path.join(process.cwd(), "exports");
 const LOGS_DIR = path.join(process.cwd(), "logs");
+
+/** Marks an export as skipped-by-classifier so a resume run never retries it (per Phase 8.5's resume rule) without a future --force flag. */
+const SKIPPED_MARKER_SUFFIX = ".skipped.json";
 
 /**
  * The single seam Phase 9B needs to change: swap this for a
@@ -66,6 +71,12 @@ function createImageSource(): ImageSource {
 function outputPathFor(image: DiscoveredImage): string {
   const baseName = path.basename(image.filename, path.extname(image.filename));
   return path.join(EXPORTS_DIR, image.region, `${baseName}.json`);
+}
+
+/** Marker file recorded when the classifier decides an image should not be sent to OpenAI Vision. */
+function classifierSkipMarkerPathFor(image: DiscoveredImage): string {
+  const baseName = path.basename(image.filename, path.extname(image.filename));
+  return path.join(EXPORTS_DIR, image.region, `${baseName}${SKIPPED_MARKER_SUFFIX}`);
 }
 
 function printHeader(): void {
@@ -120,6 +131,8 @@ async function main() {
   console.log("--------------------------------");
 
   const total = images.length;
+  const classifier = new ImageClassifier();
+  const classificationStats = new DefaultClassificationStatisticsBuilder();
 
   for (let i = 0; i < images.length; i += 1) {
     const image = images[i];
@@ -128,10 +141,48 @@ async function main() {
     console.log(image.filename);
 
     const destination = outputPathFor(image);
+    const classifierSkipMarker = classifierSkipMarkerPathFor(image);
 
+    // Resume support: an image already processed, OR previously skipped by
+    // the classifier, is never retried on a subsequent run (no --force
+    // flag exists yet — see docs/IMAGE_CLASSIFICATION_ENGINE.md).
     if (fs.existsSync(destination)) {
       console.log("Already processed");
       report.recordResumeSkipped(image.region);
+      console.log("--------------------------------");
+      continue;
+    }
+
+    if (fs.existsSync(classifierSkipMarker)) {
+      console.log("Already processed");
+      console.log("(previously skipped by classifier)");
+      report.recordResumeSkipped(image.region);
+      console.log("--------------------------------");
+      continue;
+    }
+
+    // Smart Image Classification Engine runs BEFORE processPersonnelImage
+    // (and therefore before any OpenAI Vision call) so non-personnel
+    // documents never reach the Vision API at all.
+    const classification = await classifier.classify({ source: image.localPath });
+    classificationStats.add(classification);
+
+    if (!classification.shouldProcess) {
+      console.log("SKIPPED (classification)");
+      console.log(`${classification.category} (${classification.confidence}%)`);
+
+      writeJson(classifierSkipMarker, {
+        source_file: image.filename,
+        region: image.region,
+        classification,
+        timestamp: new Date().toISOString(),
+      });
+
+      report.recordSkipped(image.filename, image.region, "classification", {
+        category: classification.category,
+        confidence: classification.confidence,
+      });
+
       console.log("--------------------------------");
       continue;
     }
@@ -144,6 +195,7 @@ async function main() {
         region: image.region,
         processing_timestamp: new Date().toISOString(),
         processing_duration_ms: result.processing_metadata.processing_time_ms,
+        classification,
         ...result,
       };
 
@@ -173,11 +225,15 @@ async function main() {
   writeJson(path.join(LOGS_DIR, "summary.json"), report.buildSummary());
   writeJson(path.join(LOGS_DIR, "failed.json"), report.buildFailedReport());
   writeJson(path.join(LOGS_DIR, "skipped.json"), report.buildSkippedReport());
+  writeJson(path.join(LOGS_DIR, "classification_summary.json"), classificationStats.build());
 
   console.log("");
   console.log(`Summary saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "summary.json"))}`);
   console.log(`Failed report saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "failed.json"))}`);
   console.log(`Skipped report saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "skipped.json"))}`);
+  console.log(
+    `Classification summary saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "classification_summary.json"))}`
+  );
 }
 
 main().catch((error) => {
