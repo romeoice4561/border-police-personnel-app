@@ -26,12 +26,39 @@ const IGNORED_FILENAMES = new Set([".gitkeep", "thumbs.db", "desktop.ini"]);
  * Drive.
  */
 export interface DiscoveredImage {
-  /** Absolute path to the local file. For a future Drive-backed source, this would be a downloaded/cached local copy. */
+  /**
+   * Absolute path to the local file, when the source has the bytes locally
+   * available at discovery time (the filesystem source). A remote source
+   * that downloads lazily (Phase 9C's Google Drive source) leaves this empty
+   * and instead provides the bytes on demand via `ImageSource.openImage()`;
+   * callers that support lazy sources must use `openImage()` rather than
+   * reading `localPath` directly.
+   */
   localPath: string;
   /** Original filename, e.g. "officer001.jpg". */
   filename: string;
-  /** Region identifier, e.g. "ภาค1" — derived from the immediate parent folder in this phase. */
+  /** Region identifier, e.g. "ภาค1" — derived from the immediate parent folder / folder mapping. */
   region: string;
+  /**
+   * Stable provider id for the underlying file, when the source has one
+   * (e.g. a Google Drive file id). Undefined for the filesystem source.
+   * Used by remote sources to fetch bytes in `openImage()`.
+   */
+  sourceId?: string;
+}
+
+/**
+ * A single image whose bytes have been made available on the local
+ * filesystem for processing, plus a `dispose()` that releases any temporary
+ * resource created to do so. For the filesystem source this simply points
+ * at the already-local file and `dispose()` is a no-op; for a lazily
+ * downloading source (Google Drive) `localPath` is a temp file that
+ * `dispose()` deletes.
+ */
+export interface OpenedImage {
+  localPath: string;
+  /** Releases any temporary local copy created by `openImage()`. Idempotent; never throws. */
+  dispose(): Promise<void>;
 }
 
 /** A file encountered during discovery that was not treated as a processable image, and why. */
@@ -54,9 +81,39 @@ export interface DiscoveryResult {
  * to stream tens of thousands of Drive files could extend this without
  * breaking existing callers, since they'd still receive the same
  * DiscoveryResult shape at the end.
+ *
+ * `discoverImages()` and `openImage()` are the Phase 9C additions that let a
+ * source hold its bytes remotely and materialize them one at a time:
+ *   - `discoverImages()` is a thin alias of `discover()` under the name the
+ *     Phase 9C runner uses; both return the same DiscoveryResult, so either
+ *     name works and existing callers of `discover()` are unaffected.
+ *   - `openImage(image)` downloads/prepares exactly the one image's bytes on
+ *     the local filesystem and returns an `OpenedImage` whose `dispose()`
+ *     cleans up any temp copy. Sources that always have local bytes need not
+ *     implement it — the provided default `openImageFrom()` helper simply
+ *     wraps the existing `localPath` with a no-op `dispose()`.
  */
 export interface ImageSource {
   discover(): Promise<DiscoveryResult>;
+  /** Alias of `discover()` for the Phase 9C runner. Optional; defaults to `discover()`. */
+  discoverImages?(): Promise<DiscoveryResult>;
+  /** Materializes one image's bytes locally for processing. Optional; sources with local bytes can rely on `localPath`. */
+  openImage?(image: DiscoveredImage): Promise<OpenedImage>;
+}
+
+/**
+ * Default `openImage` behaviour for sources whose bytes are already local:
+ * hand back the existing `localPath` with a no-op `dispose()`. Extracted as
+ * a shared helper so both `FilesystemImageSource` and the Phase 9C runner's
+ * fallback path use identical semantics rather than re-implementing them.
+ */
+export function openLocalImage(localPath: string): OpenedImage {
+  return {
+    localPath,
+    async dispose() {
+      /* no temp copy was created; nothing to clean up */
+    },
+  };
 }
 
 function isSupportedImageFile(filename: string): boolean {
@@ -83,6 +140,16 @@ function isIgnoredFile(filename: string): boolean {
  */
 export class FilesystemImageSource implements ImageSource {
   constructor(private readonly rootDir: string) {}
+
+  /** Alias of `discover()`; the filesystem source has no separate lazy path. */
+  async discoverImages(): Promise<DiscoveryResult> {
+    return this.discover();
+  }
+
+  /** Filesystem bytes are already local — hand back the existing path with a no-op cleanup. */
+  async openImage(image: DiscoveredImage): Promise<OpenedImage> {
+    return openLocalImage(image.localPath);
+  }
 
   async discover(): Promise<DiscoveryResult> {
     const images: DiscoveredImage[] = [];

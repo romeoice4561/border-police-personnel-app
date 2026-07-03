@@ -171,4 +171,27 @@ export class GoogleDriveClient implements DriveClient {
       translateDriveError(error, "Failed to fetch start page token");
     }
   }
+
+  /**
+   * Downloads one file's raw bytes via `files.get` with `alt: "media"` — a
+   * read-only call, fully within the `drive.readonly` scope. Returns the
+   * bytes as a Buffer; the caller (GoogleDriveImageSource) writes them to a
+   * temp file, processes that one image, then deletes it. No file is ever
+   * created, updated, or deleted on Drive.
+   */
+  async downloadFile(fileId: string): Promise<Buffer> {
+    try {
+      const response = await this.drive.files.get(
+        {
+          fileId,
+          alt: "media",
+          supportsAllDrives: this.supportsSharedDrives,
+        },
+        { responseType: "arraybuffer" }
+      );
+      return Buffer.from(response.data as ArrayBuffer);
+    } catch (error) {
+      translateDriveError(error, `Failed to download file ${fileId}`);
+    }
+  }
 }

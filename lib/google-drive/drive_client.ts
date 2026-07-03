@@ -48,6 +48,16 @@ export interface DriveClient {
    * full-listing comparison.
    */
   getStartPageToken?(): Promise<string>;
+
+  /**
+   * Downloads the raw bytes of a single file (a read-only operation —
+   * Drive API `files.get` with `alt: "media"`). Optional: metadata-only
+   * phases never call it, and the in-memory fake below does not implement
+   * it. Phase 9C's Google Drive image source uses it to fetch exactly one
+   * image at a time into a temp file, then deletes that file after
+   * processing. It never downloads the whole tree.
+   */
+  downloadFile?(fileId: string): Promise<Buffer>;
 }
 
 /**
