@@ -63,6 +63,7 @@ import { ImageClassifier } from "@/lib/classifier/image_classifier";
 import { DefaultClassificationStatisticsBuilder } from "@/lib/classifier/classification_statistics";
 import { FeatureScoreEngine } from "@/lib/classifier/feature_score_engine";
 import { DefaultFeatureScoreStatisticsBuilder } from "@/lib/classifier/feature_score_statistics";
+import { DefaultRepairStatisticsBuilder } from "@/lib/repair/repair_statistics";
 import { TesseractOCREngine } from "@/lib/ocr/tesseract_engine";
 import { CachingOCREngine } from "@/lib/ocr/ocr_engine";
 import { DefaultOCRStatisticsBuilder } from "@/lib/ocr/ocr_statistics";
@@ -207,6 +208,7 @@ async function main() {
     textSampleProvider: new OcrTextSampleProvider({ engine: ocrEngine, language: "mixed" }),
   });
   const classificationStats = new DefaultClassificationStatisticsBuilder();
+  const repairStats = new DefaultRepairStatisticsBuilder();
 
   let failedCount = 0;
   const total = selected.length;
@@ -274,6 +276,7 @@ async function main() {
       }
 
       const result = await processPersonnelImage(opened.localPath);
+      repairStats.add(result.repair_report);
 
       const output = {
         source_file: image.filename,
@@ -334,12 +337,17 @@ async function main() {
   const featureScoreSummary = featureScoreStats.build();
   writeJson(path.join(LOGS_DIR, "feature_score_summary.json"), featureScoreSummary);
 
+  const repairSummary = repairStats.build();
+  writeJson(path.join(LOGS_DIR, "repair_summary.json"), repairSummary);
+
   console.log("Completed");
   console.log(JSON.stringify(driveImportSummary, null, 2));
   console.log("OCR:");
   console.log(JSON.stringify(ocrSummary, null, 2));
   console.log("Feature scoring:");
   console.log(JSON.stringify(featureScoreSummary, null, 2));
+  console.log("Repair:");
+  console.log(JSON.stringify(repairSummary, null, 2));
   console.log(`Summary saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "drive_import_summary.json"))}`);
 }
 

@@ -30,6 +30,8 @@ import { DefaultCareerEngine, type CareerEngine, type CareerIntelligence } from 
 import type { PersonnelExtraction, ValidationResult } from "@/lib/types/vision";
 import { PersonnelNormalizationEngine } from "@/lib/normalize/normalization_engine";
 import type { NormalizationEngine, NormalizedPersonnelExtraction } from "@/lib/normalize/normalization_types";
+import { DefaultRepairEngine } from "@/lib/repair/repair_engine";
+import type { RepairEngine, RepairReport } from "@/lib/repair/repair_types";
 
 export interface ProcessingMetadata {
   image: string;
@@ -44,9 +46,14 @@ export interface ProcessingMetadata {
 
 export interface PersonnelResult {
   original_extraction: PersonnelExtraction;
+  /** The extraction after the Phase 10C Repair Engine (before Normalization). */
+  repaired_extraction: PersonnelExtraction;
   normalized_extraction: NormalizedPersonnelExtraction;
   career_intelligence: CareerIntelligence;
+  /** Validation AFTER repair (the record actually imported). See repair_report for before/after. */
   validation: ValidationResult;
+  /** Phase 10C: what the Repair Engine changed, and validation before vs. after. */
+  repair_report: RepairReport;
   confidence: number;
   processing_metadata: ProcessingMetadata;
 }
@@ -62,6 +69,7 @@ export function loadImageAsDataUri(imagePath: string): string {
 export interface PersonnelImageProcessorDependencies {
   layoutDetector?: LayoutDetectorStage;
   visionProvider?: VisionProvider;
+  repairEngine?: RepairEngine;
   normalizationEngine?: NormalizationEngine;
   careerEngine?: CareerEngine;
   tokenEstimator?: TokenEstimator;
@@ -89,6 +97,7 @@ export async function processPersonnelImage(
   const startedAt = Date.now();
 
   const layoutDetector = dependencies.layoutDetector ?? new TemplateDetector();
+  const repairEngine = dependencies.repairEngine ?? new DefaultRepairEngine();
   const normalizationEngine = dependencies.normalizationEngine ?? new PersonnelNormalizationEngine();
   const careerEngine = dependencies.careerEngine ?? new DefaultCareerEngine();
   const tokenEstimator = dependencies.tokenEstimator ?? new HeuristicTokenEstimator();
@@ -101,13 +110,28 @@ export async function processPersonnelImage(
   const provider = dependencies.visionProvider ?? createOpenAIVisionProviderFromEnv();
   const prompt = buildVisionPrompt();
 
-  const { data: originalExtraction, validation } = await extractPersonnelFromImage(dataUri, provider);
+  const { data: originalExtraction, validation: beforeValidation } = await extractPersonnelFromImage(
+    dataUri,
+    provider
+  );
 
-  // Phase 7.5: Validation -> Normalization Engine -> Career Engine.
-  // Replaces the earlier identity-only normalizer with real field
-  // normalization (Thai numerals, whitespace/dash/punctuation, phone
-  // format, year/timeline ordering and dedup — see lib/normalize/).
-  const normalizedExtraction = normalizationEngine.normalize(originalExtraction);
+  // Phase 10C: OpenAI -> Repair Engine -> Validation -> Normalization ->
+  // Career Engine. The Repair Engine cleans the model's own output (Thai
+  // numerals, phone/year reformatting, blank→null, empty/duplicate timeline
+  // removal, reordering) and RE-VALIDATES with the existing, unmodified
+  // validator — it never invents data. `validation` below is the
+  // after-repair result (the record actually imported); before/after live in
+  // the repair report.
+  const { repaired: repairedExtraction, report: repairReport } = repairEngine.repair(
+    originalExtraction,
+    beforeValidation
+  );
+  const validation = repairReport.afterValidation;
+
+  // Phase 7.5: Normalization Engine -> Career Engine, now over the repaired
+  // extraction. Normalization is unchanged (Thai numerals, whitespace/dash/
+  // punctuation, phone format, year/timeline ordering and dedup — lib/normalize/).
+  const normalizedExtraction = normalizationEngine.normalize(repairedExtraction);
 
   const careerIntelligence = careerEngine.analyze(normalizedExtraction);
 
@@ -118,9 +142,11 @@ export async function processPersonnelImage(
 
   return {
     original_extraction: originalExtraction,
+    repaired_extraction: repairedExtraction,
     normalized_extraction: normalizedExtraction,
     career_intelligence: careerIntelligence,
     validation,
+    repair_report: repairReport,
     confidence: normalizedExtraction.confidence,
     processing_metadata: {
       image: path.basename(imagePath),
