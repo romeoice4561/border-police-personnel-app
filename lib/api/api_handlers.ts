@@ -1,0 +1,169 @@
+/**
+ * Shared API handler logic (Phase 13).
+ *
+ * The framework-agnostic core of each endpoint: functions that take an
+ * ApiContainer + already-parsed inputs (or raw URLSearchParams) and return a
+ * Web Response. Route handlers under app/api/ are thin adapters that build the
+ * container and delegate here. Keeping the logic here (not in route.ts) makes
+ * every endpoint unit-testable with a fake container and no running server.
+ *
+ * Zod validation and the consistent error envelope live here; database access
+ * goes exclusively through the injected query repositories (no SQL).
+ */
+
+import { z } from "zod";
+import type { ApiContainer } from "@/lib/api/api_container";
+import { badRequest, internalError, jsonOk, notFound, serviceUnavailable } from "@/lib/api/api_response";
+import { DatabaseConfigError } from "@/lib/database/database";
+import {
+  officerIdParamSchema,
+  officerListQuerySchema,
+  officerSearchQuerySchema,
+  searchParamsToObject,
+} from "@/lib/api/api_schemas";
+
+/** Package version for /health, read from package.json without hardcoding. */
+async function appVersion(): Promise<string> {
+  try {
+    const pkg = (await import("@/package.json")) as { version?: string };
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/** Formats a Zod error into the response `details` shape. */
+function zodDetails(error: z.ZodError): unknown {
+  return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
+}
+
+/**
+ * A container source: either an already-built ApiContainer, or a factory to
+ * build one. Route handlers pass the (async, DB-touching) factory so that
+ * request VALIDATION runs BEFORE any database client is created — an invalid
+ * request returns 400 without ever touching (or requiring) the database.
+ */
+export type ContainerSource = ApiContainer | (() => Promise<ApiContainer>);
+
+async function resolveContainer(source: ContainerSource): Promise<ApiContainer> {
+  return typeof source === "function" ? source() : source;
+}
+
+/** GET /api/officers — paginated/filtered/sorted list. */
+export async function handleOfficerList(source: ContainerSource, params: URLSearchParams): Promise<Response> {
+  const parsed = officerListQuerySchema.safeParse(searchParamsToObject(params));
+  if (!parsed.success) return badRequest("Invalid query parameters", zodDetails(parsed.error));
+
+  const container = await resolveContainer(source);
+  const result = await container.officers.list(parsed.data);
+
+  return jsonOk(result.data, {
+    page: result.page,
+    pageSize: result.pageSize,
+    total: result.total,
+    totalPages: result.totalPages,
+  });
+}
+
+/** GET /api/search — multi-field search with match modes. */
+export async function handleOfficerSearch(source: ContainerSource, params: URLSearchParams): Promise<Response> {
+  const parsed = officerSearchQuerySchema.safeParse(searchParamsToObject(params));
+  if (!parsed.success) return badRequest("Invalid search parameters", zodDetails(parsed.error));
+
+  const container = await resolveContainer(source);
+  const result = await container.officers.search(parsed.data);
+
+  return jsonOk(result.data, {
+    page: result.page,
+    pageSize: result.pageSize,
+    total: result.total,
+    totalPages: result.totalPages,
+    match: parsed.data.match,
+  });
+}
+
+/** GET /api/officers/{id} — full profile with timeline + quality/knowledge scores. */
+export async function handleOfficerById(source: ContainerSource, rawId: string): Promise<Response> {
+  const parsed = officerIdParamSchema.safeParse({ id: rawId });
+  if (!parsed.success) return badRequest("Invalid officer id", zodDetails(parsed.error));
+
+  const container = await resolveContainer(source);
+  const officer = await container.officers.findByOfficerId(parsed.data.id);
+  if (!officer) return notFound(`Officer '${parsed.data.id}' not found`);
+
+  return jsonOk({
+    officer: {
+      id: officer.officerId,
+      rank: officer.rank,
+      firstName: officer.firstName,
+      lastName: officer.lastName,
+      currentPosition: officer.currentPosition,
+      currentUnit: officer.currentUnit,
+      phone: officer.phone,
+      careerYears: officer.careerYears,
+      region: officer.region,
+      confidence: officer.confidence,
+    },
+    timeline: officer.timeline
+      .slice()
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((t) => ({ sequence: t.sequence, year: t.year, yearValue: t.yearValue, position: t.position, unit: t.unit })),
+    phones: officer.phones.map((p) => p.number),
+    quality: { qualityScore: officer.qualityScore, knowledgeScore: officer.knowledgeScore },
+  });
+}
+
+/** GET /api/units — unit list with officer counts. */
+export async function handleUnits(container: ApiContainer): Promise<Response> {
+  const units = await container.units.listWithCounts();
+  return jsonOk(units, { total: units.length });
+}
+
+/** GET /api/ranks — rank list with officer counts. */
+export async function handleRanks(container: ApiContainer): Promise<Response> {
+  const ranks = await container.ranks.listWithCounts();
+  return jsonOk(ranks, { total: ranks.length });
+}
+
+/** GET /api/statistics — aggregate metrics. */
+export async function handleStatistics(container: ApiContainer): Promise<Response> {
+  const stats = await container.statistics.compute();
+  return jsonOk(stats);
+}
+
+/** GET /api/health — liveness + database reachability. */
+export async function handleHealth(container: ApiContainer): Promise<Response> {
+  const version = await appVersion();
+  const timestamp = new Date().toISOString();
+
+  try {
+    await container.statistics.ping();
+    return jsonOk({ status: "ok", database: "connected", version, timestamp });
+  } catch {
+    // Health is a 503 when the DB is unreachable, but still returns the
+    // structured body so probes can read the status.
+    return serviceUnavailable("Database unavailable");
+  }
+}
+
+/**
+ * Wraps a handler so failures become consistent responses (internal details
+ * never leaked): a database configuration/connectivity failure is a 503
+ * (the service can't reach its dependency), anything else a 500.
+ */
+export async function guarded(run: () => Promise<Response>): Promise<Response> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof DatabaseConfigError || isConnectionError(error)) {
+      return serviceUnavailable("Database unavailable");
+    }
+    return internalError();
+  }
+}
+
+/** Heuristic for a DB connection failure (pg/Prisma) so it maps to 503, not 500. */
+function isConnectionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|connect|connection|Can't reach database/i.test(message);
+}
