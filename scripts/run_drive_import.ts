@@ -61,6 +61,8 @@ import type { ImageSource } from "@/lib/import/image_source";
 import { BatchReportBuilder } from "@/lib/import/batch_report";
 import { ImageClassifier } from "@/lib/classifier/image_classifier";
 import { DefaultClassificationStatisticsBuilder } from "@/lib/classifier/classification_statistics";
+import { FeatureScoreEngine } from "@/lib/classifier/feature_score_engine";
+import { DefaultFeatureScoreStatisticsBuilder } from "@/lib/classifier/feature_score_statistics";
 import { TesseractOCREngine } from "@/lib/ocr/tesseract_engine";
 import { CachingOCREngine } from "@/lib/ocr/ocr_engine";
 import { DefaultOCRStatisticsBuilder } from "@/lib/ocr/ocr_statistics";
@@ -194,7 +196,14 @@ async function main() {
     baseEngine: tesseractEngine,
     onResolved: (result, ocrSource) => ocrStats.add(result, ocrSource),
   });
+  // Phase 10B: the weighted-feature-scoring engine is the classifier's
+  // decision engine. Its onScored observer feeds a feature-score statistics
+  // builder (top matched features, average confidence, distribution, UNKNOWN
+  // rate) without re-scoring.
+  const featureScoreStats = new DefaultFeatureScoreStatisticsBuilder();
+  const scoreEngine = new FeatureScoreEngine({ onScored: (score) => featureScoreStats.add(score) });
   const classifier = new ImageClassifier({
+    engine: scoreEngine,
     textSampleProvider: new OcrTextSampleProvider({ engine: ocrEngine, language: "mixed" }),
   });
   const classificationStats = new DefaultClassificationStatisticsBuilder();
@@ -322,10 +331,15 @@ async function main() {
   writeJson(path.join(LOGS_DIR, "drive_import_classification.json"), classificationStats.build());
   writeJson(path.join(LOGS_DIR, "ocr_summary.json"), ocrSummary);
 
+  const featureScoreSummary = featureScoreStats.build();
+  writeJson(path.join(LOGS_DIR, "feature_score_summary.json"), featureScoreSummary);
+
   console.log("Completed");
   console.log(JSON.stringify(driveImportSummary, null, 2));
   console.log("OCR:");
   console.log(JSON.stringify(ocrSummary, null, 2));
+  console.log("Feature scoring:");
+  console.log(JSON.stringify(featureScoreSummary, null, 2));
   console.log(`Summary saved to ${path.relative(process.cwd(), path.join(LOGS_DIR, "drive_import_summary.json"))}`);
 }
 

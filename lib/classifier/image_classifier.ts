@@ -15,7 +15,7 @@
 import type { ImageInput } from "@/lib/layout/layout_types";
 import { TemplateDetector } from "@/lib/layout/template_detector";
 import { extractLayoutFeatures, StubFeatureExtractor, type FeatureExtractor } from "@/lib/layout/layout_features";
-import { ClassificationEngine } from "@/lib/classifier/classification_engine";
+import { FeatureScoreEngine } from "@/lib/classifier/feature_score_engine";
 import type {
   ClassificationSignals,
   ImageClassificationEngine,
@@ -71,7 +71,10 @@ export class ImageClassifier {
     this.layoutDetector = dependencies.layoutDetector ?? new TemplateDetector();
     this.featureExtractor = dependencies.featureExtractor ?? new StubFeatureExtractor();
     this.textSampleProvider = dependencies.textSampleProvider ?? new NullTextSampleProvider();
-    this.engine = dependencies.engine ?? new ClassificationEngine();
+    // Phase 10B: the weighted-feature-scoring engine replaces the Phase 8.5
+    // first-match keyword engine as the default decision engine. Still behind
+    // the same ImageClassificationEngine seam, so any engine can be injected.
+    this.engine = dependencies.engine ?? new FeatureScoreEngine();
   }
 
   async classify(image: ImageInput): Promise<ImageClassificationResult> {

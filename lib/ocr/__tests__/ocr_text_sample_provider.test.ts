@@ -61,15 +61,32 @@ test("uses the configured language (defaults to mixed)", async () => {
   assert.equal(thaiEngine.lastOptions?.language, "tha");
 });
 
-test("Thai OCR text 'Timeline รับราชการ' classifies the image as PERSONNEL_PROFILE (would reach OpenAI)", async () => {
+test("Thai OCR text of an officer card classifies as PERSONNEL_PROFILE (would reach OpenAI)", async () => {
+  // Phase 10B: the weighted-scoring engine decides on real domain signals
+  // (rank + border-patrol unit + phone), not a single literal keyword.
   const classifier = new ImageClassifier({
-    textSampleProvider: new OcrTextSampleProvider({ engine: new FakeTextEngine("... Timeline รับราชการ ...") }),
+    textSampleProvider: new OcrTextSampleProvider({
+      engine: new FakeTextEngine("พ.ต.ท. ศักดิ์ รอง ผกก. ตชด.447 081-5407336"),
+    }),
   });
 
   const result = await classifier.classify({ source: "profile.png" });
 
   assert.equal(result.category, "PERSONNEL_PROFILE");
   assert.equal(result.shouldProcess, true);
+});
+
+test("Thai OCR text 'Timeline รับราชการ' classifies as TIMELINE under the Phase 10B scoring engine", async () => {
+  const classifier = new ImageClassifier({
+    textSampleProvider: new OcrTextSampleProvider({ engine: new FakeTextEngine("... Timeline รับราชการ ...") }),
+  });
+
+  const result = await classifier.classify({ source: "timeline.png" });
+
+  // A bare career-timeline heading is a TIMELINE page, not an individual's
+  // profile card — and correctly not sent to OpenAI.
+  assert.equal(result.category, "TIMELINE");
+  assert.equal(result.shouldProcess, false);
 });
 
 test("Thai OCR text 'สารบัญ' classifies the image as INDEX_PAGE (would be skipped, no OpenAI)", async () => {
