@@ -1,0 +1,17 @@
+{
+  "total_officers": 21,
+  "excellent": 14,
+  "good": 5,
+  "fair": 1,
+  "poor": 1,
+  "average_quality": 89.95,
+  "missing_rank": 4,
+  "missing_name": 3,
+  "missing_position": 1,
+  "missing_unit": 1,
+  "missing_phone": 1,
+  "missing_timeline": 0,
+  "duplicate_records": 0,
+  "duplicate_phone": 0,
+  "duplicate_names": 0
+}
