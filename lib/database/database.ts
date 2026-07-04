@@ -1,16 +1,12 @@
 /**
  * Database client factory (Phase 12).
  *
- * Builds a PrismaClient wired to PostgreSQL via the pg driver adapter
- * (Prisma 7 requires a driver adapter at runtime — the connection URL is no
- * longer read from schema.prisma). The client is CONSTRUCTED and RETURNED,
- * never stored in a module-level singleton, so callers own its lifecycle and
- * tests can inject their own client. No globals.
- *
- * The connection URL is read from the environment only (DATABASE_URL) — never
- * hardcoded. This module has no business logic; repositories hold all data
- * access, and nothing here touches OpenAI/OCR/Google Drive.
+ * Builds a PrismaClient wired to PostgreSQL via the pg driver adapter.
+ * Runtime prefers DIRECT_URL (direct connection), then falls back to
+ * DATABASE_URL if DIRECT_URL is unavailable.
  */
+
+import "dotenv/config";
 
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -23,24 +19,32 @@ export class DatabaseConfigError extends Error {
 }
 
 export interface CreateDatabaseClientOptions {
-  /** Postgres connection string. Defaults to process.env.DATABASE_URL. */
+  /** Postgres connection string. Defaults to DIRECT_URL, then DATABASE_URL. */
   connectionString?: string;
 }
 
 /**
- * Creates a PrismaClient backed by the pg adapter. Throws a
- * DatabaseConfigError (never silently connects to nothing) when no connection
- * string is available.
+ * Creates a PrismaClient backed by the pg adapter.
  */
-export function createDatabaseClient(options: CreateDatabaseClientOptions = {}): PrismaClient {
-  const connectionString = options.connectionString ?? process.env.DATABASE_URL;
+export function createDatabaseClient(
+  options: CreateDatabaseClientOptions = {}
+): PrismaClient {
+  const connectionString =
+    options.connectionString ??
+    process.env.DIRECT_URL ??
+    process.env.DATABASE_URL;
 
   if (!connectionString) {
     throw new DatabaseConfigError(
-      "No database connection string configured. Set DATABASE_URL in .env.local (a PostgreSQL/Supabase URL)."
+      "No database connection string configured. Set DIRECT_URL or DATABASE_URL in .env.local."
     );
   }
 
-  const adapter = new PrismaPg({ connectionString });
-  return new PrismaClient({ adapter });
+  const adapter = new PrismaPg({
+    connectionString,
+  });
+
+  return new PrismaClient({
+    adapter,
+  });
 }
