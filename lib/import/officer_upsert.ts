@@ -15,6 +15,7 @@ import type { DatabaseClient, Officer } from "@/lib/database/database_types";
 import { OfficerRepository, type OfficerInput } from "@/lib/database/repositories/officer_repository";
 import { DatabaseError, type ResolvedImportInput } from "@/lib/import/types";
 import { canonicalExtraction } from "@/lib/import/validation";
+import { buildOfficerPhoto } from "@/lib/google-drive/drive_photo_url";
 
 function nonEmpty(value: string | null | undefined): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -60,6 +61,16 @@ export function toOfficerInput(input: ResolvedImportInput): OfficerInput {
 
   const confidence = intOrNull(input.file.confidence ?? extraction.confidence);
 
+  // Phase 17B: preserve the Drive photo identity from the export metadata that
+  // already exists (the Drive file id + any captured links). No Drive API call,
+  // no re-download — deterministic URLs from the id. Null when the export has
+  // no Drive reference (e.g. a filesystem import), so the UI shows a placeholder.
+  const photo = buildOfficerPhoto({
+    driveFileId: input.file.source_id ?? null,
+    thumbnailLink: input.file.thumbnail_link ?? null,
+    webViewLink: input.file.web_view_link ?? null,
+  });
+
   return {
     officerId: input.officerId,
     rank: (extraction.rank ?? "").trim(),
@@ -75,6 +86,9 @@ export function toOfficerInput(input: ResolvedImportInput): OfficerInput {
     knowledgeScore: confidence,
     region: nonEmpty(input.region),
     confidence,
+    driveFileId: photo.driveFileId,
+    thumbnailUrl: photo.thumbnailUrl,
+    webViewUrl: photo.webViewUrl,
   };
 }
 

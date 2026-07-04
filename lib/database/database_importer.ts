@@ -74,6 +74,12 @@ function toOfficerInput(item: ImportableOfficer): OfficerInput {
     knowledgeScore: Number.isFinite(officer.confidence) ? Math.round(officer.confidence) : null,
     region: nonEmpty(officer.identity.region),
     confidence: Number.isFinite(officer.confidence) ? Math.round(officer.confidence) : null,
+    // The knowledge-layer importer has no Drive photo identity (it consumes the
+    // KnowledgeOfficer model, not the raw export). Left null; the JsonImporter
+    // (Phase 17B) is the path that preserves Drive photos.
+    driveFileId: null,
+    thumbnailUrl: null,
+    webViewUrl: null,
   };
 }
 

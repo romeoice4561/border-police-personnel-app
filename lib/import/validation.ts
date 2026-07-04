@@ -72,10 +72,17 @@ export function validateExportFile(value: unknown): asserts value is PersonnelEx
 /**
  * Validates and resolves an export file into a ResolvedImportInput, deriving
  * the deterministic officerId. Precedence for the id:
- *   1. an explicit `source_id` on the file, else
- *   2. `${region}/${basename(source_file)}` (the batch runner's convention).
- * If neither yields a stable id, raises ImageReferenceError (the record can't
- * be safely upserted without a key — never guessed).
+ *   1. `${region}/${basename(source_file)}` — the stable, source-independent
+ *      key (the batch runner's convention), so a record keeps the SAME id
+ *      whether it came from the filesystem or the Drive importer;
+ *   2. `basename(source_file)` when there is no region;
+ *   3. `source_id` only as a last resort, when there is no source_file at all.
+ * If none yields a stable id, raises ImageReferenceError (never guessed).
+ *
+ * NOTE (Phase 17B): `source_id` is the Google Drive FILE id and is now the
+ * officer's PHOTO identity (see officer_upsert). It must NOT be the officerId
+ * key when a region/source_file exists — otherwise Drive and filesystem
+ * imports of the same officer would key differently and break idempotency.
  */
 export function resolveImportInput(value: unknown): ResolvedImportInput {
   validateExportFile(value);
@@ -88,12 +95,12 @@ export function resolveImportInput(value: unknown): ResolvedImportInput {
       : file.processing_metadata?.image ?? "";
 
   let officerId: string | null = null;
-  if (typeof file.source_id === "string" && file.source_id.trim().length > 0) {
-    officerId = file.source_id.trim();
-  } else if (region && sourceFile) {
+  if (region && sourceFile) {
     officerId = `${region}/${baseName(sourceFile)}`;
   } else if (sourceFile) {
     officerId = baseName(sourceFile);
+  } else if (typeof file.source_id === "string" && file.source_id.trim().length > 0) {
+    officerId = file.source_id.trim();
   }
 
   if (!officerId) {

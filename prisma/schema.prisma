@@ -44,6 +44,12 @@ model Officer {
   knowledgeScore   Int?
   region           String?
   confidence       Int?
+  // Phase 17B: Google Drive photo identity, preserved from the Drive import
+  // metadata (no re-scan, no re-download). All nullable — an officer imported
+  // from a non-Drive source (or before this phase) simply has no photo.
+  driveFileId      String?
+  thumbnailUrl     String?
+  webViewUrl       String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 

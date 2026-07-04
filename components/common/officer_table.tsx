@@ -11,6 +11,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { OfficerSummary } from "@/lib/ui/api_client";
 import { QualityBadge } from "@/components/common/quality_badge";
 import { OfficerCard } from "@/components/common/officer_card";
+import { OfficerPhoto } from "@/components/officer/officer_photo";
 import { cn } from "@/lib/ui/cn";
 
 export interface OfficerTableSort {
@@ -80,9 +81,16 @@ export function OfficerTable({ officers, sort }: { officers: OfficerSummary[]; s
               <tr key={o.officerId} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
                 <td className="px-4 py-3 text-muted">{o.rank || "—"}</td>
                 <td className="px-4 py-3 font-medium">
-                  <Link href={`/officers/${encodeURIComponent(o.officerId)}`} className="text-accent hover:underline">
-                    {[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
-                  </Link>
+                  <span className="flex items-center gap-2.5">
+                    <OfficerPhoto
+                      thumbnailUrl={o.thumbnailUrl}
+                      name={[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
+                      size={32}
+                    />
+                    <Link href={`/officers/${encodeURIComponent(o.officerId)}`} className="text-accent hover:underline">
+                      {[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
+                    </Link>
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-muted">{o.currentPosition || "—"}</td>
                 <td className="px-4 py-3 text-muted">{o.currentUnit || "—"}</td>

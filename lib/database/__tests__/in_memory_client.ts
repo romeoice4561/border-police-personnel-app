@@ -216,6 +216,10 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     };
   }
 
+  officerRows() {
+    return this.officers.rows.map((r) => ({ ...r }));
+  }
+
   timelineRows() {
     return this.timelines.rows.map((r) => ({ ...r }));
   }

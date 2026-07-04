@@ -24,8 +24,16 @@ export interface PersonnelExportFile extends PersonnelResult {
   source_file?: string;
   /** Region folder the image came from, e.g. "ภาค1". */
   region?: string;
-  /** Deterministic officer id, when the file already carries one. */
+  /**
+   * The Google Drive file id of the image that produced this record, when the
+   * export came from a Drive import. This is the photo identity Phase 17B
+   * preserves — reused as-is, never re-fetched. Absent for filesystem imports.
+   */
   source_id?: string;
+  /** Captured provider thumbnail link, when the Drive metadata carried one. */
+  thumbnail_link?: string;
+  /** Captured provider web-view link, when the Drive metadata carried one. */
+  web_view_link?: string;
   processing_timestamp?: string;
 }
 

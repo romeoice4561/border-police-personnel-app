@@ -17,6 +17,7 @@ import { Pagination } from "@/components/common/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { QualityBadge } from "@/components/common/quality_badge";
+import { OfficerPhoto } from "@/components/officer/officer_photo";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 
 const PAGE_SIZE = 20;
@@ -64,19 +65,22 @@ export default function ReviewPage() {
             return (
               <Card key={officer.officerId}>
                 <CardBody className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/officers/${encodeURIComponent(officer.officerId)}`}
-                        className="truncate font-medium text-accent hover:underline"
-                      >
-                        {name}
-                      </Link>
-                      <QualityBadge score={officer.qualityScore} />
+                  <div className="flex min-w-0 items-center gap-3">
+                    <OfficerPhoto thumbnailUrl={officer.thumbnailUrl} name={name} size={40} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/officers/${encodeURIComponent(officer.officerId)}`}
+                          className="truncate font-medium text-accent hover:underline"
+                        >
+                          {name}
+                        </Link>
+                        <QualityBadge score={officer.qualityScore} />
+                      </div>
+                      <p className="mt-0.5 truncate text-sm text-muted">
+                        {officer.rank || "—"} · {officer.currentUnit || "—"} · {bandForScore(officer.qualityScore).band}
+                      </p>
                     </div>
-                    <p className="mt-0.5 truncate text-sm text-muted">
-                      {officer.rank || "—"} · {officer.currentUnit || "—"} · {bandForScore(officer.qualityScore).band}
-                    </p>
                   </div>
                   <ul className="flex flex-wrap gap-1.5">
                     {flags.map((flag) => (

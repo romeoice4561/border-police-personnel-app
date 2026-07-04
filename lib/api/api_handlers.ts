@@ -105,6 +105,12 @@ export async function handleOfficerById(source: ContainerSource, rawId: string):
       region: officer.region,
       confidence: officer.confidence,
     },
+    // Phase 17B: Drive photo identity (nullable — UI falls back to placeholder).
+    photo: {
+      driveFileId: officer.driveFileId,
+      thumbnailUrl: officer.thumbnailUrl,
+      webViewUrl: officer.webViewUrl,
+    },
     timeline: officer.timeline
       .slice()
       .sort((a, b) => a.sequence - b.sequence)

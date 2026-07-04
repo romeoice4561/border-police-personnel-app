@@ -9,6 +9,7 @@ import { Phone, Building2, CalendarClock } from "lucide-react";
 import type { OfficerSummary } from "@/lib/ui/api_client";
 import { Card, CardBody } from "@/components/ui/card";
 import { QualityBadge } from "@/components/common/quality_badge";
+import { OfficerPhoto } from "@/components/officer/officer_photo";
 
 export function OfficerCard({ officer }: { officer: OfficerSummary }) {
   const name = [officer.firstName, officer.lastName].filter(Boolean).join(" ") || officer.officerId;
@@ -18,9 +19,12 @@ export function OfficerCard({ officer }: { officer: OfficerSummary }) {
       <Card className="transition-colors hover:border-accent">
         <CardBody className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-xs text-muted">{officer.rank || "—"}</p>
-              <p className="font-semibold text-foreground">{name}</p>
+            <div className="flex items-center gap-3">
+              <OfficerPhoto thumbnailUrl={officer.thumbnailUrl} name={name} size={40} />
+              <div>
+                <p className="text-xs text-muted">{officer.rank || "—"}</p>
+                <p className="font-semibold text-foreground">{name}</p>
+              </div>
             </div>
             <QualityBadge score={officer.qualityScore} />
           </div>

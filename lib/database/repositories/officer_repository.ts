@@ -26,6 +26,10 @@ export interface OfficerInput {
   knowledgeScore: number | null;
   region: string | null;
   confidence: number | null;
+  /** Phase 17B: Google Drive photo identity (nullable). */
+  driveFileId: string | null;
+  thumbnailUrl: string | null;
+  webViewUrl: string | null;
 }
 
 export class OfficerRepository {
@@ -58,6 +62,11 @@ export class OfficerRepository {
         knowledgeScore: input.knowledgeScore,
         region: input.region,
         confidence: input.confidence,
+        // Phase 17B: persist the Drive photo identity on update too, so
+        // re-importing a Drive-sourced record backfills photos on existing rows.
+        driveFileId: input.driveFileId,
+        thumbnailUrl: input.thumbnailUrl,
+        webViewUrl: input.webViewUrl,
       },
     });
 

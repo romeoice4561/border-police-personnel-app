@@ -32,6 +32,9 @@ function officerInput(ov: Partial<OfficerInput> = {}): OfficerInput {
     knowledgeScore: 80,
     region: "ภาค1",
     confidence: 80,
+    driveFileId: null,
+    thumbnailUrl: null,
+    webViewUrl: null,
     ...ov,
   };
 }

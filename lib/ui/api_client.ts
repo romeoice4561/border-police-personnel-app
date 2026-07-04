@@ -25,6 +25,17 @@ export interface OfficerSummary {
   knowledgeScore: number | null;
   region: string | null;
   confidence: number | null;
+  /** Phase 17B: Drive photo identity (nullable). Present on list/search rows. */
+  driveFileId?: string | null;
+  thumbnailUrl?: string | null;
+  webViewUrl?: string | null;
+}
+
+/** Drive photo identity, as returned by the officer detail endpoint. */
+export interface OfficerPhoto {
+  driveFileId: string | null;
+  thumbnailUrl: string | null;
+  webViewUrl: string | null;
 }
 
 export interface TimelineEntry {
@@ -49,6 +60,7 @@ export interface OfficerProfile {
     region: string | null;
     confidence: number | null;
   };
+  photo: OfficerPhoto;
   timeline: TimelineEntry[];
   phones: string[];
   quality: { qualityScore: number | null; knowledgeScore: number | null };
