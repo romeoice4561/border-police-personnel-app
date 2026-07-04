@@ -13,8 +13,9 @@
 
 import { z } from "zod";
 import type { ApiContainer } from "@/lib/api/api_container";
-import { badRequest, internalError, jsonOk, notFound, serviceUnavailable } from "@/lib/api/api_response";
+import { badRequest, internalError, jsonError, jsonOk, notFound, serviceUnavailable } from "@/lib/api/api_response";
 import { DatabaseConfigError } from "@/lib/database/database";
+import { resolveEnvironment } from "@/lib/config/env_validation";
 import {
   officerIdParamSchema,
   officerListQuerySchema,
@@ -135,14 +136,23 @@ export async function handleStatistics(container: ApiContainer): Promise<Respons
 export async function handleHealth(container: ApiContainer): Promise<Response> {
   const version = await appVersion();
   const timestamp = new Date().toISOString();
+  const environment = resolveEnvironment();
+  // Process uptime in whole seconds — how long this server instance has run.
+  const uptime = Math.round(typeof process !== "undefined" ? process.uptime() : 0);
 
   try {
     await container.statistics.ping();
-    return jsonOk({ status: "ok", database: "connected", version, timestamp });
+    return jsonOk({ status: "ok", database: "connected", version, uptime, environment, timestamp });
   } catch {
-    // Health is a 503 when the DB is unreachable, but still returns the
-    // structured body so probes can read the status.
-    return serviceUnavailable("Database unavailable");
+    // Degraded (not down): the server is up but its database dependency is
+    // unreachable. Still 503 so probes fail, but the body carries the full
+    // status shape (status/database/version/uptime/environment/timestamp).
+    return jsonError(
+      "SERVICE_UNAVAILABLE",
+      "Database unavailable",
+      503,
+      { status: "degraded", database: "disconnected", version, uptime, environment, timestamp }
+    );
   }
 }
 

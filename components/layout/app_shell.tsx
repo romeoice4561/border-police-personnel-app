@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
+import { EnvironmentBadge } from "@/components/layout/environment_badge";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -61,6 +62,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex flex-col gap-1 px-3">
           <NavLinks pathname={pathname} />
         </nav>
+        <div className="mt-auto px-5 py-4">
+          <EnvironmentBadge />
+        </div>
       </aside>
 
       {/* Top bar (mobile/tablet) */}
@@ -68,6 +72,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2 px-4 py-3">
           <ShieldCheck className="h-5 w-5 text-accent" aria-hidden="true" />
           <span className="text-sm font-semibold">Border Patrol Personnel</span>
+          <span className="ml-auto">
+            <EnvironmentBadge />
+          </span>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
           <NavLinks pathname={pathname} />

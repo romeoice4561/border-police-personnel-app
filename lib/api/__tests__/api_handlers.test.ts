@@ -119,20 +119,29 @@ test("GET /ranks returns ranks with officer counts", async () => {
   assert.equal(rt?.officerCount, 2);
 });
 
-test("GET /health reports ok + connected when the database responds", async () => {
+test("GET /health reports ok + connected with the full status shape when the database responds", async () => {
   const res = await handleHealth(container());
   assert.equal(res.status, 200);
-  const data = (await body(res)).data as Record<string, string>;
+  const data = (await body(res)).data as Record<string, unknown>;
   assert.equal(data.status, "ok");
   assert.equal(data.database, "connected");
   assert.ok(data.timestamp);
+  // Phase 16A: version, uptime, environment are part of the body.
+  assert.ok(typeof data.version === "string");
+  assert.ok(typeof data.uptime === "number");
+  assert.ok(typeof data.environment === "string");
 });
 
-test("GET /health reports 503 when the database ping throws", async () => {
+test("GET /health reports 503 degraded (with full shape) when the database ping throws", async () => {
   const brokenContainer = container();
   brokenContainer.statistics.ping = async () => {
     throw new Error("db down");
   };
   const res = await handleHealth(brokenContainer);
   assert.equal(res.status, 503);
+  const details = ((await body(res)).error as { details?: Record<string, unknown> }).details ?? {};
+  assert.equal(details.status, "degraded");
+  assert.equal(details.database, "disconnected");
+  assert.ok(typeof details.uptime === "number");
+  assert.ok(typeof details.environment === "string");
 });
