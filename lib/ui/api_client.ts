@@ -1,0 +1,210 @@
+/**
+ * Dashboard API client (Phase 14).
+ *
+ * The single layer through which the UI talks to the Phase 13 REST API. It
+ * only CONSUMES the existing endpoints (no business logic is reimplemented
+ * here) and unwraps their `{ data, meta }` / `{ error }` envelopes into typed
+ * results, throwing a typed ApiClientError on failure so React Query hooks and
+ * ErrorState can render friendly messages + retry.
+ *
+ * Pure fetch wrappers over the browser Fetch API — usable in client
+ * components. No React, no globals.
+ */
+
+/** Officer summary row (list/search). Mirrors the API's Officer projection. */
+export interface OfficerSummary {
+  officerId: string;
+  rank: string;
+  firstName: string;
+  lastName: string;
+  currentPosition: string | null;
+  currentUnit: string | null;
+  phone: string | null;
+  careerYears: number;
+  qualityScore: number | null;
+  knowledgeScore: number | null;
+  region: string | null;
+  confidence: number | null;
+}
+
+export interface TimelineEntry {
+  sequence: number;
+  year: string;
+  yearValue: number | null;
+  position: string;
+  unit: string | null;
+}
+
+/** Full officer profile (GET /officers/{id}). */
+export interface OfficerProfile {
+  officer: {
+    id: string;
+    rank: string;
+    firstName: string;
+    lastName: string;
+    currentPosition: string | null;
+    currentUnit: string | null;
+    phone: string | null;
+    careerYears: number;
+    region: string | null;
+    confidence: number | null;
+  };
+  timeline: TimelineEntry[];
+  phones: string[];
+  quality: { qualityScore: number | null; knowledgeScore: number | null };
+}
+
+export interface PageMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  match?: string;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  meta: PageMeta;
+}
+
+export interface UnitCount {
+  unit: string;
+  officerCount: number;
+}
+export interface RankCount {
+  rank: string;
+  officerCount: number;
+}
+
+export interface Statistics {
+  totalOfficers: number;
+  averageCareerYears: number;
+  averageQuality: number;
+  regions: number;
+  units: number;
+  timelines: number;
+  duplicatePhones: number;
+  duplicateNames: number;
+}
+
+export interface HealthStatus {
+  status: string;
+  database: string;
+  version: string;
+  timestamp: string;
+}
+
+/** Text match modes the API supports. */
+export type MatchMode = "contains" | "startsWith" | "exact";
+
+/** Officer list/search query params (all optional except paging defaults). */
+export interface OfficerQuery {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  rank?: string;
+  unit?: string;
+  region?: string;
+  minQuality?: number;
+  minCareerYears?: number;
+}
+
+export interface SearchQuery extends OfficerQuery {
+  match?: MatchMode;
+  name?: string;
+  phone?: string;
+  position?: string;
+}
+
+/** Typed error carrying the API's code + status so the UI can react (e.g. 503 → "backend unavailable"). */
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string,
+    public readonly details?: unknown
+  ) {
+    super(message);
+    this.name = "ApiClientError";
+  }
+}
+
+interface ApiEnvelope<T> {
+  data?: T;
+  meta?: PageMeta;
+  error?: { code: string; message: string; details?: unknown };
+}
+
+/** Serializes a query object to a URLSearchParams string, dropping undefined/empty values. */
+function toQueryString(params: object): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue;
+    search.set(key, String(value));
+  }
+  const s = search.toString();
+  return s ? `?${s}` : "";
+}
+
+/** Core fetch + envelope unwrap. Throws ApiClientError on any non-2xx or error envelope. */
+async function request<T>(path: string): Promise<{ data: T; meta?: PageMeta }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, { headers: { Accept: "application/json" } });
+  } catch (cause) {
+    throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+  }
+
+  let body: ApiEnvelope<T>;
+  try {
+    body = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new ApiClientError("The server returned an unreadable response.", response.status, "BAD_RESPONSE");
+  }
+
+  if (!response.ok || body.error) {
+    const err = body.error;
+    throw new ApiClientError(
+      err?.message ?? `Request failed (${response.status})`,
+      response.status,
+      err?.code ?? "REQUEST_FAILED",
+      err?.details
+    );
+  }
+
+  return { data: body.data as T, meta: body.meta };
+}
+
+export const apiClient = {
+  async listOfficers(query: OfficerQuery = {}): Promise<PaginatedResult<OfficerSummary>> {
+    const { data, meta } = await request<OfficerSummary[]>(`/officers${toQueryString(query)}`);
+    return { data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
+
+  async searchOfficers(query: SearchQuery): Promise<PaginatedResult<OfficerSummary>> {
+    const { data, meta } = await request<OfficerSummary[]>(`/search${toQueryString(query)}`);
+    return { data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
+
+  async getOfficer(id: string): Promise<OfficerProfile> {
+    const { data } = await request<OfficerProfile>(`/officers/${encodeURIComponent(id)}`);
+    return data;
+  },
+
+  async listUnits(): Promise<UnitCount[]> {
+    return (await request<UnitCount[]>("/units")).data;
+  },
+
+  async listRanks(): Promise<RankCount[]> {
+    return (await request<RankCount[]>("/ranks")).data;
+  },
+
+  async getStatistics(): Promise<Statistics> {
+    return (await request<Statistics>("/statistics")).data;
+  },
+
+  async getHealth(): Promise<HealthStatus> {
+    return (await request<HealthStatus>("/health")).data;
+  },
+};

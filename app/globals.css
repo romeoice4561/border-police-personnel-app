@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens (Phase 14 dashboard).
+ * Theme-aware surfaces + ink + RESERVED status colors (good/warning/serious/
+ * critical), each with a matching soft background for badges. Status colors are
+ * never reused as categorical "series" colors and always ship with a label.
+ * Dark-mode steps are chosen against the dark surface, not an automatic flip.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #f8fafc; /* app surface (slate-50) */
+  --surface: #ffffff; /* card surface */
+  --border: #e2e8f0; /* slate-200 */
+  --foreground: #0f172a; /* primary ink (slate-900) */
+  --muted: #64748b; /* secondary ink (slate-500) */
+  --accent: #1d4ed8; /* brand accent (blue-700) */
+  --accent-fg: #ffffff;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --good: #15803d; /* green-700 */
+  --good-bg: #dcfce7;
+  --warning: #b45309; /* amber-700 */
+  --warning-bg: #fef3c7;
+  --serious: #c2410c; /* orange-700 */
+  --serious-bg: #ffedd5;
+  --critical: #b91c1c; /* red-700 */
+  --critical-bg: #fee2e2;
+  --neutral: #475569; /* slate-600 */
+  --neutral-bg: #f1f5f9;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b1120;
+    --surface: #111827;
+    --border: #1f2937;
+    --foreground: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent-fg: #0b1120;
+
+    --good: #4ade80;
+    --good-bg: #052e16;
+    --warning: #fbbf24;
+    --warning-bg: #451a03;
+    --serious: #fb923c;
+    --serious-bg: #431407;
+    --critical: #f87171;
+    --critical-bg: #450a0a;
+    --neutral: #94a3b8;
+    --neutral-bg: #1e293b;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-serious: var(--serious);
+  --color-serious-bg: var(--serious-bg);
+  --color-critical: var(--critical);
+  --color-critical-bg: var(--critical-bg);
+  --color-neutral: var(--neutral);
+  --color-neutral-bg: var(--neutral-bg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
