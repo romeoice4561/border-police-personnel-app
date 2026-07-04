@@ -13,7 +13,10 @@
  * behavior is assumed beyond these method signatures.
  */
 
-import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog } from "@prisma/client";
+// Phase 16B: model types come from the Prisma 7 generated client (source
+// tree), re-exported under their plain names (Officer, Timeline, …) — types
+// are identical to the former @prisma/client imports.
+import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog } from "@/lib/generated/prisma/client";
 
 export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog };
 

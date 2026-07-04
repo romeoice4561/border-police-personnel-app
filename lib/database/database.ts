@@ -8,7 +8,10 @@
 
 import "dotenv/config";
 
-import { PrismaClient } from "@prisma/client";
+// Phase 16B: Prisma 7 `prisma-client` generator — the client is generated to
+// lib/generated/prisma (source tree), not node_modules, so there is no
+// @prisma/client symlink for the Netlify/OpenNext bundler to fail on.
+import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 export class DatabaseConfigError extends Error {

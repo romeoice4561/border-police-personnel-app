@@ -9,8 +9,16 @@
 // (upsert key) and each Timeline row is unique per (officerId, sequence), so
 // re-importing the same exports creates no duplicate officers or timelines.
 
+// Prisma 7 official generator (Phase 16B). The legacy `prisma-client-js`
+// generated into node_modules and left a `node_modules/@prisma/client`
+// symlink that the Netlify/OpenNext function bundler cannot re-create
+// (EPERM: symlink). The `prisma-client` generator emits plain TS sources to a
+// source-tree path instead, so there is no node_modules symlink to bundle.
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../lib/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
 }
 
 datasource db {

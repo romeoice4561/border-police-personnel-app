@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Phase 16B: Prisma 7 generated client is machine-generated, not linted.
+    "lib/generated/**",
+    // Netlify build output (bundled functions) — build artifact, not source.
+    ".netlify/**",
   ]),
 ]);
 
