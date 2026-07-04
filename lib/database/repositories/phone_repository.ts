@@ -25,6 +25,28 @@ export class PhoneRepository {
     return { phone, created: existing === null };
   }
 
+  /** Removes all phone rows for an officer (used before a clean re-insert). */
+  deleteForOfficer(officerId: number): Promise<{ count: number }> {
+    return this.db.phone.deleteMany({ where: { officerId } });
+  }
+
+  /**
+   * Replaces an officer's phone rows with `numbers` (delete-all then insert
+   * the distinct, non-empty numbers), making phone persistence idempotent:
+   * re-importing the same record leaves exactly the current set with no
+   * duplicates. Returns the number of rows written. Distinct is enforced so
+   * a repeated number in the input never violates the (officerId, number)
+   * unique constraint.
+   */
+  async replaceForOfficer(officerId: number, numbers: string[]): Promise<number> {
+    await this.deleteForOfficer(officerId);
+    const distinct = Array.from(new Set(numbers.map((n) => n.trim()).filter((n) => n.length > 0)));
+    for (const number of distinct) {
+      await this.db.phone.create({ data: { officerId, number } });
+    }
+    return distinct.length;
+  }
+
   countForOfficer(officerId: number): Promise<number> {
     return this.db.phone.count({ where: { officerId } });
   }
