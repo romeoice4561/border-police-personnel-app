@@ -1,29 +1,10 @@
-# Netlify production configuration (Phase 16A).
-#
-# The Border Patrol Personnel Intelligence System is a Next.js App Router app
-# with Server Components, route handlers, and a Prisma/Postgres backend — it
-# requires Netlify's official Next.js runtime (@netlify/plugin-nextjs), which
-# Netlify auto-installs when it detects Next.js. No `publish` dir is set by
-# hand: the plugin wires the build output (SSR functions + static assets)
-# itself; setting `.next` manually conflicts with it.
-#
-# Set the environment variables (see docs/DEPLOYMENT.md) in the Netlify site
-# UI, not here — secrets never live in the repo.
+# Netlify configuration
+# Border Patrol Personnel Intelligence System
+# Next.js App Router + Prisma + Supabase
 
 [build]
-  # `prisma generate` must run before `next build` so the generated client
-  # exists when the app is type-checked and bundled.
-  command = "npm run build"
+command = "npm run build"
 
 [build.environment]
-  # Pin Node to the project's supported major (Next 16 requires Node >= 18.18;
-  # 20 LTS is the safe production default).
-  NODE_VERSION = "20"
-  # Ensure Prisma's engine downloads succeed in Netlify's build image.
-  PRISMA_HIDE_UPDATE_MESSAGE = "true"
-
-# Netlify's Next.js runtime. Auto-installed on detection; declared explicitly
-# so the build fails loudly if it is ever missing rather than silently
-# producing a broken static deploy.
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+NODE_VERSION = "20"
+PRISMA_HIDE_UPDATE_MESSAGE = "true"
