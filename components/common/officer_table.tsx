@@ -84,6 +84,8 @@ export function OfficerTable({ officers, sort }: { officers: OfficerSummary[]; s
                   <span className="flex items-center gap-2.5">
                     <OfficerPhoto
                       thumbnailUrl={o.thumbnailUrl}
+                      driveFileId={o.driveFileId}
+                      webViewUrl={o.webViewUrl}
                       name={[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
                       size={32}
                     />

@@ -17,7 +17,13 @@ export function OfficerSummaryHeader({ officer }: { officer: OfficerWithRelation
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
       {/* Large officer photo — real Drive thumbnail when stored, else placeholder. */}
-      <OfficerPhoto thumbnailUrl={officer.thumbnailUrl} name={name} size={80} />
+      <OfficerPhoto
+        thumbnailUrl={officer.thumbnailUrl}
+        driveFileId={officer.driveFileId}
+        webViewUrl={officer.webViewUrl}
+        name={name}
+        size={80}
+      />
 
       <div className="min-w-0 flex-1">
         <p className="text-sm text-muted">{officer.rank || "—"}</p>

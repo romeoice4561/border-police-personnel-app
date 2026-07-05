@@ -20,7 +20,13 @@ export function OfficerCard({ officer }: { officer: OfficerSummary }) {
         <CardBody className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <OfficerPhoto thumbnailUrl={officer.thumbnailUrl} name={name} size={40} />
+              <OfficerPhoto
+                thumbnailUrl={officer.thumbnailUrl}
+                driveFileId={officer.driveFileId}
+                webViewUrl={officer.webViewUrl}
+                name={name}
+                size={40}
+              />
               <div>
                 <p className="text-xs text-muted">{officer.rank || "—"}</p>
                 <p className="font-semibold text-foreground">{name}</p>
