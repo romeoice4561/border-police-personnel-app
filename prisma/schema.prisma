@@ -90,6 +90,39 @@ model Unit {
   @@index([name])
 }
 
+/// Phase 19B: a Gallery visual asset (every non-profile image — maps, org
+/// charts, deployment/company/battalion layouts, and future visual assets).
+/// Independent of the Officer/personnel tables; carries discovery metadata +
+/// stored Drive image URLs only (no OCR/AI fields). `assetId` is the
+/// deterministic idempotent upsert key. `category` stores the AssetCategory
+/// value (e.g. "NEIGHBOR_MAP"); PROFILE assets are never persisted here.
+model Asset {
+  id           Int      @id @default(autoincrement())
+  assetId      String   @unique
+  category     String
+  region       String?
+  company      String?
+  battalion    String?
+  folderName   String?
+  relativePath String
+  driveFileId  String?
+  thumbnailUrl String?
+  webViewUrl   String?
+  imageWidth   Int?
+  imageHeight  Int?
+  createdTime  DateTime?
+  updatedTime  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([region])
+  @@index([company])
+  @@index([battalion])
+  @@index([category, region])
+  @@index([category, company])
+}
+
 /// A phone number associated with an officer. Unique per (officer, number).
 model Phone {
   id        Int     @id @default(autoincrement())
