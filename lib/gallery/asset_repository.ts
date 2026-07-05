@@ -73,6 +73,10 @@ export class InMemoryAssetRepository implements AssetRepository {
   private matching(query: AssetQuery): Asset[] {
     const match = query.match ?? "contains";
     return Array.from(this.assets.values()).filter((a) => {
+      // Reserved PROFILE assets are never Gallery content — excluded from every
+      // list, matching the Prisma repository's DB-level exclusion so both
+      // implementations honor the same contract.
+      if (!isGalleryCategory(a.category)) return false;
       if (query.category !== undefined && a.category !== query.category) return false;
       if (query.region && !textMatches(a.region, query.region, "exact")) return false;
       if (query.company && !textMatches(a.company, query.company, "exact")) return false;
