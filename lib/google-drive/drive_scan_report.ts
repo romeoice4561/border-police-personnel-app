@@ -21,6 +21,20 @@ import type { FolderScanResult, FolderScannerEngine } from "@/lib/google-drive/f
 import type { ImageFilterEngine } from "@/lib/google-drive/image_filter";
 import { MimeImageFilter } from "@/lib/google-drive/image_filter";
 import type { FolderMapperEngine } from "@/lib/google-drive/folder_mapper";
+import { classifyFolderContentType, DriveContentType } from "@/lib/google-drive/drive_content_type";
+
+/** A zeroed per-content-type counter covering every DriveContentType value. */
+function emptyContentTypeCounts(): Record<DriveContentType, number> {
+  return {
+    [DriveContentType.Profile]: 0,
+    [DriveContentType.NeighborMap]: 0,
+    [DriveContentType.OrgChart]: 0,
+    [DriveContentType.DeploymentMap]: 0,
+    [DriveContentType.CompanyLocation]: 0,
+    [DriveContentType.BattalionLocation]: 0,
+    [DriveContentType.Unknown]: 0,
+  };
+}
 
 /** One discovered file, with full metadata and resolved organizational placement — the required per-file output shape. */
 export interface DriveScanEntry {
@@ -38,6 +52,15 @@ export interface DriveScanEntry {
   company?: string;
   relativePath: string;
   isImage: boolean;
+  /**
+   * Phase 18B: the semantic content type of the TOP-LEVEL folder this file
+   * lives under (PROFILE / NEIGHBOR_MAP / ORG_CHART / DEPLOYMENT_MAP /
+   * COMPANY_LOCATION / BATTALION_LOCATION / UNKNOWN). Discovery metadata only —
+   * it decides which pipeline a file is eligible for, without doing any OCR.
+   */
+  content_type: DriveContentType;
+  /** Phase 18B: the top-level folder name that produced `content_type`. */
+  top_level_folder?: string;
 }
 
 export interface DriveScanSummary {
@@ -49,6 +72,8 @@ export interface DriveScanSummary {
   regions: string[];
   scan_duration_ms: number;
   shared_drive: boolean;
+  /** Phase 18B: count of discovered IMAGE files per content type. */
+  content_types: Record<DriveContentType, number>;
 }
 
 export interface DriveScanReport {
@@ -94,6 +119,12 @@ export class DriveScanReportBuilder {
 
     const imageCount = entries.filter((entry) => entry.isImage).length;
 
+    // Phase 18B: tally IMAGE files per content type for discovery reporting.
+    const contentTypes = emptyContentTypeCounts();
+    for (const entry of entries) {
+      if (entry.isImage) contentTypes[entry.content_type] += 1;
+    }
+
     const summary: DriveScanSummary = {
       root_folder: rootFolderId,
       total_folders: totalFolders,
@@ -103,6 +134,7 @@ export class DriveScanReportBuilder {
       regions: Array.from(regions).sort(),
       scan_duration_ms: Date.now() - startedAt,
       shared_drive: options.sharedDrive,
+      content_types: contentTypes,
     };
 
     return { entries, summary };
@@ -124,6 +156,12 @@ export class DriveScanReportBuilder {
     const unit = this.folderMapper.mapFolderChain(folderChain);
     if (unit?.region) regions.add(unit.region);
 
+    // Phase 18B: the semantic content type is determined by the TOP-LEVEL folder
+    // (the one directly under the scan root = folderChain[1]); nested subfolders
+    // inherit it. Files directly under root have no top-level folder → UNKNOWN.
+    const topLevelFolder = folderChain.length > 1 ? folderChain[1].name : undefined;
+    const contentType = classifyFolderContentType(topLevelFolder);
+
     for (const file of node.files) {
       const relativePath = relativePathPrefix ? `${relativePathPrefix}/${file.name}` : file.name;
 
@@ -142,6 +180,8 @@ export class DriveScanReportBuilder {
         company: unit?.company,
         relativePath,
         isImage: imageIds.has(file.id),
+        content_type: contentType,
+        top_level_folder: topLevelFolder,
       });
     }
 

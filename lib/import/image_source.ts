@@ -12,6 +12,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import type { DriveContentType } from "@/lib/google-drive/drive_content_type";
 
 /** File extensions this system will ever process as personnel profile images. */
 const SUPPORTED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
@@ -45,6 +46,13 @@ export interface DiscoveredImage {
    * Used by remote sources to fetch bytes in `openImage()`.
    */
   sourceId?: string;
+  /**
+   * Phase 18B: the semantic content type of the top-level Drive folder this
+   * image came from (PROFILE / NEIGHBOR_MAP / … / UNKNOWN). Discovery metadata
+   * that lets a runner route only PROFILE images into OCR/OpenAI and treat the
+   * rest as Gallery content. Optional — the filesystem source leaves it unset.
+   */
+  contentType?: DriveContentType;
 }
 
 /**

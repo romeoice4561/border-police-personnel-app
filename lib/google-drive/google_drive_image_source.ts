@@ -197,6 +197,9 @@ export class GoogleDriveImageSource implements ImageSource {
       filename: entry.name,
       region: entry.region ?? "",
       sourceId: entry.id,
+      // Phase 18B: carry the semantic content type forward so a runner can
+      // route only PROFILE images into OCR/OpenAI.
+      contentType: entry.content_type,
     };
   }
 }

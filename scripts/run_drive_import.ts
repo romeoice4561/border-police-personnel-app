@@ -84,21 +84,38 @@ const LOGS_DIR = process.env.DRIVE_IMPORT_LOGS_DIR
   ? path.resolve(process.env.DRIVE_IMPORT_LOGS_DIR)
   : path.join(process.cwd(), "logs");
 
-/** The Phase 9C import-summary shape: total / processed / skipped / failed / duration_ms. */
+/**
+ * Import-summary shape. `discovered` is every image the scan found; `processed`
+ * is every image the loop actually handled this run (exported + failed +
+ * classifier-skipped + resume-skipped) — so `processed` equals `discovered`
+ * on a complete run and is NOT conflated with "successfully exported" (that is
+ * `exported`). This corrects the earlier summary where `processed` counted only
+ * successful exports, which read as `processed: 0` whenever a bounded run
+ * happened to export nothing.
+ */
 interface DriveImportSummary {
-  total: number;
+  discovered: number;
   processed: number;
+  exported: number;
   skipped: number;
   failed: number;
   duration_ms: number;
 }
 
-/** Parses `--limit N` (0/absent = no limit). Bounds the real test to a handful of images. */
+/** Parses `--limit N` (0/absent = no limit). Bounds the run to a handful of images. */
 function parseLimit(argv: string[]): number {
   const index = argv.indexOf("--limit");
   if (index === -1) return 0;
   const value = Number(argv[index + 1]);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+/** Parses `--region <name>` (absent = all regions). Restricts processing to one discovered region. */
+function parseRegion(argv: string[]): string | undefined {
+  const index = argv.indexOf("--region");
+  if (index === -1) return undefined;
+  const value = argv[index + 1];
+  return value && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function writeJson(filePath: string, data: unknown): void {
@@ -140,6 +157,7 @@ async function main() {
 
   const startedAt = Date.now();
   const limit = parseLimit(process.argv.slice(2));
+  const regionFilter = parseRegion(process.argv.slice(2));
 
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER;
   if (!rootFolderId) {
@@ -172,9 +190,17 @@ async function main() {
   }
 
   const { images, skipped } = discovery;
-  const selected = limit > 0 ? images.slice(0, limit) : images;
+  // Optional region restriction (execution scope only — does not change what is
+  // discovered/scanned, only which discovered images this run processes).
+  const inScope = regionFilter ? images.filter((img) => img.region === regionFilter) : images;
+  const selected = limit > 0 ? inScope.slice(0, limit) : inScope;
 
-  console.log(`Discovered ${images.length} image(s)${limit > 0 ? `, importing at most ${limit}` : ""}.`);
+  console.log(
+    `Discovered ${images.length} image(s)` +
+      (regionFilter ? `, region "${regionFilter}" → ${inScope.length}` : "") +
+      (limit > 0 ? `, importing at most ${limit}` : "") +
+      "."
+  );
   console.log("--------------------------------");
 
   const report = new BatchReportBuilder();
@@ -211,10 +237,16 @@ async function main() {
   const repairStats = new DefaultRepairStatisticsBuilder();
 
   let failedCount = 0;
+  // Every loop iteration handles exactly one selected image to a terminal
+  // outcome (exported / failed / classifier-skipped / resume-skipped), so this
+  // is the honest "processed this run" count. On a no-limit run it equals the
+  // number of discovered images.
+  let handledCount = 0;
   const total = selected.length;
 
   for (let i = 0; i < selected.length; i += 1) {
     const image = selected[i];
+    handledCount += 1;
     console.log(`[${i + 1}/${total}] ${image.region}/${image.filename}`);
 
     const paths = resumePathsFor(EXPORTS_DIR, image.region, image.filename);
@@ -315,10 +347,14 @@ async function main() {
   }
 
   const batchSummary = report.buildSummary();
+  const skippedTotal = batchSummary.skipped + batchSummary.resume_skipped;
   const driveImportSummary: DriveImportSummary = {
-    total: images.length,
-    processed: batchSummary.success,
-    skipped: batchSummary.skipped + batchSummary.resume_skipped,
+    // `discovered` is the images in scope for this run (all, or one region when
+    // --region is used); the total scanned is always logged above.
+    discovered: inScope.length,
+    processed: handledCount,
+    exported: batchSummary.success,
+    skipped: skippedTotal,
     failed: failedCount,
     duration_ms: Date.now() - startedAt,
   };
