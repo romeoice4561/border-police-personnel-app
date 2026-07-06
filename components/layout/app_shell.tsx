@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/search", label: "Search", icon: Search },
   { href: "/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/review", label: "Review", icon: ClipboardCheck },
+  { href: "/gallery", label: "Gallery", icon: Images },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
