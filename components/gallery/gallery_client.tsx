@@ -25,13 +25,13 @@ export function GalleryClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Gallery"
-        description="Browse maps, organization charts, and deployment assets."
+        title="คลังรูปภาพ"
+        description="เรียกดูแผนที่ แผนผังโครงสร้าง แผนผังการวางกำลัง และข้อมูลภาพถ่าย"
         actions={
           view.kind === "browser" ? undefined : (
             <span className="inline-flex items-center gap-1.5 text-sm text-muted">
               <Images className="h-4 w-4" aria-hidden="true" />
-              Visual assets
+              คลังข้อมูลภาพ
             </span>
           )
         }

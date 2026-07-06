@@ -18,7 +18,7 @@ const NAV = [
   { href: "/search", label: "Search", icon: Search },
   { href: "/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/review", label: "Review", icon: ClipboardCheck },
-  { href: "/gallery", label: "Gallery", icon: Images },
+  { href: "/gallery", label: "คลังรูปภาพ", icon: Images },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

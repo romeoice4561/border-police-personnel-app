@@ -67,13 +67,13 @@ export function isGalleryCategory(category: AssetCategory): boolean {
   return !isReservedCategory(category);
 }
 
-/** Human-readable labels for the UI (design metadata; no rendering here). */
+/** Human-readable labels for the UI — official Thai folder names (Phase 19F). */
 export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
-  [AssetCategory.Profile]: "Personnel Profile",
-  [AssetCategory.NeighborMap]: "Neighboring-Unit Map",
-  [AssetCategory.OrgChart]: "Organization Chart",
-  [AssetCategory.DeploymentMap]: "Deployment Map",
-  [AssetCategory.CompanyLocation]: "Company Location",
-  [AssetCategory.BattalionLocation]: "Battalion Location",
-  [AssetCategory.Unknown]: "Uncategorized",
+  [AssetCategory.Profile]: "ข้อมูลบุคคล",
+  [AssetCategory.NeighborMap]: "แผนที่หน่วยข้างเคียง",
+  [AssetCategory.OrgChart]: "แผนผังโครงสร้าง",
+  [AssetCategory.DeploymentMap]: "แผนผังการวางกำลัง",
+  [AssetCategory.CompanyLocation]: "แผนที่ตั้งกองร้อย",
+  [AssetCategory.BattalionLocation]: "แผนที่ตั้ง กองกำกับ ตชด.",
+  [AssetCategory.Unknown]: "อื่น ๆ",
 };

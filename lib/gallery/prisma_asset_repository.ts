@@ -166,7 +166,16 @@ export class PrismaAssetRepository implements AssetRepository {
           : query.match === "startsWith"
             ? { startsWith: value, mode }
             : { contains: value, mode };
-      where.OR = [{ folderName: filter }, { relativePath: filter }];
+      // Phase 19F: search across all organisational fields so users can find
+      // assets by company number ("414"), battalion ("44"), region ("ภาค 4"),
+      // folder name, or relative path.
+      where.OR = [
+        { folderName: filter },
+        { relativePath: filter },
+        { region: filter },
+        { company: filter },
+        { battalion: filter },
+      ];
     }
     return where;
   }
