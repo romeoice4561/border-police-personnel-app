@@ -123,6 +123,69 @@ model Asset {
   @@index([category, company])
 }
 
+/// Phase 20A: authoritative organization master data — Region. `code` is the
+/// bare digit string ("4"), unique. Every Battalion belongs to exactly one
+/// Region. This table (not folder/OCR text) is the source of truth every
+/// future module (Officers, Gallery, Portfolio, permissions, ...) reads.
+model Region {
+  id           Int        @id @default(autoincrement())
+  code         String     @unique
+  nameTh       String
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  battalions   Battalion[]
+}
+
+/// Phase 20A: authoritative organization master data — Battalion (กก.ตชด.NN).
+/// `code` is the 2-digit string ("44"), unique. Belongs to one Region; has
+/// many Companies.
+model Battalion {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique
+  nameTh       String
+  region       Region    @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  regionId     Int
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  companies    Company[]
+
+  @@index([regionId])
+}
+
+/// Phase 20A: authoritative organization master data — Company (ตชด.NNN).
+/// `code` is the 3-digit string ("447"), unique. Belongs to one Battalion.
+/// Future Officer/Asset records reference companyId instead of loose text.
+model Company {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique
+  nameTh       String
+  battalion    Battalion @relation(fields: [battalionId], references: [id], onDelete: Restrict)
+  battalionId  Int
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([battalionId])
+}
+
+/// Phase 20A: a raw unit-reference string (from OCR/folder text/imports) that
+/// could NOT be confidently mapped to the master Region/Battalion/Company
+/// hierarchy. Queued here for manual review instead of polluting the master
+/// data with an invented organization record.
+model UnresolvedOrganizationCode {
+  id           Int      @id @default(autoincrement())
+  raw          String
+  reason       String
+  sourceModule String
+  createdAt    DateTime @default(now())
+
+  @@index([sourceModule])
+}
+
 /// A phone number associated with an officer. Unique per (officer, number).
 model Phone {
   id        Int     @id @default(autoincrement())
