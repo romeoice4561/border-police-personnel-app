@@ -142,6 +142,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   });
   private readonly jobs = new Table((r, w) => r.id === w.id);
   private readonly logs = new Table((r, w) => r.id === w.id);
+  private readonly educations = new Table((r, w) => r.id === w.id);
+  private readonly trainings = new Table((r, w) => r.id === w.id);
 
   /**
    * When set, any timeline.create for an officer whose row has this string
@@ -184,6 +186,12 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get importLog() {
     return delegate(this.logs) as unknown as DatabaseClient["importLog"];
   }
+  get education() {
+    return delegate(this.educations) as unknown as DatabaseClient["education"];
+  }
+  get training() {
+    return delegate(this.trainings) as unknown as DatabaseClient["training"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
@@ -192,6 +200,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       timelines: this.timelines.snapshot(),
       units: this.units.snapshot(),
       phones: this.phonesTable.snapshot(),
+      educations: this.educations.snapshot(),
+      trainings: this.trainings.snapshot(),
     };
     try {
       return await fn(this);
@@ -200,6 +210,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.timelines.restore(snaps.timelines);
       this.units.restore(snaps.units);
       this.phonesTable.restore(snaps.phones);
+      this.educations.restore(snaps.educations);
+      this.trainings.restore(snaps.trainings);
       throw error;
     }
   }
@@ -213,6 +225,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       phones: this.phonesTable.rows.length,
       jobs: this.jobs.rows.length,
       logs: this.logs.rows.length,
+      educations: this.educations.rows.length,
+      trainings: this.trainings.rows.length,
     };
   }
 

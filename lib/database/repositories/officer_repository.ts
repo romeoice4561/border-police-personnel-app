@@ -40,6 +40,29 @@ export interface OfficerInput {
   regionId?: number | null;
   battalionId?: number | null;
   companyId?: number | null;
+  /** Phase 23A: additional contact channels (optional — omitted by import callers). */
+  email?: string | null;
+  lineId?: string | null;
+  facebookUrl?: string | null;
+}
+
+/**
+ * Phase 23A: the fields the Officer Profile Workspace lets a user edit
+ * directly (as opposed to `OfficerInput`, which is the import pipeline's
+ * full upsert payload). Every field is optional; only supplied keys are
+ * written — mirrors the Gallery Metadata Editor's `AssetMetadataPatch`
+ * "supplied fields update, absent fields untouched" convention.
+ */
+export interface OfficerProfilePatch {
+  rank?: string;
+  firstName?: string;
+  lastName?: string;
+  currentPosition?: string | null;
+  currentUnit?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  lineId?: string | null;
+  facebookUrl?: string | null;
 }
 
 export class OfficerRepository {
@@ -84,6 +107,10 @@ export class OfficerRepository {
         ...(input.regionId !== undefined ? { regionId: input.regionId } : {}),
         ...(input.battalionId !== undefined ? { battalionId: input.battalionId } : {}),
         ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
+        // Phase 23A: same omit-if-undefined convention for contact fields.
+        ...(input.email !== undefined ? { email: input.email } : {}),
+        ...(input.lineId !== undefined ? { lineId: input.lineId } : {}),
+        ...(input.facebookUrl !== undefined ? { facebookUrl: input.facebookUrl } : {}),
       },
     });
 
@@ -92,5 +119,31 @@ export class OfficerRepository {
 
   count(): Promise<number> {
     return this.db.officer.count();
+  }
+
+  /**
+   * Phase 23A: updates only the supplied profile fields for an existing
+   * officer (user-driven edit, not an import upsert — never creates a row).
+   * Returns null when the officer doesn't exist. Mirrors
+   * PrismaAssetRepository.updateMetadata's "only touch present keys" pattern.
+   */
+  async updateProfile(officerId: string, patch: OfficerProfilePatch): Promise<Officer | null> {
+    const existing = await this.db.officer.findUnique({ where: { officerId } });
+    if (!existing) return null;
+
+    const data: Record<string, unknown> = {};
+    if ("rank" in patch) data.rank = patch.rank;
+    if ("firstName" in patch) data.firstName = patch.firstName;
+    if ("lastName" in patch) data.lastName = patch.lastName;
+    if ("currentPosition" in patch) data.currentPosition = patch.currentPosition;
+    if ("currentUnit" in patch) data.currentUnit = patch.currentUnit;
+    if ("phone" in patch) data.phone = patch.phone;
+    if ("email" in patch) data.email = patch.email;
+    if ("lineId" in patch) data.lineId = patch.lineId;
+    if ("facebookUrl" in patch) data.facebookUrl = patch.facebookUrl;
+
+    if (Object.keys(data).length === 0) return existing;
+
+    return this.db.officer.update({ where: { officerId }, data });
   }
 }

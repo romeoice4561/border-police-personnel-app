@@ -31,7 +31,7 @@ function seeds(): FakeOfficerSeed[] {
 
 function container() {
   const client = new FakeReadDatabaseClient(seeds(), {
-    timeline: { "ภาค1/1": [{ id: 1, officerId: 1, sequence: 0, year: "2564", yearValue: 2564, position: "ผบ.ร้อย", unit: "ตชด.447" }] },
+    timeline: { "ภาค1/1": [{ id: 1, officerId: 1, sequence: 0, year: "2564", yearValue: 2564, rank: null, position: "ผบ.ร้อย", unit: "ตชด.447", source: null, verified: "ยังไม่ตรวจ" }] },
     phones: { "ภาค1/1": ["081-111-1111"] },
   });
   return createApiContainer(client);
@@ -88,10 +88,16 @@ test("GET /officers/{id} returns 404 for an unknown officer", async () => {
   assert.equal(((await body(res)).error as { code: string }).code, "NOT_FOUND");
 });
 
-test("GET /officers/{id} response is backward compatible: existing top-level keys unchanged (Phase 20C)", async () => {
+test("GET /officers/{id} response is backward compatible: existing top-level keys unchanged (Phase 20C; Phase 23A adds contact/education/training additively)", async () => {
   const res = await handleOfficerById(container(), "ภาค1/1");
   const data = (await body(res)).data as Record<string, unknown>;
-  assert.deepEqual(new Set(Object.keys(data)), new Set(["officer", "organization", "photo", "timeline", "phones", "quality"]));
+  const keys = new Set(Object.keys(data));
+  // Every pre-existing key must still be present, unrenamed, unremoved.
+  for (const key of ["officer", "organization", "photo", "timeline", "phones", "quality"]) {
+    assert.ok(keys.has(key), `expected pre-existing key "${key}" to still be present`);
+  }
+  // Phase 23A adds these — additive only, never replacing an existing key.
+  assert.deepEqual(keys, new Set(["officer", "organization", "photo", "contact", "timeline", "phones", "education", "training", "quality"]));
   const officer = data.officer as Record<string, unknown>;
   // Existing officer fields present and unrenamed — no new keys snuck into `officer`.
   assert.deepEqual(

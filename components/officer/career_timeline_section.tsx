@@ -1,25 +1,21 @@
 /**
- * CareerTimelineSection (Phase 21A — Editable Profile Foundation, Part 6).
+ * CareerTimelineSection (Phase 21A — Editable Profile Foundation, Part 6;
+ * Phase 23A — real rank/source/verified data).
  *
- * Enhances the timeline row ARCHITECTURE (not the schema): Date, Rank,
- * Position, Unit, Source, Verified. Only Date/Position/Unit have persisted
- * data today (Timeline.year/position/unit) — Rank-per-entry, Source, and
- * Verified have no backing field yet, so they render "—" / an unverified
- * badge rather than being invented. No migration, no redesign of the existing
- * OfficerTimeline (left untouched); this is a new, additive, richer view used
- * on the profile page going forward.
+ * Read-only timeline view: Date, Rank, Position, Unit, Source, Verified.
+ * Since Phase 23A, all six columns are backed by real Timeline columns
+ * (rank/source/verified were added additively) — a row imported before this
+ * phase simply has rank/source = null and verified = "ยังไม่ตรวจ" (the
+ * column's default), rendered as "—"/the default badge rather than invented.
+ * The editable counterpart is CareerTimelineEditor, shown instead when the
+ * workspace is in edit mode.
  */
 import { ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Timeline } from "@/lib/database/query_types";
 import { sortTimelineByYear } from "@/lib/ui/officer_summary";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
-/**
- * The full row shape the timeline architecture supports going forward. Fields
- * with no persisted source yet are typed as always-absent here (`rank`,
- * `source`) or a fixed default (`verified: false`) — documented, not
- * fabricated.
- */
+/** The display row shape — now backed entirely by real Timeline columns (Phase 23A). */
 export interface CareerTimelineRow {
   id: number;
   date: string;
@@ -27,21 +23,23 @@ export interface CareerTimelineRow {
   position: string;
   unit: string | null;
   source: string | null;
-  verified: boolean;
+  verified: string;
 }
 
-/** Maps a persisted Timeline row onto the enhanced architecture. Unbacked fields are explicitly null/false. */
+/** Maps a persisted Timeline row onto the display shape. */
 function toCareerTimelineRow(entry: Timeline): CareerTimelineRow {
   return {
     id: entry.id,
     date: entry.year,
-    rank: null,
+    rank: entry.rank,
     position: entry.position,
     unit: entry.unit,
-    source: null,
-    verified: false,
+    source: entry.source,
+    verified: entry.verified,
   };
 }
+
+const VERIFIED_STATUS = "ยืนยันแล้ว";
 
 export function CareerTimelineSection({ timeline }: { timeline: Timeline[] }) {
   const rows = sortTimelineByYear(timeline).map(toCareerTimelineRow);
@@ -76,15 +74,15 @@ export function CareerTimelineSection({ timeline }: { timeline: Timeline[] }) {
                     <td className="px-5 py-3 text-muted">{row.unit || "—"}</td>
                     <td className="px-5 py-3 text-muted">{row.source || "—"}</td>
                     <td className="px-5 py-3">
-                      {row.verified ? (
+                      {row.verified === VERIFIED_STATUS ? (
                         <span className="inline-flex items-center gap-1 text-good">
                           <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                          Verified
+                          {row.verified}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-muted">
                           <ShieldQuestion className="h-4 w-4" aria-hidden="true" />
-                          Unverified
+                          {row.verified}
                         </span>
                       )}
                     </td>

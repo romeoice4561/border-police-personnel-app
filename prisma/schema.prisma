@@ -66,8 +66,18 @@ model Officer {
   companyRef       Company?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
   companyId        Int?
 
+  // Phase 23A: Officer Profile Workspace — additional contact channels.
+  // All nullable/additive; existing `phone`/Phone[] are unchanged and remain
+  // the primary phone. These are flat fields (matching the existing
+  // phone/region flat-field style) rather than a separate Contact table.
+  email            String?
+  lineId           String?
+  facebookUrl      String?
+
   timeline         Timeline[]
   phones           Phone[]
+  education        Education[]
+  training         Training[]
 
   @@index([rank])
   @@index([currentUnit])
@@ -91,9 +101,55 @@ model Timeline {
   position   String
   unit       String?
 
+  // Phase 23A: Officer Profile Workspace — editable per-row fields, additive.
+  // `rank` is the officer's rank AT THAT POINT in the timeline (may differ
+  // from Officer.rank, which is the CURRENT rank) — nullable since existing
+  // imported rows never captured a per-entry rank. `source` records where
+  // this row's data came from (free text, e.g. "OCR"/"Import"/"AI"/
+  // "เจ้าหน้าที่กรอก"/"เจ้าตัวกรอก"/"ตรวจสอบแล้ว"); `verified` is the review
+  // status ("ยังไม่ตรวจ" | "ตรวจแล้ว" | "ยืนยันแล้ว", defaulting to
+  // unverified). Existing rows (from import) get rank=null/source=null/
+  // verified=default — never backfilled, never invented.
+  rank       String?
+  source     String?
+  verified   String  @default("ยังไม่ตรวจ")
+
   @@unique([officerId, sequence])
   @@index([yearValue])
   @@index([unit])
+}
+
+/// Phase 23A: one education record for an officer (year, institution, degree,
+/// notes). Independent CRUD rows (not a replace-all timeline) — the UI adds/
+/// edits/removes individual rows via id.
+model Education {
+  id          Int      @id @default(autoincrement())
+  officer     Officer  @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId   Int
+  year        String?
+  institution String
+  degree      String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([officerId])
+}
+
+/// Phase 23A: one training-course record for an officer (year, course name,
+/// organizing unit, notes). Independent CRUD rows, same convention as Education.
+model Training {
+  id           Int      @id @default(autoincrement())
+  officer      Officer  @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId    Int
+  year         String?
+  course       String
+  organization String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([officerId])
 }
 
 /// A distinct organizational unit. Deduplicated by unique `name`.

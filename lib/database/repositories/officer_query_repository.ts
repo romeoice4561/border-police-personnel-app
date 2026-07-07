@@ -128,11 +128,16 @@ export class OfficerQueryRepository {
     return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);
   }
 
-  /** Fetches one officer with its timeline (ordered by sequence) and phones. */
+  /** Fetches one officer with its timeline (ordered by sequence), phones, education, and training. */
   async findByOfficerId(officerId: string): Promise<OfficerWithRelations | null> {
     const officer = await this.db.officer.findUnique({
       where: { officerId },
-      include: { timeline: { orderBy: { sequence: "asc" } }, phones: true },
+      include: {
+        timeline: { orderBy: { sequence: "asc" } },
+        phones: true,
+        education: { orderBy: { id: "asc" } },
+        training: { orderBy: { id: "asc" } },
+      },
     });
     return (officer as OfficerWithRelations) ?? null;
   }

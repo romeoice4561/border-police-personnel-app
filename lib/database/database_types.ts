@@ -16,9 +16,9 @@
 // Phase 16B: model types come from the Prisma 7 generated client (source
 // tree), re-exported under their plain names (Officer, Timeline, …) — types
 // are identical to the former @prisma/client imports.
-import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog } from "@/lib/generated/prisma/client";
+import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training } from "@/lib/generated/prisma/client";
 
-export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog };
+export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training };
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
 export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
@@ -38,6 +38,9 @@ export interface DatabaseClient {
   phone: ModelDelegate<Phone, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   importJob: ModelDelegate<ImportJob, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   importLog: ModelDelegate<ImportLog, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase 23A: Officer Profile Workspace — Education/Training CRUD rows. */
+  education: ModelDelegate<Education, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  training: ModelDelegate<Training, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's

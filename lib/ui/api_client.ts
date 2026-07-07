@@ -44,6 +44,35 @@ export interface TimelineEntry {
   yearValue: number | null;
   position: string;
   unit: string | null;
+  /** Phase 23A: per-row rank + provenance/verification (additive). */
+  rank?: string | null;
+  source?: string | null;
+  verified?: string;
+}
+
+/** Phase 23A: additional contact channels. */
+export interface OfficerContact {
+  email: string | null;
+  lineId: string | null;
+  facebookUrl: string | null;
+}
+
+/** Phase 23A: one education row. */
+export interface EducationEntry {
+  id: number;
+  year: string | null;
+  institution: string;
+  degree: string | null;
+  notes: string | null;
+}
+
+/** Phase 23A: one training row. */
+export interface TrainingEntry {
+  id: number;
+  year: string | null;
+  course: string;
+  organization: string | null;
+  notes: string | null;
 }
 
 /** Full officer profile (GET /officers/{id}). */
@@ -61,8 +90,13 @@ export interface OfficerProfile {
     confidence: number | null;
   };
   photo: OfficerPhoto;
+  /** Phase 23A: additive. */
+  contact?: OfficerContact;
   timeline: TimelineEntry[];
   phones: string[];
+  /** Phase 23A: additive. */
+  education?: EducationEntry[];
+  training?: TrainingEntry[];
   quality: { qualityScore: number | null; knowledgeScore: number | null };
 }
 
@@ -188,6 +222,74 @@ async function request<T>(path: string): Promise<{ data: T; meta?: PageMeta }> {
   return { data: body.data as T, meta: body.meta };
 }
 
+/** Phase 23A: PATCH + envelope unwrap, mirroring `request` but for a JSON body write. */
+async function requestPatch<T>(path: string, body: unknown): Promise<{ data: T }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+  }
+
+  let parsed: ApiEnvelope<T>;
+  try {
+    parsed = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new ApiClientError("The server returned an unreadable response.", response.status, "BAD_RESPONSE");
+  }
+
+  if (!response.ok || parsed.error) {
+    const err = parsed.error;
+    throw new ApiClientError(
+      err?.message ?? `Request failed (${response.status})`,
+      response.status,
+      err?.code ?? "REQUEST_FAILED",
+      err?.details
+    );
+  }
+
+  return { data: parsed.data as T };
+}
+
+/** Phase 23A: the batched-save request body — mirrors OfficerProfileSaveInput server-side. */
+export interface OfficerProfileSaveRequest {
+  profile?: {
+    rank?: string;
+    firstName?: string;
+    lastName?: string;
+    currentPosition?: string | null;
+    currentUnit?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    lineId?: string | null;
+    facebookUrl?: string | null;
+  };
+  timeline?: Array<{
+    sequence: number;
+    year: string;
+    yearValue: number | null;
+    rank: string | null;
+    position: string;
+    unit: string | null;
+    source: string | null;
+    verified: string;
+  }>;
+  education?: Array<{ year: string | null; institution: string; degree: string | null; notes: string | null }>;
+  training?: Array<{ year: string | null; course: string; organization: string | null; notes: string | null }>;
+}
+
+export interface OfficerProfileSaveResponse {
+  officerId: string;
+  profileUpdated: boolean;
+  timelineRowCount: number | null;
+  educationRowCount: number | null;
+  trainingRowCount: number | null;
+}
+
 export const apiClient = {
   async listOfficers(query: OfficerQuery = {}): Promise<PaginatedResult<OfficerSummary>> {
     const { data, meta } = await request<OfficerSummary[]>(`/officers${toQueryString(query)}`);
@@ -201,6 +303,12 @@ export const apiClient = {
 
   async getOfficer(id: string): Promise<OfficerProfile> {
     const { data } = await request<OfficerProfile>(`/officers/${encodeURIComponent(id)}`);
+    return data;
+  },
+
+  /** Phase 23A: batched save for the Officer Profile Workspace. */
+  async saveOfficerProfile(id: string, body: OfficerProfileSaveRequest): Promise<OfficerProfileSaveResponse> {
+    const { data } = await requestPatch<OfficerProfileSaveResponse>(`/officers/${encodeURIComponent(id)}`, body);
     return data;
   },
 

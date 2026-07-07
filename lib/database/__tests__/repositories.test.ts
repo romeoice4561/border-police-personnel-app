@@ -81,6 +81,34 @@ test("OfficerRepository.upsert persists organization ids when explicitly provide
   assert.equal(updated.officer.regionId, 4);
 });
 
+test("OfficerRepository.updateProfile updates only the supplied fields (Phase 23A)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+  await repo.upsert(officerInput());
+
+  const updated = await repo.updateProfile("ภาค1/5", { phone: "089-999-9999", email: "test@example.com" });
+  assert.equal(updated?.phone, "089-999-9999");
+  assert.equal(updated?.email, "test@example.com");
+  // Untouched fields remain exactly as imported.
+  assert.equal(updated?.rank, "ร.ต.ท.");
+  assert.equal(updated?.currentUnit, "ตชด.447");
+});
+
+test("OfficerRepository.updateProfile returns null for an unknown officerId", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+  const result = await repo.updateProfile("ไม่มี/999", { phone: "080-000-0000" });
+  assert.equal(result, null);
+});
+
+test("OfficerRepository.updateProfile with an empty patch is a no-op (returns the existing row unchanged)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+  await repo.upsert(officerInput());
+  const result = await repo.updateProfile("ภาค1/5", {});
+  assert.equal(result?.rank, "ร.ต.ท.");
+});
+
 test("TimelineRepository.replaceForOfficer replaces rather than appends", async () => {
   const db = new InMemoryDatabaseClient();
   const officer = await new OfficerRepository(db).upsert(officerInput());

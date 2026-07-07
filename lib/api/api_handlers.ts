@@ -118,11 +118,30 @@ export async function handleOfficerById(source: ContainerSource, rawId: string):
       thumbnailUrl: officer.thumbnailUrl,
       webViewUrl: officer.webViewUrl,
     },
+    // Phase 23A: additional contact channels (nullable, additive).
+    contact: {
+      email: officer.email,
+      lineId: officer.lineId,
+      facebookUrl: officer.facebookUrl,
+    },
     timeline: officer.timeline
       .slice()
       .sort((a, b) => a.sequence - b.sequence)
-      .map((t) => ({ sequence: t.sequence, year: t.year, yearValue: t.yearValue, position: t.position, unit: t.unit })),
+      .map((t) => ({
+        sequence: t.sequence,
+        year: t.year,
+        yearValue: t.yearValue,
+        position: t.position,
+        unit: t.unit,
+        // Phase 23A: per-row rank + provenance/verification (additive).
+        rank: t.rank,
+        source: t.source,
+        verified: t.verified,
+      })),
     phones: officer.phones.map((p) => p.number),
+    // Phase 23A: education/training rows (additive).
+    education: officer.education.map((e) => ({ id: e.id, year: e.year, institution: e.institution, degree: e.degree, notes: e.notes })),
+    training: officer.training.map((t) => ({ id: t.id, year: t.year, course: t.course, organization: t.organization, notes: t.notes })),
     quality: { qualityScore: officer.qualityScore, knowledgeScore: officer.knowledgeScore },
   });
 }

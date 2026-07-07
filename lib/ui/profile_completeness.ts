@@ -1,12 +1,13 @@
 /**
- * Profile completeness calculator (Phase 21A).
+ * Profile completeness calculator (Phase 21A; Phase 23A extends contact/
+ * education/training to real data — Section 6).
  *
  * Pure derivation of a percentage + checklist for the Officer Profile
- * Completeness card. Scored ONLY from data that actually exists today
- * (basic info, current position, career timeline, official portrait via the
- * existing Drive photo fields). Future fields (contact, education, training,
- * awards, documents, GP7) have no backing data yet, so they always render
- * unchecked — never invented, never guessed.
+ * Completeness card. Scored ONLY from data that actually exists (basic info,
+ * current position, career timeline, official portrait via the existing
+ * Drive photo fields, and — since Phase 23A — contact channels, education,
+ * and training rows). Awards/documents/GP7 still have no backing model, so
+ * they always render unchecked — never invented, never guessed.
  *
  * No I/O, no React, no globals.
  */
@@ -74,9 +75,15 @@ export function computeProfileCompleteness(officer: OfficerWithRelations): Profi
       label: "Official Portrait",
       complete: !isBlank(officer.thumbnailUrl),
     },
-    { id: "contactInformation", label: "Contact Information", complete: false },
-    { id: "education", label: "Education", complete: false },
-    { id: "trainingCourses", label: "Training Courses", complete: false },
+    {
+      // Phase 23A: real contact channels (phone remains the pre-existing
+      // baseline; email/LINE/Facebook are the new fields added this phase).
+      id: "contactInformation",
+      label: "Contact Information",
+      complete: !isBlank(officer.phone) || !isBlank(officer.email) || !isBlank(officer.lineId) || !isBlank(officer.facebookUrl),
+    },
+    { id: "education", label: "Education", complete: officer.education.length > 0 },
+    { id: "trainingCourses", label: "Training Courses", complete: officer.training.length > 0 },
     { id: "awards", label: "Awards", complete: false },
     { id: "documents", label: "Documents", complete: false },
     { id: "gp7", label: "GP7", complete: false },

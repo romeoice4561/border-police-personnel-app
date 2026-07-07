@@ -1,10 +1,15 @@
 /**
- * ProfileActionsCard (Phase 21A — Editable Profile Foundation, Part 11).
+ * ProfileActionsCard (Phase 21A — Editable Profile Foundation, Part 11;
+ * Phase 23A — Edit Profile enabled, Section 7).
  *
- * The right-rail actions card: Edit Profile, Upload Portrait, Upload GP7,
- * Manage Documents, Manage Achievements. Every action is disabled in this
- * phase (no edit mode, no upload) with a tooltip explaining why.
+ * The right-rail actions card. "Edit Profile" now enters the workspace's
+ * global Edit Mode (Section 7 — one button for the whole page). Upload
+ * Portrait/GP7/Manage Documents/Manage Achievements remain disabled — they
+ * are explicitly out of scope for this phase (Section 10: "No GP7. No
+ * Achievement." / Part 4/5 upload architecture only).
  */
+"use client";
+
 import type { ComponentType, SVGProps } from "react";
 import { Pencil, ImageUp, FileUp, FolderCog, Trophy } from "lucide-react";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,28 +18,43 @@ import { Tooltip } from "@/components/ui/tooltip";
 
 const REASON = "Available in a future update";
 
-interface ProfileAction {
+interface DisabledAction {
   id: string;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
-const ACTIONS: ProfileAction[] = [
-  { id: "editProfile", label: "Edit Profile", icon: Pencil },
+const DISABLED_ACTIONS: DisabledAction[] = [
   { id: "uploadPortrait", label: "Upload Portrait", icon: ImageUp },
   { id: "uploadGp7", label: "Upload GP7", icon: FileUp },
   { id: "manageDocuments", label: "Manage Documents", icon: FolderCog },
   { id: "manageAchievements", label: "Manage Achievements", icon: Trophy },
 ];
 
-export function ProfileActionsCard() {
+export interface ProfileActionsCardProps {
+  editing: boolean;
+  onEditProfile: () => void;
+}
+
+export function ProfileActionsCard({ editing, onEditProfile }: ProfileActionsCardProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Actions</CardTitle>
       </CardHeader>
       <CardBody className="space-y-2">
-        {ACTIONS.map(({ id, label, icon: Icon }) => (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-start"
+          disabled={editing}
+          onClick={onEditProfile}
+        >
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+          แก้ไขข้อมูล
+        </Button>
+
+        {DISABLED_ACTIONS.map(({ id, label, icon: Icon }) => (
           <Tooltip key={id} label={REASON} className="block w-full">
             <Button
               type="button"

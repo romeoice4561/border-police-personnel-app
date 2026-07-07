@@ -20,6 +20,10 @@ export interface TimelineRowInput {
   yearValue: number | null;
   position: string;
   unit: string | null;
+  /** Phase 23A: per-row rank + provenance/verification — optional so existing import callers are unaffected (DB defaults apply). */
+  rank?: string | null;
+  source?: string | null;
+  verified?: string;
 }
 
 export class TimelineRepository {
