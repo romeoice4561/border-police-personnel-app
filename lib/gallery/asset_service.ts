@@ -21,6 +21,7 @@ import type {
   Asset,
   AssetCategoryCount,
   AssetFacetCount,
+  AssetMetadataPatch,
   AssetQuery,
   PaginatedAssets,
 } from "@/lib/gallery/asset_types";
@@ -78,6 +79,17 @@ export class AssetService {
   companyCounts(filter?: { category?: AssetCategory; region?: string }): Promise<AssetFacetCount[]> {
     if (filter?.category !== undefined && isReservedCategory(filter.category)) return Promise.resolve([]);
     return this.repository.companyCounts(filter);
+  }
+
+  /**
+   * Phase 22A: updates only the supplied editable metadata fields for a Gallery
+   * asset. Reserved (PROFILE) assets are never updated. Returns the updated
+   * asset, or null when the id is not found or belongs to a reserved category.
+   */
+  async updateMetadata(assetId: string, patch: AssetMetadataPatch): Promise<Asset | null> {
+    const existing = await this.repository.findById(assetId);
+    if (!existing || isReservedCategory(existing.category)) return null;
+    return this.repository.updateMetadata(assetId, patch);
   }
 
   /**

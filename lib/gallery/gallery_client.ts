@@ -8,7 +8,7 @@
  */
 "use client";
 
-import type { Asset, AssetCategoryCount, AssetFacetCount } from "@/lib/gallery/asset_types";
+import type { Asset, AssetCategoryCount, AssetFacetCount, AssetMetadataPatch } from "@/lib/gallery/asset_types";
 import type { AssetCategory } from "@/lib/gallery/asset_category";
 import { ApiClientError } from "@/lib/ui/api_client";
 
@@ -18,6 +18,8 @@ export interface GalleryAssetsQuery {
   company?: string;
   battalion?: string;
   search?: string;
+  /** Phase 22A: when provided, only assets with this verification state are returned. */
+  verified?: boolean;
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -35,6 +37,7 @@ export interface GalleryFacetCounts {
   categories: AssetCategoryCount[];
   regions: AssetFacetCount[];
   companies: AssetFacetCount[];
+  battalions?: AssetFacetCount[];
 }
 
 export interface GalleryAssetsResult {
@@ -43,7 +46,7 @@ export interface GalleryAssetsResult {
   facetCounts: GalleryFacetCounts;
 }
 
-function toQueryString(params: Record<string, string | number | undefined | null>): string {
+function toQueryString(params: Record<string, string | number | boolean | undefined | null>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null || value === "") continue;
@@ -86,6 +89,37 @@ async function request<T>(path: string): Promise<{ data: T; meta?: Record<string
   return { data: body.data as T, meta: body.meta };
 }
 
+async function requestPatch<T>(path: string, body: unknown): Promise<{ data: T }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+  }
+
+  let parsed: ApiEnvelope<T>;
+  try {
+    parsed = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new ApiClientError("The server returned an unreadable response.", response.status, "BAD_RESPONSE");
+  }
+
+  if (!response.ok || parsed.error) {
+    const err = parsed.error;
+    throw new ApiClientError(
+      err?.message ?? `Request failed (${response.status})`,
+      response.status,
+      err?.code ?? "REQUEST_FAILED"
+    );
+  }
+
+  return { data: parsed.data as T };
+}
+
 export const galleryClient = {
   async listCategories(): Promise<AssetCategoryCount[]> {
     return (await request<AssetCategoryCount[]>("/gallery/categories")).data;
@@ -93,7 +127,7 @@ export const galleryClient = {
 
   async listAssets(query: GalleryAssetsQuery = {}): Promise<GalleryAssetsResult> {
     const { data, meta } = await request<Asset[]>(
-      `/gallery/assets${toQueryString(query as Record<string, string | number | undefined | null>)}`
+      `/gallery/assets${toQueryString(query as Record<string, string | number | boolean | undefined | null>)}`
     );
     const m = meta as
       | {
@@ -106,5 +140,10 @@ export const galleryClient = {
       pagination: m?.pagination ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 },
       facetCounts: m?.facetCounts ?? { categories: [], regions: [], companies: [] },
     };
+  },
+
+  /** Phase 22A: patch the editable metadata fields for a single asset. */
+  async updateAssetMetadata(assetId: string, patch: AssetMetadataPatch): Promise<Asset> {
+    return (await requestPatch<Asset>(`/gallery/assets/${encodeURIComponent(assetId)}`, patch)).data;
   },
 };

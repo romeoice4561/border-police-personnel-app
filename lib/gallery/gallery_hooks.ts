@@ -9,9 +9,9 @@
  */
 "use client";
 
-import { useQuery, keepPreviousData, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData, type UseQueryResult } from "@tanstack/react-query";
 import { galleryClient, type GalleryAssetsQuery, type GalleryAssetsResult } from "@/lib/gallery/gallery_client";
-import type { AssetCategoryCount } from "@/lib/gallery/asset_types";
+import type { Asset, AssetCategoryCount, AssetMetadataPatch } from "@/lib/gallery/asset_types";
 
 export const galleryQueryKeys = {
   categories: () => ["gallery", "categories"] as const,
@@ -30,5 +30,19 @@ export function useGalleryAssets(query: GalleryAssetsQuery): UseQueryResult<Gall
     queryKey: galleryQueryKeys.assets(query),
     queryFn: () => galleryClient.listAssets(query),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Phase 22A: mutation hook for updating asset metadata. On success, all
+ * gallery queries are invalidated so the grid reflects the latest values.
+ */
+export function useUpdateAssetMetadata() {
+  const queryClient = useQueryClient();
+  return useMutation<Asset, Error, { assetId: string; patch: AssetMetadataPatch }>({
+    mutationFn: ({ assetId, patch }) => galleryClient.updateAssetMetadata(assetId, patch),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["gallery"] });
+    },
   });
 }

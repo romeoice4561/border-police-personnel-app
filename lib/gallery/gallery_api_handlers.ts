@@ -21,6 +21,7 @@ import {
   galleryAssetIdParamSchema,
   galleryAssetsQuerySchema,
   galleryCompaniesQuerySchema,
+  galleryMetadataPatchSchema,
   galleryRegionsQuerySchema,
   searchParamsToObject,
 } from "@/lib/gallery/gallery_api_schemas";
@@ -111,4 +112,32 @@ export async function handleGalleryCompanies(service: AssetService, params: URLS
     region: parsed.data.region,
   });
   return jsonOk(companies, { total: companies.length });
+}
+
+/**
+ * Phase 22A: PATCH /api/gallery/assets/{assetId} — updates only the editable
+ * metadata fields. Returns 404 when the asset is absent or reserved (PROFILE).
+ */
+export async function handleUpdateAssetMetadata(
+  service: AssetService,
+  rawAssetId: string,
+  request: Request
+): Promise<Response> {
+  const paramParsed = galleryAssetIdParamSchema.safeParse({ assetId: rawAssetId });
+  if (!paramParsed.success) return badRequest("Invalid asset id", zodDetails(paramParsed.error));
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return badRequest("Request body must be valid JSON");
+  }
+
+  const bodyParsed = galleryMetadataPatchSchema.safeParse(body);
+  if (!bodyParsed.success) return badRequest("Invalid metadata patch", zodDetails(bodyParsed.error));
+
+  const updated = await service.updateMetadata(paramParsed.data.assetId, bodyParsed.data);
+  if (!updated) return notFound(`Asset '${paramParsed.data.assetId}' not found`);
+
+  return jsonOk(updated);
 }

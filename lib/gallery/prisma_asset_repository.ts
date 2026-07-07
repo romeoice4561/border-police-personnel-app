@@ -18,13 +18,14 @@ import type {
   Asset,
   AssetCategoryCount,
   AssetFacetCount,
+  AssetMetadataPatch,
   AssetQuery,
   PaginatedAssets,
 } from "@/lib/gallery/asset_types";
 import { AssetCategory, isGalleryCategory } from "@/lib/gallery/asset_category";
 import type { AssetRepository } from "@/lib/gallery/asset_repository";
 
-/** A persisted Asset row (matches the Prisma Asset model). */
+/** A persisted Asset row (matches the Prisma Asset model, including Phase 22A columns). */
 export interface AssetRow {
   id: number;
   assetId: string;
@@ -42,6 +43,13 @@ export interface AssetRow {
   createdTime: Date | string | null;
   updatedTime: Date | string | null;
   companyId: number | null;
+  // Phase 22A: editable metadata fields
+  unitName:    string | null;
+  unitNumber:  string | null;
+  keywords:    string;   // comma-joined in DB, split to string[] in domain
+  description: string | null;
+  remarks:     string | null;
+  verified:    boolean;
 }
 
 /** The subset of the Prisma Asset delegate this repository uses. Structurally satisfied by PrismaClient.asset and by fakes. */
@@ -57,6 +65,11 @@ export interface AssetDelegate {
     where: Record<string, unknown>;
     create: Record<string, unknown>;
     update: Record<string, unknown>;
+  }): Promise<AssetRow>;
+  /** Phase 22A: targeted field update (returns the updated row). */
+  update(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
   }): Promise<AssetRow>;
   count(args?: { where?: Record<string, unknown> }): Promise<number>;
   groupBy(args: {
@@ -85,7 +98,13 @@ function toDate(value: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Maps a persisted row to the domain Asset. */
+/** Parses the comma-joined keywords string into a string array. */
+function parseKeywords(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(",").map((k) => k.trim()).filter(Boolean);
+}
+
+/** Maps a persisted row to the domain Asset (including Phase 22A fields). */
 function rowToAsset(row: AssetRow): Asset {
   return {
     assetId: row.assetId,
@@ -103,6 +122,12 @@ function rowToAsset(row: AssetRow): Asset {
     createdTime: toIso(row.createdTime),
     updatedTime: toIso(row.updatedTime),
     companyId: row.companyId,
+    unitName:    row.unitName,
+    unitNumber:  row.unitNumber,
+    keywords:    parseKeywords(row.keywords),
+    description: row.description,
+    remarks:     row.remarks,
+    verified:    row.verified,
   };
 }
 
@@ -123,6 +148,12 @@ function assetToData(asset: Asset): Record<string, unknown> {
     createdTime: toDate(asset.createdTime),
     updatedTime: toDate(asset.updatedTime),
     companyId: asset.companyId ?? null,
+    unitName:    asset.unitName    ?? null,
+    unitNumber:  asset.unitNumber  ?? null,
+    keywords:    (asset.keywords ?? []).join(","),
+    description: asset.description ?? null,
+    remarks:     asset.remarks     ?? null,
+    verified:    asset.verified    ?? false,
   };
 }
 
@@ -161,6 +192,7 @@ export class PrismaAssetRepository implements AssetRepository {
     if (query.company) where.company = query.company;
     if (query.battalion) where.battalion = query.battalion;
     if (query.companyId !== undefined) where.companyId = query.companyId;
+    if (query.verified  !== undefined) where.verified  = query.verified;
     if (query.search) {
       const mode = "insensitive";
       const value = query.search;
@@ -170,15 +202,20 @@ export class PrismaAssetRepository implements AssetRepository {
           : query.match === "startsWith"
             ? { startsWith: value, mode }
             : { contains: value, mode };
-      // Phase 19F: search across all organisational fields so users can find
-      // assets by company number ("414"), battalion ("44"), region ("ภาค 4"),
-      // folder name, or relative path.
+      // Phase 19F+22A: search across all organisational and editorial fields so
+      // users can find assets by company ("414"), battalion ("44"), region
+      // ("ภาค 4"), unit name/number, keywords, description, or remarks.
       where.OR = [
-        { folderName: filter },
+        { folderName:   filter },
         { relativePath: filter },
-        { region: filter },
-        { company: filter },
-        { battalion: filter },
+        { region:       filter },
+        { company:      filter },
+        { battalion:    filter },
+        { unitName:     filter },
+        { unitNumber:   filter },
+        { keywords:     filter },
+        { description:  filter },
+        { remarks:      filter },
       ];
     }
     return where;
@@ -240,5 +277,26 @@ export class PrismaAssetRepository implements AssetRepository {
 
   count(): Promise<number> {
     return this.db.asset.count();
+  }
+
+  async updateMetadata(assetId: string, patch: AssetMetadataPatch): Promise<Asset | null> {
+    const existing = await this.db.asset.findUnique({ where: { assetId } });
+    if (!existing) return null;
+
+    const data: Record<string, unknown> = {};
+    if ("region"      in patch) data.region      = patch.region;
+    if ("battalion"   in patch) data.battalion   = patch.battalion;
+    if ("company"     in patch) data.company     = patch.company;
+    if ("unitName"    in patch) data.unitName    = patch.unitName;
+    if ("unitNumber"  in patch) data.unitNumber  = patch.unitNumber;
+    if ("keywords"    in patch) data.keywords    = (patch.keywords ?? []).join(",");
+    if ("description" in patch) data.description = patch.description;
+    if ("remarks"     in patch) data.remarks     = patch.remarks;
+    if ("verified"    in patch) data.verified    = patch.verified;
+
+    if (Object.keys(data).length === 0) return rowToAsset(existing);
+
+    const row = await this.db.asset.update({ where: { assetId }, data });
+    return rowToAsset(row);
   }
 }

@@ -131,6 +131,16 @@ model Asset {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Phase 22A: user-editable metadata fields added by the Metadata Editor.
+  // All additive — existing rows default to empty/false; never removes old cols.
+  unitName     String?
+  unitNumber   String?
+  /// Comma-joined keyword list (e.g. "แผนที่,หน่วยข้างเคียง"). UI splits on comma to render chips.
+  keywords     String   @default("")
+  description  String?
+  remarks      String?
+  verified     Boolean  @default(false)
+
   // Phase 20B: optional link to the authoritative Organization master data
   // (Phase 20A), resolved from the existing `company` text at import time.
   // Nullable and additive — `company`/`battalion`/`region` text fields are
@@ -147,6 +157,8 @@ model Asset {
   @@index([category, region])
   @@index([category, company])
   @@index([companyId])
+  @@index([verified])
+  @@index([unitNumber])
 }
 
 /// Phase 20A: authoritative organization master data — Region. `code` is the

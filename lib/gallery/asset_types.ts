@@ -47,6 +47,34 @@ export interface Asset {
    * `region` text remain authoritative regardless of this field.
    */
   companyId?: number | null;
+  /**
+   * Phase 22A: user-editable metadata. All optional so existing assets
+   * (without these columns populated) remain valid without back-fill.
+   */
+  unitName?:    string | null;
+  unitNumber?:  string | null;
+  /** Keywords exposed as a string array; stored comma-joined in the DB. */
+  keywords?:    string[];
+  description?: string | null;
+  remarks?:     string | null;
+  verified?:    boolean;
+}
+
+/**
+ * Phase 22A: the fields a user may patch via the metadata editor.
+ * Only provided keys are updated; omitted keys are left unchanged.
+ * Explicit `null` clears a field.
+ */
+export interface AssetMetadataPatch {
+  region?:      string | null;
+  battalion?:   string | null;
+  company?:     string | null;
+  unitName?:    string | null;
+  unitNumber?:  string | null;
+  keywords?:    string[];
+  description?: string | null;
+  remarks?:     string | null;
+  verified?:    boolean;
 }
 
 /** Fields required to build/persist an asset (everything derivable at discovery). */
@@ -66,9 +94,11 @@ export interface AssetQuery {
   battalion?: string;
   /** Phase 20B: filter by the resolved Organization master-data Company id. */
   companyId?: number;
-  /** Free-text match against folderName / relativePath. */
+  /** Free-text match against folderName / relativePath / keywords / etc. */
   search?: string;
   match?: AssetMatchMode;
+  /** Phase 22A: when set, only return assets with this verification state. */
+  verified?: boolean;
   page?: number;
   pageSize?: number;
   sortBy?: AssetSortField;

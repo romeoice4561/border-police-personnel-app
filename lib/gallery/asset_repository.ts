@@ -11,7 +11,7 @@
  * tables, no globals, no singleton.
  */
 
-import type { Asset, AssetQuery, PaginatedAssets, AssetCategoryCount, AssetFacetCount } from "@/lib/gallery/asset_types";
+import type { Asset, AssetMetadataPatch, AssetQuery, PaginatedAssets, AssetCategoryCount, AssetFacetCount } from "@/lib/gallery/asset_types";
 import { AssetCategory, isGalleryCategory } from "@/lib/gallery/asset_category";
 
 /** Read/write contract every Asset repository implements. */
@@ -30,6 +30,11 @@ export interface AssetRepository {
   companyCounts(filter?: { category?: AssetCategory; region?: string }): Promise<AssetFacetCount[]>;
   /** Total asset count. */
   count(): Promise<number>;
+  /**
+   * Phase 22A: updates only the supplied editable metadata fields on an asset.
+   * Returns the updated asset, or null if the assetId was not found.
+   */
+  updateMetadata(assetId: string, patch: AssetMetadataPatch): Promise<Asset | null>;
 }
 
 const DEFAULT_PAGE_SIZE = 24;
@@ -82,10 +87,22 @@ export class InMemoryAssetRepository implements AssetRepository {
       if (query.company && !textMatches(a.company, query.company, "exact")) return false;
       if (query.battalion && !textMatches(a.battalion, query.battalion, "exact")) return false;
       if (query.companyId !== undefined && (a.companyId ?? null) !== query.companyId) return false;
+      if (query.verified !== undefined && Boolean(a.verified) !== query.verified) return false;
       if (query.search) {
-        const inFolder = textMatches(a.folderName, query.search, match);
-        const inPath = textMatches(a.relativePath, query.search, match);
-        if (!inFolder && !inPath) return false;
+        const needle = query.search;
+        const kwJoined = (a.keywords ?? []).join(",");
+        const found =
+          textMatches(a.folderName,   needle, match) ||
+          textMatches(a.relativePath, needle, match) ||
+          textMatches(a.region,       needle, match) ||
+          textMatches(a.company,      needle, match) ||
+          textMatches(a.battalion,    needle, match) ||
+          textMatches(a.unitName,     needle, match) ||
+          textMatches(a.unitNumber,   needle, match) ||
+          textMatches(kwJoined,       needle, match) ||
+          textMatches(a.description,  needle, match) ||
+          textMatches(a.remarks,      needle, match);
+        if (!found) return false;
       }
       return true;
     });
@@ -155,5 +172,25 @@ export class InMemoryAssetRepository implements AssetRepository {
 
   async count(): Promise<number> {
     return this.assets.size;
+  }
+
+  async updateMetadata(assetId: string, patch: AssetMetadataPatch): Promise<Asset | null> {
+    const asset = this.assets.get(assetId);
+    if (!asset || !isGalleryCategory(asset.category)) return null;
+    const updated: Asset = { ...asset };
+    // Optional patch fields include `undefined` in their type (TypeScript adds it for `?`
+    // properties). After the `"in"` guard the value won't be `undefined` at runtime; cast
+    // to the narrower Asset field type so the assignment compiles.
+    if ("region"      in patch) updated.region      = patch.region      as string | null;
+    if ("battalion"   in patch) updated.battalion   = patch.battalion   as string | null;
+    if ("company"     in patch) updated.company     = patch.company     as string | null;
+    if ("unitName"    in patch) updated.unitName    = patch.unitName    as string | null;
+    if ("unitNumber"  in patch) updated.unitNumber  = patch.unitNumber  as string | null;
+    if ("keywords"    in patch) updated.keywords    = patch.keywords    as string[];
+    if ("description" in patch) updated.description = patch.description as string | null;
+    if ("remarks"     in patch) updated.remarks     = patch.remarks     as string | null;
+    if ("verified"    in patch) updated.verified    = patch.verified    as boolean;
+    this.assets.set(assetId, updated);
+    return updated;
   }
 }

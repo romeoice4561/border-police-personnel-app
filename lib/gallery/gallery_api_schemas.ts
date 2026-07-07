@@ -39,6 +39,8 @@ export const galleryAssetsQuerySchema = z.object({
   companyId: z.coerce.number().int().positive().optional(),
   search: z.string().trim().min(1).optional(),
   match: matchSchema,
+  // Phase 22A: filter by verification state ("true" | "false" in query string).
+  verified: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
   page: pageSchema,
   pageSize: pageSizeSchema,
   sortBy: sortBySchema,
@@ -62,6 +64,25 @@ export const galleryAssetIdParamSchema = z.object({
 });
 
 export type GalleryAssetsQuery = z.infer<typeof galleryAssetsQuerySchema>;
+
+/**
+ * Phase 22A: PATCH body for /api/gallery/assets/{assetId}.
+ * Only the supplied fields are updated; absent fields are left unchanged.
+ * Explicit null clears a field.
+ */
+export const galleryMetadataPatchSchema = z.object({
+  region:      z.string().trim().min(1).nullable().optional(),
+  battalion:   z.string().trim().min(1).nullable().optional(),
+  company:     z.string().trim().min(1).nullable().optional(),
+  unitName:    z.string().trim().min(1).nullable().optional(),
+  unitNumber:  z.string().trim().min(1).nullable().optional(),
+  keywords:    z.array(z.string().trim().min(1)).optional(),
+  description: z.string().trim().nullable().optional(),
+  remarks:     z.string().trim().nullable().optional(),
+  verified:    z.boolean().optional(),
+});
+
+export type GalleryMetadataPatch = z.infer<typeof galleryMetadataPatchSchema>;
 
 /** Parses URLSearchParams into a plain record for Zod (last value wins on repeats). */
 export function searchParamsToObject(params: URLSearchParams): Record<string, string> {

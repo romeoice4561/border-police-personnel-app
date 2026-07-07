@@ -1,23 +1,22 @@
 /**
- * GalleryBrowser (Phase 19D; Thai polish + sort + search expansion Phase 19F).
+ * GalleryBrowser (Phase 19D; Thai polish + sort + search expansion Phase 19F;
+ * metadata editor + battalion/verified filters Phase 22A).
  *
- * Category browser: cascading region → company filters, search, sort selector,
- * responsive asset grid, pagination, and one shared PhotoModal. All UI text is
- * Thai. Sort options are encoded as "field:order" strings and split before
- * being passed to the query so the GalleryAssetsQuery type is unchanged.
- *
- * Facets for the filter dropdowns come from the same /assets response
- * (facetCounts) — no extra requests are needed.
+ * Category browser: cascading region → battalion → company filters, verified
+ * toggle, search, sort selector, responsive asset grid, pagination, one shared
+ * PhotoModal (viewer) and one GalleryEditModal (metadata editor). All UI text
+ * is Thai.
  */
 "use client";
 
 import { useState, useCallback, useDeferredValue } from "react";
-import { ChevronLeft, Search, X, ArrowUpDown } from "lucide-react";
+import { ChevronLeft, Search, X, ArrowUpDown, ShieldCheck } from "lucide-react";
 import { ASSET_CATEGORY_LABELS } from "@/lib/gallery/asset_category";
 import type { AssetCategory } from "@/lib/gallery/asset_category";
 import type { Asset } from "@/lib/gallery/asset_types";
 import { useGalleryAssets } from "@/lib/gallery/gallery_hooks";
 import { GalleryAssetCard } from "@/components/gallery/gallery_asset_card";
+import { GalleryEditModal } from "@/components/gallery/gallery_edit_modal";
 import { PhotoModal } from "@/components/officer/photo_modal";
 import { Skeleton, ErrorState, EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -63,11 +62,14 @@ interface GalleryBrowserProps {
 
 export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
   const [region, setRegion]           = useState("");
+  const [battalion, setBattalion]     = useState("");
   const [company, setCompany]         = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [sortValue, setSortValue]     = useState(DEFAULT_SORT);
   const [page, setPage]               = useState(1);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [editAsset, setEditAsset]     = useState<Asset | null>(null);
 
   // Defer the search string so typing doesn't fire a new request on every keystroke.
   const search = useDeferredValue(searchInput);
@@ -76,9 +78,11 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
 
   const query = {
     category,
-    region:    region  || undefined,
-    company:   company || undefined,
-    search:    search  || undefined,
+    region:    region    || undefined,
+    battalion: battalion || undefined,
+    company:   company   || undefined,
+    verified:  verifiedOnly ? true : undefined,
+    search:    search    || undefined,
     sortBy,
     sortOrder,
     page,
@@ -90,6 +94,11 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
   const handleRegionChange = useCallback((value: string) => {
     setRegion(value);
     setCompany("");
+    setPage(1);
+  }, []);
+
+  const handleBattalionChange = useCallback((value: string) => {
+    setBattalion(value);
     setPage(1);
   }, []);
 
@@ -110,7 +119,9 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
 
   const handleClearFilters = useCallback(() => {
     setRegion("");
+    setBattalion("");
     setCompany("");
+    setVerifiedOnly(false);
     setSearchInput("");
     setSortValue(DEFAULT_SORT);
     setPage(1);
@@ -121,7 +132,7 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
   const assets     = data?.data ?? [];
   const pagination = data?.pagination;
 
-  const hasFilters = Boolean(region || company || searchInput || sortValue !== DEFAULT_SORT);
+  const hasFilters = Boolean(region || battalion || company || verifiedOnly || searchInput || sortValue !== DEFAULT_SORT);
   const categoryLabel = ASSET_CATEGORY_LABELS[category];
 
   // Total count label
@@ -171,6 +182,29 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
           ))}
         </select>
 
+        {/* Battalion — free-text filter (Phase 22A) */}
+        <div className="relative">
+          <input
+            type="text"
+            id="gallery-battalion-input"
+            placeholder="กองกำกับ..."
+            value={battalion}
+            onChange={(e) => handleBattalionChange(e.target.value)}
+            className={cn(controlClass, "min-w-[130px]", battalion ? "pr-7" : "pr-3")}
+            aria-label="กรองตามกองกำกับ"
+          />
+          {battalion ? (
+            <button
+              type="button"
+              onClick={() => handleBattalionChange("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+              aria-label="ล้างตัวกรองกองกำกับ"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+
         {/* Company — shown when facet has options or a value is already selected */}
         {(companies.length > 0 || company) ? (
           <>
@@ -191,6 +225,24 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
             </select>
           </>
         ) : null}
+
+        {/* Verified toggle (Phase 22A) */}
+        <button
+          type="button"
+          onClick={() => { setVerifiedOnly((v) => !v); setPage(1); }}
+          className={cn(
+            controlClass,
+            "inline-flex items-center gap-1.5 transition-colors",
+            verifiedOnly
+              ? "border-good bg-good-bg text-good"
+              : "text-muted hover:text-foreground"
+          )}
+          aria-pressed={verifiedOnly}
+          aria-label="แสดงเฉพาะรายการที่ยืนยันแล้ว"
+        >
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          ยืนยันแล้ว
+        </button>
 
         {/* Search */}
         <div className="relative">
@@ -278,6 +330,7 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
                 key={asset.assetId}
                 asset={asset}
                 onOpen={setSelectedAsset}
+                onEdit={setEditAsset}
               />
             ))}
           </div>
@@ -312,6 +365,14 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
             ถัดไป
           </Button>
         </nav>
+      ) : null}
+
+      {/* ── Metadata edit modal (Phase 22A) ── */}
+      {editAsset ? (
+        <GalleryEditModal
+          asset={editAsset}
+          onClose={() => setEditAsset(null)}
+        />
       ) : null}
 
       {/* ── Photo viewer modal (one instance for the whole grid) ── */}

@@ -71,6 +71,12 @@ export class FakeAssetDbClient implements AssetDbClient {
         rows.push(row);
         return { ...row };
       },
+      async update(args) {
+        const row = rows.find((r) => matchesWhere(r, args.where));
+        if (!row) throw new Error(`FakeAssetDbClient: record not found for update: ${JSON.stringify(args.where)}`);
+        Object.assign(row, args.data);
+        return { ...row };
+      },
       async count(args) {
         return rows.filter((r) => matchesWhere(r, args?.where)).length;
       },
