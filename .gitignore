@@ -53,3 +53,5 @@ scripts/sample_output/
 .env.local
 # Local Netlify folder
 .netlify
+
+.vercel
