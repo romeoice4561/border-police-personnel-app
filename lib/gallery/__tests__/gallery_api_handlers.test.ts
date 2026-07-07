@@ -135,3 +135,19 @@ test("GET /companies returns company facets scoped to ?category & ?region", asyn
   const companies = (await body(res)).data as Array<{ value: string; count: number }>;
   assert.deepEqual(companies, [{ value: "ตชด.447", count: 2 }]);
 });
+
+test("GET /assets filters by ?companyId (Phase 20B)", async () => {
+  const seedWithCompanyId: Asset[] = [
+    asset("a", { companyId: 447 }),
+    asset("b", { companyId: 447 }),
+    asset("c", { category: AssetCategory.CompanyLocation, region: "ภาค 2", company: "ตชด.115", companyId: 115 }),
+  ];
+  const res = await handleGalleryAssets(service(seedWithCompanyId), new URLSearchParams("companyId=447"));
+  const items = ((await body(res)).data as Array<{ assetId: string }>).map((a) => a.assetId).sort();
+  assert.deepEqual(items, ["a", "b"]);
+});
+
+test("GET /assets rejects a non-numeric companyId with 400", async () => {
+  const res = await handleGalleryAssets(service(SEED), new URLSearchParams("companyId=abc"));
+  assert.equal(res.status, 400);
+});

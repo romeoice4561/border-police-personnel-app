@@ -81,6 +81,7 @@ export class InMemoryAssetRepository implements AssetRepository {
       if (query.region && !textMatches(a.region, query.region, "exact")) return false;
       if (query.company && !textMatches(a.company, query.company, "exact")) return false;
       if (query.battalion && !textMatches(a.battalion, query.battalion, "exact")) return false;
+      if (query.companyId !== undefined && (a.companyId ?? null) !== query.companyId) return false;
       if (query.search) {
         const inFolder = textMatches(a.folderName, query.search, match);
         const inPath = textMatches(a.relativePath, query.search, match);

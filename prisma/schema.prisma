@@ -115,12 +115,22 @@ model Asset {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Phase 20B: optional link to the authoritative Organization master data
+  // (Phase 20A), resolved from the existing `company` text at import time.
+  // Nullable and additive — `company`/`battalion`/`region` text fields are
+  // unchanged and remain the source of truth for assets that don't resolve
+  // to a registered Company. SetNull so removing a Company never blocks or
+  // cascades into Assets.
+  companyRef   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId    Int?
+
   @@index([category])
   @@index([region])
   @@index([company])
   @@index([battalion])
   @@index([category, region])
   @@index([category, company])
+  @@index([companyId])
 }
 
 /// Phase 20A: authoritative organization master data — Region. `code` is the
@@ -168,6 +178,8 @@ model Company {
   displayOrder Int       @default(0)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  assets       Asset[]
 
   @@index([battalionId])
 }

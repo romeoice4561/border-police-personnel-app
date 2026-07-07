@@ -66,6 +66,7 @@ export async function handleGalleryAssets(service: AssetService, params: URLSear
       region: q.region ?? null,
       company: q.company ?? null,
       battalion: q.battalion ?? null,
+      companyId: q.companyId ?? null,
       search: q.search ?? null,
       match: q.match,
       sortBy: q.sortBy,

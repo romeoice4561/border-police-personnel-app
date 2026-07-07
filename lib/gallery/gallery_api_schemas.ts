@@ -35,6 +35,8 @@ export const galleryAssetsQuerySchema = z.object({
   region: z.string().trim().min(1).optional(),
   company: z.string().trim().min(1).optional(),
   battalion: z.string().trim().min(1).optional(),
+  // Phase 20B: filter by the resolved Organization master-data Company id.
+  companyId: z.coerce.number().int().positive().optional(),
   search: z.string().trim().min(1).optional(),
   match: matchSchema,
   page: pageSchema,

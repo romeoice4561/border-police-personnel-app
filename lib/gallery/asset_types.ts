@@ -40,6 +40,13 @@ export interface Asset {
   /** Drive timestamps (ISO strings), when available. */
   createdTime: string | null;
   updatedTime: string | null;
+  /**
+   * Phase 20B: optional link to the Organization master data (Phase 20A),
+   * resolved from `company` at import time. Null when unresolved (no
+   * registered Company matched) or not yet resolved — `company`/`battalion`/
+   * `region` text remain authoritative regardless of this field.
+   */
+  companyId?: number | null;
 }
 
 /** Fields required to build/persist an asset (everything derivable at discovery). */
@@ -57,6 +64,8 @@ export interface AssetQuery {
   region?: string;
   company?: string;
   battalion?: string;
+  /** Phase 20B: filter by the resolved Organization master-data Company id. */
+  companyId?: number;
   /** Free-text match against folderName / relativePath. */
   search?: string;
   match?: AssetMatchMode;

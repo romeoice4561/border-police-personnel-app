@@ -41,6 +41,7 @@ export interface AssetRow {
   imageHeight: number | null;
   createdTime: Date | string | null;
   updatedTime: Date | string | null;
+  companyId: number | null;
 }
 
 /** The subset of the Prisma Asset delegate this repository uses. Structurally satisfied by PrismaClient.asset and by fakes. */
@@ -101,6 +102,7 @@ function rowToAsset(row: AssetRow): Asset {
     imageHeight: row.imageHeight,
     createdTime: toIso(row.createdTime),
     updatedTime: toIso(row.updatedTime),
+    companyId: row.companyId,
   };
 }
 
@@ -120,6 +122,7 @@ function assetToData(asset: Asset): Record<string, unknown> {
     imageHeight: asset.imageHeight ?? null,
     createdTime: toDate(asset.createdTime),
     updatedTime: toDate(asset.updatedTime),
+    companyId: asset.companyId ?? null,
   };
 }
 
@@ -157,6 +160,7 @@ export class PrismaAssetRepository implements AssetRepository {
     if (query.region) where.region = query.region;
     if (query.company) where.company = query.company;
     if (query.battalion) where.battalion = query.battalion;
+    if (query.companyId !== undefined) where.companyId = query.companyId;
     if (query.search) {
       const mode = "insensitive";
       const value = query.search;
