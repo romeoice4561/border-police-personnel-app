@@ -217,6 +217,42 @@ model UnresolvedOrganizationCode {
   @@index([sourceModule])
 }
 
+/// Phase 21C: a Profile Photo — every image discovered under a Drive
+/// "Profile รายบุคคล ..." folder becomes EXACTLY ONE row here, unconditionally,
+/// regardless of OCR success, name recognition, or officer-match outcome.
+/// Completely independent from Officer (no foreign key) — `matchedOfficerId`
+/// is a plain string reference to Officer.officerId, set only when
+/// matchStatus is AUTO_MATCHED or MANUAL_MATCHED. Officer.driveFileId/
+/// thumbnailUrl/webViewUrl (Phase 17B) are UNCHANGED; this table does not
+/// replace them, it is the universal inbox that guarantees no Profile image
+/// is ever lost even when it cannot (yet) be linked to an officer.
+/// `driveFileId` is the deterministic idempotent upsert key.
+model ProfilePhoto {
+  id               Int      @id @default(autoincrement())
+  driveFileId      String   @unique
+  thumbnailUrl     String?
+  webViewUrl       String?
+  filename         String
+  folderPath       String
+  region           String?
+  company          String?
+  battalion        String?
+  ocrText          String?
+  ocrStatus        String   @default("PENDING")
+  matchStatus      String   @default("UNASSIGNED")
+  matchedOfficerId String?
+  confidence       Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([matchStatus])
+  @@index([region])
+  @@index([company])
+  @@index([battalion])
+  @@index([matchedOfficerId])
+  @@index([ocrStatus])
+}
+
 /// A phone number associated with an officer. Unique per (officer, number).
 model Phone {
   id        Int     @id @default(autoincrement())
