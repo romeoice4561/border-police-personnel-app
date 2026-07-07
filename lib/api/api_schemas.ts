@@ -37,6 +37,10 @@ export const officerListQuerySchema = z.object({
   region: z.string().trim().min(1).optional(),
   minQuality: z.coerce.number().int().min(0).max(100).optional(),
   minCareerYears: z.coerce.number().int().min(0).optional(),
+  // Phase 20C: optional Organization master-data filters (helper references — additive).
+  regionId: z.coerce.number().int().positive().optional(),
+  battalionId: z.coerce.number().int().positive().optional(),
+  companyId: z.coerce.number().int().positive().optional(),
 });
 
 /** GET /search query params. At least one search field must be present. */

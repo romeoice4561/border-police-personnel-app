@@ -37,6 +37,10 @@ export interface OfficerListParams {
   region?: string;
   minQuality?: number;
   minCareerYears?: number;
+  /** Phase 20C: optional Organization master-data filters (helper references — additive). */
+  regionId?: number;
+  battalionId?: number;
+  companyId?: number;
 }
 
 /** Search parameters — each optional; provided fields are AND-combined. */
@@ -49,6 +53,10 @@ export interface OfficerSearchParams {
   region?: string;
   minCareerYears?: number;
   minQuality?: number;
+  /** Phase 20C: optional Organization master-data filters (helper references — additive). */
+  regionId?: number;
+  battalionId?: number;
+  companyId?: number;
   match: MatchMode;
   page: number;
   pageSize: number;
@@ -82,6 +90,9 @@ export class OfficerQueryRepository {
     if (params.region) where.region = stringFilter(params.region, "exact");
     if (typeof params.minQuality === "number") where.qualityScore = { gte: params.minQuality };
     if (typeof params.minCareerYears === "number") where.careerYears = { gte: params.minCareerYears };
+    if (typeof params.regionId === "number") where.regionId = params.regionId;
+    if (typeof params.battalionId === "number") where.battalionId = params.battalionId;
+    if (typeof params.companyId === "number") where.companyId = params.companyId;
 
     return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);
   }
@@ -109,6 +120,9 @@ export class OfficerQueryRepository {
     if (params.region) and.push({ region: stringFilter(params.region, params.match) });
     if (typeof params.minCareerYears === "number") and.push({ careerYears: { gte: params.minCareerYears } });
     if (typeof params.minQuality === "number") and.push({ qualityScore: { gte: params.minQuality } });
+    if (typeof params.regionId === "number") and.push({ regionId: params.regionId });
+    if (typeof params.battalionId === "number") and.push({ battalionId: params.battalionId });
+    if (typeof params.companyId === "number") and.push({ companyId: params.companyId });
 
     const where = and.length > 0 ? { AND: and } : {};
     return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);

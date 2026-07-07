@@ -86,16 +86,10 @@ export function isBattalionConsistentWithRegion(battalionCode: string, regionCod
 export function parseOrganizationCode(raw: string): OrganizationCodeResolution {
   const text = raw.replace(/\s+/g, " ").trim();
 
-  const battalionMatch = text.match(BATTALION_PATTERN);
-  if (battalionMatch) {
-    const battalionCode = normalizeBattalionCode(toArabic(battalionMatch[1]));
-    if (battalionCode) {
-      const regionCode = regionCodeOfBattalion(battalionCode);
-      if (regionCode) return { status: "resolved", level: "battalion", battalionCode, regionCode };
-    }
-    return { status: "unresolved", raw, reason: "Malformed battalion code" };
-  }
-
+  // Company is checked FIRST: a single string (e.g. an officer's currentUnit)
+  // can legitimately contain both a company token ("ตชด.434") and a battalion
+  // token ("กก.ตชด.43") together — the company is strictly more specific and
+  // must win rather than the earlier-appearing pattern.
   const companyMatch = text.match(COMPANY_PATTERN);
   if (companyMatch) {
     const companyCode = normalizeCompanyCode(toArabic(companyMatch[1]));
@@ -107,6 +101,16 @@ export function parseOrganizationCode(raw: string): OrganizationCodeResolution {
       }
     }
     return { status: "unresolved", raw, reason: "Malformed company code" };
+  }
+
+  const battalionMatch = text.match(BATTALION_PATTERN);
+  if (battalionMatch) {
+    const battalionCode = normalizeBattalionCode(toArabic(battalionMatch[1]));
+    if (battalionCode) {
+      const regionCode = regionCodeOfBattalion(battalionCode);
+      if (regionCode) return { status: "resolved", level: "battalion", battalionCode, regionCode };
+    }
+    return { status: "unresolved", raw, reason: "Malformed battalion code" };
   }
 
   const regionMatch = text.match(REGION_PATTERN);

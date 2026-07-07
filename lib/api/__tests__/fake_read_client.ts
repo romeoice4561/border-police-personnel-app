@@ -44,6 +44,9 @@ function officer(seed: FakeOfficerSeed, id: number): Officer {
     knowledgeScore: seed.knowledgeScore ?? null,
     region: seed.region ?? null,
     confidence: seed.confidence ?? null,
+    regionId: seed.regionId ?? null,
+    battalionId: seed.battalionId ?? null,
+    companyId: seed.companyId ?? null,
     createdAt: seed.createdAt ?? new Date(2026, 0, id),
     updatedAt: seed.updatedAt ?? new Date(2026, 0, id),
   } as Officer;

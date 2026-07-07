@@ -30,6 +30,16 @@ export interface OfficerInput {
   driveFileId: string | null;
   thumbnailUrl: string | null;
   webViewUrl: string | null;
+  /**
+   * Phase 20C: optional Organization master-data links (helper references
+   * only — `region`/`currentUnit`/Timeline.unit text remain authoritative).
+   * Omitted entirely by existing callers, so existing import behavior is
+   * unchanged; only a caller that explicitly resolves via OrganizationService
+   * passes these.
+   */
+  regionId?: number | null;
+  battalionId?: number | null;
+  companyId?: number | null;
 }
 
 export class OfficerRepository {
@@ -67,6 +77,13 @@ export class OfficerRepository {
         driveFileId: input.driveFileId,
         thumbnailUrl: input.thumbnailUrl,
         webViewUrl: input.webViewUrl,
+        // Phase 20C: only touch the organization links when the caller
+        // explicitly resolved them — omitted keys leave the existing row's
+        // links (or NULL) untouched, so a caller that never resolves
+        // organization data (the existing importer) affects nothing here.
+        ...(input.regionId !== undefined ? { regionId: input.regionId } : {}),
+        ...(input.battalionId !== undefined ? { battalionId: input.battalionId } : {}),
+        ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
       },
     });
 

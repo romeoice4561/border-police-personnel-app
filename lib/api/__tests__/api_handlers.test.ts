@@ -88,6 +88,40 @@ test("GET /officers/{id} returns 404 for an unknown officer", async () => {
   assert.equal(((await body(res)).error as { code: string }).code, "NOT_FOUND");
 });
 
+test("GET /officers/{id} response is backward compatible: existing top-level keys unchanged (Phase 20C)", async () => {
+  const res = await handleOfficerById(container(), "ภาค1/1");
+  const data = (await body(res)).data as Record<string, unknown>;
+  assert.deepEqual(new Set(Object.keys(data)), new Set(["officer", "organization", "photo", "timeline", "phones", "quality"]));
+  const officer = data.officer as Record<string, unknown>;
+  // Existing officer fields present and unrenamed — no new keys snuck into `officer`.
+  assert.deepEqual(
+    new Set(Object.keys(officer)),
+    new Set(["id", "rank", "firstName", "lastName", "currentPosition", "currentUnit", "phone", "careerYears", "region", "confidence"])
+  );
+});
+
+test("GET /officers/{id} includes an optional `organization` block with null ids when unresolved (Phase 20C)", async () => {
+  const res = await handleOfficerById(container(), "ภาค1/1");
+  const data = (await body(res)).data as Record<string, unknown>;
+  const organization = data.organization as Record<string, unknown>;
+  assert.deepEqual(organization, { regionId: null, battalionId: null, companyId: null });
+});
+
+test("GET /officers/{id} surfaces resolved organization ids when present on the officer row (Phase 20C)", async () => {
+  const seededClient = new FakeReadDatabaseClient([
+    { officerId: "ภาค1/1", rank: "พ.ต.อ.", firstName: "สมชาย", lastName: "ใจดี", regionId: 4, battalionId: 44, companyId: 447 },
+  ]);
+  const res = await handleOfficerById(createApiContainer(seededClient), "ภาค1/1");
+  const data = (await body(res)).data as Record<string, unknown>;
+  assert.deepEqual(data.organization, { regionId: 4, battalionId: 44, companyId: 447 });
+});
+
+test("GET /officers list rows carry the new organization ids as optional fields without breaking existing consumers (Phase 20C)", async () => {
+  const res = await handleOfficerList(container(), new URLSearchParams("pageSize=10"));
+  const data = (await body(res)).data as Array<Record<string, unknown>>;
+  assert.ok(data.every((o) => o.regionId === null && o.battalionId === null && o.companyId === null));
+});
+
 test("GET /statistics computes totals, averages, and duplicate counts", async () => {
   // Two officers share a phone/name to exercise duplicate detection.
   const dupSeeds: FakeOfficerSeed[] = [

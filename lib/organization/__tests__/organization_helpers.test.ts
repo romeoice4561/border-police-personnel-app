@@ -69,3 +69,10 @@ test("parseOrganizationCode reports unresolved for a malformed company code", ()
   const result = parseOrganizationCode("ตชด.4470");
   assert.equal(result.status, "unresolved");
 });
+
+test("parseOrganizationCode prefers the company code when both a company and battalion token appear in the same string", () => {
+  // Real officer currentUnit text found live: names both the company AND its
+  // parent battalion in one string. The company (more specific) must win.
+  const result = parseOrganizationCode("ผบ.มว.(สบ1)ร้อย ตชด.434 กก.ตชด.43");
+  assert.deepEqual(result, { status: "resolved", level: "company", companyCode: "434", battalionCode: "43", regionCode: "4" });
+});

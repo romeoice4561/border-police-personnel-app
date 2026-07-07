@@ -105,6 +105,13 @@ export async function handleOfficerById(source: ContainerSource, rawId: string):
       region: officer.region,
       confidence: officer.confidence,
     },
+    // Phase 20C: Organization master-data links (nullable helper references —
+    // additive; `officer.region`/`currentUnit`/timeline text above remain authoritative).
+    organization: {
+      regionId: officer.regionId,
+      battalionId: officer.battalionId,
+      companyId: officer.companyId,
+    },
     // Phase 17B: Drive photo identity (nullable — UI falls back to placeholder).
     photo: {
       driveFileId: officer.driveFileId,

@@ -53,6 +53,19 @@ model Officer {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
+  // Phase 20C: optional links to the Organization master data (Phase 20A),
+  // resolved from currentUnit/region/timeline text via OrganizationService.
+  // Nullable and additive — the existing text fields (region, currentUnit,
+  // Timeline.unit) are UNCHANGED and remain the source of truth. SetNull so
+  // removing a Region/Battalion/Company can never block or cascade into
+  // Officer rows. Never backfilled by this phase.
+  regionRef        Region?    @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  regionId         Int?
+  battalionRef     Battalion? @relation(fields: [battalionId], references: [id], onDelete: SetNull)
+  battalionId      Int?
+  companyRef       Company?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId        Int?
+
   timeline         Timeline[]
   phones           Phone[]
 
@@ -60,6 +73,9 @@ model Officer {
   @@index([currentUnit])
   @@index([phone])
   @@index([lastName])
+  @@index([regionId])
+  @@index([battalionId])
+  @@index([companyId])
 }
 
 /// One career-timeline row for an officer. Unique per (officer, sequence) so
@@ -146,6 +162,7 @@ model Region {
   updatedAt    DateTime   @updatedAt
 
   battalions   Battalion[]
+  officers     Officer[]
 }
 
 /// Phase 20A: authoritative organization master data — Battalion (กก.ตชด.NN).
@@ -162,6 +179,7 @@ model Battalion {
   updatedAt    DateTime  @updatedAt
 
   companies    Company[]
+  officers     Officer[]
 
   @@index([regionId])
 }
@@ -180,6 +198,7 @@ model Company {
   updatedAt    DateTime  @updatedAt
 
   assets       Asset[]
+  officers     Officer[]
 
   @@index([battalionId])
 }

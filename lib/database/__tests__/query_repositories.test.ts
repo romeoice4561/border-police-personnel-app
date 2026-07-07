@@ -62,6 +62,51 @@ test("OfficerQueryRepository.list filters by unit and minCareerYears", async () 
   assert.ok(result.data.every((o) => o.currentUnit === "ตชด.100" && o.careerYears >= 20));
 });
 
+test("OfficerQueryRepository.list filters by regionId/battalionId/companyId (Phase 20C)", async () => {
+  const seedsWithOrg: FakeOfficerSeed[] = [
+    ...seeds,
+    { officerId: "linked/1", rank: "ร.ต.ท.", firstName: "A", lastName: "Z1", regionId: 4, battalionId: 44, companyId: 447 },
+    { officerId: "linked/2", rank: "ร.ต.ท.", firstName: "B", lastName: "Z2", regionId: 4, battalionId: 44, companyId: 447 },
+    { officerId: "linked/3", rank: "ร.ต.ท.", firstName: "C", lastName: "Z3", regionId: 1, battalionId: 11, companyId: 114 },
+  ];
+  const repo = new OfficerQueryRepository(new FakeReadDatabaseClient(seedsWithOrg));
+
+  const byCompany = await repo.list({ page: 1, pageSize: 100, sortBy: "lastName", sortOrder: "asc", companyId: 447 });
+  assert.equal(byCompany.total, 2);
+  assert.ok(byCompany.data.every((o) => o.companyId === 447));
+
+  const byBattalion = await repo.list({ page: 1, pageSize: 100, sortBy: "lastName", sortOrder: "asc", battalionId: 44 });
+  assert.equal(byBattalion.total, 2);
+
+  const byRegion = await repo.list({ page: 1, pageSize: 100, sortBy: "lastName", sortOrder: "asc", regionId: 1 });
+  assert.equal(byRegion.total, 1);
+  assert.equal(byRegion.data[0].officerId, "linked/3");
+});
+
+test("OfficerQueryRepository.search filters by regionId/battalionId/companyId (Phase 20C)", async () => {
+  const seedsWithOrg: FakeOfficerSeed[] = [
+    ...seeds,
+    { officerId: "linked/1", rank: "ร.ต.ท.", firstName: "A", lastName: "Z1", companyId: 447 },
+  ];
+  const repo = new OfficerQueryRepository(new FakeReadDatabaseClient(seedsWithOrg));
+  const result = await repo.search({
+    match: "contains",
+    page: 1,
+    pageSize: 100,
+    sortBy: "lastName",
+    sortOrder: "asc",
+    companyId: 447,
+  });
+  assert.equal(result.total, 1);
+  assert.equal(result.data[0].officerId, "linked/1");
+});
+
+test("OfficerQueryRepository.list without organization filters is unaffected by the new fields (backward compatibility)", async () => {
+  const repo = new OfficerQueryRepository(client());
+  const result = await repo.list({ page: 1, pageSize: 100, sortBy: "lastName", sortOrder: "asc" });
+  assert.equal(result.total, 25); // same as before Phase 20C — every seeded officer, no organization filter applied
+});
+
 test("UnitQueryRepository.listWithCounts returns per-unit counts, most first", async () => {
   const units = await new UnitQueryRepository(client()).listWithCounts();
   assert.equal(units[0].unit, "ตชด.447");

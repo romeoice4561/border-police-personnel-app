@@ -54,6 +54,33 @@ test("OfficerRepository.upsert creates once then updates (no duplicate)", async 
   assert.equal(found?.rank, "พ.ต.ท."); // updated in place
 });
 
+test("OfficerRepository.upsert without organization fields leaves regionId/battalionId/companyId null (Phase 20C backward compatibility)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+
+  // officerInput() (existing helper, unmodified) never sets the Phase 20C fields —
+  // this reproduces exactly what the existing importer does today.
+  const { officer } = await repo.upsert(officerInput());
+  assert.equal(officer.regionId ?? null, null);
+  assert.equal(officer.battalionId ?? null, null);
+  assert.equal(officer.companyId ?? null, null);
+});
+
+test("OfficerRepository.upsert persists organization ids when explicitly provided, and preserves them across a later update that omits them", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+
+  const created = await repo.upsert(officerInput({ regionId: 4, battalionId: 44, companyId: 447 }));
+  assert.equal(created.officer.companyId, 447);
+
+  // A later re-import that never resolves organization data (the existing
+  // importer's behavior) must not erase the previously-linked ids.
+  const updated = await repo.upsert(officerInput({ rank: "พ.ต.ท." }));
+  assert.equal(updated.officer.companyId, 447);
+  assert.equal(updated.officer.battalionId, 44);
+  assert.equal(updated.officer.regionId, 4);
+});
+
 test("TimelineRepository.replaceForOfficer replaces rather than appends", async () => {
   const db = new InMemoryDatabaseClient();
   const officer = await new OfficerRepository(db).upsert(officerInput());
