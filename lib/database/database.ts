@@ -2,8 +2,11 @@
  * Database client factory (Phase 12).
  *
  * Builds a PrismaClient wired to PostgreSQL via the pg driver adapter.
- * Runtime prefers DIRECT_URL (direct connection), then falls back to
- * DATABASE_URL if DIRECT_URL is unavailable.
+ * Runtime prefers DATABASE_URL (Supabase pooler — safe under Vercel
+ * serverless, where each invocation opens its own connection), then falls
+ * back to DIRECT_URL if DATABASE_URL is unavailable. DIRECT_URL remains
+ * dedicated to Prisma migrate/introspection (see prisma.config.ts), which use
+ * a single, short-lived connection and are unaffected by this change.
  */
 
 import "dotenv/config";
@@ -22,7 +25,7 @@ export class DatabaseConfigError extends Error {
 }
 
 export interface CreateDatabaseClientOptions {
-  /** Postgres connection string. Defaults to DIRECT_URL, then DATABASE_URL. */
+  /** Postgres connection string. Defaults to DATABASE_URL, then DIRECT_URL. */
   connectionString?: string;
 }
 
@@ -34,8 +37,8 @@ export function createDatabaseClient(
 ): PrismaClient {
   const connectionString =
     options.connectionString ??
-    process.env.DIRECT_URL ??
-    process.env.DATABASE_URL;
+    process.env.DATABASE_URL ??
+    process.env.DIRECT_URL;
 
   if (!connectionString) {
     throw new DatabaseConfigError(

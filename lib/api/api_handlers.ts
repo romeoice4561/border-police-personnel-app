@@ -178,6 +178,19 @@ export async function guarded(run: () => Promise<Response>): Promise<Response> {
   try {
     return await run();
   } catch (error) {
+    // Temporary diagnostics (Phase 22A-FIX): the response body never leaks
+    // these details (still a generic 503/500 below) — this only writes to
+    // the server log so a real failure is no longer silent.
+    console.error(error);
+    console.error((error as { message?: unknown })?.message);
+    console.error((error as { stack?: unknown })?.stack);
+    if (error && typeof error === "object" && "code" in error) {
+      console.error((error as { code: unknown }).code);
+    }
+    if (error && typeof error === "object" && "meta" in error) {
+      console.error((error as { meta: unknown }).meta);
+    }
+
     if (error instanceof DatabaseConfigError || isConnectionError(error)) {
       return serviceUnavailable("Database unavailable");
     }
