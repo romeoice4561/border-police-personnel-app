@@ -26,7 +26,7 @@ const DOCUMENT_CATEGORIES: DocumentCategory[] = [
 
 export function DocumentsSection() {
   return (
-    <EditableSectionCard title="Documents">
+    <EditableSectionCard title="Documents" comingSoon>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {DOCUMENT_CATEGORIES.map(({ id, label, icon: Icon }) => (
           <div

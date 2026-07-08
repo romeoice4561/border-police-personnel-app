@@ -20,13 +20,10 @@ export function OfficerCard({ officer }: { officer: OfficerSummary }) {
         <CardBody className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <OfficerPhoto
-                thumbnailUrl={officer.thumbnailUrl}
-                driveFileId={officer.driveFileId}
-                webViewUrl={officer.webViewUrl}
-                name={name}
-                size={40}
-              />
+              {/* Phase 23B: the legacy officer image points at maps/charts, not
+                  portraits, so it is never shown — placeholder until a trusted
+                  ProfilePhoto is linked (see officer_portrait_service). */}
+              <OfficerPhoto name={name} size={40} />
               <div>
                 <p className="text-xs text-muted">{officer.rank || "—"}</p>
                 <p className="font-semibold text-foreground">{name}</p>

@@ -1,13 +1,19 @@
 /**
- * CareerTimelineEditor (Phase 23A — Officer Profile Workspace, Section 2).
+ * CareerTimelineEditor (Phase 23A — Officer Profile Workspace, Section 2;
+ * Phase 23B — preserve existing free-form values).
  *
  * The editable counterpart to CareerTimelineSection (which remains read-only,
  * used when the workspace is not in edit mode). Supports add row / remove
- * row / edit row; Year and Rank are dropdowns (never free text — the spec
- * explicitly forbids "31"/"32" instead of "2531"/"2532"); Position is free
- * text; Unit is a Combobox (existing units suggested, but a brand-new value
- * is always allowed); Source ("ที่มาของข้อมูล") and สถานะ ("Verified") are
- * dropdowns. Drag-to-reorder is NOT implemented (spec marks it "Future").
+ * row / edit row.
+ *
+ * Phase 23B fix: Year / Rank / Source were fixed-option <Select> dropdowns.
+ * That silently BLANKED any existing value not in the option list — e.g. an
+ * imported year "2567-ปัจจุบัน" or a Thai-date "1 ก.พ. 2532" — so opening edit
+ * mode and saving would DESTROY the real timeline data. They are now Combobox
+ * fields: the standard options are still offered as suggestions for new rows,
+ * but the existing free-form value is preserved and editable. Position is free
+ * text; Unit is a Combobox against the cleaned unit list; สถานะ ("Verified")
+ * stays a Select (its 3 values are a true closed set the UI itself controls).
  *
  * Pure controlled component: receives the draft rows + a setter from
  * useOfficerWorkspace, no fetching, no save logic of its own.
@@ -24,9 +30,6 @@ import { YEAR_OPTIONS } from "@/lib/officer_profile/year_options";
 import { TIMELINE_SOURCE_OPTIONS, TIMELINE_VERIFIED_OPTIONS } from "@/lib/officer_profile/timeline_status_options";
 import { emptyTimelineRow, type TimelineDraftRow } from "@/components/officer/use_officer_workspace";
 
-const YEAR_SELECT_OPTIONS = YEAR_OPTIONS.map((y) => ({ value: y, label: y }));
-const RANK_SELECT_OPTIONS = RANK_OPTIONS.map((r) => ({ value: r, label: r }));
-const SOURCE_SELECT_OPTIONS = TIMELINE_SOURCE_OPTIONS.map((s) => ({ value: s, label: s }));
 const VERIFIED_SELECT_OPTIONS = TIMELINE_VERIFIED_OPTIONS.map((v) => ({ value: v, label: v }));
 
 export interface CareerTimelineEditorProps {
@@ -65,21 +68,21 @@ export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimel
           rows.map((row) => (
             <div key={row.key} className="grid grid-cols-1 gap-3 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-6">
               <LabeledField label="ปี">
-                <Select
-                  options={YEAR_SELECT_OPTIONS}
-                  placeholder="เลือกปี"
+                <Combobox
                   value={row.year}
-                  onChange={(e) => updateRow(row.key, { year: e.target.value })}
+                  onChange={(value) => updateRow(row.key, { year: value })}
+                  suggestions={YEAR_OPTIONS}
+                  placeholder="พ.ศ. เช่น 2560"
                   aria-label="ปี"
                 />
               </LabeledField>
 
               <LabeledField label="ยศ">
-                <Select
-                  options={RANK_SELECT_OPTIONS}
-                  placeholder="– ไม่ระบุ –"
+                <Combobox
                   value={row.rank}
-                  onChange={(e) => updateRow(row.key, { rank: e.target.value })}
+                  onChange={(value) => updateRow(row.key, { rank: value })}
+                  suggestions={RANK_OPTIONS}
+                  placeholder="เลือกหรือพิมพ์ยศ"
                   aria-label="ยศ"
                 />
               </LabeledField>
@@ -118,11 +121,11 @@ export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimel
               </div>
 
               <LabeledField label="ที่มาของข้อมูล" className="lg:col-span-3">
-                <Select
-                  options={SOURCE_SELECT_OPTIONS}
-                  placeholder="– ไม่ระบุ –"
+                <Combobox
                   value={row.source}
-                  onChange={(e) => updateRow(row.key, { source: e.target.value })}
+                  onChange={(value) => updateRow(row.key, { source: value })}
+                  suggestions={TIMELINE_SOURCE_OPTIONS}
+                  placeholder="เลือกหรือพิมพ์ที่มา"
                   aria-label="ที่มาของข้อมูล"
                 />
               </LabeledField>

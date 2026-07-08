@@ -8,7 +8,7 @@ import { EditableSectionCard, SectionEmptyState } from "@/components/officer/edi
 
 export function NotesSection() {
   return (
-    <EditableSectionCard title="Notes">
+    <EditableSectionCard title="Notes" comingSoon>
       <SectionEmptyState message="No notes yet." />
     </EditableSectionCard>
   );

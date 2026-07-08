@@ -67,9 +67,15 @@ test("PATCH returns 404 for an unknown officer id", async () => {
   assert.equal(json.error.code, "NOT_FOUND");
 });
 
-test("PATCH returns 400 for an invalid rank", async () => {
+test("Phase 23B: PATCH ACCEPTS a free-form rank (imported ranks outside the standard list must be saveable)", async () => {
   const service = await seededService();
-  const res = await handleOfficerProfileSave(service, "ภาค1/5", jsonRequest({ profile: { rank: "ผู้กอง" } }));
+  const res = await handleOfficerProfileSave(service, "ภาค1/5", jsonRequest({ profile: { rank: "ร.ท." } }));
+  assert.equal(res.status, 200);
+});
+
+test("PATCH still returns 400 for a malformed email (structural guard retained)", async () => {
+  const service = await seededService();
+  const res = await handleOfficerProfileSave(service, "ภาค1/5", jsonRequest({ profile: { email: "not-an-email" } }));
   assert.equal(res.status, 400);
   const json = (await res.json()) as { error: { code: string } };
   assert.equal(json.error.code, "BAD_REQUEST");

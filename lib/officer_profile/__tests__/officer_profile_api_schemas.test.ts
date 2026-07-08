@@ -1,3 +1,13 @@
+/**
+ * Officer Profile save-schema tests (Phase 23A; Phase 23B relaxed validation).
+ *
+ * Phase 23B: the schema must accept the real, messy OCR-imported data (empty
+ * rank/name, year ranges/Thai dates, ranks outside the standard list) so the
+ * import-damaged records that most need human editing can actually be saved —
+ * while still enforcing STRUCTURE (required identifying fields present, bounded
+ * length, valid email when supplied).
+ */
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -9,28 +19,40 @@ import {
 } from "@/lib/officer_profile/officer_profile_api_schemas";
 
 test("officerProfileSaveSchema accepts an empty body (every section optional)", () => {
-  const result = officerProfileSaveSchema.safeParse({});
-  assert.equal(result.success, true);
+  assert.equal(officerProfileSaveSchema.safeParse({}).success, true);
 });
 
 test("officerProfileSaveSchema accepts a profile-only save", () => {
-  const result = officerProfileSaveSchema.safeParse({
-    profile: { rank: "ร.ต.ท.", phone: "081-234-5678" },
-  });
+  const result = officerProfileSaveSchema.safeParse({ profile: { rank: "ร.ต.ท.", phone: "081-234-5678" } });
   assert.equal(result.success, true);
 });
 
-test("officerProfileSaveSchema rejects an invalid rank", () => {
-  const result = officerProfileSaveSchema.safeParse({ profile: { rank: "ผู้กอง" } });
+test("Phase 23B: an import-damaged profile (empty rank/first/last) is now ACCEPTED so it can be edited/saved", () => {
+  const result = officerProfileSaveSchema.safeParse({ profile: { rank: "", firstName: "", lastName: "" } });
+  assert.equal(result.success, true);
+});
+
+test("Phase 23B: a rank outside the standard list (e.g. imported 'ร.ท.') is now ACCEPTED", () => {
+  const result = officerProfileSaveSchema.safeParse({ profile: { rank: "ร.ท." } });
+  assert.equal(result.success, true);
+});
+
+test("officerProfileSaveSchema rejects an invalid email (when a non-empty value is supplied)", () => {
+  assert.equal(officerProfileSaveSchema.safeParse({ profile: { email: "not-an-email" } }).success, false);
+});
+
+test("officerProfileSaveSchema treats a blank email as unset (null), not an error", () => {
+  const result = officerProfileSaveSchema.safeParse({ profile: { email: "" } });
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.profile?.email, null);
+});
+
+test("officerProfileSaveSchema rejects an oversized field (length guard still enforced)", () => {
+  const result = officerProfileSaveSchema.safeParse({ profile: { rank: "ก".repeat(600) } });
   assert.equal(result.success, false);
 });
 
-test("officerProfileSaveSchema rejects an invalid email", () => {
-  const result = officerProfileSaveSchema.safeParse({ profile: { email: "not-an-email" } });
-  assert.equal(result.success, false);
-});
-
-test("timelineRowSchema accepts a well-formed row with a valid year/rank/source/verified", () => {
+test("timelineRowSchema accepts a well-formed dropdown-entered row", () => {
   const result = timelineRowSchema.safeParse({
     sequence: 0,
     year: "2560",
@@ -44,36 +66,65 @@ test("timelineRowSchema accepts a well-formed row with a valid year/rank/source/
   assert.equal(result.success, true);
 });
 
-test("timelineRowSchema rejects a 2-digit year shorthand", () => {
+test("Phase 23B: a timeline row with an imported year RANGE ('2567-ปัจจุบัน') is now ACCEPTED", () => {
   const result = timelineRowSchema.safeParse({
     sequence: 0,
-    year: "60",
+    year: "2567-ปัจจุบัน",
     yearValue: null,
     rank: null,
-    position: "ผบ.ร้อย",
+    position: "ผบ.มว.",
     unit: null,
     source: null,
     verified: "ยังไม่ตรวจ",
   });
-  assert.equal(result.success, false);
-});
-
-test("timelineRowSchema rejects an unrecognized source/verified value", () => {
-  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null };
-  assert.equal(timelineRowSchema.safeParse({ ...base, source: "Carrier Pigeon", verified: "ยังไม่ตรวจ" }).success, false);
-  assert.equal(timelineRowSchema.safeParse({ ...base, source: null, verified: "Confirmed" }).success, false);
-});
-
-test("educationRowSchema requires institution but allows null year/degree/notes", () => {
-  const result = educationRowSchema.safeParse({ year: null, institution: "โรงเรียนนายร้อยตำรวจ", degree: null, notes: null });
   assert.equal(result.success, true);
-  assert.equal(educationRowSchema.safeParse({ institution: "" }).success, false);
 });
 
-test("trainingRowSchema requires course but allows null year/organization/notes", () => {
-  const result = trainingRowSchema.safeParse({ year: "2560", course: "หลักสูตรผู้บังคับหมู่", organization: null, notes: null });
+test("Phase 23B: a timeline row with a full Thai date ('1 ก.พ. 2532') is now ACCEPTED", () => {
+  const result = timelineRowSchema.safeParse({
+    sequence: 0,
+    year: "1 ก.พ. 2532",
+    yearValue: 2532,
+    rank: null,
+    position: "รอง สว.",
+    unit: null,
+    source: null,
+    verified: "ยังไม่ตรวจ",
+  });
   assert.equal(result.success, true);
-  assert.equal(trainingRowSchema.safeParse({ course: "" }).success, false);
+});
+
+test("timelineRowSchema still requires year and position to be non-empty (structure guard)", () => {
+  const base = { sequence: 0, yearValue: null, rank: null, unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  assert.equal(timelineRowSchema.safeParse({ ...base, year: "", position: "x" }).success, false);
+  assert.equal(timelineRowSchema.safeParse({ ...base, year: "2560", position: "" }).success, false);
+});
+
+test("timelineRowSchema normalizes blank unit/source to null", () => {
+  const result = timelineRowSchema.safeParse({
+    sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: "", source: "", verified: "ยังไม่ตรวจ",
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.unit, null);
+    assert.equal(result.data.source, null);
+  }
+});
+
+test("educationRowSchema requires institution; blank year/degree/notes normalize to null", () => {
+  const result = educationRowSchema.safeParse({ year: "", institution: "โรงเรียนนายร้อยตำรวจ", degree: "", notes: "" });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.year, null);
+    assert.equal(result.data.degree, null);
+  }
+  assert.equal(educationRowSchema.safeParse({ year: null, institution: "", degree: null, notes: null }).success, false);
+});
+
+test("trainingRowSchema requires course; blank year/organization/notes normalize to null", () => {
+  const result = trainingRowSchema.safeParse({ year: "2560", course: "หลักสูตรผู้บังคับหมู่", organization: "", notes: "" });
+  assert.equal(result.success, true);
+  assert.equal(trainingRowSchema.safeParse({ year: null, course: "", organization: null, notes: null }).success, false);
 });
 
 test("officerProfileSaveSchema validates full timeline/education/training arrays together", () => {

@@ -15,23 +15,31 @@
 import type { DatabaseClient } from "@/lib/database/database_types";
 import { TimelineRepository, type TimelineRowInput } from "@/lib/database/repositories/timeline_repository";
 import { extractTimelineYear } from "@/lib/knowledge/timeline_index";
+import { normalizeTimelinePositionUnit } from "@/lib/import/timeline_normalization";
 import { DatabaseError } from "@/lib/import/types";
 
-function nonEmpty(value: string | null | undefined): string | null {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-/** Maps normalized timeline entries to sequenced repository rows. */
+/**
+ * Maps normalized timeline entries to sequenced repository rows.
+ *
+ * Phase 23B: applies normalizeTimelinePositionUnit so the raw OCR output —
+ * which sometimes packs the unit into the `position` string, or duplicates it
+ * across both fields — is separated into distinct position/unit before it
+ * reaches the database. The OCR output itself is untouched (this is the import
+ * normalization layer). Deterministic + idempotent.
+ */
 export function toTimelineRows(
   timeline: Array<{ year?: string | null; position?: string | null; unit?: string | null }>
 ): TimelineRowInput[] {
-  return timeline.map((entry, index) => ({
-    sequence: index,
-    year: entry.year ?? "",
-    yearValue: extractTimelineYear(entry.year ?? ""),
-    position: entry.position ?? "",
-    unit: nonEmpty(entry.unit ?? null),
-  }));
+  return timeline.map((entry, index) => {
+    const normalized = normalizeTimelinePositionUnit({ position: entry.position, unit: entry.unit });
+    return {
+      sequence: index,
+      year: entry.year ?? "",
+      yearValue: extractTimelineYear(entry.year ?? ""),
+      position: normalized.position,
+      unit: normalized.unit,
+    };
+  });
 }
 
 /**

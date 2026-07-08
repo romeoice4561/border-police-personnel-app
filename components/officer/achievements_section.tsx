@@ -23,7 +23,7 @@ export interface FutureAchievement {
 
 export function AchievementsSection() {
   return (
-    <EditableSectionCard title="Achievements">
+    <EditableSectionCard title="Achievements" comingSoon>
       <div className="flex flex-col items-center gap-2 py-2">
         <Trophy className="h-8 w-8 text-muted" aria-hidden="true" />
         <SectionEmptyState message="No achievements yet." />

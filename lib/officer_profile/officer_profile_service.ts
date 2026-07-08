@@ -22,6 +22,7 @@ import { OfficerRepository } from "@/lib/database/repositories/officer_repositor
 import { TimelineRepository } from "@/lib/database/repositories/timeline_repository";
 import { EducationRepository } from "@/lib/database/repositories/education_repository";
 import { TrainingRepository } from "@/lib/database/repositories/training_repository";
+import { normalizeTimelinePositionUnit } from "@/lib/import/timeline_normalization";
 import {
   OfficerNotFoundError,
   type OfficerProfileSaveInput,
@@ -59,7 +60,14 @@ export class OfficerProfileService {
       let timelineRowCount: number | null = null;
       if (input.timeline) {
         const timelineRepo = new TimelineRepository(tx);
-        timelineRowCount = await timelineRepo.replaceForOfficer(existing.id, input.timeline);
+        // Phase 23B: lazily normalize position/unit on save — a row whose
+        // position embeds the unit (or duplicates it) is separated here before
+        // persisting, so editing/saving an officer cleans up its mixed rows.
+        const normalizedTimeline = input.timeline.map((row) => {
+          const { position, unit } = normalizeTimelinePositionUnit({ position: row.position, unit: row.unit });
+          return { ...row, position, unit };
+        });
+        timelineRowCount = await timelineRepo.replaceForOfficer(existing.id, normalizedTimeline);
       }
 
       let educationRowCount: number | null = null;

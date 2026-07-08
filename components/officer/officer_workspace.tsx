@@ -19,6 +19,7 @@
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
+import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { useOfficerWorkspace } from "@/components/officer/use_officer_workspace";
 import { ProfileHeader } from "@/components/officer/profile_header";
 import { ProfileEditor } from "@/components/officer/profile_editor";
@@ -43,9 +44,11 @@ export interface OfficerWorkspaceProps {
   officer: OfficerWithRelations;
   /** Distinct unit names across all officers, for the Unit combobox's suggestions. */
   knownUnits: readonly string[];
+  /** Trusted portrait (from a matched ProfilePhoto), resolved server-side. */
+  portrait: ResolvedOfficerPortrait;
 }
 
-export function OfficerWorkspace({ officer, knownUnits }: OfficerWorkspaceProps) {
+export function OfficerWorkspace({ officer, knownUnits, portrait }: OfficerWorkspaceProps) {
   const router = useRouter();
   const workspace = useOfficerWorkspace(officer);
   const { editing, startEditing, cancel, save, isSaving, saveError } = workspace;
@@ -57,7 +60,7 @@ export function OfficerWorkspace({ officer, knownUnits }: OfficerWorkspaceProps)
 
   return (
     <div className="space-y-6">
-      <ProfileHeader officer={officer} />
+      <ProfileHeader officer={officer} portrait={portrait} />
 
       {editing ? (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

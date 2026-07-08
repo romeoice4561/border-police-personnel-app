@@ -1,15 +1,19 @@
 /**
  * ProfileHeader (Phase 21A — Editable Profile Foundation; Phase 23A —
- * Section 1: full header fields + phone copy/tel: action).
+ * Section 1: full header fields + phone copy/tel: action; Phase 23B —
+ * trusted-portrait-only, bug #2 fix).
  *
- * The officer detail hero. Portrait display priority: Official Portrait ->
- * extracted (Drive) photo -> placeholder (`officialPortraitUrl` remains
- * architecture-only — Part 4 — always undefined until a future phase adds a
- * real source). Shows: photo, name, rank, position, company (กองร้อย),
- * battalion (กองกำกับ), region (ภาค), career years, quality score, and the
- * phone action (desktop: click-to-copy; mobile: tel: link — see PhoneAction).
+ * The officer detail hero. Phase 23B: the portrait comes ONLY from a
+ * trusted ProfilePhoto match (resolved server-side via
+ * resolveOfficerPortrait) — the legacy `Officer.driveFileId`/`thumbnailUrl`
+ * is NEVER used, because production data showed those systematically point at
+ * deployment maps / org charts / profile-card composites rather than
+ * portraits. When no trusted portrait exists, OfficerPhoto shows a
+ * placeholder. Shows: portrait, name, rank, position, unit, region, career
+ * years, quality score, and the phone action.
  */
 import type { OfficerWithRelations } from "@/lib/database/query_types";
+import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { QualityBadge } from "@/components/common/quality_badge";
 import { OfficerPhoto } from "@/components/officer/officer_photo";
@@ -22,12 +26,11 @@ import { Camera, Briefcase } from "lucide-react";
 export interface ProfileHeaderProps {
   officer: OfficerWithRelations;
   /**
-   * Future Official Portrait URL (Part 4 — architecture only, no upload/
-   * storage/API in this phase). Always undefined until a later phase adds a
-   * real source; when present, it takes display priority over the extracted
-   * Drive photo.
+   * The trusted portrait for this officer, resolved from a matched
+   * ProfilePhoto (or all-null when none exists). The legacy officer image is
+   * never used — see resolveOfficerPortrait.
    */
-  officialPortraitUrl?: string | null;
+  portrait: ResolvedOfficerPortrait;
 }
 
 function HeaderStat({ label, value }: { label: string; value: string | number | null }) {
@@ -40,20 +43,19 @@ function HeaderStat({ label, value }: { label: string; value: string | number | 
   );
 }
 
-export function ProfileHeader({ officer, officialPortraitUrl }: ProfileHeaderProps) {
+export function ProfileHeader({ officer, portrait }: ProfileHeaderProps) {
   const name = officerFullName(officer);
-
-  // Display priority: Official Portrait -> extracted (Drive) photo -> placeholder.
-  const portraitUrl = officialPortraitUrl ?? officer.thumbnailUrl;
 
   return (
     <header className="flex flex-col gap-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative shrink-0">
+          {/* Portrait comes ONLY from a trusted ProfilePhoto match; the legacy
+              officer image is never passed here (it points at maps/charts). */}
           <OfficerPhoto
-            thumbnailUrl={portraitUrl}
-            driveFileId={officer.driveFileId}
-            webViewUrl={officer.webViewUrl}
+            thumbnailUrl={portrait.thumbnailUrl}
+            driveFileId={portrait.driveFileId}
+            webViewUrl={portrait.webViewUrl}
             name={name}
             size={80}
           />

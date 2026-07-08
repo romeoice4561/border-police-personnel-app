@@ -82,10 +82,9 @@ export function OfficerTable({ officers, sort }: { officers: OfficerSummary[]; s
                 <td className="px-4 py-3 text-muted">{o.rank || "—"}</td>
                 <td className="px-4 py-3 font-medium">
                   <span className="flex items-center gap-2.5">
+                    {/* Phase 23B: legacy officer image is never shown (points at
+                        maps/charts) — placeholder until a trusted ProfilePhoto links. */}
                     <OfficerPhoto
-                      thumbnailUrl={o.thumbnailUrl}
-                      driveFileId={o.driveFileId}
-                      webViewUrl={o.webViewUrl}
                       name={[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
                       size={32}
                     />

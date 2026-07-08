@@ -65,6 +65,8 @@ export function ProfileActionsCard({ editing, onEditProfile }: ProfileActionsCar
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
               {label}
+              {/* Phase 23B bug #7: explicit Coming Soon so a disabled action never reads as a dead click. */}
+              <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-muted">Coming Soon</span>
             </Button>
           </Tooltip>
         ))}

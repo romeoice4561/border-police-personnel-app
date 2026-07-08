@@ -1,24 +1,26 @@
 /**
- * ProfileEditor (Phase 23A — Officer Profile Workspace, Sections 2/5).
+ * ProfileEditor (Phase 23A — Officer Profile Workspace, Sections 2/5;
+ * Phase 23B — rank preserves existing free-form value).
  *
  * The editable form for every field that lives directly on the Officer row:
- * rank (dropdown), first/last name, current position (free text), current
- * unit (Combobox — existing units suggested but free text always allowed),
- * phone, and the contact channels (email/LINE/Facebook). Rendered in place
- * of BasicInformationSection + CareerSection + ContactSection when the
- * workspace is in edit mode.
+ * rank, first/last name, current position (free text), current unit (Combobox
+ * — existing units suggested but free text always allowed), phone, and the
+ * contact channels (email/LINE/Facebook). Rendered in place of
+ * BasicInformationSection + CareerSection + ContactSection when the workspace
+ * is in edit mode.
+ *
+ * Phase 23B fix: rank was a fixed-option <Select> that blanked any imported
+ * rank outside the standard list (e.g. "ร.ท."). It is now a Combobox so the
+ * existing value is preserved while the standard ranks are still suggested.
  *
  * Pure controlled component over the ProfileDraft from useOfficerWorkspace.
  */
 "use client";
 
-import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import type { ProfileDraft } from "@/components/officer/use_officer_workspace";
-
-const RANK_SELECT_OPTIONS = RANK_OPTIONS.map((r) => ({ value: r, label: r }));
 
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
@@ -53,11 +55,13 @@ export function ProfileEditor({ profile, onChange, knownUnits }: ProfileEditorPr
       </CardHeader>
       <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="ยศ" htmlFor="edit-rank">
-          <Select
+          <Combobox
             id="edit-rank"
-            options={RANK_SELECT_OPTIONS}
             value={profile.rank}
-            onChange={(e) => set("rank", e.target.value)}
+            onChange={(value) => set("rank", value)}
+            suggestions={RANK_OPTIONS}
+            placeholder="เลือกหรือพิมพ์ยศ"
+            aria-label="ยศ"
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
