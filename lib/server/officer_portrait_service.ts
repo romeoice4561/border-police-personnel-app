@@ -62,11 +62,27 @@ function client(): PortraitDbClient {
  * Pure resolver over an injected client (testable). Returns the trusted
  * ProfilePhoto's image identity for `officerId`, or all-null when none exists.
  * The legacy officer image is never consulted.
+ *
+ * Phase 24B-1: an explicitly uploaded portrait (isProfile=true) is the
+ * authoritative current portrait and is preferred over any other trusted
+ * match. When none is flagged current, fall back to the most recent trusted
+ * ProfilePhoto (AUTO_MATCHED/MANUAL_MATCHED) — the Phase 23B behavior.
  */
 export async function resolveOfficerPortraitWith(
   db: PortraitDbClient,
   officerId: string
 ): Promise<ResolvedOfficerPortrait> {
+  // 1. The explicitly-flagged current portrait (uploaded via the profile).
+  const current = await db.profilePhoto.findFirst({
+    where: { matchedOfficerId: officerId, isProfile: true },
+    orderBy: { updatedAt: "desc" },
+    select: { driveFileId: true, thumbnailUrl: true, webViewUrl: true, matchStatus: true },
+  });
+  if (current) {
+    return { driveFileId: current.driveFileId, thumbnailUrl: current.thumbnailUrl, webViewUrl: current.webViewUrl };
+  }
+
+  // 2. Fall back to the most recent trusted match (Phase 23B).
   const match = await db.profilePhoto.findFirst({
     where: { matchedOfficerId: officerId, matchStatus: { in: TRUSTED_MATCH_STATUSES } },
     orderBy: { updatedAt: "desc" },

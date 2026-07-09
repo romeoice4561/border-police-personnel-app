@@ -313,12 +313,39 @@ model ProfilePhoto {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  // Phase 24B-1: Officer Portrait Upload. Additive columns so an uploaded
+  // portrait reuses this exact table (no new storage entity). Existing
+  // Drive-discovered rows keep these at their defaults/null — unchanged.
+  //   sourceType   — where the row came from: "DRIVE_SCAN" (existing inbox
+  //                  rows, the default) or "UPLOAD" (portrait uploaded via the
+  //                  Officer Profile). Google Drive stays read-only; uploads
+  //                  never touch Drive.
+  //   storagePath  — Supabase Storage object path for an uploaded portrait
+  //                  (null for Drive-scanned rows). The bytes live in Supabase
+  //                  Storage; thumbnailUrl/webViewUrl hold the public URLs.
+  //   mimeType/width/height — captured image metadata (spec).
+  //   uploadedBy   — who uploaded it (free-text actor id; nullable).
+  //   isProfile    — whether this is the CURRENT portrait for the linked
+  //                  officer. On a new upload the prior current portrait is set
+  //                  to false and the new row to true — old portraits are never
+  //                  deleted (portrait history).
+  sourceType       String   @default("DRIVE_SCAN")
+  storagePath      String?
+  mimeType         String?
+  width            Int?
+  height           Int?
+  uploadedBy       String?
+  isProfile        Boolean  @default(false)
+
   @@index([matchStatus])
   @@index([region])
   @@index([company])
   @@index([battalion])
   @@index([matchedOfficerId])
   @@index([ocrStatus])
+  @@index([sourceType])
+  // Fast lookup of an officer's current portrait.
+  @@index([matchedOfficerId, isProfile])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

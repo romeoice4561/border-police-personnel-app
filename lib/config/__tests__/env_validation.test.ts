@@ -23,6 +23,8 @@ function fullEnv(overrides: Record<string, string | undefined> = {}): NodeJS.Pro
     OPENAI_API_KEY: "sk-x",
     GOOGLE_APPLICATION_CREDENTIALS: "creds.json",
     GOOGLE_DRIVE_ROOT_FOLDER: "folder-id",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+    SUPABASE_PORTRAIT_BUCKET: "portraits",
     OPENAI_MODEL: "gpt-5.5",
     ...overrides,
   } as NodeJS.ProcessEnv;

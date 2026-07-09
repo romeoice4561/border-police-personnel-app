@@ -34,6 +34,8 @@ export const ENV_SPECS: EnvVarSpec[] = [
   { name: "OPENAI_API_KEY", requirement: "feature", description: "OpenAI Vision extraction (import pipeline)." },
   { name: "GOOGLE_APPLICATION_CREDENTIALS", requirement: "feature", description: "Google service-account credentials for Drive scanning." },
   { name: "GOOGLE_DRIVE_ROOT_FOLDER", requirement: "feature", description: "Root Drive folder id to scan." },
+  { name: "SUPABASE_SERVICE_ROLE_KEY", requirement: "feature", description: "Supabase service-role key for server-side Storage uploads (Officer Portrait Upload)." },
+  { name: "SUPABASE_PORTRAIT_BUCKET", requirement: "feature", description: "Supabase Storage bucket name for officer portraits (defaults to 'portraits').", optionalWithDefault: true },
   {
     name: "OPENAI_MODEL",
     requirement: "feature",

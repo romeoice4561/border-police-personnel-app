@@ -18,13 +18,24 @@ interface Row {
   webViewUrl: string | null;
   matchStatus: string;
   matchedOfficerId: string | null;
+  isProfile?: boolean;
 }
 
 function fakeClient(rows: Row[]): PortraitDbClient {
   return {
     profilePhoto: {
       async findFirst(args) {
-        const where = args.where as { matchedOfficerId?: string; matchStatus?: { in?: string[] } };
+        const where = args.where as {
+          matchedOfficerId?: string;
+          matchStatus?: { in?: string[] };
+          isProfile?: boolean;
+        };
+        // Phase 24B-1: the resolver first queries isProfile=true, then falls
+        // back to a trusted-match query. Honor whichever shape is asked.
+        if (where.isProfile === true) {
+          const match = rows.find((r) => r.matchedOfficerId === where.matchedOfficerId && r.isProfile === true);
+          return match ?? null;
+        }
         const wanted = where.matchStatus?.in ?? [];
         const match = rows.find(
           (r) => r.matchedOfficerId === where.matchedOfficerId && wanted.includes(r.matchStatus)
@@ -71,4 +82,15 @@ test("does not return a photo matched to a DIFFERENT officer", async () => {
   ]);
   const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
   assert.equal(result.driveFileId, null);
+});
+
+test("Phase 24B-1: an uploaded isProfile=true portrait is preferred over other trusted matches", async () => {
+  const db = fakeClient([
+    // An older auto-matched scan photo AND a newer uploaded current portrait.
+    { driveFileId: "SCAN", thumbnailUrl: "ts", webViewUrl: "ws", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "ภาค 4/108" },
+    { driveFileId: "upload:xyz", thumbnailUrl: "tu", webViewUrl: "wu", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "ภาค 4/108", isProfile: true },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
+  assert.equal(result.driveFileId, "upload:xyz");
+  assert.equal(result.thumbnailUrl, "tu");
 });

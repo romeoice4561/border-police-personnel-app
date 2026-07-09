@@ -16,12 +16,10 @@ import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { QualityBadge } from "@/components/common/quality_badge";
-import { OfficerPhoto } from "@/components/officer/officer_photo";
+import { PortraitManager } from "@/components/officer/portrait_manager";
 import { PhoneAction } from "@/components/officer/phone_action";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
-import { Camera, Briefcase } from "lucide-react";
+import { Briefcase } from "lucide-react";
 
 export interface ProfileHeaderProps {
   officer: OfficerWithRelations;
@@ -49,15 +47,17 @@ export function ProfileHeader({ officer, portrait }: ProfileHeaderProps) {
   return (
     <header className="flex flex-col gap-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        {/* Phase 24B-1: the portrait is always shown (image or placeholder) and
+            is now uploadable/replaceable/removable. The current portrait comes
+            ONLY from a trusted/uploaded ProfilePhoto (resolveOfficerPortrait);
+            the legacy officer image is never used. */}
         <div className="relative shrink-0">
-          {/* Portrait comes ONLY from a trusted ProfilePhoto match; the legacy
-              officer image is never passed here (it points at maps/charts). */}
-          <OfficerPhoto
+          <PortraitManager
+            officerId={officer.officerId}
+            name={name}
             thumbnailUrl={portrait.thumbnailUrl}
             driveFileId={portrait.driveFileId}
             webViewUrl={portrait.webViewUrl}
-            name={name}
-            size={80}
           />
         </div>
 
@@ -75,12 +75,6 @@ export function ProfileHeader({ officer, portrait }: ProfileHeaderProps) {
           <QualityBadge score={officer.qualityScore} />
           {officer.region ? <Badge>{officer.region}</Badge> : null}
           {officer.phone ? <PhoneAction phone={officer.phone} /> : null}
-          <Tooltip label="Available in a future update">
-            <Button type="button" variant="outline" size="sm" disabled aria-label="Change photo (available in a future update)">
-              <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-              Change Photo
-            </Button>
-          </Tooltip>
         </div>
       </div>
 
