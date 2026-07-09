@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 
 import { FakeProfilePhotoDbClient } from "@/lib/profile_photo/__tests__/fake_profile_photo_db";
 import { PrismaProfilePhotoRepository } from "@/lib/profile_photo/prisma_profile_photo_repository";
-import { MatchStatus, OcrStatus, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 
 function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
   return {
@@ -28,6 +28,16 @@ function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
     matchStatus: MatchStatus.Unassigned,
     matchedOfficerId: null,
     confidence: null,
+    sourceType: "DRIVE_SCAN",
+    storagePath: null,
+    mimeType: null,
+    width: null,
+    height: null,
+    uploadedBy: null,
+    isProfile: false,
+    classification: PortraitClassification.Unknown,
+    classifiedBy: null,
+    classifiedAt: null,
     ...ov,
   };
 }
@@ -105,4 +115,91 @@ test("count() returns the total row count", async () => {
   await repo.upsert(photo({ driveFileId: "a" }));
   await repo.upsert(photo({ driveFileId: "b" }));
   assert.equal(await repo.count(), 2);
+});
+
+// ── Phase 24B-2: classification / history / set-current ─────────────────────
+
+test("list filters by classification", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  await repo.upsert(photo({ driveFileId: "a", classification: PortraitClassification.Map }));
+  await repo.upsert(photo({ driveFileId: "b", classification: PortraitClassification.Unknown }));
+
+  const maps = await repo.list({ classification: PortraitClassification.Map, page: 1, pageSize: 10 });
+  assert.equal(maps.total, 1);
+  assert.equal(maps.data[0].driveFileId, "a");
+});
+
+test("setClassification persists classification/classifiedBy/classifiedAt via update()", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  const { photo: created } = await repo.upsert(photo({ driveFileId: "a" }));
+
+  const updated = await repo.setClassification(created.id, PortraitClassification.Organization, "reviewer-9");
+  assert.equal(updated?.classification, PortraitClassification.Organization);
+  assert.equal(updated?.classifiedBy, "reviewer-9");
+  assert.ok(updated?.classifiedAt);
+});
+
+test("setClassification returns null for a missing id", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  assert.equal(await repo.setClassification(999, PortraitClassification.Map, null), null);
+});
+
+test("historyForOfficer returns every row for the officer, unfiltered", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  await repo.upsert(photo({ driveFileId: "a", matchedOfficerId: "off-1" }));
+  await repo.upsert(photo({ driveFileId: "b", matchedOfficerId: "off-1", matchStatus: MatchStatus.Conflict }));
+  await repo.upsert(photo({ driveFileId: "c", matchedOfficerId: "off-2" }));
+
+  const history = await repo.historyForOfficer("off-1");
+  assert.equal(history.length, 2);
+});
+
+test("setCurrent promotes the target and demotes every other row for the officer via updateMany + update", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  const { photo: oldCurrent } = await repo.upsert(photo({ driveFileId: "old", matchedOfficerId: "off-1", isProfile: true }));
+  const { photo: candidate } = await repo.upsert(photo({ driveFileId: "new", matchedOfficerId: "off-1", isProfile: false }));
+
+  const updated = await repo.setCurrent(candidate.id);
+  assert.equal(updated?.isProfile, true);
+
+  const oldRow = await repo.findById(oldCurrent.id);
+  assert.equal(oldRow?.isProfile, false);
+});
+
+test("setCurrent returns null when the photo has no matchedOfficerId", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  const { photo: created } = await repo.upsert(photo({ driveFileId: "a", matchedOfficerId: null }));
+  assert.equal(await repo.setCurrent(created.id), null);
+});
+
+test("re-upserting an already-classified row preserves classification/isProfile (never regresses on re-scan)", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  const { photo: created } = await repo.upsert(photo({ driveFileId: "a", matchedOfficerId: "off-1", isProfile: true }));
+  await repo.setClassification(created.id, PortraitClassification.RealPerson, "r1");
+
+  await repo.upsert(photo({ driveFileId: "a", matchedOfficerId: "off-1", ocrText: "rescanned" }));
+
+  const after = await repo.findByDriveFileId("a");
+  assert.equal(after?.classification, PortraitClassification.RealPerson);
+  assert.equal(after?.isProfile, true);
+  assert.equal(after?.ocrText, "rescanned");
+});
+
+test("classificationCounts covers every PortraitClassification value, including zero counts", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  await repo.upsert(photo({ driveFileId: "a", classification: PortraitClassification.RealPerson }));
+  await repo.upsert(photo({ driveFileId: "b", classification: PortraitClassification.RealPerson }));
+
+  const counts = await repo.classificationCounts();
+  assert.equal(counts.length, Object.values(PortraitClassification).length);
+  assert.equal(counts.find((c) => c.classification === PortraitClassification.RealPerson)?.count, 2);
+  assert.equal(counts.find((c) => c.classification === PortraitClassification.Map)?.count, 0);
 });

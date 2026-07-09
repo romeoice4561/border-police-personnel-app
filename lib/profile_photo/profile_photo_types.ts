@@ -71,6 +71,26 @@ export interface ProfilePhoto {
   confidence: number | null;
   createdAt: string;
   updatedAt: string;
+
+  // Phase 24B-1 (Officer Portrait Upload) — additive.
+  /** How this row entered the system: "DRIVE_SCAN" (discovered by the importer) or "UPLOAD" (via the Officer Profile). */
+  sourceType: string;
+  /** Supabase Storage object path for an uploaded portrait; null for Drive-scanned rows. */
+  storagePath: string | null;
+  mimeType: string | null;
+  width: number | null;
+  height: number | null;
+  uploadedBy: string | null;
+  /** Whether this is the CURRENT portrait for matchedOfficerId. Old portraits are demoted, never deleted. */
+  isProfile: boolean;
+
+  // Phase 24B-2 (Legacy Portrait Verification) — additive.
+  /** What the image content actually shows, independent of matchStatus. Default UNKNOWN until reviewed. */
+  classification: PortraitClassification;
+  /** Reviewer actor id who set `classification`; null until classified. */
+  classifiedBy: string | null;
+  /** When `classification` was last set; null until classified. */
+  classifiedAt: string | null;
 }
 
 /** Input to create/update one ProfilePhoto (everything except id/createdAt/updatedAt, which the repository owns). */
@@ -82,6 +102,8 @@ export interface ProfilePhotoQuery {
   region?: string;
   company?: string;
   battalion?: string;
+  /** Phase 24B-2: filter by image-content classification (e.g. list all UNKNOWN/MAP/ORGANIZATION for the cleanup tool). */
+  classification?: PortraitClassification;
   /** Free-text match against filename / folderPath / matchedOfficerId. */
   search?: string;
   page?: number;
@@ -99,5 +121,43 @@ export interface PaginatedProfilePhotos {
 /** Count of ProfilePhotos per matchStatus — drives the future Inbox's filter chips (Part 6). */
 export interface MatchStatusCount {
   matchStatus: MatchStatus;
+  count: number;
+}
+
+/**
+ * What the IMAGE ITSELF actually shows (Phase 24B-2), independent of
+ * matchStatus (who/what it's linked to) and sourceType (how it entered the
+ * system). Set by a Gallery reviewer via the verification UI, or implicitly
+ * REAL_PERSON for an officer-uploaded portrait. The resolver's "Verified
+ * Drive Portrait" tier requires REAL_PERSON; every other non-UNKNOWN value is
+ * a hard exclusion — that photo can never become an officer's portrait,
+ * regardless of matchStatus.
+ */
+export enum PortraitClassification {
+  /** Not yet reviewed (the default for every existing/legacy row). */
+  Unknown = "UNKNOWN",
+  /** Confirmed to show an actual person's portrait. */
+  RealPerson = "REAL_PERSON",
+  /** A composite profile card (photo + printed text/ID layout), not a clean portrait. */
+  ProfileCard = "PROFILE_CARD",
+  /** An organization chart / unit structure diagram. */
+  Organization = "ORGANIZATION",
+  /** A map (deployment map, area map, etc). */
+  Map = "MAP",
+  /** A scanned document (GP7, order, certificate, ...). */
+  Document = "DOCUMENT",
+}
+
+/** Classifications that must NEVER be shown as an officer's portrait. */
+export const NON_PORTRAIT_CLASSIFICATIONS: readonly PortraitClassification[] = [
+  PortraitClassification.ProfileCard,
+  PortraitClassification.Organization,
+  PortraitClassification.Map,
+  PortraitClassification.Document,
+];
+
+/** Count of ProfilePhotos per classification — drives the legacy cleanup tool's filter chips. */
+export interface ClassificationCount {
+  classification: PortraitClassification;
   count: number;
 }

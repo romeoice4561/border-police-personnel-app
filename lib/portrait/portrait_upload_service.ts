@@ -29,6 +29,13 @@ import { validatePortrait, readImageDimensions } from "@/lib/portrait/portrait_v
 export const PORTRAIT_SOURCE_TYPE = "UPLOAD";
 /** matchStatus for an uploaded portrait — a human explicitly linked it. */
 export const PORTRAIT_MATCH_STATUS = "MANUAL_MATCHED";
+/**
+ * Phase 24B-2: an officer-uploaded portrait is self-evidently a real portrait
+ * — the uploader chose and cropped it specifically as their portrait, so it
+ * is classified REAL_PERSON immediately (no reviewer step needed) and
+ * satisfies the resolver's Tier 4 "Verified Drive Portrait" semantics too.
+ */
+export const PORTRAIT_CLASSIFICATION = "REAL_PERSON";
 
 /** One ProfilePhoto row, as this service reads/writes it (subset of the model). */
 export interface PortraitRow {
@@ -45,6 +52,7 @@ export interface PortraitRow {
   width: number | null;
   height: number | null;
   uploadedBy: string | null;
+  classification: string;
   updatedAt: Date | string;
 }
 
@@ -191,6 +199,9 @@ export class PortraitUploadService {
           height: dims?.height ?? null,
           uploadedBy: input.uploadedBy ?? null,
           isProfile: true,
+          classification: PORTRAIT_CLASSIFICATION,
+          classifiedBy: input.uploadedBy ?? null,
+          classifiedAt: new Date(),
         },
       });
     } catch (error) {

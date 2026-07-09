@@ -32,7 +32,7 @@ import type { DriveScanEntry } from "@/lib/google-drive/drive_scan_report";
 import { DriveContentType } from "@/lib/google-drive/drive_content_type";
 import { driveThumbnailUrl, driveWebViewUrl } from "@/lib/google-drive/drive_photo_url";
 import type { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
-import { MatchStatus, OcrStatus, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 import {
   decideMatchesForPhotos,
   type OfficerSignals,
@@ -191,6 +191,22 @@ export class ProfilePhotoImporter {
       matchStatus: match?.matchStatus ?? MatchStatus.Unassigned,
       matchedOfficerId: match?.matchedOfficerId ?? null,
       confidence: match?.confidence ?? null,
+      // Phase 24B-1/24B-2: every Drive-discovered row is a scan, never the
+      // current portrait by default, and unclassified until a reviewer looks
+      // at it. Re-running the importer on an already-classified/uploaded row
+      // would overwrite it — but a scanned Drive file's `driveFileId` never
+      // collides with an uploaded row's synthetic `upload:<uuid>` key, so this
+      // never happens in practice.
+      sourceType: "DRIVE_SCAN",
+      storagePath: null,
+      mimeType: null,
+      width: null,
+      height: null,
+      uploadedBy: null,
+      isProfile: false,
+      classification: PortraitClassification.Unknown,
+      classifiedBy: null,
+      classifiedAt: null,
     };
   }
 }

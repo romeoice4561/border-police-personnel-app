@@ -337,6 +337,25 @@ model ProfilePhoto {
   uploadedBy       String?
   isProfile        Boolean  @default(false)
 
+  // Phase 24B-2: Legacy Portrait Verification. Additive columns — existing
+  // rows default to UNKNOWN/null (safe, non-destructive migration).
+  //   classification — what the IMAGE ITSELF actually shows, independent of
+  //                    matchStatus (who/what it's linked to). Set by a Gallery
+  //                    reviewer via the verification UI, or "REAL_PERSON" for
+  //                    an officer-uploaded portrait (Phase 24B-1 uploads are
+  //                    self-evidently a real portrait). One of:
+  //                    REAL_PERSON | PROFILE_CARD | ORGANIZATION | MAP |
+  //                    DOCUMENT | UNKNOWN (default). The resolver's
+  //                    "Verified Drive Portrait" tier requires
+  //                    classification=REAL_PERSON; every other classification
+  //                    is EXCLUDED from ever becoming a portrait, regardless
+  //                    of matchStatus.
+  //   classifiedBy   — reviewer actor id (nullable; null until classified).
+  //   classifiedAt   — when the classification was set (nullable).
+  classification   String   @default("UNKNOWN")
+  classifiedBy     String?
+  classifiedAt     DateTime?
+
   @@index([matchStatus])
   @@index([region])
   @@index([company])
@@ -346,6 +365,7 @@ model ProfilePhoto {
   @@index([sourceType])
   // Fast lookup of an officer's current portrait.
   @@index([matchedOfficerId, isProfile])
+  @@index([classification])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

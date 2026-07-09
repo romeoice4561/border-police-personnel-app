@@ -58,6 +58,7 @@ export function ProfileHeader({ officer, portrait }: ProfileHeaderProps) {
             thumbnailUrl={portrait.thumbnailUrl}
             driveFileId={portrait.driveFileId}
             webViewUrl={portrait.webViewUrl}
+            source={portrait.source}
           />
         </div>
 

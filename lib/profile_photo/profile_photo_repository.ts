@@ -16,13 +16,14 @@
  */
 
 import type {
+  ClassificationCount,
   MatchStatusCount,
   PaginatedProfilePhotos,
   ProfilePhoto,
   ProfilePhotoInput,
   ProfilePhotoQuery,
 } from "@/lib/profile_photo/profile_photo_types";
-import { MatchStatus } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, PortraitClassification } from "@/lib/profile_photo/profile_photo_types";
 
 export interface ProfilePhotoRepository {
   /** Idempotent upsert keyed on driveFileId. Returns whether the photo was newly created. */
@@ -32,6 +33,22 @@ export interface ProfilePhotoRepository {
   list(query: ProfilePhotoQuery): Promise<PaginatedProfilePhotos>;
   /** Per-matchStatus counts — drives the future Inbox's filter chips (Part 6). */
   matchStatusCounts(): Promise<MatchStatusCount[]>;
+  /** Phase 24B-2: per-classification counts — drives the legacy cleanup tool's filter chips. */
+  classificationCounts(): Promise<ClassificationCount[]>;
+  /** Phase 24B-2: every ProfilePhoto ever linked to this officer (current + history), newest first. Never filters by matchStatus/classification — history shows everything. */
+  historyForOfficer(officerId: string): Promise<ProfilePhoto[]>;
+  /**
+   * Phase 24B-2: sets `classification` (+ classifiedBy/classifiedAt) on one
+   * photo. Returns null if the photo doesn't exist.
+   */
+  setClassification(id: number, classification: PortraitClassification, classifiedBy: string | null): Promise<ProfilePhoto | null>;
+  /**
+   * Phase 24B-2: makes photo `id` the current portrait for its
+   * matchedOfficerId (isProfile=true) and demotes every other photo for that
+   * officer (isProfile=false) — never deletes anything. Returns null if the
+   * photo doesn't exist or has no matchedOfficerId.
+   */
+  setCurrent(id: number): Promise<ProfilePhoto | null>;
   count(): Promise<number>;
 }
 
@@ -56,8 +73,21 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
   async upsert(input: ProfilePhotoInput): Promise<{ photo: ProfilePhoto; created: boolean }> {
     const existing = this.photos.get(input.driveFileId);
     const now = new Date().toISOString();
+    // Phase 24B-2: re-importing an already-discovered photo must never
+    // regress human review (classification) or the current-portrait flag
+    // (isProfile) — mirrors PrismaProfilePhotoRepository.upsert.
     const photo: ProfilePhoto = existing
-      ? { ...existing, ...input, id: existing.id, createdAt: existing.createdAt, updatedAt: now }
+      ? {
+          ...existing,
+          ...input,
+          id: existing.id,
+          createdAt: existing.createdAt,
+          updatedAt: now,
+          classification: existing.classification,
+          classifiedBy: existing.classifiedBy,
+          classifiedAt: existing.classifiedAt,
+          isProfile: existing.isProfile,
+        }
       : { ...input, id: this.nextId++, createdAt: now, updatedAt: now };
     this.photos.set(input.driveFileId, photo);
     return { photo, created: !existing };
@@ -74,12 +104,13 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
   async list(query: ProfilePhotoQuery): Promise<PaginatedProfilePhotos> {
     const filtered = [...this.photos.values()].filter((p) => {
       if (query.matchStatus !== undefined && p.matchStatus !== query.matchStatus) return false;
+      if (query.classification !== undefined && p.classification !== query.classification) return false;
       if (query.region && norm(p.region) !== norm(query.region)) return false;
       if (query.company && norm(p.company) !== norm(query.company)) return false;
       if (query.battalion && norm(p.battalion) !== norm(query.battalion)) return false;
       if (query.search) {
         const needle = norm(query.search);
-        const haystack = [p.filename, p.folderPath, p.matchedOfficerId].map(norm).join(" ");
+        const haystack = [p.filename, p.folderPath, p.matchedOfficerId, p.driveFileId].map(norm).join(" ");
         if (!haystack.includes(needle)) return false;
       }
       return true;
@@ -98,6 +129,52 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
     const counts = new Map<MatchStatus, number>();
     for (const p of this.photos.values()) counts.set(p.matchStatus, (counts.get(p.matchStatus) ?? 0) + 1);
     return Object.values(MatchStatus).map((matchStatus) => ({ matchStatus, count: counts.get(matchStatus) ?? 0 }));
+  }
+
+  async classificationCounts(): Promise<ClassificationCount[]> {
+    const counts = new Map<PortraitClassification, number>();
+    for (const p of this.photos.values()) counts.set(p.classification, (counts.get(p.classification) ?? 0) + 1);
+    return Object.values(PortraitClassification).map((classification) => ({
+      classification,
+      count: counts.get(classification) ?? 0,
+    }));
+  }
+
+  async historyForOfficer(officerId: string): Promise<ProfilePhoto[]> {
+    return [...this.photos.values()]
+      .filter((p) => p.matchedOfficerId === officerId)
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
+  }
+
+  async setClassification(
+    id: number,
+    classification: PortraitClassification,
+    classifiedBy: string | null
+  ): Promise<ProfilePhoto | null> {
+    const existing = [...this.photos.values()].find((p) => p.id === id);
+    if (!existing) return null;
+    const updated: ProfilePhoto = {
+      ...existing,
+      classification,
+      classifiedBy,
+      classifiedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.photos.set(existing.driveFileId, updated);
+    return updated;
+  }
+
+  async setCurrent(id: number): Promise<ProfilePhoto | null> {
+    const target = [...this.photos.values()].find((p) => p.id === id);
+    if (!target || !target.matchedOfficerId) return null;
+    const now = new Date().toISOString();
+    for (const p of this.photos.values()) {
+      if (p.matchedOfficerId !== target.matchedOfficerId) continue;
+      const isTarget = p.id === id;
+      if (p.isProfile === isTarget) continue;
+      this.photos.set(p.driveFileId, { ...p, isProfile: isTarget, updatedAt: now });
+    }
+    return this.photos.get(target.driveFileId) ?? null;
   }
 
   async count(): Promise<number> {

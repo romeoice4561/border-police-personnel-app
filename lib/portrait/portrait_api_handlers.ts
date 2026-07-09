@@ -1,5 +1,5 @@
 /**
- * Officer Portrait API handlers (Phase 24B-1).
+ * Officer Portrait API handlers (Phase 24B-1; history/set-current Phase 24B-2).
  *
  * Framework-agnostic core of the portrait endpoints. Each takes a
  * PortraitUploadService + already-resolved params (or a raw Request) and
@@ -9,11 +9,15 @@
  *   POST   /api/officers/{id}/portrait  — upload/replace (multipart, field "file")
  *   GET    /api/officers/{id}/portrait  — current portrait metadata
  *   DELETE /api/officers/{id}/portrait  — remove current (soft; history kept)
+ *   GET    /api/officers/{id}/portrait/history        — every portrait ever linked, newest first
+ *   POST   /api/officers/{id}/portrait/history/{photoId}  — "Set as Current" (no re-upload)
  */
 
 import { badRequest, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
 import { officerIdParamSchema } from "@/lib/api/api_schemas";
+import { z } from "zod";
 import { PortraitUploadError, type PortraitUploadService } from "@/lib/portrait/portrait_upload_service";
+import type { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
 
 /** Maps a PortraitUploadError code to an HTTP status. */
 function statusForCode(code: PortraitUploadError["code"]): number {
@@ -99,4 +103,47 @@ export async function handlePortraitRemove(
 
   const portrait = await service.removeCurrent(paramParsed.data.id);
   return jsonOk({ current: portrait });
+}
+
+const photoIdParamSchema = z.object({ photoId: z.coerce.number().int().positive() });
+
+/**
+ * GET — every ProfilePhoto ever linked to this officer (current + history),
+ * newest first. Never deletes/filters anything — the caller renders source,
+ * upload date, Drive file, current badge, and verification status per row.
+ */
+export async function handlePortraitHistory(
+  profilePhotoService: ProfilePhotoService,
+  rawOfficerId: string
+): Promise<Response> {
+  const paramParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!paramParsed.success) return badRequest("Invalid officer id");
+
+  const history = await profilePhotoService.history(paramParsed.data.id);
+  return jsonOk(history);
+}
+
+/**
+ * POST — "Set as Current" from the history panel: makes an existing
+ * ProfilePhoto the officer's current portrait WITHOUT a new upload. Demotes
+ * every other photo for that officer; never deletes anything. 404 if the
+ * photo doesn't exist or isn't linked to this officer.
+ */
+export async function handleSetCurrentPortrait(
+  profilePhotoService: ProfilePhotoService,
+  rawOfficerId: string,
+  rawPhotoId: string
+): Promise<Response> {
+  const paramParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!paramParsed.success) return badRequest("Invalid officer id");
+  const photoIdParsed = photoIdParamSchema.safeParse({ photoId: rawPhotoId });
+  if (!photoIdParsed.success) return badRequest("Invalid photo id");
+
+  const existing = await profilePhotoService.getById(photoIdParsed.data.photoId);
+  if (!existing || existing.matchedOfficerId !== paramParsed.data.id) {
+    return notFound("No such portrait for this officer.");
+  }
+
+  const updated = await profilePhotoService.setCurrent(photoIdParsed.data.photoId);
+  return jsonOk(updated);
 }

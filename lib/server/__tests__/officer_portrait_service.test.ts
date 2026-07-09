@@ -1,16 +1,20 @@
 /**
- * Officer portrait resolver tests (Phase 23B — bug #2).
+ * Officer portrait resolver tests (Phase 23B bug #2; Phase 24B-2 5-tier
+ * priority: Manual Upload -> Manual Match -> AI Match -> Verified Drive
+ * Portrait -> Placeholder, with classification as a hard exclusion at every
+ * tier). Verified over a fake ProfilePhoto client that evaluates the actual
+ * where-clause shape the resolver sends (equals / notIn), so each tier's
+ * query is exercised for real, not just its outcome.
  *
- * The resolver must return a portrait ONLY from a trusted ProfilePhoto match
- * (AUTO_MATCHED / MANUAL_MATCHED, matchedOfficerId set) and NEVER from a legacy
- * officer image. Verified over a fake ProfilePhoto client.
+ * Run with:
+ *   npx tsx --test lib/server/__tests__/officer_portrait_service.test.ts
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveOfficerPortraitWith, type PortraitDbClient } from "@/lib/server/officer_portrait_service";
-import { MatchStatus } from "@/lib/profile_photo/profile_photo_types";
+import { resolveOfficerPortraitWith, resolveOfficerPortraitsBatchWith, type PortraitDbClient } from "@/lib/server/officer_portrait_service";
+import { MatchStatus, PortraitClassification } from "@/lib/profile_photo/profile_photo_types";
 
 interface Row {
   driveFileId: string;
@@ -18,54 +22,73 @@ interface Row {
   webViewUrl: string | null;
   matchStatus: string;
   matchedOfficerId: string | null;
+  sourceType?: string;
   isProfile?: boolean;
+  classification?: string;
+  updatedAt?: string;
+}
+
+function fullRow(r: Row) {
+  return {
+    ...r,
+    sourceType: r.sourceType ?? "DRIVE_SCAN",
+    isProfile: r.isProfile ?? false,
+    classification: r.classification ?? PortraitClassification.Unknown,
+    updatedAt: r.updatedAt ?? "2026-01-01T00:00:00.000Z",
+  };
+}
+
+function matchesValue(actual: unknown, cond: unknown): boolean {
+  if (cond !== null && typeof cond === "object") {
+    const c = cond as Record<string, unknown>;
+    if ("notIn" in c) return !(c.notIn as unknown[]).includes(actual);
+    if ("in" in c) return (c.in as unknown[]).includes(actual);
+  }
+  return actual === cond;
 }
 
 function fakeClient(rows: Row[]): PortraitDbClient {
+  const full = rows.map(fullRow);
+  function filterSorted(where: Record<string, unknown>) {
+    return full
+      .filter((r) => Object.entries(where).every(([k, v]) => matchesValue((r as unknown as Record<string, unknown>)[k], v)))
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  }
   return {
     profilePhoto: {
       async findFirst(args) {
-        const where = args.where as {
-          matchedOfficerId?: string;
-          matchStatus?: { in?: string[] };
-          isProfile?: boolean;
-        };
-        // Phase 24B-1: the resolver first queries isProfile=true, then falls
-        // back to a trusted-match query. Honor whichever shape is asked.
-        if (where.isProfile === true) {
-          const match = rows.find((r) => r.matchedOfficerId === where.matchedOfficerId && r.isProfile === true);
-          return match ?? null;
-        }
-        const wanted = where.matchStatus?.in ?? [];
-        const match = rows.find(
-          (r) => r.matchedOfficerId === where.matchedOfficerId && wanted.includes(r.matchStatus)
-        );
-        return match ?? null;
+        return filterSorted(args.where as Record<string, unknown>)[0] ?? null;
+      },
+      async findMany(args) {
+        return filterSorted(args.where as Record<string, unknown>);
       },
     },
   };
 }
 
-test("returns all-null when no ProfilePhoto is matched to the officer", async () => {
+const PLACEHOLDER = { driveFileId: null, thumbnailUrl: null, webViewUrl: null, source: "PLACEHOLDER" };
+
+test("returns the placeholder result when no ProfilePhoto is matched to the officer", async () => {
   const db = fakeClient([]);
   const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
-  assert.deepEqual(result, { driveFileId: null, thumbnailUrl: null, webViewUrl: null });
+  assert.deepEqual(result, PLACEHOLDER);
 });
 
-test("returns the matched ProfilePhoto's image when AUTO_MATCHED", async () => {
+test("Tier 3 — AI Match: AUTO_MATCHED resolves with source AI_MATCH", async () => {
   const db = fakeClient([
     { driveFileId: "PP1", thumbnailUrl: "t1", webViewUrl: "w1", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "ภาค 4/108" },
   ]);
   const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
-  assert.deepEqual(result, { driveFileId: "PP1", thumbnailUrl: "t1", webViewUrl: "w1" });
+  assert.deepEqual(result, { driveFileId: "PP1", thumbnailUrl: "t1", webViewUrl: "w1", source: "AI_MATCH" });
 });
 
-test("returns the matched ProfilePhoto's image when MANUAL_MATCHED", async () => {
+test("Tier 2 — Manual Match: MANUAL_MATCHED resolves with source MANUAL_MATCH", async () => {
   const db = fakeClient([
     { driveFileId: "PP2", thumbnailUrl: "t2", webViewUrl: "w2", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "ภาค 4/108" },
   ]);
   const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
   assert.equal(result.driveFileId, "PP2");
+  assert.equal(result.source, "MANUAL_MATCH");
 });
 
 test("NEVER returns an UNASSIGNED ProfilePhoto (untrusted) as a portrait", async () => {
@@ -73,7 +96,7 @@ test("NEVER returns an UNASSIGNED ProfilePhoto (untrusted) as a portrait", async
     { driveFileId: "PP3", thumbnailUrl: "t3", webViewUrl: "w3", matchStatus: MatchStatus.Unassigned, matchedOfficerId: "ภาค 4/108" },
   ]);
   const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
-  assert.deepEqual(result, { driveFileId: null, thumbnailUrl: null, webViewUrl: null });
+  assert.deepEqual(result, PLACEHOLDER);
 });
 
 test("does not return a photo matched to a DIFFERENT officer", async () => {
@@ -84,13 +107,175 @@ test("does not return a photo matched to a DIFFERENT officer", async () => {
   assert.equal(result.driveFileId, null);
 });
 
-test("Phase 24B-1: an uploaded isProfile=true portrait is preferred over other trusted matches", async () => {
+test("Tier 1 — Manual Upload beats every other tier", async () => {
   const db = fakeClient([
-    // An older auto-matched scan photo AND a newer uploaded current portrait.
     { driveFileId: "SCAN", thumbnailUrl: "ts", webViewUrl: "ws", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "ภาค 4/108" },
-    { driveFileId: "upload:xyz", thumbnailUrl: "tu", webViewUrl: "wu", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "ภาค 4/108", isProfile: true },
+    {
+      driveFileId: "upload:xyz",
+      thumbnailUrl: "tu",
+      webViewUrl: "wu",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "ภาค 4/108",
+      sourceType: "UPLOAD",
+      isProfile: true,
+    },
   ]);
   const result = await resolveOfficerPortraitWith(db, "ภาค 4/108");
   assert.equal(result.driveFileId, "upload:xyz");
-  assert.equal(result.thumbnailUrl, "tu");
+  assert.equal(result.source, "UPLOADED");
+});
+
+test("priority order: Manual Match beats AI Match when both exist", async () => {
+  const db = fakeClient([
+    { driveFileId: "AI", thumbnailUrl: "a", webViewUrl: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1" },
+    { driveFileId: "MANUAL", thumbnailUrl: "m", webViewUrl: "m", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-1" },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "MANUAL");
+  assert.equal(result.source, "MANUAL_MATCH");
+});
+
+test("Tier 4 — Verified Drive Portrait: REAL_PERSON classification wins when no match/upload exists", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "VERIFIED",
+      thumbnailUrl: "v",
+      webViewUrl: "v",
+      matchStatus: MatchStatus.Unassigned,
+      matchedOfficerId: "off-1",
+      classification: PortraitClassification.RealPerson,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "VERIFIED");
+  assert.equal(result.source, "VERIFIED_DRIVE");
+});
+
+test("HARD RULE: a MAP-classified photo is excluded even though it is AUTO_MATCHED", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "MAP",
+      thumbnailUrl: "m",
+      webViewUrl: "m",
+      matchStatus: MatchStatus.AutoMatched,
+      matchedOfficerId: "off-1",
+      classification: PortraitClassification.Map,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.deepEqual(result, PLACEHOLDER);
+});
+
+test("HARD RULE: an ORGANIZATION-classified upload is excluded even at Tier 1", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "upload:org",
+      thumbnailUrl: "o",
+      webViewUrl: "o",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "off-1",
+      sourceType: "UPLOAD",
+      isProfile: true,
+      classification: PortraitClassification.Organization,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.deepEqual(result, PLACEHOLDER);
+});
+
+test("HARD RULE: a DOCUMENT-classified manual match falls through to placeholder (not silently promoted)", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "DOC",
+      thumbnailUrl: "d",
+      webViewUrl: "d",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "off-1",
+      classification: PortraitClassification.Document,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.deepEqual(result, PLACEHOLDER);
+});
+
+test("UNKNOWN classification is trusted provisionally (Phase 23B parity — not yet reviewed, not excluded)", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "PP5",
+      thumbnailUrl: "t5",
+      webViewUrl: "w5",
+      matchStatus: MatchStatus.AutoMatched,
+      matchedOfficerId: "off-1",
+      classification: PortraitClassification.Unknown,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "PP5");
+});
+
+// ── Batch resolver: SAME priority, many officers at once ────────────────────
+
+test("batch resolver returns an entry for every requested officer, even with no data at all", async () => {
+  const db = fakeClient([]);
+  const result = await resolveOfficerPortraitsBatchWith(db, ["off-1", "off-2"]);
+  assert.equal(result.size, 2);
+  assert.deepEqual(result.get("off-1"), PLACEHOLDER);
+  assert.deepEqual(result.get("off-2"), PLACEHOLDER);
+});
+
+test("batch resolver applies the same 5-tier priority per officer independently", async () => {
+  const db = fakeClient([
+    { driveFileId: "A_AI", thumbnailUrl: "a", webViewUrl: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-A" },
+    { driveFileId: "B_MANUAL", thumbnailUrl: "b", webViewUrl: "b", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-B" },
+    {
+      driveFileId: "upload:c",
+      thumbnailUrl: "c",
+      webViewUrl: "c",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "off-C",
+      sourceType: "UPLOAD",
+      isProfile: true,
+    },
+  ]);
+  const result = await resolveOfficerPortraitsBatchWith(db, ["off-A", "off-B", "off-C", "off-D"]);
+  assert.equal(result.get("off-A")?.source, "AI_MATCH");
+  assert.equal(result.get("off-B")?.source, "MANUAL_MATCH");
+  assert.equal(result.get("off-C")?.source, "UPLOADED");
+  assert.deepEqual(result.get("off-D"), PLACEHOLDER);
+});
+
+test("batch resolver excludes bad classifications exactly like the single resolver", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "MAP",
+      thumbnailUrl: "m",
+      webViewUrl: "m",
+      matchStatus: MatchStatus.AutoMatched,
+      matchedOfficerId: "off-1",
+      classification: PortraitClassification.Map,
+    },
+  ]);
+  const result = await resolveOfficerPortraitsBatchWith(db, ["off-1"]);
+  assert.deepEqual(result.get("off-1"), PLACEHOLDER);
+});
+
+test("batch resolver matches resolveOfficerPortraitWith's per-officer result exactly (parity check)", async () => {
+  const rows: Row[] = [
+    { driveFileId: "AI1", thumbnailUrl: "a1", webViewUrl: "a1", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1" },
+    { driveFileId: "MANUAL2", thumbnailUrl: "m2", webViewUrl: "m2", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-2" },
+    {
+      driveFileId: "VERIFIED3",
+      thumbnailUrl: "v3",
+      webViewUrl: "v3",
+      matchStatus: MatchStatus.Unassigned,
+      matchedOfficerId: "off-3",
+      classification: PortraitClassification.RealPerson,
+    },
+  ];
+  const officerIds = ["off-1", "off-2", "off-3", "off-4"];
+  const batch = await resolveOfficerPortraitsBatchWith(fakeClient(rows), officerIds);
+  for (const id of officerIds) {
+    const single = await resolveOfficerPortraitWith(fakeClient(rows), id);
+    assert.deepEqual(batch.get(id), single, `mismatch for ${id}`);
+  }
 });

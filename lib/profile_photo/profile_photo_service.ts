@@ -17,12 +17,14 @@
 
 import type { ProfilePhotoRepository } from "@/lib/profile_photo/profile_photo_repository";
 import type {
+  ClassificationCount,
   MatchStatusCount,
   PaginatedProfilePhotos,
   ProfilePhoto,
   ProfilePhotoInput,
   ProfilePhotoQuery,
 } from "@/lib/profile_photo/profile_photo_types";
+import type { PortraitClassification } from "@/lib/profile_photo/profile_photo_types";
 
 export interface ProfilePhotoServiceDependencies {
   repository: ProfilePhotoRepository;
@@ -56,6 +58,36 @@ export class ProfilePhotoService {
   /** Per-matchStatus counts — drives the future Inbox's filter chips (Part 6: All/Unassigned/Matched/Conflict/Duplicate/Unknown). */
   matchStatusCounts(): Promise<MatchStatusCount[]> {
     return this.repository.matchStatusCounts();
+  }
+
+  /** Phase 24B-2: per-classification counts — drives the legacy cleanup tool's filter chips. */
+  classificationCounts(): Promise<ClassificationCount[]> {
+    return this.repository.classificationCounts();
+  }
+
+  /** Phase 24B-2: every ProfilePhoto ever linked to this officer (current + history), newest first. */
+  history(officerId: string): Promise<ProfilePhoto[]> {
+    return this.repository.historyForOfficer(officerId);
+  }
+
+  /**
+   * Phase 24B-2: a reviewer classifies what one photo's image actually shows.
+   * The resolver immediately respects this — a photo reclassified away from
+   * REAL_PERSON can never be shown as a portrait again, even if it was
+   * previously the current one (the caller/UI should re-run the resolver
+   * after this to reflect any change).
+   */
+  classify(id: number, classification: PortraitClassification, classifiedBy: string | null): Promise<ProfilePhoto | null> {
+    return this.repository.setClassification(id, classification, classifiedBy);
+  }
+
+  /**
+   * Phase 24B-2: makes photo `id` the officer's current portrait without a
+   * new upload — "Set as Current" from the history panel. Demotes every other
+   * photo for that officer; never deletes anything.
+   */
+  setCurrent(id: number): Promise<ProfilePhoto | null> {
+    return this.repository.setCurrent(id);
   }
 
   count(): Promise<number> {

@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 
@@ -19,6 +19,7 @@ const NAV = [
   { href: "/statistics", label: "Statistics", icon: BarChart3 },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/gallery", label: "คลังรูปภาพ", icon: Images },
+  { href: "/admin/portraits", label: "Portrait Cleanup", icon: UserCheck },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

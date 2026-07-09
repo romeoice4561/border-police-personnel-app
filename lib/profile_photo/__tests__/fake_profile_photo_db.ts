@@ -67,6 +67,22 @@ export class FakeProfilePhotoDbClient implements ProfilePhotoDbClient {
         rows.push(row);
         return { ...row };
       },
+      async update(args) {
+        const row = rows.find((r) => matchesWhere(r, args.where));
+        if (!row) throw new Error("Record to update not found");
+        Object.assign(row, args.data, { updatedAt: new Date() });
+        return { ...row };
+      },
+      async updateMany(args) {
+        let count = 0;
+        for (const row of rows) {
+          if (matchesWhere(row, args.where)) {
+            Object.assign(row, args.data, { updatedAt: new Date() });
+            count += 1;
+          }
+        }
+        return { count };
+      },
       async count(args) {
         return rows.filter((r) => matchesWhere(r, args?.where)).length;
       },

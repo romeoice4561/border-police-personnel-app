@@ -1,16 +1,20 @@
 /**
- * PortraitManager (Phase 24B-1 — Officer Portrait Upload).
+ * PortraitManager (Phase 24B-1 — Officer Portrait Upload; Phase 24B-2 —
+ * source badge + portrait history).
  *
  * The portrait control in the profile header. Always shows the CURRENT portrait
- * (image or placeholder) so a reviewer knows whose profile they are editing,
- * and drives the upload workflow:
+ * (image or placeholder) plus which resolver tier produced it, so a reviewer
+ * knows whose profile they are editing and how trustworthy the image is, and
+ * drives the upload workflow:
  *
  *   Select image → Preview → Crop (square) → Confirm → Upload → refresh UI.
  *
- * Buttons: Upload / Replace Portrait / Remove Portrait / Preview Full Size.
- * Upload posts multipart/form-data to /api/officers/{id}/portrait; on success
- * router.refresh() re-runs the server fetch so the profile, officer list,
- * dashboard, and gallery reflect the new portrait with no manual refresh.
+ * Buttons: Upload/Replace Portrait (label switches once a portrait exists —
+ * "if a Drive portrait exists, show it first, and Upload becomes Replace") /
+ * Remove Portrait / Preview Full Size / History. Upload posts multipart/
+ * form-data to /api/officers/{id}/portrait; on success router.refresh()
+ * re-runs the server fetch so the profile, officer list, dashboard, and
+ * gallery reflect the new portrait with no manual refresh.
  *
  * Client-side validation mirrors the server (jpg/jpeg/png/webp, ≤5 MB). The
  * square crop is produced on a canvas before upload, so the stored portrait is
@@ -22,9 +26,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Camera, Upload, RefreshCw, Trash2, Maximize2, Loader2, X, AlertCircle } from "lucide-react";
+import { Camera, Upload, RefreshCw, Trash2, Maximize2, History, Loader2, X, AlertCircle } from "lucide-react";
 import { OfficerPhoto } from "@/components/officer/officer_photo";
+import { PortraitSourceBadge } from "@/components/officer/portrait_source_badge";
+import { PortraitHistoryPanel } from "@/components/officer/portrait_history_panel";
 import { Button } from "@/components/ui/button";
+import type { PortraitSource } from "@/lib/server/officer_portrait_service";
 import {
   ALLOWED_PORTRAIT_MIME,
   MAX_PORTRAIT_BYTES,
@@ -38,27 +45,30 @@ export interface PortraitManagerProps {
   thumbnailUrl: string | null;
   driveFileId?: string | null;
   webViewUrl?: string | null;
+  /** Which resolver tier produced `thumbnailUrl` (Phase 24B-2) — drives the source badge. */
+  source: PortraitSource;
 }
 
 const ACCEPT = Object.keys(ALLOWED_PORTRAIT_MIME).join(",");
 const CROP_OUTPUT_SIZE = 512;
 
-export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, webViewUrl }: PortraitManagerProps) {
+export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, webViewUrl, source }: PortraitManagerProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [source, setSource] = useState<{ url: string; mimeType: string } | null>(null);
+  const [pickedSource, setPickedSource] = useState<{ url: string; mimeType: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewFull, setPreviewFull] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const hasPortrait = Boolean(thumbnailUrl);
 
   // Release the object URL when the crop source changes/unmounts.
   useEffect(() => {
     return () => {
-      if (source) URL.revokeObjectURL(source.url);
+      if (pickedSource) URL.revokeObjectURL(pickedSource.url);
     };
-  }, [source]);
+  }, [pickedSource]);
 
   const onPickFile = useCallback((file: File) => {
     setError(null);
@@ -67,7 +77,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
       setError(validation.message);
       return;
     }
-    setSource({ url: URL.createObjectURL(file), mimeType: file.type });
+    setPickedSource({ url: URL.createObjectURL(file), mimeType: file.type });
   }, []);
 
   async function uploadBlob(blob: Blob, mimeType: string) {
@@ -85,7 +95,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
         throw new Error(body?.error?.message ?? `Upload failed (${res.status}).`);
       }
-      setSource(null);
+      setPickedSource(null);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
@@ -125,6 +135,9 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         />
       </div>
 
+      {/* Phase 24B-2: Current Portrait + Portrait Source, always visible together. */}
+      <PortraitSourceBadge source={source} />
+
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <Button
           type="button"
@@ -150,6 +163,11 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
             </Button>
           </>
         ) : null}
+
+        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setHistoryOpen(true)}>
+          <History className="h-3.5 w-3.5" aria-hidden="true" />
+          History
+        </Button>
       </div>
 
       {error ? (
@@ -171,12 +189,21 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         }}
       />
 
-      {source ? (
+      {pickedSource ? (
         <CropDialog
-          source={source}
+          source={pickedSource}
           busy={busy}
-          onCancel={() => setSource(null)}
-          onConfirm={(blob) => uploadBlob(blob, source.mimeType)}
+          onCancel={() => setPickedSource(null)}
+          onConfirm={(blob) => uploadBlob(blob, pickedSource.mimeType)}
+        />
+      ) : null}
+
+      {historyOpen ? (
+        <PortraitHistoryPanel
+          officerId={officerId}
+          name={name}
+          onClose={() => setHistoryOpen(false)}
+          onChanged={() => router.refresh()}
         />
       ) : null}
 

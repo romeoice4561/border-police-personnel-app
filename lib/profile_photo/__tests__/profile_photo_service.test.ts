@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 
 import { InMemoryProfilePhotoRepository } from "@/lib/profile_photo/profile_photo_repository";
 import { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
-import { MatchStatus, OcrStatus, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 
 function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
   return {
@@ -29,6 +29,16 @@ function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
     matchStatus: MatchStatus.Unassigned,
     matchedOfficerId: null,
     confidence: null,
+    sourceType: "DRIVE_SCAN",
+    storagePath: null,
+    mimeType: null,
+    width: null,
+    height: null,
+    uploadedBy: null,
+    isProfile: false,
+    classification: PortraitClassification.Unknown,
+    classifiedBy: null,
+    classifiedAt: null,
     ...ov,
   };
 }
@@ -84,4 +94,84 @@ test("matchStatusCounts reflects ingested photos across every status", async () 
   const counts = await svc.matchStatusCounts();
   assert.equal(counts.find((c) => c.matchStatus === MatchStatus.AutoMatched)?.count, 1);
   assert.equal(counts.find((c) => c.matchStatus === MatchStatus.Unknown)?.count, 2);
+});
+
+// ── Phase 24B-2: classification / history / set-current ─────────────────────
+
+test("classify sets classification, classifiedBy, and classifiedAt", async () => {
+  const svc = service();
+  await svc.ingest([photo({ driveFileId: "a" })]);
+  const before = await svc.getByDriveFileId("a");
+
+  const updated = await svc.classify(before!.id, PortraitClassification.Map, "reviewer-1");
+  assert.equal(updated?.classification, PortraitClassification.Map);
+  assert.equal(updated?.classifiedBy, "reviewer-1");
+  assert.ok(updated?.classifiedAt);
+});
+
+test("classify returns null for an unknown photo id", async () => {
+  const svc = service();
+  assert.equal(await svc.classify(9999, PortraitClassification.Map, "reviewer-1"), null);
+});
+
+test("classificationCounts reflects every classification, including zero-count ones", async () => {
+  const svc = service();
+  await svc.ingest([photo({ driveFileId: "a" }), photo({ driveFileId: "b" })]);
+  const a = await svc.getByDriveFileId("a");
+  await svc.classify(a!.id, PortraitClassification.RealPerson, "r1");
+
+  const counts = await svc.classificationCounts();
+  assert.equal(counts.find((c) => c.classification === PortraitClassification.RealPerson)?.count, 1);
+  assert.equal(counts.find((c) => c.classification === PortraitClassification.Unknown)?.count, 1);
+  assert.equal(counts.find((c) => c.classification === PortraitClassification.Map)?.count, 0);
+});
+
+test("history returns every photo ever linked to an officer, newest first, never filtered", async () => {
+  const svc = service();
+  await svc.ingest([
+    photo({ driveFileId: "old", matchedOfficerId: "off-1", matchStatus: MatchStatus.AutoMatched, isProfile: false }),
+    photo({ driveFileId: "new", matchedOfficerId: "off-1", matchStatus: MatchStatus.ManualMatched, isProfile: true }),
+    photo({ driveFileId: "other", matchedOfficerId: "off-2" }),
+  ]);
+  const history = await svc.history("off-1");
+  assert.equal(history.length, 2);
+  assert.ok(history.every((p) => p.matchedOfficerId === "off-1"));
+});
+
+test("setCurrent promotes the target photo and demotes every other photo for the same officer, without deleting anything", async () => {
+  const svc = service();
+  await svc.ingest([
+    photo({ driveFileId: "old", matchedOfficerId: "off-1", isProfile: true }),
+    photo({ driveFileId: "candidate", matchedOfficerId: "off-1", isProfile: false }),
+  ]);
+  const candidate = await svc.getByDriveFileId("candidate");
+
+  const updated = await svc.setCurrent(candidate!.id);
+  assert.equal(updated?.isProfile, true);
+
+  const old = await svc.getByDriveFileId("old");
+  assert.equal(old?.isProfile, false);
+  assert.equal(await svc.count(), 2, "no row was deleted");
+});
+
+test("setCurrent returns null for a photo with no matchedOfficerId", async () => {
+  const svc = service();
+  await svc.ingest([photo({ driveFileId: "unlinked", matchedOfficerId: null })]);
+  const row = await svc.getByDriveFileId("unlinked");
+  assert.equal(await svc.setCurrent(row!.id), null);
+});
+
+test("re-ingesting an already-classified photo NEVER regresses its classification or isProfile (upsert safety)", async () => {
+  const svc = service();
+  await svc.ingest([photo({ driveFileId: "a", matchedOfficerId: "off-1", isProfile: true })]);
+  const before = await svc.getByDriveFileId("a");
+  await svc.classify(before!.id, PortraitClassification.RealPerson, "reviewer-1");
+
+  // Simulate a re-scan of the same Drive file with fresh (default) importer values.
+  await svc.ingest([photo({ driveFileId: "a", matchedOfficerId: "off-1", ocrText: "re-scanned text" })]);
+
+  const after = await svc.getByDriveFileId("a");
+  assert.equal(after?.classification, PortraitClassification.RealPerson, "classification must survive re-import");
+  assert.equal(after?.isProfile, true, "isProfile must survive re-import");
+  assert.equal(after?.ocrText, "re-scanned text", "other scan metadata still refreshes normally");
 });
