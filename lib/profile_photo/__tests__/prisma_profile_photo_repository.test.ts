@@ -203,3 +203,41 @@ test("classificationCounts covers every PortraitClassification value, including 
   assert.equal(counts.find((c) => c.classification === PortraitClassification.RealPerson)?.count, 2);
   assert.equal(counts.find((c) => c.classification === PortraitClassification.Map)?.count, 0);
 });
+
+test("Phase 24B-3: re-upserting a MANUAL_MATCHED row never overwrites matchStatus/matchedOfficerId/confidence", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  await repo.upsert(photo({ driveFileId: "a", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-manual", confidence: 100 }));
+
+  await repo.upsert(photo({ driveFileId: "a", matchStatus: MatchStatus.Unknown, matchedOfficerId: null, confidence: null }));
+
+  const after = await repo.findByDriveFileId("a");
+  assert.equal(after?.matchStatus, MatchStatus.ManualMatched);
+  assert.equal(after?.matchedOfficerId, "off-manual");
+  assert.equal(after?.confidence, 100);
+});
+
+test("Phase 24B-3: re-upserting an UPLOAD-sourced row never overwrites its match link", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  await repo.upsert(
+    photo({ driveFileId: "upload:xyz", sourceType: "UPLOAD", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-uploader" })
+  );
+
+  await repo.upsert(photo({ driveFileId: "upload:xyz", matchStatus: MatchStatus.Unknown, matchedOfficerId: null }));
+
+  const after = await repo.findByDriveFileId("upload:xyz");
+  assert.equal(after?.matchedOfficerId, "off-uploader");
+  assert.equal(after?.matchStatus, MatchStatus.ManualMatched);
+});
+
+test("re-upserting an AUTO_MATCHED row DOES refresh the match (only MANUAL_MATCHED/UPLOAD are frozen)", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  await repo.upsert(photo({ driveFileId: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-old" }));
+
+  await repo.upsert(photo({ driveFileId: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-new" }));
+
+  const after = await repo.findByDriveFileId("a");
+  assert.equal(after?.matchedOfficerId, "off-new");
+});

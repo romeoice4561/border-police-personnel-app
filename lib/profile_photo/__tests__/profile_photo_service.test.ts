@@ -175,3 +175,49 @@ test("re-ingesting an already-classified photo NEVER regresses its classificatio
   assert.equal(after?.isProfile, true, "isProfile must survive re-import");
   assert.equal(after?.ocrText, "re-scanned text", "other scan metadata still refreshes normally");
 });
+
+test("Phase 24B-3: re-ingesting a MANUAL_MATCHED photo NEVER overwrites its matchStatus/matchedOfficerId (a rebuild must not clobber a human-confirmed link)", async () => {
+  const svc = service();
+  await svc.ingest([
+    photo({ driveFileId: "a", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-manual", confidence: 100 }),
+  ]);
+
+  // Simulate a rebuild re-running the automated matcher and deciding UNKNOWN this time.
+  await svc.ingest([photo({ driveFileId: "a", matchStatus: MatchStatus.Unknown, matchedOfficerId: null, confidence: null })]);
+
+  const after = await svc.getByDriveFileId("a");
+  assert.equal(after?.matchStatus, MatchStatus.ManualMatched, "manual match status must survive rebuild");
+  assert.equal(after?.matchedOfficerId, "off-manual", "manual officer link must survive rebuild");
+  assert.equal(after?.confidence, 100, "manual confidence must survive rebuild");
+});
+
+test("Phase 24B-3: re-ingesting an UPLOAD-sourced row (a real Drive re-scan would never actually collide, but defense in depth) preserves its match link", async () => {
+  const svc = service();
+  await svc.ingest([
+    photo({
+      driveFileId: "upload:xyz",
+      sourceType: "UPLOAD",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "off-uploader",
+      isProfile: true,
+    }),
+  ]);
+
+  await svc.ingest([photo({ driveFileId: "upload:xyz", sourceType: "DRIVE_SCAN", matchStatus: MatchStatus.Unknown, matchedOfficerId: null })]);
+
+  const after = await svc.getByDriveFileId("upload:xyz");
+  assert.equal(after?.matchedOfficerId, "off-uploader");
+  assert.equal(after?.matchStatus, MatchStatus.ManualMatched);
+});
+
+test("re-ingesting an AUTO_MATCHED photo DOES refresh the match when a fresh automated decision comes in (only MANUAL_MATCHED/UPLOAD are frozen)", async () => {
+  const svc = service();
+  await svc.ingest([
+    photo({ driveFileId: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-old", confidence: 80 }),
+  ]);
+
+  await svc.ingest([photo({ driveFileId: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-new", confidence: 95 })]);
+
+  const after = await svc.getByDriveFileId("a");
+  assert.equal(after?.matchedOfficerId, "off-new", "an automated match may still be refreshed by a fresh rebuild");
+});

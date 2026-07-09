@@ -1,17 +1,15 @@
 /**
- * PortraitSourceBadge (Phase 24B-2).
+ * PortraitSourceBadge (Phase 24B-2; simplified priority Phase 24B-3).
  *
  * Shows which resolver tier produced the currently-displayed portrait, so a
- * reviewer immediately knows what they're looking at (spec: "🟢 Uploaded /
- * 🟡 Google Drive / 🔵 AI Match / ⚪ Placeholder").
+ * reviewer immediately knows what they're looking at.
  */
 import type { PortraitSource } from "@/lib/server/officer_portrait_service";
 
 const LABELS: Record<PortraitSource, { dot: string; label: string }> = {
   UPLOADED: { dot: "🟢", label: "Uploaded" },
-  MANUAL_MATCH: { dot: "🟡", label: "Google Drive (Manual Match)" },
-  AI_MATCH: { dot: "🔵", label: "AI Match" },
-  VERIFIED_DRIVE: { dot: "🟡", label: "Google Drive (Verified)" },
+  MANUAL_MATCH: { dot: "🟡", label: "Verified Manual Match" },
+  DRIVE_PORTRAIT: { dot: "🔵", label: "Google Drive Portrait" },
   PLACEHOLDER: { dot: "⚪", label: "Placeholder" },
 };
 

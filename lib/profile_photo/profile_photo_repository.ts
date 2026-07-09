@@ -76,6 +76,9 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
     // Phase 24B-2: re-importing an already-discovered photo must never
     // regress human review (classification) or the current-portrait flag
     // (isProfile) — mirrors PrismaProfilePhotoRepository.upsert.
+    // Phase 24B-3: a rebuild's fresh matcher pass must never overwrite a
+    // human-confirmed link (MANUAL_MATCHED) or an uploaded row's link.
+    const preserveMatch = existing && (existing.matchStatus === MatchStatus.ManualMatched || existing.sourceType === "UPLOAD");
     const photo: ProfilePhoto = existing
       ? {
           ...existing,
@@ -87,6 +90,9 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
           classifiedBy: existing.classifiedBy,
           classifiedAt: existing.classifiedAt,
           isProfile: existing.isProfile,
+          ...(preserveMatch
+            ? { matchStatus: existing.matchStatus, matchedOfficerId: existing.matchedOfficerId, confidence: existing.confidence }
+            : {}),
         }
       : { ...input, id: this.nextId++, createdAt: now, updatedAt: now };
     this.photos.set(input.driveFileId, photo);

@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createApiContainer } from "@/lib/api/api_container";
+import { createApiContainer, type PortraitBatchResolver } from "@/lib/api/api_container";
 import { handleOfficerSearch } from "@/lib/api/api_handlers";
 import { FakeReadDatabaseClient, type FakeOfficerSeed } from "@/lib/api/__tests__/fake_read_client";
 
@@ -20,8 +20,19 @@ const seeds: FakeOfficerSeed[] = [
   { officerId: "ภาค2/1", rank: "ร.ต.ท.", firstName: "Wichai", lastName: "Somsak", currentUnit: "ตชด.100", currentPosition: "รอง ผบ.ร้อย", region: "ภาค2", careerYears: 5, qualityScore: 60, phone: "081-333-3333" },
 ];
 
+/** No portraits linked in these fixtures — every officer resolves to the placeholder. */
+const fakePortraits: PortraitBatchResolver = {
+  async resolveBatch(officerIds) {
+    const map = new Map();
+    for (const id of officerIds) {
+      map.set(id, { driveFileId: null, thumbnailUrl: null, webViewUrl: null, source: "PLACEHOLDER" as const });
+    }
+    return map;
+  },
+};
+
 function container() {
-  return createApiContainer(new FakeReadDatabaseClient(seeds));
+  return createApiContainer(new FakeReadDatabaseClient(seeds), fakePortraits);
 }
 
 async function ids(res: Response): Promise<string[]> {

@@ -18,29 +18,43 @@ import { OfficerQueryRepository } from "@/lib/database/repositories/officer_quer
 import { UnitQueryRepository } from "@/lib/database/repositories/unit_query_repository";
 import { RankQueryRepository } from "@/lib/database/repositories/rank_query_repository";
 import { StatisticsQueryRepository } from "@/lib/database/repositories/statistics_query_repository";
+import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
+
+/**
+ * Phase 24B-3: the portrait capability the officer list/search handlers use
+ * to attach thumbnails to a page of results. Batch-only (never N+1) — see
+ * lib/server/officer_portrait_service.ts, the single sanctioned resolver.
+ * Injectable so handler tests can supply a fake without touching the DB.
+ */
+export interface PortraitBatchResolver {
+  resolveBatch(officerIds: readonly string[]): Promise<Map<string, ResolvedOfficerPortrait>>;
+}
 
 export interface ApiContainer {
   officers: OfficerQueryRepository;
   units: UnitQueryRepository;
   ranks: RankQueryRepository;
   statistics: StatisticsQueryRepository;
+  portraits: PortraitBatchResolver;
 }
 
-/** Builds the container from any ReadDatabaseClient (real or fake). Pure — no I/O. */
-export function createApiContainer(client: ReadDatabaseClient): ApiContainer {
+/** Builds the container from any ReadDatabaseClient (real or fake) + a portrait resolver. Pure — no I/O. */
+export function createApiContainer(client: ReadDatabaseClient, portraits: PortraitBatchResolver): ApiContainer {
   return {
     officers: new OfficerQueryRepository(client),
     units: new UnitQueryRepository(client),
     ranks: new RankQueryRepository(client),
     statistics: new StatisticsQueryRepository(client),
+    portraits,
   };
 }
 
 /**
  * Lazily creates (once per process) the production container backed by the
- * real Prisma client via the Phase 12 database factory. Imported dynamically
- * so this module — and the query repositories/tests — never pull the Prisma
- * runtime unless a real request needs it.
+ * real Prisma client via the Phase 12 database factory, and the real
+ * resolveOfficerPortraitsBatch (the one sanctioned batch resolver). Imported
+ * dynamically so this module — and the query repositories/tests — never pull
+ * the Prisma runtime unless a real request needs it.
  */
 let cachedClient: ReadDatabaseClient | undefined;
 
@@ -49,5 +63,6 @@ export async function getApiContainer(): Promise<ApiContainer> {
     const { createDatabaseClient } = await import("@/lib/database/database");
     cachedClient = createDatabaseClient() as unknown as ReadDatabaseClient;
   }
-  return createApiContainer(cachedClient);
+  const { resolveOfficerPortraitsBatch } = await import("@/lib/server/officer_portrait_service");
+  return createApiContainer(cachedClient, { resolveBatch: resolveOfficerPortraitsBatch });
 }

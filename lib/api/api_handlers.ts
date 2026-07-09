@@ -22,6 +22,32 @@ import {
   officerSearchQuerySchema,
   searchParamsToObject,
 } from "@/lib/api/api_schemas";
+import type { Officer } from "@/lib/database/query_types";
+
+/**
+ * Phase 24B-3: attaches the resolved portrait (thumbnailUrl/driveFileId/
+ * webViewUrl/source) to every officer in a page of results, via ONE batch
+ * call to the sanctioned resolver (never N+1). Used by both the list and
+ * search endpoints so Officer List, Dashboard (which reuses the list
+ * endpoint), and Search all render portraits through the exact same
+ * resolveOfficerPortraitsBatch — no duplicated logic.
+ */
+async function withPortraits<T extends Officer>(
+  container: ApiContainer,
+  rows: T[]
+): Promise<Array<T & { thumbnailUrl: string | null; driveFileId: string | null; webViewUrl: string | null; portraitSource: string }>> {
+  const portraits = await container.portraits.resolveBatch(rows.map((r) => r.officerId));
+  return rows.map((row) => {
+    const portrait = portraits.get(row.officerId);
+    return {
+      ...row,
+      thumbnailUrl: portrait?.thumbnailUrl ?? null,
+      driveFileId: portrait?.driveFileId ?? null,
+      webViewUrl: portrait?.webViewUrl ?? null,
+      portraitSource: portrait?.source ?? "PLACEHOLDER",
+    };
+  });
+}
 
 /** Package version for /health, read from package.json without hardcoding. */
 async function appVersion(): Promise<string> {
@@ -57,8 +83,9 @@ export async function handleOfficerList(source: ContainerSource, params: URLSear
 
   const container = await resolveContainer(source);
   const result = await container.officers.list(parsed.data);
+  const data = await withPortraits(container, result.data);
 
-  return jsonOk(result.data, {
+  return jsonOk(data, {
     page: result.page,
     pageSize: result.pageSize,
     total: result.total,
@@ -73,8 +100,9 @@ export async function handleOfficerSearch(source: ContainerSource, params: URLSe
 
   const container = await resolveContainer(source);
   const result = await container.officers.search(parsed.data);
+  const data = await withPortraits(container, result.data);
 
-  return jsonOk(result.data, {
+  return jsonOk(data, {
     page: result.page,
     pageSize: result.pageSize,
     total: result.total,

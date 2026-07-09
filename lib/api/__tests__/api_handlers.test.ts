@@ -10,9 +10,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createApiContainer } from "@/lib/api/api_container";
+import { createApiContainer, type PortraitBatchResolver } from "@/lib/api/api_container";
 import {
   handleOfficerList,
+  handleOfficerSearch,
   handleOfficerById,
   handleUnits,
   handleRanks,
@@ -29,12 +30,23 @@ function seeds(): FakeOfficerSeed[] {
   ];
 }
 
+/** No portraits linked in these fixtures — every officer resolves to the placeholder. */
+const fakePortraits: PortraitBatchResolver = {
+  async resolveBatch(officerIds) {
+    const map = new Map();
+    for (const id of officerIds) {
+      map.set(id, { driveFileId: null, thumbnailUrl: null, webViewUrl: null, source: "PLACEHOLDER" as const });
+    }
+    return map;
+  },
+};
+
 function container() {
   const client = new FakeReadDatabaseClient(seeds(), {
     timeline: { "ภาค1/1": [{ id: 1, officerId: 1, sequence: 0, year: "2564", yearValue: 2564, rank: null, position: "ผบ.ร้อย", unit: "ตชด.447", source: null, verified: "ยังไม่ตรวจ" }] },
     phones: { "ภาค1/1": ["081-111-1111"] },
   });
-  return createApiContainer(client);
+  return createApiContainer(client, fakePortraits);
 }
 
 async function body(res: Response): Promise<Record<string, unknown>> {
@@ -70,6 +82,59 @@ test("GET /officers rejects invalid query with 400 and details", async () => {
   assert.equal(res.status, 400);
   const json = await body(res);
   assert.ok((json.error as { code: string }).code === "BAD_REQUEST");
+});
+
+test("Phase 24B-3: GET /officers attaches the resolved portrait to each row via ONE batch call (no N+1)", async () => {
+  let callCount = 0;
+  let lastRequestedIds: readonly string[] = [];
+  const portraitsWithData: PortraitBatchResolver = {
+    async resolveBatch(officerIds) {
+      callCount += 1;
+      lastRequestedIds = officerIds;
+      const map = new Map();
+      for (const id of officerIds) {
+        map.set(
+          id,
+          id === "ภาค1/1"
+            ? { driveFileId: "drive-1", thumbnailUrl: "https://x/thumb-1", webViewUrl: "https://x/view-1", source: "DRIVE_PORTRAIT" as const }
+            : { driveFileId: null, thumbnailUrl: null, webViewUrl: null, source: "PLACEHOLDER" as const }
+        );
+      }
+      return map;
+    },
+  };
+  const client = new FakeReadDatabaseClient(seeds());
+  const c = createApiContainer(client, portraitsWithData);
+
+  const res = await handleOfficerList(c, new URLSearchParams("pageSize=10"));
+  const data = (await body(res)).data as Array<{ officerId: string; thumbnailUrl: string | null; driveFileId: string | null; portraitSource: string }>;
+
+  assert.equal(callCount, 1, "the batch resolver must be called exactly once for the whole page");
+  assert.equal(lastRequestedIds.length, 3);
+
+  const withPhoto = data.find((o) => o.officerId === "ภาค1/1")!;
+  assert.equal(withPhoto.thumbnailUrl, "https://x/thumb-1");
+  assert.equal(withPhoto.driveFileId, "drive-1");
+  assert.equal(withPhoto.portraitSource, "DRIVE_PORTRAIT");
+
+  const placeholder = data.find((o) => o.officerId === "ภาค1/2")!;
+  assert.equal(placeholder.thumbnailUrl, null);
+  assert.equal(placeholder.portraitSource, "PLACEHOLDER");
+});
+
+test("Phase 24B-3: GET /search attaches portraits via the same batch resolver", async () => {
+  const portraitsWithData: PortraitBatchResolver = {
+    async resolveBatch(officerIds) {
+      const map = new Map();
+      for (const id of officerIds) map.set(id, { driveFileId: "d", thumbnailUrl: "t", webViewUrl: "w", source: "MANUAL_MATCH" as const });
+      return map;
+    },
+  };
+  const c = createApiContainer(new FakeReadDatabaseClient(seeds()), portraitsWithData);
+  const res = await handleOfficerSearch(c, new URLSearchParams("name=สมชาย&match=contains"));
+  const data = (await body(res)).data as Array<{ thumbnailUrl: string | null; portraitSource: string }>;
+  assert.ok(data.length > 0);
+  assert.ok(data.every((o) => o.thumbnailUrl === "t" && o.portraitSource === "MANUAL_MATCH"));
 });
 
 test("GET /officers/{id} returns full profile with timeline and quality", async () => {
@@ -117,7 +182,7 @@ test("GET /officers/{id} surfaces resolved organization ids when present on the 
   const seededClient = new FakeReadDatabaseClient([
     { officerId: "ภาค1/1", rank: "พ.ต.อ.", firstName: "สมชาย", lastName: "ใจดี", regionId: 4, battalionId: 44, companyId: 447 },
   ]);
-  const res = await handleOfficerById(createApiContainer(seededClient), "ภาค1/1");
+  const res = await handleOfficerById(createApiContainer(seededClient, fakePortraits), "ภาค1/1");
   const data = (await body(res)).data as Record<string, unknown>;
   assert.deepEqual(data.organization, { regionId: 4, battalionId: 44, companyId: 447 });
 });
@@ -135,7 +200,7 @@ test("GET /statistics computes totals, averages, and duplicate counts", async ()
     // Same rank + name as ภาค1/1 (พ.ต.อ. สมชาย ใจดี) and same phone → duplicate.
     { officerId: "ภาค3/1", rank: "พ.ต.อ.", firstName: "สมชาย", lastName: "ใจดี", phone: "081-111-1111", region: "ภาค3", careerYears: 8 },
   ];
-  const c = createApiContainer(new FakeReadDatabaseClient(dupSeeds));
+  const c = createApiContainer(new FakeReadDatabaseClient(dupSeeds), fakePortraits);
   const res = await handleStatistics(c);
   const stats = (await body(res)).data as Record<string, number>;
 

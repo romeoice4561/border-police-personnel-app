@@ -25,10 +25,18 @@ export interface OfficerSummary {
   knowledgeScore: number | null;
   region: string | null;
   confidence: number | null;
-  /** Phase 17B: Drive photo identity (nullable). Present on list/search rows. */
+  /**
+   * Phase 24B-3: the resolved portrait for this row, via the single sanctioned
+   * batch resolver (lib/server/officer_portrait_service.ts) — NOT the legacy
+   * Officer.driveFileId/thumbnailUrl (Phase 23B: those are unreliable and never
+   * used). Present on list/search rows; optional only because callers that
+   * construct an OfficerSummary by hand (e.g. tests) may omit it.
+   */
   driveFileId?: string | null;
   thumbnailUrl?: string | null;
   webViewUrl?: string | null;
+  /** Which resolver tier produced the portrait — "PLACEHOLDER" when none was found. */
+  portraitSource?: string;
 }
 
 /** Drive photo identity, as returned by the officer detail endpoint. */

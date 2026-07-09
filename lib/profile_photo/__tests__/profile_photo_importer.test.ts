@@ -14,8 +14,8 @@ import assert from "node:assert/strict";
 import { FakeProfilePhotoDbClient } from "@/lib/profile_photo/__tests__/fake_profile_photo_db";
 import { PrismaProfilePhotoRepository } from "@/lib/profile_photo/prisma_profile_photo_repository";
 import { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
-import { ProfilePhotoImporter, type OcrTextByFileId } from "@/lib/profile_photo/profile_photo_importer";
-import { MatchStatus, OcrStatus } from "@/lib/profile_photo/profile_photo_types";
+import { ProfilePhotoImporter, type OcrTextByFileId, type ClassificationByFileId } from "@/lib/profile_photo/profile_photo_importer";
+import { MatchStatus, OcrStatus, PortraitClassification } from "@/lib/profile_photo/profile_photo_types";
 import { DriveContentType } from "@/lib/google-drive/drive_content_type";
 import type { DriveScanEntry } from "@/lib/google-drive/drive_scan_report";
 import type { OfficerSignals } from "@/lib/profile_photo/profile_photo_matcher";
@@ -94,6 +94,40 @@ test("OCR failure never blocks import — the photo is still created with ocrSta
   const photo = await repository.findByDriveFileId("a");
   assert.equal(photo?.ocrStatus, OcrStatus.Failed);
   assert.equal(photo?.matchStatus, MatchStatus.Unassigned);
+});
+
+test("Phase 24B-3: classification is threaded through from classificationByFileId, defaulting to UNKNOWN when absent", async () => {
+  const { importer, repository } = makeImporter();
+  const classificationByFileId: ClassificationByFileId = new Map([["a", PortraitClassification.RealPerson]]);
+
+  await importer.import([entry({ id: "a" }), entry({ id: "b" })], { classificationByFileId });
+
+  const a = await repository.findByDriveFileId("a");
+  const b = await repository.findByDriveFileId("b");
+  assert.equal(a?.classification, PortraitClassification.RealPerson);
+  assert.equal(b?.classification, PortraitClassification.Unknown, "no entry in the map -> default UNKNOWN, unchanged behavior");
+});
+
+test("Phase 24B-3: classification never affects import/match outcome (metadata only) — identical matchStatus with and without a MAP classification", async () => {
+  const ocrByFileId: OcrTextByFileId = new Map([["a", { text: "อนิรุทธิ์ ขาวจันทร์คง ตชด.447 081-540-7336", failed: false }]]);
+
+  const withoutClassification = makeImporter();
+  await withoutClassification.importer.import([entry({ id: "a" })], { ocrByFileId, officers: [officer()] });
+  const baseline = await withoutClassification.repository.findByDriveFileId("a");
+
+  const withClassification = makeImporter();
+  const classificationByFileId: ClassificationByFileId = new Map([["a", PortraitClassification.Map]]);
+  const summary = await withClassification.importer.import([entry({ id: "a" })], {
+    ocrByFileId,
+    officers: [officer()],
+    classificationByFileId,
+  });
+  const withMap = await withClassification.repository.findByDriveFileId("a");
+
+  assert.equal(summary.photos_created, 1);
+  assert.equal(withMap?.classification, PortraitClassification.Map);
+  assert.equal(withMap?.matchStatus, baseline?.matchStatus, "classification never blocks or alters matching");
+  assert.equal(withMap?.matchedOfficerId, baseline?.matchedOfficerId, "classification never blocks or alters the officer link");
 });
 
 test("no officer signal found -> UNKNOWN, but the photo is still imported", async () => {

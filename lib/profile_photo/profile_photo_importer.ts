@@ -42,6 +42,9 @@ import {
 /** OCR text keyed by Drive file id, supplied by the caller (this class never runs OCR itself). */
 export type OcrTextByFileId = Map<string, { text: string; failed: boolean }>;
 
+/** Image-content classification keyed by Drive file id, supplied by the caller (this class never classifies itself). */
+export type ClassificationByFileId = Map<string, PortraitClassification>;
+
 export interface ProfilePhotoImportOptions {
   /**
    * OCR text already extracted for some/all of the discovered images, keyed
@@ -57,6 +60,15 @@ export interface ProfilePhotoImportOptions {
    * import itself is entirely unaffected by whether matching runs.
    */
   officers?: OfficerSignals[];
+  /**
+   * Phase 24B-3: image-content classification already computed for some/all
+   * of the discovered images, keyed by Drive file id (this class never runs
+   * the classifier itself — see scripts/rebuild_drive_portraits.ts). A file
+   * id absent from this map is imported with classification = UNKNOWN
+   * (unchanged default behavior). Classification is METADATA ONLY here — it
+   * never affects whether a photo is imported or matched.
+   */
+  classificationByFileId?: ClassificationByFileId;
 }
 
 /** Summary of a Profile Photo import run. */
@@ -101,6 +113,7 @@ export class ProfilePhotoImporter {
 
     const ocrByFileId = options.ocrByFileId ?? new Map();
     const officers = options.officers ?? [];
+    const classificationByFileId: ClassificationByFileId = options.classificationByFileId ?? new Map();
 
     // Matching runs once, in batch, so cross-photo duplicate detection (two
     // photos both plausibly matching the same officer) works exactly as the
@@ -120,7 +133,9 @@ export class ProfilePhotoImporter {
         ? decideMatchesForPhotos(officers, matchableImages)
         : new Map();
 
-    const photos: ProfilePhotoInput[] = profileEntries.map((entry) => this.buildPhotoInput(entry, ocrByFileId, matchResults));
+    const photos: ProfilePhotoInput[] = profileEntries.map((entry) =>
+      this.buildPhotoInput(entry, ocrByFileId, matchResults, classificationByFileId)
+    );
 
     const result = await this.service.ingest(photos);
 
@@ -169,13 +184,15 @@ export class ProfilePhotoImporter {
   private buildPhotoInput(
     entry: DriveScanEntry,
     ocrByFileId: OcrTextByFileId,
-    matchResults: Map<string, ProfilePhotoMatchResult>
+    matchResults: Map<string, ProfilePhotoMatchResult>,
+    classificationByFileId: ClassificationByFileId
   ): ProfilePhotoInput {
     const ocr = ocrByFileId.get(entry.id);
     const ocrStatus = !ocr ? OcrStatus.Pending : ocr.failed ? OcrStatus.Failed : OcrStatus.Completed;
     const ocrText = ocr && !ocr.failed && ocr.text.trim().length > 0 ? ocr.text : null;
 
     const match = matchResults.get(entry.id);
+    const classification = classificationByFileId.get(entry.id) ?? PortraitClassification.Unknown;
 
     return {
       driveFileId: entry.id,
@@ -192,11 +209,10 @@ export class ProfilePhotoImporter {
       matchedOfficerId: match?.matchedOfficerId ?? null,
       confidence: match?.confidence ?? null,
       // Phase 24B-1/24B-2: every Drive-discovered row is a scan, never the
-      // current portrait by default, and unclassified until a reviewer looks
-      // at it. Re-running the importer on an already-classified/uploaded row
-      // would overwrite it — but a scanned Drive file's `driveFileId` never
-      // collides with an uploaded row's synthetic `upload:<uuid>` key, so this
-      // never happens in practice.
+      // current portrait by default. Re-running the importer on an
+      // already-discovered row is protected against clobbering human
+      // review/manual match/uploads by the repository's upsert (see
+      // PrismaProfilePhotoRepository.upsert) — never by this builder.
       sourceType: "DRIVE_SCAN",
       storagePath: null,
       mimeType: null,
@@ -204,7 +220,7 @@ export class ProfilePhotoImporter {
       height: null,
       uploadedBy: null,
       isProfile: false,
-      classification: PortraitClassification.Unknown,
+      classification,
       classifiedBy: null,
       classifiedAt: null,
     };

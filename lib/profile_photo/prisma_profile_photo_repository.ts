@@ -157,14 +157,34 @@ export class PrismaProfilePhotoRepository implements ProfilePhotoRepository {
   async upsert(input: ProfilePhotoInput): Promise<{ photo: ProfilePhoto; created: boolean }> {
     const existing = await this.db.profilePhoto.findUnique({ where: { driveFileId: input.driveFileId } });
     const data = photoToData(input);
-    // Phase 24B-2: re-running the Drive-scan importer on an already-discovered
-    // photo must NEVER regress human review (classification) or the
-    // current-portrait flag (isProfile) back to the importer's defaults —
-    // only create() should ever set those. Scan metadata (region/company/OCR/
-    // match/etc.) still refreshes normally on every re-import.
-    const updateData: Record<string, unknown> = existing
-      ? { ...data, classification: existing.classification, classifiedBy: existing.classifiedBy, classifiedAt: existing.classifiedAt, isProfile: existing.isProfile }
-      : data;
+    let updateData: Record<string, unknown> = data;
+    if (existing) {
+      // Phase 24B-2: re-running the Drive-scan importer on an already-discovered
+      // photo must NEVER regress human review (classification) or the
+      // current-portrait flag (isProfile) back to the importer's defaults —
+      // only create() should ever set those.
+      updateData = {
+        ...updateData,
+        classification: existing.classification,
+        classifiedBy: existing.classifiedBy,
+        classifiedAt: existing.classifiedAt,
+        isProfile: existing.isProfile,
+      };
+      // Phase 24B-3: a rebuild's fresh matcher pass must NEVER overwrite a
+      // human-confirmed link (MANUAL_MATCHED) or an uploaded row's link — the
+      // automated matcher re-running could otherwise silently reassign or
+      // unlink a manually-verified photo. Only a matchStatus the matcher
+      // itself produces (UNASSIGNED/AUTO_MATCHED/REVIEW_REQUIRED/CONFLICT/
+      // DUPLICATE/UNKNOWN) may be refreshed by re-import.
+      if (existing.matchStatus === MatchStatus.ManualMatched || existing.sourceType === "UPLOAD") {
+        updateData = {
+          ...updateData,
+          matchStatus: existing.matchStatus,
+          matchedOfficerId: existing.matchedOfficerId,
+          confidence: existing.confidence,
+        };
+      }
+    }
     const row = await this.db.profilePhoto.upsert({
       where: { driveFileId: input.driveFileId },
       create: { driveFileId: input.driveFileId, ...data },

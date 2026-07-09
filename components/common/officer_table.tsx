@@ -82,10 +82,15 @@ export function OfficerTable({ officers, sort }: { officers: OfficerSummary[]; s
                 <td className="px-4 py-3 text-muted">{o.rank || "—"}</td>
                 <td className="px-4 py-3 font-medium">
                   <span className="flex items-center gap-2.5">
-                    {/* Phase 23B: legacy officer image is never shown (points at
-                        maps/charts) — placeholder until a trusted ProfilePhoto links. */}
+                    {/* Phase 24B-3: portrait resolved server-side via the single
+                        sanctioned batch resolver (never the legacy, unreliable
+                        Officer.driveFileId/thumbnailUrl — Phase 23B). Falls back
+                        to the placeholder automatically when unset. */}
                     <OfficerPhoto
                       name={[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
+                      thumbnailUrl={o.thumbnailUrl}
+                      driveFileId={o.driveFileId}
+                      webViewUrl={o.webViewUrl}
                       size={32}
                     />
                     <Link href={`/officers/${encodeURIComponent(o.officerId)}`} className="text-accent hover:underline">
