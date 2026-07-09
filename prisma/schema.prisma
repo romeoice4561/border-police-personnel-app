@@ -321,6 +321,277 @@ model ProfilePhoto {
   @@index([ocrStatus])
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 24A: Database V2 Foundation — Master Data (additive, non-destructive).
+//
+// Per DATABASE_V2_DESIGN.md / MASTER_DATA.md / ER_DIAGRAM.md, the V2
+// foundation introduces normalized master tables that are the go-forward
+// single source of truth for every future module. They are created ALONGSIDE
+// the existing Phase 20A Region/Battalion/Company (Int PK) tables — nothing
+// existing is renamed, dropped, or repointed. Legacy tables keep serving
+// production unchanged; data migration + FK repointing happen in a later,
+// dedicated phase.
+//
+// V2 conventions (from the authoritative docs, differing from the legacy
+// Int-PK/PascalCase tables above ON PURPOSE):
+//   • UUID primary keys, DB-generated via gen_random_uuid() (Principle 3).
+//   • snake_case table + column names (@@map / @map).
+//   • Standard columns on every table: status, version, is_deleted,
+//     deleted_at, created_by, updated_by, created_at, updated_at
+//     (DATABASE_V2_DESIGN §6).
+//   • Every relationship by UUID FK; no text matching (Principle 5).
+//   • Soft delete only — no cascade delete (ER_DIAGRAM Cascade Rules).
+//
+// Model names are prefixed `Master*` so they never collide with the existing
+// `Region`/`Battalion`/`Company` Prisma models.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// V2 master data — Region (ภาค). Top of the organization tree.
+/// Example codes: REGION_1, REGION_2, REGION_SOUTH. (DATABASE_V2_DESIGN §17)
+model MasterRegion {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  nameTh       String    @map("name_th")
+  nameEn       String?   @map("name_en")
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  // Standard columns (DATABASE_V2_DESIGN §6)
+  status       String    @default("ACTIVE")
+  version      Int       @default(1)
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  commands     MasterCommand[]
+
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_regions")
+}
+
+/// V2 master data — Command / กองบังคับการ (บก.ตชด.NN). Belongs to one Region.
+/// This is the level ABOVE Subdivision that the legacy schema lacked.
+/// (DATABASE_V2_DESIGN §18)
+model MasterCommand {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  region       MasterRegion @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  regionId     String       @map("region_id") @db.Uuid
+  code         String       @unique
+  name         String
+  displayOrder Int          @default(0) @map("display_order")
+  isActive     Boolean      @default(true) @map("is_active")
+
+  status       String       @default("ACTIVE")
+  version      Int          @default(1)
+  isDeleted    Boolean      @default(false) @map("is_deleted")
+  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?      @map("created_by") @db.Uuid
+  updatedBy    String?      @map("updated_by") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subdivisions MasterSubdivision[]
+
+  @@index([regionId])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_commands")
+}
+
+/// V2 master data — Subdivision / กองกำกับ (กก.ตชด.NN). Belongs to one Command.
+/// (DATABASE_V2_DESIGN §19)
+model MasterSubdivision {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  command      MasterCommand @relation(fields: [commandId], references: [id], onDelete: Restrict)
+  commandId    String        @map("command_id") @db.Uuid
+  code         String        @unique
+  shortName    String        @map("short_name")
+  fullName     String        @map("full_name")
+  province     String?
+  displayOrder Int           @default(0) @map("display_order")
+  isActive     Boolean       @default(true) @map("is_active")
+
+  status       String        @default("ACTIVE")
+  version      Int           @default(1)
+  isDeleted    Boolean       @default(false) @map("is_deleted")
+  deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?       @map("created_by") @db.Uuid
+  updatedBy    String?       @map("updated_by") @db.Uuid
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companies    MasterCompany[]
+
+  @@index([commandId])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_subdivisions")
+}
+
+/// V2 master data — Company / กองร้อย (ร้อย ตชด.NNN). Belongs to one
+/// Subdivision. The leaf of the organization tree an officer references.
+/// (DATABASE_V2_DESIGN §20)
+model MasterCompany {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subdivision   MasterSubdivision @relation(fields: [subdivisionId], references: [id], onDelete: Restrict)
+  subdivisionId String            @map("subdivision_id") @db.Uuid
+  code          String            @unique
+  companyNo     String?           @map("company_no")
+  shortName     String            @map("short_name")
+  fullName      String            @map("full_name")
+  location      String?
+  province      String?
+  latitude      Decimal?          @db.Decimal(10, 7)
+  longitude     Decimal?          @db.Decimal(10, 7)
+  displayOrder  Int               @default(0) @map("display_order")
+  isActive      Boolean           @default(true) @map("is_active")
+
+  status        String            @default("ACTIVE")
+  version       Int               @default(1)
+  isDeleted     Boolean           @default(false) @map("is_deleted")
+  deletedAt     DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  createdBy     String?           @map("created_by") @db.Uuid
+  updatedBy     String?           @map("updated_by") @db.Uuid
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([subdivisionId])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_companies")
+}
+
+/// V2 master data — Rank (ยศ). Ordered by `level` (never by text comparison).
+/// (DATABASE_V2_DESIGN §22)
+model MasterRank {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  nameTh       String    @map("name_th")
+  abbreviation String?
+  level        Int
+  groupName    String?   @map("group_name")
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  status       String    @default("ACTIVE")
+  version      Int       @default(1)
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([level])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_ranks")
+}
+
+/// V2 master data — Position (ตำแหน่ง). Every position carries a code + Thai
+/// name so spellings never diverge. (DATABASE_V2_DESIGN §23, MASTER_DATA Position)
+model MasterPosition {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String    @unique
+  nameTh        String    @map("name_th")
+  positionGroup String?   @map("position_group")
+  displayOrder  Int       @default(0) @map("display_order")
+  isActive      Boolean   @default(true) @map("is_active")
+
+  status        String    @default("ACTIVE")
+  version       Int       @default(1)
+  isDeleted     Boolean   @default(false) @map("is_deleted")
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy     String?   @map("created_by") @db.Uuid
+  updatedBy     String?   @map("updated_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_positions")
+}
+
+/// V2 master data — Timeline Event Type. Every career-timeline event references
+/// one of these (no free text). (DATABASE_V2_DESIGN §38)
+model MasterTimelineType {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  nameTh       String    @map("name_th")
+  nameEn       String?   @map("name_en")
+  icon         String?
+  color        String?
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  status       String    @default("ACTIVE")
+  version      Int       @default(1)
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_timeline_types")
+}
+
+/// V2 master data — Asset Type. Classifies every Asset (Portrait, Map, GP7, …).
+/// (DATABASE_V2_DESIGN §51)
+model MasterAssetType {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  nameTh       String    @map("name_th")
+  nameEn       String?   @map("name_en")
+  icon         String?
+  color        String?
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  status       String    @default("ACTIVE")
+  version      Int       @default(1)
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_asset_types")
+}
+
+/// V2 master data — Document Type (GP7, คำสั่งแต่งตั้ง, …).
+/// (DATABASE_V2_DESIGN §52)
+model MasterDocumentType {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  nameTh       String    @map("name_th")
+  nameEn       String?   @map("name_en")
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  status       String    @default("ACTIVE")
+  version      Int       @default(1)
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("master_document_types")
+}
+
 /// A phone number associated with an officer. Unique per (officer, number).
 model Phone {
   id        Int     @id @default(autoincrement())
