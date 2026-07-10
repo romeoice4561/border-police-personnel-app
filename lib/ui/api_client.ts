@@ -171,6 +171,15 @@ export interface SearchQuery extends OfficerQuery {
   position?: string;
 }
 
+/** Phase 26B Part B: Global Search query — one free-text `q` plus paging/sort (no per-field inputs, no match mode). */
+export interface GlobalSearchQuery {
+  q: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
 /** Typed error carrying the API's code + status so the UI can react (e.g. 503 → "backend unavailable"). */
 export class ApiClientError extends Error {
   constructor(
@@ -290,6 +299,11 @@ export interface OfficerProfileSaveRequest {
     month: number | null;
     yearBE: number | null;
     isPresent: boolean;
+    /** Phase 26B Part C: structured org hierarchy — additive alongside `unit` above. */
+    headquartersId: number | null;
+    regionId: number | null;
+    battalionId: number | null;
+    companyId: number | null;
   }>;
   education?: Array<{ year: string | null; institution: string; degree: string | null; notes: string | null }>;
   training?: Array<{ year: string | null; course: string; organization: string | null; notes: string | null }>;
@@ -311,6 +325,12 @@ export const apiClient = {
 
   async searchOfficers(query: SearchQuery): Promise<PaginatedResult<OfficerSummary>> {
     const { data, meta } = await request<OfficerSummary[]>(`/search${toQueryString(query)}`);
+    return { data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
+
+  /** Phase 26B Part B: Global Search — one free-text query spanning every supported field. */
+  async globalSearch(query: GlobalSearchQuery): Promise<PaginatedResult<OfficerSummary>> {
+    const { data, meta } = await request<OfficerSummary[]>(`/search/global${toQueryString(query)}`);
     return { data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
   },
 

@@ -26,6 +26,10 @@ function timelineRow(ov: Partial<Timeline> & { id: number; officerId: number; se
     yearBE: null,
     isPresent: false,
     effectiveDate: null,
+    headquartersId: null,
+    regionId: null,
+    battalionId: null,
+    companyId: null,
     ...ov,
   };
 }

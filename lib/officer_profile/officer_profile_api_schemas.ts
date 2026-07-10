@@ -90,6 +90,14 @@ export const timelineRowSchema = z
     month: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidMonth(v), { message: "Invalid month" }),
     yearBE: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidYearBE(v), { message: "Invalid Buddhist-Era year" }),
     isPresent: z.boolean().optional(),
+    // Phase 26B Part C: structured org hierarchy ids — all optional/nullable,
+    // same "omit and it stays unset" convention as day/month/yearBE above.
+    // Server never re-derives these from `unit` text (no guessing); they are
+    // only ever set when the client's OrgHierarchyPicker resolved a real id.
+    headquartersId: z.coerce.number().int().positive().nullable().optional(),
+    regionId: z.coerce.number().int().positive().nullable().optional(),
+    battalionId: z.coerce.number().int().positive().nullable().optional(),
+    companyId: z.coerce.number().int().positive().nullable().optional(),
   })
   .transform((row) => ({
     ...row,

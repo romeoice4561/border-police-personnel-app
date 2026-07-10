@@ -41,6 +41,7 @@ import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
 import { Button } from "@/components/ui/button";
+import type { OrgTree } from "@/lib/organization/org_tree";
 
 export interface OfficerWorkspaceProps {
   officer: OfficerWithRelations;
@@ -48,16 +49,30 @@ export interface OfficerWorkspaceProps {
   knownUnits: readonly string[];
   /** Trusted portrait (from a matched ProfilePhoto), resolved server-side. */
   portrait: ResolvedOfficerPortrait;
+  /** Phase 26B Part C/D: the full Headquarters/Region/Battalion/Company snapshot for the Timeline org pickers. */
+  orgTree: OrgTree;
 }
 
-export function OfficerWorkspace({ officer, knownUnits, portrait }: OfficerWorkspaceProps) {
+export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: OfficerWorkspaceProps) {
   const router = useRouter();
-  const workspace = useOfficerWorkspace(officer);
+  const workspace = useOfficerWorkspace(officer, orgTree);
   const { editing, startEditing, cancel, save, isSaving, saveError } = workspace;
 
   async function handleSave() {
-    await save();
-    router.refresh();
+    // Phase 26A stabilization (bug #4/#5): a rejected save (validation
+    // failure, network error, ...) previously propagated as an unhandled
+    // promise rejection out of this onClick handler — `saveError` from
+    // useOfficerWorkspace already surfaces the message inline below, so the
+    // rejection is caught here and swallowed (not re-thrown, not logged
+    // again) rather than escaping the event handler. router.refresh() only
+    // runs after a genuinely successful save.
+    try {
+      await save();
+      router.refresh();
+    } catch {
+      // saveError (from useSaveOfficerProfile's useMutation) already holds
+      // this failure and is rendered below — nothing further to do here.
+    }
   }
 
   return (
@@ -101,7 +116,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait }: OfficerWorks
           )}
 
           {editing ? (
-            <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} knownUnits={knownUnits} />
+            <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} orgTree={orgTree} />
           ) : (
             <CareerTimelineSection timeline={officer.timeline} />
           )}

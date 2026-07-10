@@ -156,6 +156,44 @@ test("TimelineRepository.replaceForOfficer replaces rather than appends", async 
   assert.equal(await repo.countForOfficer(officer.officer.id), 1);
 });
 
+test("Phase 26B Part C: TimelineRepository.replaceForOfficer persists the structured org hierarchy ids", async () => {
+  const db = new InMemoryDatabaseClient();
+  const officer = await new OfficerRepository(db).upsert(officerInput());
+  const repo = new TimelineRepository(db);
+
+  await repo.replaceForOfficer(officer.officer.id, [
+    {
+      sequence: 0,
+      year: "2560",
+      yearValue: 2560,
+      position: "ผบ.มว.",
+      unit: "ตชด.434",
+      headquartersId: 1,
+      regionId: 10,
+      battalionId: 100,
+      companyId: 1000,
+    },
+  ]);
+
+  const row = await repo.findByOfficerAndSequence(officer.officer.id, 0);
+  assert.equal(row?.headquartersId, 1);
+  assert.equal(row?.regionId, 10);
+  assert.equal(row?.battalionId, 100);
+  assert.equal(row?.companyId, 1000);
+});
+
+test("TimelineRepository.replaceForOfficer leaves org hierarchy ids null when omitted (row not linked to the structured hierarchy)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const officer = await new OfficerRepository(db).upsert(officerInput());
+  const repo = new TimelineRepository(db);
+
+  await repo.replaceForOfficer(officer.officer.id, [{ sequence: 0, year: "2560", yearValue: 2560, position: "x", unit: "หน่วยเดิม" }]);
+
+  const row = await repo.findByOfficerAndSequence(officer.officer.id, 0);
+  assert.equal(row?.headquartersId ?? null, null);
+  assert.equal(row?.companyId ?? null, null);
+});
+
 test("UnitRepository.upsert deduplicates by name", async () => {
   const db = new InMemoryDatabaseClient();
   const repo = new UnitRepository(db);

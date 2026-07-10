@@ -29,6 +29,10 @@ export interface FakeOfficerSeed extends Partial<Officer> {
   rank: string;
   firstName: string;
   lastName: string;
+  /** Phase 26B Part B: optional joined org names, for globalSearch's regionRef/battalionRef/companyRef nested-filter tests. */
+  regionRefNameTh?: string | null;
+  battalionRefNameTh?: string | null;
+  companyRefNameTh?: string | null;
 }
 
 function officer(seed: FakeOfficerSeed, id: number): Officer {
@@ -54,7 +58,17 @@ function officer(seed: FakeOfficerSeed, id: number): Officer {
     facebookUrl: seed.facebookUrl ?? null,
     createdAt: seed.createdAt ?? new Date(2026, 0, id),
     updatedAt: seed.updatedAt ?? new Date(2026, 0, id),
-  } as Officer;
+    // Phase 26B Part B: nested relation shape so globalSearch's regionRef/
+    // battalionRef/companyRef filters can be exercised against this fake.
+    regionRef: seed.regionRefNameTh !== undefined ? { nameTh: seed.regionRefNameTh } : null,
+    battalionRef: seed.battalionRefNameTh !== undefined ? { nameTh: seed.battalionRefNameTh } : null,
+    companyRef: seed.companyRefNameTh !== undefined ? { nameTh: seed.companyRefNameTh } : null,
+  } as unknown as Officer;
+}
+
+/** True when `cond` is a plain Prisma-style leaf filter object ({ contains/equals/startsWith/gte/not/in/mode: ... }), not a nested relation filter. */
+function isLeafFilter(cond: Record<string, unknown>): boolean {
+  return ["equals", "contains", "startsWith", "gte", "not", "in", "mode"].some((k) => k in cond);
 }
 
 /** Applies a single Prisma-style field filter to a value. */
@@ -69,6 +83,7 @@ function matchesFilter(value: unknown, filter: unknown): boolean {
   if ("startsWith" in f)
     return typeof value === "string" && String(norm(value)).startsWith(String(norm(f.startsWith)));
   if ("gte" in f) return typeof value === "number" && value >= (f.gte as number);
+  if ("in" in f) return Array.isArray(f.in) && (f.in as unknown[]).includes(value);
   if ("not" in f) return value !== f.not;
   return false;
 }
@@ -83,7 +98,17 @@ function matchesWhere(row: Officer, where?: Record<string, unknown>): boolean {
       const clauses = cond as Array<Record<string, unknown>>;
       if (!clauses.some((c) => matchesWhere(row, c))) return false;
     } else {
-      if (!matchesFilter((row as unknown as Record<string, unknown>)[key], cond)) return false;
+      const fieldValue = (row as unknown as Record<string, unknown>)[key];
+      // Phase 26B Part B: a nested relation filter (e.g. regionRef: { nameTh: {contains, mode} })
+      // — recurse into the related object's own fields rather than treating it as a leaf filter.
+      if (cond !== null && typeof cond === "object" && !Array.isArray(cond) && !isLeafFilter(cond as Record<string, unknown>)) {
+        if (fieldValue === null || fieldValue === undefined) return false;
+        for (const [nestedKey, nestedCond] of Object.entries(cond as Record<string, unknown>)) {
+          if (!matchesFilter((fieldValue as Record<string, unknown>)[nestedKey], nestedCond)) return false;
+        }
+      } else if (!matchesFilter(fieldValue, cond)) {
+        return false;
+      }
     }
   }
   return true;

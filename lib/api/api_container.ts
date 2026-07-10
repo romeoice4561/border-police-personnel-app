@@ -18,6 +18,8 @@ import { OfficerQueryRepository } from "@/lib/database/repositories/officer_quer
 import { UnitQueryRepository } from "@/lib/database/repositories/unit_query_repository";
 import { RankQueryRepository } from "@/lib/database/repositories/rank_query_repository";
 import { StatisticsQueryRepository } from "@/lib/database/repositories/statistics_query_repository";
+import { GlobalSearchService } from "@/lib/search/global_search_service";
+import type { SearchProvider } from "@/lib/search/global_search_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 
 /**
@@ -36,16 +38,30 @@ export interface ApiContainer {
   ranks: RankQueryRepository;
   statistics: StatisticsQueryRepository;
   portraits: PortraitBatchResolver;
+  /** Phase 26B Part B: multi-provider free-text search across Officer fields + Drive filenames (+ future document titles/GP7). */
+  globalSearch: GlobalSearchService;
 }
 
-/** Builds the container from any ReadDatabaseClient (real or fake) + a portrait resolver. Pure — no I/O. */
-export function createApiContainer(client: ReadDatabaseClient, portraits: PortraitBatchResolver): ApiContainer {
+/**
+ * Builds the container from any ReadDatabaseClient (real or fake) + a
+ * portrait resolver. `searchProviders` (Phase 26B Part B) is optional so
+ * every pre-existing caller/test is unaffected — global search simply has
+ * no extra providers (Officer-field search still works) until one is
+ * supplied. Pure — no I/O.
+ */
+export function createApiContainer(
+  client: ReadDatabaseClient,
+  portraits: PortraitBatchResolver,
+  searchProviders: readonly SearchProvider[] = []
+): ApiContainer {
+  const officers = new OfficerQueryRepository(client);
   return {
-    officers: new OfficerQueryRepository(client),
+    officers,
     units: new UnitQueryRepository(client),
     ranks: new RankQueryRepository(client),
     statistics: new StatisticsQueryRepository(client),
     portraits,
+    globalSearch: new GlobalSearchService({ officers, providers: searchProviders }),
   };
 }
 
@@ -64,5 +80,13 @@ export async function getApiContainer(): Promise<ApiContainer> {
     cachedClient = createDatabaseClient() as unknown as ReadDatabaseClient;
   }
   const { resolveOfficerPortraitsBatch } = await import("@/lib/server/officer_portrait_service");
-  return createApiContainer(cachedClient, { resolveBatch: resolveOfficerPortraitsBatch });
+  // Phase 26B Part B: Drive filename is a first-class Global Search provider,
+  // reusing the existing ProfilePhotoService (no denormalization — the join
+  // stays through ProfilePhoto.matchedOfficerId exactly as before).
+  const { getProfilePhotoContainer } = await import("@/lib/profile_photo/profile_photo_container");
+  const { DriveFilenameSearchProvider } = await import("@/lib/search/drive_filename_provider");
+  const { service: profilePhotoService } = await getProfilePhotoContainer();
+  return createApiContainer(cachedClient, { resolveBatch: resolveOfficerPortraitsBatch }, [
+    new DriveFilenameSearchProvider(profilePhotoService),
+  ]);
 }

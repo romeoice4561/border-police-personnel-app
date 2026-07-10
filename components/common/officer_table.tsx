@@ -40,9 +40,21 @@ export function OfficerTable({ officers, sort }: { officers: OfficerSummary[]; s
         ))}
       </div>
 
-      {/* Desktop/tablet: table */}
+      {/* Desktop/tablet: table. table-fixed + explicit column widths (below) so
+          a long Position/Unit value can never visually squeeze the Name
+          column — the Name column gets the largest, most generous share and
+          is allowed to wrap onto two lines rather than clip. */}
       <div className="hidden overflow-x-auto rounded-xl border border-border bg-surface sm:block">
-        <table className="w-full text-left text-sm">
+        <table className="w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col className="w-[9%]" />
+            <col className="w-[22%]" />
+            <col className="w-[17%]" />
+            <col className="w-[17%]" />
+            <col className="w-[13%]" />
+            <col className="w-[9%]" />
+            <col className="w-[13%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
               {COLUMNS.map((col) => {
@@ -77,36 +89,40 @@ export function OfficerTable({ officers, sort }: { officers: OfficerSummary[]; s
             </tr>
           </thead>
           <tbody>
-            {officers.map((o) => (
-              <tr key={o.officerId} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
-                <td className="px-4 py-3 text-muted">{o.rank || "—"}</td>
-                <td className="px-4 py-3 font-medium">
-                  <span className="flex items-center gap-2.5">
-                    {/* Phase 24B-3: portrait resolved server-side via the single
-                        sanctioned batch resolver (never the legacy, unreliable
-                        Officer.driveFileId/thumbnailUrl — Phase 23B). Falls back
-                        to the placeholder automatically when unset. */}
-                    <OfficerPhoto
-                      name={[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
-                      thumbnailUrl={o.thumbnailUrl}
-                      driveFileId={o.driveFileId}
-                      webViewUrl={o.webViewUrl}
-                      size={32}
-                    />
-                    <Link href={`/officers/${encodeURIComponent(o.officerId)}`} className="text-accent hover:underline">
-                      {[o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId}
-                    </Link>
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted">{o.currentPosition || "—"}</td>
-                <td className="px-4 py-3 text-muted">{o.currentUnit || "—"}</td>
-                <td className="px-4 py-3 tabular-nums text-muted">{o.phone || "—"}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{o.careerYears}</td>
-                <td className="px-4 py-3 text-right">
-                  <QualityBadge score={o.qualityScore} />
-                </td>
-              </tr>
-            ))}
+            {officers.map((o) => {
+              const fullName = [o.firstName, o.lastName].filter(Boolean).join(" ") || o.officerId;
+              return (
+                <tr key={o.officerId} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
+                  <td className="px-4 py-3 text-muted">{o.rank || "—"}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <span className="flex items-start gap-2.5">
+                      {/* Phase 24B-3: portrait resolved server-side via the single
+                          sanctioned batch resolver (never the legacy, unreliable
+                          Officer.driveFileId/thumbnailUrl — Phase 23B). Falls back
+                          to the placeholder automatically when unset. */}
+                      <OfficerPhoto name={fullName} thumbnailUrl={o.thumbnailUrl} driveFileId={o.driveFileId} webViewUrl={o.webViewUrl} size={32} />
+                      {/* Phase 26B Part A: never truncated — wraps onto up to two
+                          lines; `title` gives the full name on hover in the rare
+                          case a name is long enough to wrap past two lines. */}
+                      <Link
+                        href={`/officers/${encodeURIComponent(o.officerId)}`}
+                        title={fullName}
+                        className="line-clamp-2 wrap-break-word text-accent hover:underline"
+                      >
+                        {fullName}
+                      </Link>
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-muted">{o.currentPosition || "—"}</td>
+                  <td className="px-4 py-3 text-muted">{o.currentUnit || "—"}</td>
+                  <td className="px-4 py-3 tabular-nums text-muted">{o.phone || "—"}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{o.careerYears}</td>
+                  <td className="px-4 py-3 text-right">
+                    <QualityBadge score={o.qualityScore} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

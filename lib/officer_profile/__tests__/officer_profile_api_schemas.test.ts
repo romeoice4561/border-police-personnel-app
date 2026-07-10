@@ -182,3 +182,41 @@ test("officerProfileSaveSchema validates full timeline/education/training arrays
   });
   assert.equal(result.success, true);
 });
+
+// ── Phase 26B Part C: structured org hierarchy ───────────────────────────────
+
+test("timelineRowSchema accepts a row with structured org hierarchy ids", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: "ตชด.434", source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({ ...base, headquartersId: 1, regionId: 10, battalionId: 100, companyId: 1000 });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.headquartersId, 1);
+    assert.equal(result.data.regionId, 10);
+    assert.equal(result.data.battalionId, 100);
+    assert.equal(result.data.companyId, 1000);
+  }
+});
+
+test("timelineRowSchema leaves org hierarchy ids null when omitted (row not yet migrated to the structured picker)", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: "หน่วยเดิม", source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse(base);
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.headquartersId, undefined);
+    assert.equal(result.data.regionId, undefined);
+    assert.equal(result.data.battalionId, undefined);
+    assert.equal(result.data.companyId, undefined);
+  }
+});
+
+test("timelineRowSchema rejects a non-positive org hierarchy id rather than silently accepting garbage", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  assert.equal(timelineRowSchema.safeParse({ ...base, companyId: 0 }).success, false);
+  assert.equal(timelineRowSchema.safeParse({ ...base, companyId: -1 }).success, false);
+});
+
+test("timelineRowSchema accepts explicit null org hierarchy ids (unlinking)", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({ ...base, headquartersId: null, regionId: null, battalionId: null, companyId: null });
+  assert.equal(result.success, true);
+});

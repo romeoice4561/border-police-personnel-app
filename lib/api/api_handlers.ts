@@ -20,6 +20,7 @@ import {
   officerIdParamSchema,
   officerListQuerySchema,
   officerSearchQuerySchema,
+  globalSearchQuerySchema,
   searchParamsToObject,
 } from "@/lib/api/api_schemas";
 import type { Officer } from "@/lib/database/query_types";
@@ -108,6 +109,28 @@ export async function handleOfficerSearch(source: ContainerSource, params: URLSe
     total: result.total,
     totalPages: result.totalPages,
     match: parsed.data.match,
+  });
+}
+
+/**
+ * GET /api/search/global — Phase 26B Part B: one free-text query `q`, merged
+ * across Officer fields (name/surname/phone/officerId/rank/position/region/
+ * unit/linked org names) and every registered SearchProvider (Drive
+ * filename today). See lib/search/global_search_service.ts.
+ */
+export async function handleGlobalSearch(source: ContainerSource, params: URLSearchParams): Promise<Response> {
+  const parsed = globalSearchQuerySchema.safeParse(searchParamsToObject(params));
+  if (!parsed.success) return badRequest("Invalid search parameters", zodDetails(parsed.error));
+
+  const container = await resolveContainer(source);
+  const result = await container.globalSearch.search(parsed.data);
+  const data = await withPortraits(container, result.data);
+
+  return jsonOk(data, {
+    page: result.page,
+    pageSize: result.pageSize,
+    total: result.total,
+    totalPages: result.totalPages,
   });
 }
 

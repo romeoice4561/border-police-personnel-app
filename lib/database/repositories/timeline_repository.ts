@@ -35,6 +35,15 @@ export interface TimelineRowInput {
   yearBE?: number | null;
   isPresent?: boolean;
   effectiveDate?: Date | null;
+  /**
+   * Phase 26B Part C: structured org hierarchy, additive alongside `unit`
+   * above (never replaced — omitted by any caller that doesn't know about
+   * these fields, same convention as day/month/yearBE above).
+   */
+  headquartersId?: number | null;
+  regionId?: number | null;
+  battalionId?: number | null;
+  companyId?: number | null;
 }
 
 export class TimelineRepository {

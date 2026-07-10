@@ -64,6 +64,26 @@ export interface OfficerSearchParams {
   sortOrder: "asc" | "desc";
 }
 
+/**
+ * Phase 26B Part B: Global Search parameters — a single free-text query `q`
+ * OR-matched across every Officer field the spec lists (name/surname,
+ * phone, officerId, rank, position, region, unit) in ONE query, always
+ * `contains`+case-insensitive (Global Search is never exact/startsWith —
+ * "should behave similar to Google search"). Additional officerIds found by
+ * OTHER search providers (Drive filename, future document titles/GP7 — see
+ * lib/search/) are unioned in via `extraOfficerIds`, so this repository
+ * never needs to know about ProfilePhoto or any other table.
+ */
+export interface GlobalSearchParams {
+  q: string;
+  /** officerIds found by other search providers (e.g. Drive filename match), unioned into the result. */
+  extraOfficerIds?: readonly string[];
+  page: number;
+  pageSize: number;
+  sortBy: OfficerSortField;
+  sortOrder: "asc" | "desc";
+}
+
 export interface PaginatedOfficers {
   data: Officer[];
   total: number;
@@ -125,6 +145,43 @@ export class OfficerQueryRepository {
     if (typeof params.companyId === "number") and.push({ companyId: params.companyId });
 
     const where = and.length > 0 ? { AND: and } : {};
+    return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);
+  }
+
+  /**
+   * Phase 26B Part B: Global Search — one free-text query OR-matched across
+   * every Officer field the spec lists in a single query (always
+   * contains+case-insensitive): first/last name, phone, officerId, rank,
+   * position, region, unit, plus the linked Region/Battalion/Company
+   * display names (so typing "434" finds an officer whose COMPANY is
+   * "ตชด.434" even when the officer's own free-text `currentUnit` says
+   * something else). `extraOfficerIds` (from other search providers, e.g.
+   * Drive filename) are unioned in via a plain `officerId IN (...)` OR
+   * branch, so this repository stays ignorant of ProfilePhoto/other tables.
+   */
+  async globalSearch(params: GlobalSearchParams): Promise<PaginatedOfficers> {
+    const q = params.q.trim();
+    const contains = { contains: q, mode: "insensitive" as const };
+
+    const or: Array<Record<string, unknown>> = [
+      { firstName: contains },
+      { lastName: contains },
+      { officerId: contains },
+      { rank: contains },
+      { currentPosition: contains },
+      { currentUnit: contains },
+      { phone: contains },
+      { region: contains },
+      { regionRef: { nameTh: contains } },
+      { battalionRef: { nameTh: contains } },
+      { companyRef: { nameTh: contains } },
+    ];
+
+    if (params.extraOfficerIds && params.extraOfficerIds.length > 0) {
+      or.push({ officerId: { in: [...params.extraOfficerIds] } });
+    }
+
+    const where = q.length > 0 || (params.extraOfficerIds?.length ?? 0) > 0 ? { OR: or } : {};
     return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);
   }
 

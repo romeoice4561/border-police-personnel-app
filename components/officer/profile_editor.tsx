@@ -20,6 +20,7 @@
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
+import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
 import type { ProfileDraft } from "@/components/officer/use_officer_workspace";
 
 const inputCls =
@@ -86,13 +87,13 @@ export function ProfileEditor({ profile, onChange, knownUnits }: ProfileEditorPr
         </div>
 
         <Field label="ตำแหน่ง" htmlFor="edit-position">
-          <input
+          <Combobox
             id="edit-position"
-            type="text"
-            className={inputCls}
-            placeholder="เช่น ผบ.ร้อย"
             value={profile.currentPosition}
-            onChange={(e) => set("currentPosition", e.target.value)}
+            onChange={(value) => set("currentPosition", value)}
+            suggestions={POSITION_OPTIONS}
+            placeholder="เลือกหรือพิมพ์ตำแหน่ง"
+            aria-label="ตำแหน่ง"
           />
         </Field>
         <Field label="หน่วย (กองร้อย/กองกำกับ/ภาค)">

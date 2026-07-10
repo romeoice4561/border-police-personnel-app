@@ -71,8 +71,24 @@ export const officerIdParamSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+/**
+ * Phase 26B Part B: GET /api/search/global query params — one free-text `q`
+ * spanning every field the spec lists (see GlobalSearchService). Deliberately
+ * separate from officerSearchQuerySchema (the existing per-field form) —
+ * global search has no match-mode selector (always contains) and no
+ * per-field inputs, only paging/sort + `q`.
+ */
+export const globalSearchQuerySchema = z.object({
+  q: z.string().trim().min(1, "Provide a search query."),
+  page: pageSchema,
+  pageSize: pageSizeSchema,
+  sortBy: officerSortFieldSchema,
+  sortOrder: sortOrderSchema,
+});
+
 export type OfficerListQuery = z.infer<typeof officerListQuerySchema>;
 export type OfficerSearchQuery = z.infer<typeof officerSearchQuerySchema>;
+export type GlobalSearchQuery = z.infer<typeof globalSearchQuerySchema>;
 
 /** Parses URLSearchParams into a plain record for Zod (last value wins on repeats). */
 export function searchParamsToObject(params: URLSearchParams): Record<string, string> {

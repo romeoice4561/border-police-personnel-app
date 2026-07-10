@@ -19,6 +19,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getOfficerProfile } from "@/lib/server/officer_service";
 import { getKnownUnits } from "@/lib/server/unit_service";
+import { getOrgTree } from "@/lib/server/org_tree_service";
 import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
@@ -33,9 +34,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function OfficerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const officerId = decodeURIComponent(id);
-  const [officer, knownUnits, portrait] = await Promise.all([
+  const [officer, knownUnits, orgTree, portrait] = await Promise.all([
     getOfficerProfile(officerId),
     getKnownUnits(),
+    getOrgTree(),
     resolveOfficerPortrait(officerId),
   ]);
 
@@ -52,7 +54,7 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
         </Link>
       </Button>
 
-      <OfficerWorkspace officer={officer} knownUnits={knownUnits} portrait={portrait} />
+      <OfficerWorkspace officer={officer} knownUnits={knownUnits} orgTree={orgTree} portrait={portrait} />
     </div>
   );
 }

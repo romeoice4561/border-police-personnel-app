@@ -14,6 +14,7 @@
 import { useQuery, keepPreviousData, type UseQueryResult } from "@tanstack/react-query";
 import {
   apiClient,
+  type GlobalSearchQuery,
   type HealthStatus,
   type OfficerProfile,
   type OfficerQuery,
@@ -29,6 +30,7 @@ export const queryKeys = {
   officers: (query: OfficerQuery) => ["officers", query] as const,
   officer: (id: string) => ["officer", id] as const,
   search: (query: SearchQuery) => ["search", query] as const,
+  globalSearch: (query: GlobalSearchQuery) => ["globalSearch", query] as const,
   units: () => ["units"] as const,
   ranks: () => ["ranks"] as const,
   statistics: () => ["statistics"] as const,
@@ -58,6 +60,16 @@ export function useSearch(query: SearchQuery, hasCriteria: boolean): UseQueryRes
     queryFn: () => apiClient.searchOfficers(query),
     placeholderData: keepPreviousData,
     enabled: hasCriteria,
+  });
+}
+
+/** Phase 26B Part B: Global Search hook — only runs once the query has at least one non-whitespace character. */
+export function useGlobalSearch(query: GlobalSearchQuery): UseQueryResult<PaginatedResult<OfficerSummary>> {
+  return useQuery({
+    queryKey: queryKeys.globalSearch(query),
+    queryFn: () => apiClient.globalSearch(query),
+    placeholderData: keepPreviousData,
+    enabled: query.q.trim().length > 0,
   });
 }
 

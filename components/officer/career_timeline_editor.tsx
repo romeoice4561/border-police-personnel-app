@@ -26,9 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
+import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
 import { TIMELINE_SOURCE_OPTIONS, TIMELINE_VERIFIED_OPTIONS } from "@/lib/officer_profile/timeline_status_options";
 import { MONTH_OPTIONS, YEAR_BE_OPTIONS, formatThaiDate } from "@/lib/officer_profile/thai_date";
 import { emptyTimelineRow, type TimelineDraftRow } from "@/components/officer/use_officer_workspace";
+import { OrgHierarchyPicker } from "@/components/officer/org_hierarchy_picker";
+import type { OrgTree } from "@/lib/organization/org_tree";
 
 const VERIFIED_SELECT_OPTIONS = TIMELINE_VERIFIED_OPTIONS.map((v) => ({ value: v, label: v }));
 
@@ -42,11 +45,11 @@ const YEAR_BE_SELECT_OPTIONS = [{ value: "", label: "พ.ศ." }, ...YEAR_BE_OPT
 export interface CareerTimelineEditorProps {
   rows: TimelineDraftRow[];
   onChange: (rows: TimelineDraftRow[]) => void;
-  /** Existing unit names across the officer's own timeline, for the Unit combobox's suggestions. */
-  knownUnits: readonly string[];
+  /** Phase 26B Part C/D: the full Headquarters/Region/Battalion/Company snapshot for the org hierarchy pickers. */
+  orgTree: OrgTree;
 }
 
-export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimelineEditorProps) {
+export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimelineEditorProps) {
   function updateRow(key: string, patch: Partial<TimelineDraftRow>) {
     onChange(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
@@ -128,68 +131,75 @@ export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimel
               ) : null}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-              <LabeledField label="ยศ">
-                <Combobox
-                  value={row.rank}
-                  onChange={(value) => updateRow(row.key, { rank: value })}
-                  suggestions={RANK_OPTIONS}
-                  placeholder="เลือกหรือพิมพ์ยศ"
-                  aria-label="ยศ"
-                />
-              </LabeledField>
+                <LabeledField label="ยศ">
+                  <Combobox
+                    value={row.rank}
+                    onChange={(value) => updateRow(row.key, { rank: value })}
+                    suggestions={RANK_OPTIONS}
+                    placeholder="เลือกหรือพิมพ์ยศ"
+                    aria-label="ยศ"
+                  />
+                </LabeledField>
 
-              <LabeledField label="ตำแหน่ง" className="lg:col-span-2">
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="เช่น ผบ.ร้อย"
-                  value={row.position}
-                  onChange={(e) => updateRow(row.key, { position: e.target.value })}
-                  aria-label="ตำแหน่ง"
-                />
-              </LabeledField>
+                <LabeledField label="ตำแหน่ง" className="lg:col-span-3">
+                  <Combobox
+                    value={row.position}
+                    onChange={(value) => updateRow(row.key, { position: value })}
+                    suggestions={POSITION_OPTIONS}
+                    placeholder="เลือกหรือพิมพ์ตำแหน่ง"
+                    aria-label="ตำแหน่ง"
+                  />
+                </LabeledField>
 
-              <LabeledField label="หน่วย" className="lg:col-span-2">
-                <Combobox
-                  value={row.unit}
-                  onChange={(value) => updateRow(row.key, { unit: value })}
-                  suggestions={knownUnits}
-                  placeholder="พิมพ์หรือเลือกหน่วย"
-                  aria-label="หน่วย"
-                />
-              </LabeledField>
+                <LabeledField label="ที่มาของข้อมูล" className="lg:col-span-2">
+                  <Combobox
+                    value={row.source}
+                    onChange={(value) => updateRow(row.key, { source: value })}
+                    suggestions={TIMELINE_SOURCE_OPTIONS}
+                    placeholder="เลือกหรือพิมพ์ที่มา"
+                    aria-label="ที่มาของข้อมูล"
+                  />
+                </LabeledField>
 
-              <div className="flex items-end justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeRow(row.key)}
-                  aria-label="ลบแถวนี้"
-                >
-                  <Trash2 className="h-4 w-4 text-serious" aria-hidden="true" />
-                </Button>
+                <LabeledField label="สถานะ" className="lg:col-span-2">
+                  <Select
+                    options={VERIFIED_SELECT_OPTIONS}
+                    value={row.verified}
+                    onChange={(e) => updateRow(row.key, { verified: e.target.value })}
+                    aria-label="สถานะ"
+                  />
+                </LabeledField>
+
+                <div className="flex items-end justify-end lg:col-span-4">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeRow(row.key)} aria-label="ลบแถวนี้">
+                    <Trash2 className="h-4 w-4 text-serious" aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
 
-              <LabeledField label="ที่มาของข้อมูล" className="lg:col-span-3">
-                <Combobox
-                  value={row.source}
-                  onChange={(value) => updateRow(row.key, { source: value })}
-                  suggestions={TIMELINE_SOURCE_OPTIONS}
-                  placeholder="เลือกหรือพิมพ์ที่มา"
-                  aria-label="ที่มาของข้อมูล"
-                />
-              </LabeledField>
+              {/* Phase 26B Part C: structured Headquarters / Border Patrol
+                  Division / Battalion / Company hierarchy, replacing the
+                  single free-text "หน่วย" field as the primary input. */}
+              <OrgHierarchyPicker
+                tree={orgTree}
+                value={{
+                  headquartersId: row.headquartersId,
+                  headquartersText: row.headquartersText,
+                  regionId: row.regionId,
+                  regionText: row.regionText,
+                  battalionId: row.battalionId,
+                  battalionText: row.battalionText,
+                  companyId: row.companyId,
+                  companyText: row.companyText,
+                }}
+                onChange={(orgValue) => updateRow(row.key, orgValue)}
+              />
 
-              <LabeledField label="สถานะ" className="lg:col-span-3">
-                <Select
-                  options={VERIFIED_SELECT_OPTIONS}
-                  value={row.verified}
-                  onChange={(e) => updateRow(row.key, { verified: e.target.value })}
-                  aria-label="สถานะ"
-                />
-              </LabeledField>
-              </div>
+              {!row.companyId && !row.battalionId && !row.regionId && !row.headquartersId && row.unit ? (
+                <p className="text-xs text-muted">
+                  ข้อมูลเดิม (ยังไม่ได้แปลงเป็นรูปแบบใหม่): <span className="font-medium text-foreground">{row.unit}</span> — เลือกหน่วยด้านบนเพื่ออัปเดตเป็นรูปแบบโครงสร้างใหม่
+                </p>
+              ) : null}
             </div>
           ))
         )}
@@ -197,9 +207,6 @@ export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimel
     </Card>
   );
 }
-
-const inputCls =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
 function LabeledField({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (

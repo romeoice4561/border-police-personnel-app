@@ -65,6 +65,11 @@ model Officer {
   battalionId      Int?
   companyRef       Company?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
   companyId        Int?
+  // Phase 26B Part C/H: optional link to the top-level Headquarters (see
+  // Headquarters model docs). Nullable/additive, same SetNull convention as
+  // regionId/battalionId/companyId above.
+  headquartersRef  Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
+  headquartersId   Int?
 
   // Phase 23A: Officer Profile Workspace — additional contact channels.
   // All nullable/additive; existing `phone`/Phone[] are unchanged and remain
@@ -98,6 +103,7 @@ model Officer {
   @@index([currentUnit])
   @@index([phone])
   @@index([lastName])
+  @@index([headquartersId])
   @@index([regionId])
   @@index([battalionId])
   @@index([companyId])
@@ -148,11 +154,33 @@ model Timeline {
   isPresent     Boolean   @default(false)
   effectiveDate DateTime? @db.Date
 
+  // Phase 26B Part C: structured organization hierarchy, additive alongside
+  // the legacy free-text `unit` column above (never altered/dropped — every
+  // pre-26B row and every Phase 25 import keeps working unchanged). Reuses
+  // the EXISTING Region/Battalion/Company master tables (Phase 20A) plus the
+  // new Headquarters table (Part H) as the "Border Patrol Division" branch of
+  // that hierarchy — no parallel/duplicated organization tables. All
+  // nullable/SetNull: a row not yet migrated (or one whose unit doesn't
+  // resolve to a registered company/battalion/region) simply has these
+  // unset, exactly like `day`/`month`/`yearBE` above for un-migrated dates.
+  headquarters   Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
+  headquartersId Int?
+  regionRef      Region?       @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  regionId       Int?
+  battalionRef   Battalion?    @relation(fields: [battalionId], references: [id], onDelete: SetNull)
+  battalionId    Int?
+  companyRef     Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId      Int?
+
   @@unique([officerId, sequence])
   @@index([yearValue])
   @@index([unit])
   @@index([effectiveDate])
   @@index([yearBE])
+  @@index([headquartersId])
+  @@index([regionId])
+  @@index([battalionId])
+  @@index([companyId])
 }
 
 /// Phase 23A: one education record for an officer (year, institution, degree,
@@ -253,6 +281,30 @@ model Asset {
   @@index([unitNumber])
 }
 
+/// Phase 26B Part C/H: top-level Royal Thai Police organization master data —
+/// Headquarters (บช.ตชด., บช.น., ภ.1-9, บช.ก., รร.นรต., ...). `code` is a
+/// short stable slug ("BPP", "MPB", "PROV_1", ...), unique. Standalone table
+/// (not FK'd FROM Region) — most headquarters entries (รร.นรต., รพ.ตร., ...)
+/// have no Region children at all, and Region.headquartersId below is
+/// OPTIONAL, so this reuses the existing Region -> Battalion -> Company
+/// hierarchy as its "Border Patrol Division" branch (per the explicit
+/// instruction: no parallel hierarchy, no duplicated Battalion/Company data)
+/// while still supporting every other RTP unit that has no Region at all.
+model Headquarters {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  nameTh       String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  regions      Region[]
+  timeline     Timeline[]
+  officers     Officer[]
+
+  @@index([displayOrder])
+}
+
 /// Phase 20A: authoritative organization master data — Region. `code` is the
 /// bare digit string ("4"), unique. Every Battalion belongs to exactly one
 /// Region. This table (not folder/OCR text) is the source of truth every
@@ -265,8 +317,18 @@ model Region {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  // Phase 26B Part C/H: optional link to the owning Headquarters (e.g. ภาค4
+  // belongs to บช.ตชด.). Nullable/additive — every pre-26B Region row simply
+  // has no headquarters yet; nothing about Region's existing behavior,
+  // uniqueness, or Battalion relation changes.
+  headquarters   Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
+  headquartersId Int?
+
   battalions   Battalion[]
   officers     Officer[]
+  timeline     Timeline[]
+
+  @@index([headquartersId])
 }
 
 /// Phase 20A: authoritative organization master data — Battalion (กก.ตชด.NN).
@@ -284,6 +346,7 @@ model Battalion {
 
   companies    Company[]
   officers     Officer[]
+  timeline     Timeline[]
 
   @@index([regionId])
 }
@@ -303,6 +366,7 @@ model Company {
 
   assets       Asset[]
   officers     Officer[]
+  timeline     Timeline[]
 
   @@index([battalionId])
 }

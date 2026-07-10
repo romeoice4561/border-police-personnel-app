@@ -14,6 +14,7 @@ import { createApiContainer, type PortraitBatchResolver } from "@/lib/api/api_co
 import {
   handleOfficerList,
   handleOfficerSearch,
+  handleGlobalSearch,
   handleOfficerById,
   handleUnits,
   handleRanks,
@@ -61,6 +62,10 @@ function container() {
           yearBE: null,
           isPresent: false,
           effectiveDate: null,
+          headquartersId: null,
+          regionId: null,
+          battalionId: null,
+          companyId: null,
         },
       ],
     },
@@ -152,6 +157,45 @@ test("Phase 24B-3: GET /search attaches portraits via the same batch resolver", 
   };
   const c = createApiContainer(new FakeReadDatabaseClient(seeds()), portraitsWithData);
   const res = await handleOfficerSearch(c, new URLSearchParams("name=สมชาย&match=contains"));
+  const data = (await body(res)).data as Array<{ thumbnailUrl: string | null; portraitSource: string }>;
+  assert.ok(data.length > 0);
+  assert.ok(data.every((o) => o.thumbnailUrl === "t" && o.portraitSource === "MANUAL_MATCH"));
+});
+
+// ── Phase 26B Part B: Global Search ──────────────────────────────────────────
+
+test("GET /search/global finds an officer whose unit text contains the query digits ('434' -> 'ร้อย ตชด.434')", async () => {
+  const client = new FakeReadDatabaseClient([
+    { officerId: "ภาค4/79", rank: "ร.ต.ต.", firstName: "ชูศักดิ์", lastName: "ชูทอง", currentUnit: "ร้อย ตชด.434" },
+  ]);
+  const c = createApiContainer(client, fakePortraits);
+  const res = await handleGlobalSearch(c, new URLSearchParams("q=434"));
+  assert.equal(res.status, 200);
+  const json = (await body(res)) as { data: Array<{ officerId: string }>; meta: { total: number } };
+  assert.equal(json.meta.total, 1);
+  assert.equal(json.data[0].officerId, "ภาค4/79");
+});
+
+test("GET /search/global rejects an empty query with 400", async () => {
+  const res = await handleGlobalSearch(container(), new URLSearchParams("q="));
+  assert.equal(res.status, 400);
+});
+
+test("GET /search/global rejects a missing query with 400", async () => {
+  const res = await handleGlobalSearch(container(), new URLSearchParams(""));
+  assert.equal(res.status, 400);
+});
+
+test("GET /search/global attaches portraits via the same batch resolver as list/search", async () => {
+  const portraitsWithData: PortraitBatchResolver = {
+    async resolveBatch(officerIds) {
+      const map = new Map();
+      for (const id of officerIds) map.set(id, { driveFileId: "d", thumbnailUrl: "t", webViewUrl: "w", source: "MANUAL_MATCH" as const });
+      return map;
+    },
+  };
+  const c = createApiContainer(new FakeReadDatabaseClient(seeds()), portraitsWithData);
+  const res = await handleGlobalSearch(c, new URLSearchParams("q=สมชาย"));
   const data = (await body(res)).data as Array<{ thumbnailUrl: string | null; portraitSource: string }>;
   assert.ok(data.length > 0);
   assert.ok(data.every((o) => o.thumbnailUrl === "t" && o.portraitSource === "MANUAL_MATCH"));

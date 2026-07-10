@@ -6,9 +6,10 @@
 
 import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
-import { useOfficers, useRanks, useUnits } from "@/lib/ui/hooks";
+import { useOfficers, useGlobalSearch, useRanks, useUnits } from "@/lib/ui/hooks";
 import { buildOfficerQuery, type OfficerListFilters } from "@/lib/ui/list_filters";
 import { PageHeader } from "@/components/common/page_header";
+import { GlobalSearchBox } from "@/components/common/global_search_box";
 import { FilterPanel } from "@/components/common/filter_panel";
 import { OfficerTable } from "@/components/common/officer_table";
 import { Pagination } from "@/components/common/pagination";
@@ -17,10 +18,13 @@ import { LoadingState, ErrorState, EmptyState } from "@/components/common/states
 const PAGE_SIZE = 20;
 
 export default function OfficersPage() {
+  const [globalQuery, setGlobalQuery] = useState("");
   const [filters, setFilters] = useState<OfficerListFilters>({});
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const isGlobalSearching = globalQuery.trim().length > 0;
 
   const query = useMemo(
     () => buildOfficerQuery(filters, page, PAGE_SIZE, sortBy, sortOrder),
@@ -28,8 +32,11 @@ export default function OfficersPage() {
   );
 
   const officers = useOfficers(query);
+  const globalSearch = useGlobalSearch({ q: globalQuery, page, pageSize: PAGE_SIZE, sortBy, sortOrder });
   const ranks = useRanks();
   const units = useUnits();
+
+  const active = isGlobalSearching ? globalSearch : officers;
 
   function onSort(field: string) {
     if (sortBy === field) {
@@ -46,9 +53,16 @@ export default function OfficersPage() {
     setPage(1);
   }
 
+  function onGlobalQueryChange(next: string) {
+    setGlobalQuery(next);
+    setPage(1);
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader title="Officers" description="Browse and filter the personnel directory." />
+
+      <GlobalSearchBox value={globalQuery} onChange={onGlobalQueryChange} />
 
       <FilterPanel
         value={filters}
@@ -57,24 +71,24 @@ export default function OfficersPage() {
         onChange={onFilterChange}
       />
 
-      {officers.isPending ? (
+      {active.isPending ? (
         <LoadingState />
-      ) : officers.isError ? (
-        <ErrorState message={(officers.error as Error).message} onRetry={() => officers.refetch()} />
-      ) : officers.data.data.length === 0 ? (
+      ) : active.isError ? (
+        <ErrorState message={(active.error as Error).message} onRetry={() => active.refetch()} />
+      ) : active.data.data.length === 0 ? (
         <EmptyState
           title="No officers match"
-          message="Try clearing filters, or import data if the database is empty."
+          message={isGlobalSearching ? "Try a different search term." : "Try clearing filters, or import data if the database is empty."}
           icon={<Users className="h-8 w-8" />}
         />
       ) : (
         <div className="space-y-4">
-          <OfficerTable officers={officers.data.data} sort={{ sortBy, sortOrder, onSort }} />
+          <OfficerTable officers={active.data.data} sort={{ sortBy, sortOrder, onSort }} />
           <Pagination
-            page={officers.data.meta.page}
-            totalPages={officers.data.meta.totalPages}
-            total={officers.data.meta.total}
-            pageSize={officers.data.meta.pageSize}
+            page={active.data.meta.page}
+            totalPages={active.data.meta.totalPages}
+            total={active.data.meta.total}
+            pageSize={active.data.meta.pageSize}
             onPageChange={setPage}
           />
         </div>
