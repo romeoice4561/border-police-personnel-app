@@ -1,11 +1,12 @@
 /**
  * Officer portrait resolver tests (Phase 23B bug #2; Phase 24B-3 simplified
  * 4-tier priority: Manual Upload -> Verified Manual Match -> Google Drive
- * Portrait -> Placeholder). Classification is metadata-only as of 24B-3 and
- * never gates display — verified explicitly below. Verified over a fake
- * ProfilePhoto client that evaluates the actual where-clause shape the
- * resolver sends, so each tier's query is exercised for real, not just its
- * outcome.
+ * Portrait -> Placeholder; Phase 26A stabilization bug #3: classification
+ * gates Tier 3 ONLY — a Drive match confirmed non-portrait (MAP/ORGANIZATION/
+ * DOCUMENT/PROFILE_CARD) is skipped, verified explicitly below). Verified
+ * over a fake ProfilePhoto client that evaluates the actual where-clause
+ * shape the resolver sends, so each tier's query is exercised for real, not
+ * just its outcome.
  *
  * Run with:
  *   npx tsx --test lib/server/__tests__/officer_portrait_service.test.ts
@@ -159,7 +160,7 @@ test("priority order: Verified Manual Match beats Google Drive Portrait when bot
   assert.equal(result.source, "MANUAL_MATCH");
 });
 
-test("Phase 24B-3: classification is metadata-only and never gates display — a MAP-classified but AUTO_MATCHED photo still resolves", async () => {
+test("Phase 26A stabilization (bug #3): a MAP-classified AUTO_MATCHED photo is SKIPPED by Tier 3, falling through to placeholder when nothing else matches", async () => {
   const db = fakeClient([
     {
       driveFileId: "MAP",
@@ -171,11 +172,30 @@ test("Phase 24B-3: classification is metadata-only and never gates display — a
     },
   ]);
   const result = await resolveOfficerPortraitWith(db, "off-1");
-  assert.equal(result.driveFileId, "MAP");
+  assert.deepEqual(result, PLACEHOLDER);
+});
+
+test("Phase 26A stabilization (bug #3): every NON_PORTRAIT_CLASSIFICATIONS value (ORGANIZATION/DOCUMENT/PROFILE_CARD) is skipped by Tier 3, not just MAP", async () => {
+  for (const classification of [PortraitClassification.Organization, PortraitClassification.Document, PortraitClassification.ProfileCard]) {
+    const db = fakeClient([
+      { driveFileId: "BAD", thumbnailUrl: "b", webViewUrl: "b", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1", classification },
+    ]);
+    const result = await resolveOfficerPortraitWith(db, "off-1");
+    assert.deepEqual(result, PLACEHOLDER, `expected placeholder for classification=${classification}`);
+  }
+});
+
+test("Phase 26A stabilization (bug #3): a non-portrait Tier-3 match falls through to a REAL Tier-3 match for the SAME officer when one exists", async () => {
+  const db = fakeClient([
+    { driveFileId: "MAP", thumbnailUrl: "m", webViewUrl: "m", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1", classification: PortraitClassification.Map, updatedAt: "2026-02-01T00:00:00.000Z" },
+    { driveFileId: "REAL", thumbnailUrl: "r", webViewUrl: "r", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1", classification: PortraitClassification.RealPerson, updatedAt: "2026-01-01T00:00:00.000Z" },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "REAL");
   assert.equal(result.source, "DRIVE_PORTRAIT");
 });
 
-test("Phase 24B-3: an unclassified (UNKNOWN) matched photo resolves exactly like a REAL_PERSON one — classification is not consulted", async () => {
+test("an unclassified (UNKNOWN) matched photo still resolves normally — the classification gate only excludes confirmed non-portraits", async () => {
   const db = fakeClient([
     {
       driveFileId: "PP5",
@@ -188,6 +208,49 @@ test("Phase 24B-3: an unclassified (UNKNOWN) matched photo resolves exactly like
   ]);
   const result = await resolveOfficerPortraitWith(db, "off-1");
   assert.equal(result.driveFileId, "PP5");
+});
+
+test("a REAL_PERSON-classified matched photo resolves normally", async () => {
+  const db = fakeClient([
+    { driveFileId: "PP6", thumbnailUrl: "t6", webViewUrl: "w6", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1", classification: PortraitClassification.RealPerson },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "PP6");
+  assert.equal(result.source, "DRIVE_PORTRAIT");
+});
+
+test("Phase 26A stabilization (bug #3): classification NEVER gates Tier 1 (Manual Upload) — a human's explicit upload always wins regardless of classification", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "upload:x",
+      thumbnailUrl: "u",
+      webViewUrl: "u",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "off-1",
+      sourceType: "UPLOAD",
+      isProfile: true,
+      classification: PortraitClassification.Map,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "upload:x");
+  assert.equal(result.source, "UPLOADED");
+});
+
+test("Phase 26A stabilization (bug #3): classification NEVER gates Tier 2 (Verified Manual Match) — a human's explicit link always wins regardless of classification", async () => {
+  const db = fakeClient([
+    {
+      driveFileId: "manual:x",
+      thumbnailUrl: "m",
+      webViewUrl: "m",
+      matchStatus: MatchStatus.ManualMatched,
+      matchedOfficerId: "off-1",
+      classification: PortraitClassification.Organization,
+    },
+  ]);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "manual:x");
+  assert.equal(result.source, "MANUAL_MATCH");
 });
 
 // ── Batch resolver: SAME priority, many officers at once ────────────────────
@@ -221,7 +284,7 @@ test("batch resolver applies the same 4-tier priority per officer independently"
   assert.deepEqual(result.get("off-D"), PLACEHOLDER);
 });
 
-test("batch resolver does not gate on classification, exactly like the single resolver", async () => {
+test("Phase 26A stabilization (bug #3): batch resolver applies the same Tier-3 classification gate as the single resolver", async () => {
   const db = fakeClient([
     {
       driveFileId: "MAP",
@@ -233,7 +296,15 @@ test("batch resolver does not gate on classification, exactly like the single re
     },
   ]);
   const result = await resolveOfficerPortraitsBatchWith(db, ["off-1"]);
-  assert.equal(result.get("off-1")?.driveFileId, "MAP");
+  assert.deepEqual(result.get("off-1"), PLACEHOLDER);
+});
+
+test("Phase 26A stabilization (bug #3): batch resolver still resolves an unclassified/REAL_PERSON match normally", async () => {
+  const db = fakeClient([
+    { driveFileId: "OK", thumbnailUrl: "o", webViewUrl: "o", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1", classification: PortraitClassification.RealPerson },
+  ]);
+  const result = await resolveOfficerPortraitsBatchWith(db, ["off-1"]);
+  assert.equal(result.get("off-1")?.driveFileId, "OK");
   assert.equal(result.get("off-1")?.source, "DRIVE_PORTRAIT");
 });
 

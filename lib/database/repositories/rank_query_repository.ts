@@ -6,6 +6,7 @@
  */
 
 import type { ReadDatabaseClient } from "@/lib/database/query_types";
+import { isValidRankValue } from "@/lib/officer_profile/rank_filter";
 
 export interface RankCount {
   rank: string;
@@ -22,6 +23,13 @@ function countOf(group: Record<string, unknown>): number {
 export class RankQueryRepository {
   constructor(private readonly db: ReadDatabaseClient) {}
 
+  /**
+   * Phase 26A stabilization (bug #2): filtered to genuine rank designations
+   * via rank_filter.ts — this endpoint previously returned every raw
+   * Officer.rank value unfiltered, mixing in unit references/names/phone
+   * numbers/garbage alongside real ranks. Filters SUGGESTIONS only; no
+   * stored Officer.rank value is touched.
+   */
   async listWithCounts(): Promise<RankCount[]> {
     const groups = await this.db.officer.groupBy({
       by: ["rank"],
@@ -30,7 +38,7 @@ export class RankQueryRepository {
 
     return groups
       .map((g) => ({ rank: String(g.rank ?? ""), officerCount: countOf(g) }))
-      .filter((r) => r.rank.length > 0)
+      .filter((r) => r.rank.length > 0 && isValidRankValue(r.rank))
       .sort((a, b) => b.officerCount - a.officerCount || a.rank.localeCompare(b.rank));
   }
 }

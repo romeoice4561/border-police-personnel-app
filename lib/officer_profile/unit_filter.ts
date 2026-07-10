@@ -30,6 +30,9 @@ const UNIT_TOKENS = [
   /ตชด\.\s*\d/, // ตชด. followed by a number (unit number)
   /กองร้อย/,
   /กองกำกับ/,
+  /กองบังคับการ/, // Phase 26A stabilization (bug #2): full-word บก. spelling, e.g. "กองบังคับการตำรวจตระเวนชายแดน"
+  /กองบัญชาการ/, // full-word บช. spelling
+  /ตำรวจตระเวนชายแดน/, // full-word "ตชด." spelling, with or without an abbreviation nearby
 ];
 
 /** A leading rank marker — a value that STARTS with one is a rank/person string, not a unit. */

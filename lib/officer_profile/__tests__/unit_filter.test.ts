@@ -19,6 +19,17 @@ test("accepts genuine Border Patrol units", () => {
   }
 });
 
+test("Phase 26A stabilization (bug #2): accepts the full-word 'ตำรวจตระเวนชายแดน'/'กองบังคับการ'/'กองบัญชาการ' spellings, not just the ตชด./บก./บช. abbreviations", () => {
+  for (const u of [
+    "ตำรวจตระเวนชายแดนที่ 44",
+    "กองบังคับการตำรวจตระเวนชายแดน",
+    "กองบังคับการตำรวจตระเวนชายแดนภาค 4",
+    "ผู้บังคับกองร้อยตำรวจตระเวนชายแดนที่ 36",
+  ]) {
+    assert.equal(isValidBorderPatrolUnit(u), true, `expected valid: ${u}`);
+  }
+});
+
 test("rejects bare ranks and rank-prefixed strings", () => {
   for (const u of ["ร.ต.ต.", "พ.ต.อ.", "ร.ต.น.", "พ.ต.ท.อาคม การบรรจง ผบ.ร้อย ตชด.125", "ส.ต.ต.(ผบ.หมู่ ฝอ.จว.ชลบุรี)"]) {
     assert.equal(isValidBorderPatrolUnit(u), false, `expected rejected (rank): ${u}`);

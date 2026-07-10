@@ -9,6 +9,7 @@
  */
 
 import type { ReadDatabaseClient } from "@/lib/database/query_types";
+import { isValidBorderPatrolUnit } from "@/lib/officer_profile/unit_filter";
 
 export interface UnitCount {
   unit: string;
@@ -18,7 +19,15 @@ export interface UnitCount {
 export class UnitQueryRepository {
   constructor(private readonly db: ReadDatabaseClient) {}
 
-  /** Lists distinct current units with the number of officers currently in each, most populous first. */
+  /**
+   * Lists distinct current units with the number of officers currently in
+   * each, most populous first. Phase 26A stabilization (bug #2): filtered to
+   * genuine Border Patrol units via the same predicate the Unit combobox
+   * elsewhere already used (unit_filter.ts) — this endpoint previously
+   * returned every raw currentUnit value unfiltered, mixing in ranks/phone
+   * numbers/provinces/OCR garbage. Filters SUGGESTIONS only; no stored
+   * Officer.currentUnit value is touched.
+   */
   async listWithCounts(): Promise<UnitCount[]> {
     const groups = await this.db.officer.groupBy({
       by: ["currentUnit"],
@@ -31,7 +40,7 @@ export class UnitQueryRepository {
         unit: String(g.currentUnit ?? ""),
         officerCount: countOf(g),
       }))
-      .filter((u) => u.unit.length > 0)
+      .filter((u) => u.unit.length > 0 && isValidBorderPatrolUnit(u.unit))
       .sort((a, b) => b.officerCount - a.officerCount || a.unit.localeCompare(b.unit));
   }
 }

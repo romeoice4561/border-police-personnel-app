@@ -30,9 +30,16 @@
  *                                 shown immediately once matched.
  *   4. Placeholder              — no linked portrait; caller shows a placeholder
  *
- * `classification` (Phase 24B-2) is METADATA ONLY as of Phase 24B-3 — it is
- * still recorded and shown in the review/cleanup UI, but it NEVER gates
- * whether a photo is displayed as a portrait.
+ * `classification` (Phase 24B-2) gates Tier 3 ONLY (Phase 26A stabilization,
+ * bug #3): a Drive-matched photo classified as PROFILE_CARD/ORGANIZATION/MAP/
+ * DOCUMENT (NON_PORTRAIT_CLASSIFICATIONS — a human or future auto-classifier
+ * confirmed it is not a portrait) is skipped, falling through to the next
+ * tier or the placeholder, so a legacy map/org-chart image is never shown as
+ * an officer's photo. UNKNOWN (the default — not yet reviewed) and
+ * REAL_PERSON both still resolve normally, so nothing regresses for the
+ * (currently 100%) unclassified backlog. Tiers 1/2 (Manual Upload / Verified
+ * Manual Match) are NEVER gated by classification — a human explicitly chose
+ * that photo, which outranks an unreviewed or automatic classification.
  *
  * Per Phase 26A Part 1, the original Google Drive profile card (Tier 3 /
  * ProfilePhoto.photoType=GOOGLE_PROFILE_CARD) is NEVER overwritten or
@@ -53,7 +60,7 @@
  */
 
 import { createDatabaseClient } from "@/lib/database/database";
-import { MatchStatus } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, NON_PORTRAIT_CLASSIFICATIONS } from "@/lib/profile_photo/profile_photo_types";
 
 /** Which resolver tier produced the portrait — drives the UI's source badge. */
 export type PortraitSource = "OFFICIAL_PORTRAIT" | "UPLOADED" | "MANUAL_MATCH" | "DRIVE_PORTRAIT" | "PLACEHOLDER";
@@ -150,7 +157,17 @@ function tierClauses(officerId: string): Array<{ where: Record<string, unknown>;
   return [
     { where: { matchedOfficerId: officerId, isProfile: true, sourceType: "UPLOAD" }, source: "UPLOADED" },
     { where: { matchedOfficerId: officerId, matchStatus: MatchStatus.ManualMatched }, source: "MANUAL_MATCH" },
-    { where: { matchedOfficerId: officerId, matchStatus: MatchStatus.AutoMatched }, source: "DRIVE_PORTRAIT" },
+    {
+      where: {
+        matchedOfficerId: officerId,
+        matchStatus: MatchStatus.AutoMatched,
+        // Phase 26A stabilization (bug #3): a confirmed-non-portrait Drive
+        // match (map/org chart/document/profile card) is skipped here, never
+        // shown as this officer's photo — falls through to the placeholder.
+        classification: { notIn: NON_PORTRAIT_CLASSIFICATIONS },
+      },
+      source: "DRIVE_PORTRAIT",
+    },
   ];
 }
 
@@ -234,7 +251,11 @@ export async function resolveOfficerPortraitsBatchWith(
   const tiers: Array<{ source: PortraitSource; extraWhere: Record<string, unknown> }> = [
     { source: "UPLOADED", extraWhere: { isProfile: true, sourceType: "UPLOAD" } },
     { source: "MANUAL_MATCH", extraWhere: { matchStatus: MatchStatus.ManualMatched } },
-    { source: "DRIVE_PORTRAIT", extraWhere: { matchStatus: MatchStatus.AutoMatched } },
+    {
+      source: "DRIVE_PORTRAIT",
+      // Phase 26A stabilization (bug #3): same classification gate as the single-officer resolver.
+      extraWhere: { matchStatus: MatchStatus.AutoMatched, classification: { notIn: NON_PORTRAIT_CLASSIFICATIONS } },
+    },
   ];
 
   for (const { source, extraWhere } of tiers) {
