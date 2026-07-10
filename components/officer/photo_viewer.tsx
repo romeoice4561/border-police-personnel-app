@@ -1,11 +1,12 @@
 /**
- * PhotoViewer (Phase 18A).
+ * PhotoViewer (Phase 18A; rotate added Phase 26A).
  *
  * The reusable full-resolution image surface: renders one image with mouse-
  * wheel zoom, double-click zoom, drag-to-pan, pinch-to-zoom (touch), fit-to-
- * screen, reset, a bottom zoom toolbar, a loading indicator, and a broken-image
- * fallback. It contains ALL the viewer/zoom logic — the modal (photo_modal.tsx)
- * only supplies the overlay chrome, so there is no duplicated viewer logic.
+ * screen, reset, 90°-step rotate, a bottom zoom toolbar, a loading indicator,
+ * and a broken-image fallback. It contains ALL the viewer/zoom logic — the
+ * modal (photo_modal.tsx) only supplies the overlay chrome, so there is no
+ * duplicated viewer logic.
  *
  * Rendering uses the STORED/derived image URL only (lib/ui/officer_photo_source);
  * it never calls a Google API or re-downloads. Handlers are memoized to avoid
@@ -22,7 +23,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
-import { ImageOff, Loader2, Minus, Plus, Maximize2, RotateCcw } from "lucide-react";
+import { ImageOff, Loader2, Minus, Plus, Maximize2, RotateCcw, RotateCw } from "lucide-react";
 import { resolveViewerSource, type OfficerPhotoInput } from "@/lib/ui/officer_photo_source";
 import { cn } from "@/lib/ui/cn";
 
@@ -31,6 +32,7 @@ const MAX_SCALE = 8;
 const DOUBLE_CLICK_SCALE = 2.5;
 const WHEEL_STEP = 0.0015;
 const BUTTON_STEP = 0.5;
+const ROTATE_STEP = 90;
 
 interface Transform {
   scale: number;
@@ -62,6 +64,9 @@ export function PhotoViewer({ photo, name, className }: PhotoViewerProps) {
   const [imgSrc, setImgSrc] = useState<string | null>(source.imageUrl);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(source.imageUrl ? "loading" : "error");
   const [transform, setTransform] = useState<Transform>(IDENTITY);
+  // Phase 26A: rotation in degrees, stepped by 90° independent of pan/zoom
+  // (a distinct control from the existing "Reset zoom" — see Part 2: "Rotate").
+  const [rotation, setRotation] = useState(0);
   // Render-safe flag: transitions are suppressed while a pointer gesture is
   // active (so drag/pinch feel direct), re-enabled between gestures for smooth
   // button/wheel zoom. Kept as state (not a ref) so it is safe to read in JSX.
@@ -75,8 +80,10 @@ export function PhotoViewer({ photo, name, className }: PhotoViewerProps) {
   const pinchStart = useRef<{ distance: number; scale: number } | null>(null);
 
   const isZoomed = transform.scale > MIN_SCALE + 0.001;
+  const isRotated = rotation % 360 !== 0;
 
   const reset = useCallback(() => setTransform(IDENTITY), []);
+  const rotate = useCallback((direction: 1 | -1) => setRotation((prev) => prev + direction * ROTATE_STEP), []);
 
   // NOTE: this component's state is initialized from the resolved source and is
   // reset by REMOUNTING (PhotoModal keys PhotoViewer by the image identity), so
@@ -253,7 +260,7 @@ export function PhotoViewer({ photo, name, className }: PhotoViewerProps) {
             onLoad={() => setStatus("loaded")}
             onError={handleImageError}
             style={{
-              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale}) rotate(${rotation}deg)`,
               transition: interacting ? "none" : "transform 150ms ease-out",
             }}
             className={cn(
@@ -287,6 +294,18 @@ export function PhotoViewer({ photo, name, className }: PhotoViewerProps) {
           <ToolbarButton label="Reset zoom" onClick={reset} disabled={!isZoomed}>
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
           </ToolbarButton>
+          <span className="mx-1 h-5 w-px bg-white/15" aria-hidden="true" />
+          <ToolbarButton label="Rotate left" onClick={() => rotate(-1)}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          </ToolbarButton>
+          <ToolbarButton label="Rotate right" onClick={() => rotate(1)}>
+            <RotateCw className="h-4 w-4" aria-hidden="true" />
+          </ToolbarButton>
+          {isRotated ? (
+            <ToolbarButton label="Reset rotation" onClick={() => setRotation(0)}>
+              <span className="text-xs font-medium tabular-nums">{((rotation % 360) + 360) % 360}°</span>
+            </ToolbarButton>
+          ) : null}
         </div>
       </div>
     </div>

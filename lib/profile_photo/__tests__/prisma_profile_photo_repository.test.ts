@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 
 import { FakeProfilePhotoDbClient } from "@/lib/profile_photo/__tests__/fake_profile_photo_db";
 import { PrismaProfilePhotoRepository } from "@/lib/profile_photo/prisma_profile_photo_repository";
-import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, PhotoType, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 
 function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
   return {
@@ -38,6 +38,7 @@ function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
     classification: PortraitClassification.Unknown,
     classifiedBy: null,
     classifiedAt: null,
+    photoType: PhotoType.GoogleProfileCard,
     ...ov,
   };
 }
@@ -190,6 +191,22 @@ test("re-upserting an already-classified row preserves classification/isProfile 
   assert.equal(after?.classification, PortraitClassification.RealPerson);
   assert.equal(after?.isProfile, true);
   assert.equal(after?.ocrText, "rescanned");
+});
+
+test("Phase 26A: re-upserting a row whose photoType was promoted to OFFICIAL_PORTRAIT preserves it (never regresses on re-scan)", async () => {
+  const db = new FakeProfilePhotoDbClient();
+  const repo = new PrismaProfilePhotoRepository(db);
+  const { photo: created } = await repo.upsert(photo({ driveFileId: "a", matchedOfficerId: "off-1" }));
+  assert.equal(created.photoType, PhotoType.GoogleProfileCard);
+
+  // Simulate a human/future workflow promoting this row's photoType directly.
+  await db.profilePhoto.update({ where: { id: created.id }, data: { photoType: PhotoType.OfficialPortrait } });
+
+  await repo.upsert(photo({ driveFileId: "a", matchedOfficerId: "off-1", ocrText: "rescanned" }));
+
+  const after = await repo.findByDriveFileId("a");
+  assert.equal(after?.photoType, PhotoType.OfficialPortrait, "photoType must survive re-import");
+  assert.equal(after?.ocrText, "rescanned", "other scan metadata still refreshes normally");
 });
 
 test("classificationCounts covers every PortraitClassification value, including zero counts", async () => {

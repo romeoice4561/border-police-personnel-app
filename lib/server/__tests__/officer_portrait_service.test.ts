@@ -67,6 +67,29 @@ function fakeClient(rows: Row[]): PortraitDbClient {
   };
 }
 
+/** Phase 26A: a fake client that ALSO supports the officer.officialPortrait lookup (Tier 0). */
+function fakeClientWithOfficial(rows: Row[], officialByOfficerId: Record<string, Row | undefined>): PortraitDbClient {
+  const base = fakeClient(rows);
+  return {
+    ...base,
+    officer: {
+      async findUnique(args) {
+        const officerId = (args.where as { officerId?: string }).officerId;
+        if (!officerId) return null;
+        const official = officialByOfficerId[officerId];
+        return { officerId, officialPortrait: official ? fullRow(official) : null };
+      },
+      async findMany(args) {
+        const officerIds = (args.where as { officerId?: { in?: string[] } }).officerId?.in ?? [];
+        return officerIds.map((officerId) => ({
+          officerId,
+          officialPortrait: officialByOfficerId[officerId] ? fullRow(officialByOfficerId[officerId]!) : null,
+        }));
+      },
+    },
+  };
+}
+
 const PLACEHOLDER = { driveFileId: null, thumbnailUrl: null, webViewUrl: null, source: "PLACEHOLDER" };
 
 test("returns the placeholder result when no ProfilePhoto is matched to the officer", async () => {
@@ -224,6 +247,80 @@ test("batch resolver matches resolveOfficerPortraitWith's per-officer result exa
   const batch = await resolveOfficerPortraitsBatchWith(fakeClient(rows), officerIds);
   for (const id of officerIds) {
     const single = await resolveOfficerPortraitWith(fakeClient(rows), id);
+    assert.deepEqual(batch.get(id), single, `mismatch for ${id}`);
+  }
+});
+
+// ── Phase 26A: Tier 0 — Official Portrait ────────────────────────────────────
+
+test("Tier 0 — Official Portrait beats every automatic tier, including Manual Upload", async () => {
+  const db = fakeClientWithOfficial(
+    [
+      {
+        driveFileId: "upload:xyz",
+        thumbnailUrl: "tu",
+        webViewUrl: "wu",
+        matchStatus: MatchStatus.ManualMatched,
+        matchedOfficerId: "off-1",
+        sourceType: "UPLOAD",
+        isProfile: true,
+      },
+    ],
+    { "off-1": { driveFileId: "OFFICIAL1", thumbnailUrl: "to", webViewUrl: "wo", matchStatus: MatchStatus.Unassigned, matchedOfficerId: null } }
+  );
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "OFFICIAL1");
+  assert.equal(result.source, "OFFICIAL_PORTRAIT");
+});
+
+test("Tier 0 is skipped (falls through to automatic tiers) when the officer has no officialPortrait set", async () => {
+  const db = fakeClientWithOfficial(
+    [{ driveFileId: "AI1", thumbnailUrl: "a1", webViewUrl: "a1", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1" }],
+    { "off-1": undefined }
+  );
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.driveFileId, "AI1");
+  assert.equal(result.source, "DRIVE_PORTRAIT");
+});
+
+test("Tier 0 is a no-op when the client does not implement the officer lookup (pre-26A fake client)", async () => {
+  const db = fakeClient([
+    { driveFileId: "AI1", thumbnailUrl: "a1", webViewUrl: "a1", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1" },
+  ]);
+  assert.equal(db.officer, undefined);
+  const result = await resolveOfficerPortraitWith(db, "off-1");
+  assert.equal(result.source, "DRIVE_PORTRAIT");
+});
+
+test("batch resolver: Tier 0 Official Portrait beats every automatic tier per officer", async () => {
+  const db = fakeClientWithOfficial(
+    [
+      { driveFileId: "A_DRIVE", thumbnailUrl: "a", webViewUrl: "a", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-A" },
+      { driveFileId: "B_MANUAL", thumbnailUrl: "b", webViewUrl: "b", matchStatus: MatchStatus.ManualMatched, matchedOfficerId: "off-B" },
+    ],
+    {
+      "off-A": { driveFileId: "OFFICIAL_A", thumbnailUrl: "oa", webViewUrl: "oa", matchStatus: MatchStatus.Unassigned, matchedOfficerId: null },
+      "off-B": undefined,
+    }
+  );
+  const result = await resolveOfficerPortraitsBatchWith(db, ["off-A", "off-B", "off-C"]);
+  assert.equal(result.get("off-A")?.source, "OFFICIAL_PORTRAIT");
+  assert.equal(result.get("off-A")?.driveFileId, "OFFICIAL_A");
+  assert.equal(result.get("off-B")?.source, "MANUAL_MATCH", "off-B has no official portrait, falls through to Tier 2");
+  assert.deepEqual(result.get("off-C"), PLACEHOLDER);
+});
+
+test("batch resolver Tier 0 matches resolveOfficerPortraitWith's per-officer result exactly (parity check)", async () => {
+  const rows: Row[] = [
+    { driveFileId: "AI1", thumbnailUrl: "a1", webViewUrl: "a1", matchStatus: MatchStatus.AutoMatched, matchedOfficerId: "off-1" },
+  ];
+  const official = {
+    "off-1": { driveFileId: "OFFICIAL1", thumbnailUrl: "o1", webViewUrl: "o1", matchStatus: MatchStatus.Unassigned, matchedOfficerId: null },
+  };
+  const officerIds = ["off-1", "off-2"];
+  const batch = await resolveOfficerPortraitsBatchWith(fakeClientWithOfficial(rows, official), officerIds);
+  for (const id of officerIds) {
+    const single = await resolveOfficerPortraitWith(fakeClientWithOfficial(rows, official), id);
     assert.deepEqual(batch.get(id), single, `mismatch for ${id}`);
   }
 });

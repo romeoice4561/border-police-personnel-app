@@ -32,7 +32,7 @@ import type { DriveScanEntry } from "@/lib/google-drive/drive_scan_report";
 import { DriveContentType } from "@/lib/google-drive/drive_content_type";
 import { driveThumbnailUrl, driveWebViewUrl } from "@/lib/google-drive/drive_photo_url";
 import type { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
-import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, PhotoType, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 import {
   decideMatchesForPhotos,
   type OfficerSignals,
@@ -223,6 +223,10 @@ export class ProfilePhotoImporter {
       classification,
       classifiedBy: null,
       classifiedAt: null,
+      // Phase 26A: every Drive-discovered row is the original profile card by
+      // default. Protected against regressing on re-import by the
+      // repository's upsert (never set by this builder on an existing row).
+      photoType: PhotoType.GoogleProfileCard,
     };
   }
 }

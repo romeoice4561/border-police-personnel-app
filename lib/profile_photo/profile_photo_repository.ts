@@ -78,6 +78,7 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
     // (isProfile) — mirrors PrismaProfilePhotoRepository.upsert.
     // Phase 24B-3: a rebuild's fresh matcher pass must never overwrite a
     // human-confirmed link (MANUAL_MATCHED) or an uploaded row's link.
+    // Phase 26A: photoType is the same kind of field — never regressed by re-import.
     const preserveMatch = existing && (existing.matchStatus === MatchStatus.ManualMatched || existing.sourceType === "UPLOAD");
     const photo: ProfilePhoto = existing
       ? {
@@ -90,6 +91,7 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
           classifiedBy: existing.classifiedBy,
           classifiedAt: existing.classifiedAt,
           isProfile: existing.isProfile,
+          photoType: existing.photoType,
           ...(preserveMatch
             ? { matchStatus: existing.matchStatus, matchedOfficerId: existing.matchedOfficerId, confidence: existing.confidence }
             : {}),

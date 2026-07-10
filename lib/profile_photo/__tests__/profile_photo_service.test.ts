@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 
 import { InMemoryProfilePhotoRepository } from "@/lib/profile_photo/profile_photo_repository";
 import { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
-import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, PhotoType, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 
 function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
   return {
@@ -39,6 +39,7 @@ function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
     classification: PortraitClassification.Unknown,
     classifiedBy: null,
     classifiedAt: null,
+    photoType: PhotoType.GoogleProfileCard,
     ...ov,
   };
 }
@@ -208,6 +209,19 @@ test("Phase 24B-3: re-ingesting an UPLOAD-sourced row (a real Drive re-scan woul
   const after = await svc.getByDriveFileId("upload:xyz");
   assert.equal(after?.matchedOfficerId, "off-uploader");
   assert.equal(after?.matchStatus, MatchStatus.ManualMatched);
+});
+
+test("Phase 26A: re-ingesting a row never regresses a photoType other than the importer default (e.g. UPLOADED), even when re-scanned with the Drive default", async () => {
+  const svc = service();
+  await svc.ingest([photo({ driveFileId: "a", matchedOfficerId: "off-1", photoType: PhotoType.Uploaded })]);
+  const before = await svc.getByDriveFileId("a");
+  assert.equal(before?.photoType, PhotoType.Uploaded);
+
+  // Simulate a Drive rebuild re-scanning the same file with the importer's default photoType.
+  await svc.ingest([photo({ driveFileId: "a", matchedOfficerId: "off-1", ocrText: "re-scanned text", photoType: PhotoType.GoogleProfileCard })]);
+  const after = await svc.getByDriveFileId("a");
+  assert.equal(after?.photoType, PhotoType.Uploaded, "photoType must survive re-import");
+  assert.equal(after?.ocrText, "re-scanned text", "other scan metadata still refreshes normally");
 });
 
 test("re-ingesting an AUTO_MATCHED photo DOES refresh the match when a fresh automated decision comes in (only MANUAL_MATCHED/UPLOAD are frozen)", async () => {

@@ -17,7 +17,7 @@ import type {
   ProfilePhotoInput,
   ProfilePhotoQuery,
 } from "@/lib/profile_photo/profile_photo_types";
-import { MatchStatus, OcrStatus, PortraitClassification } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, PhotoType } from "@/lib/profile_photo/profile_photo_types";
 import type { ProfilePhotoRepository } from "@/lib/profile_photo/profile_photo_repository";
 
 /** A persisted ProfilePhoto row (matches the Prisma ProfilePhoto model). */
@@ -48,6 +48,7 @@ export interface ProfilePhotoRow {
   classification: string;
   classifiedBy: string | null;
   classifiedAt: Date | string | null;
+  photoType: string;
 }
 
 /** The subset of the Prisma ProfilePhoto delegate this repository uses. Structurally satisfied by PrismaClient.profilePhoto and by fakes. */
@@ -114,6 +115,7 @@ function rowToPhoto(row: ProfilePhotoRow): ProfilePhoto {
     classification: row.classification as PortraitClassification,
     classifiedBy: row.classifiedBy,
     classifiedAt: row.classifiedAt ? toIso(row.classifiedAt) : null,
+    photoType: row.photoType as PhotoType,
   };
 }
 
@@ -141,6 +143,7 @@ function photoToData(input: ProfilePhotoInput): Record<string, unknown> {
     classification: input.classification,
     classifiedBy: input.classifiedBy,
     classifiedAt: input.classifiedAt,
+    photoType: input.photoType,
   };
 }
 
@@ -162,13 +165,16 @@ export class PrismaProfilePhotoRepository implements ProfilePhotoRepository {
       // Phase 24B-2: re-running the Drive-scan importer on an already-discovered
       // photo must NEVER regress human review (classification) or the
       // current-portrait flag (isProfile) back to the importer's defaults —
-      // only create() should ever set those.
+      // only create() should ever set those. Phase 26A: photoType is the same
+      // kind of field — once a row has been reclassified (e.g. promoted to
+      // OFFICIAL_PORTRAIT), a re-scan must never silently revert it.
       updateData = {
         ...updateData,
         classification: existing.classification,
         classifiedBy: existing.classifiedBy,
         classifiedAt: existing.classifiedAt,
         isProfile: existing.isProfile,
+        photoType: existing.photoType,
       };
       // Phase 24B-3: a rebuild's fresh matcher pass must NEVER overwrite a
       // human-confirmed link (MANUAL_MATCHED) or an uploaded row's link — the

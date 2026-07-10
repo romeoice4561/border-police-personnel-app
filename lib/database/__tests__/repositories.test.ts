@@ -109,6 +109,35 @@ test("OfficerRepository.updateProfile with an empty patch is a no-op (returns th
   assert.equal(result?.rank, "ร.ต.ท.");
 });
 
+test("OfficerRepository.setOfficialPortrait pins officialPortraitId (Phase 26A)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+  await repo.upsert(officerInput());
+
+  const updated = await repo.setOfficialPortrait("ภาค1/5", 42);
+  assert.equal(updated?.officialPortraitId, 42);
+
+  const reloaded = await repo.findByOfficerId("ภาค1/5");
+  assert.equal(reloaded?.officialPortraitId, 42);
+});
+
+test("OfficerRepository.setOfficialPortrait with null unpins (falls back to automatic resolver tiers)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+  await repo.upsert(officerInput());
+  await repo.setOfficialPortrait("ภาค1/5", 42);
+
+  const updated = await repo.setOfficialPortrait("ภาค1/5", null);
+  assert.equal(updated?.officialPortraitId, null);
+});
+
+test("OfficerRepository.setOfficialPortrait returns null for an unknown officerId", async () => {
+  const db = new InMemoryDatabaseClient();
+  const repo = new OfficerRepository(db);
+  const result = await repo.setOfficialPortrait("ไม่มี/999", 1);
+  assert.equal(result, null);
+});
+
 test("TimelineRepository.replaceForOfficer replaces rather than appends", async () => {
   const db = new InMemoryDatabaseClient();
   const officer = await new OfficerRepository(db).upsert(officerInput());

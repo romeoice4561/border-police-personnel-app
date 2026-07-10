@@ -1,15 +1,22 @@
 /**
  * Officer portrait resolution (Phase 23B bug #2 fix; Phase 24B-1 upload
  * priority; Phase 24B-2 classification metadata + batch resolver; Phase
- * 24B-3 simplified priority + Drive-portrait baseline).
+ * 24B-3 simplified priority + Drive-portrait baseline; Phase 26A Official
+ * Portrait Architecture).
  *
  * Resolves the portrait to display for an officer. The legacy
  * `Officer.driveFileId`/`thumbnailUrl` linkage from the original OCR import is
  * SYSTEMATICALLY UNRELIABLE (Phase 23B finding) and is NEVER used.
  *
  * The ONLY portrait source is ProfilePhoto, resolved via a single
- * deterministic priority (Phase 24B-3 spec):
+ * deterministic priority (Phase 26A adds Tier 0 on top of the Phase 24B-3
+ * priority; tiers 1-4 are UNCHANGED):
  *
+ *   0. Official Portrait       — Officer.officialPortraitId explicitly set
+ *                                 (Part 1: "if an official portrait is
+ *                                 uploaded later, display that everywhere").
+ *                                 A human-pinned, permanent designation that
+ *                                 outranks every automatic tier below.
  *   1. Manual Upload           — sourceType=UPLOAD, isProfile=true
  *   2. Verified Manual Match   — matchStatus=MANUAL_MATCHED (a human
  *                                 explicitly linked this photo to the officer)
@@ -25,14 +32,18 @@
  *
  * `classification` (Phase 24B-2) is METADATA ONLY as of Phase 24B-3 — it is
  * still recorded and shown in the review/cleanup UI, but it NEVER gates
- * whether a photo is displayed as a portrait. (The prior hard-exclusion rule
- * is intentionally removed now that the source folders are confirmed clean;
- * classification remains available for the legacy-cleanup admin tool and
- * future re-verification.)
+ * whether a photo is displayed as a portrait.
+ *
+ * Per Phase 26A Part 1, the original Google Drive profile card (Tier 3 /
+ * ProfilePhoto.photoType=GOOGLE_PROFILE_CARD) is NEVER overwritten or
+ * deleted by designating an official portrait — Tier 0 only adds a preferred
+ * DISPLAY pointer; the underlying row this officer's Tier-3 match points at
+ * is untouched and remains reachable via the Photo Gallery / history panel
+ * forever (Part 13).
  *
  * This is the ONE portrait resolver in the codebase — `resolveOfficerPortrait`
  * for a single officer and `resolveOfficerPortraitsBatch` for many officers at
- * once (one query per tier for the whole batch, not N queries per officer).
+ * once (a constant number of queries for the whole batch, not N per officer).
  * No other module may implement this priority independently. Wired into the
  * Officer List / Dashboard / Search (via /api/officers, /api/search) as of
  * Phase 24B-3 — see lib/api/api_handlers.ts.
@@ -45,7 +56,7 @@ import { createDatabaseClient } from "@/lib/database/database";
 import { MatchStatus } from "@/lib/profile_photo/profile_photo_types";
 
 /** Which resolver tier produced the portrait — drives the UI's source badge. */
-export type PortraitSource = "UPLOADED" | "MANUAL_MATCH" | "DRIVE_PORTRAIT" | "PLACEHOLDER";
+export type PortraitSource = "OFFICIAL_PORTRAIT" | "UPLOADED" | "MANUAL_MATCH" | "DRIVE_PORTRAIT" | "PLACEHOLDER";
 
 /** The resolved portrait — a Drive/Storage image identity, or null when none is trusted. */
 export interface ResolvedOfficerPortrait {
@@ -74,6 +85,11 @@ interface ProfilePhotoLite {
   updatedAt?: string | Date;
 }
 
+interface OfficerOfficialPortraitLite {
+  officerId: string;
+  officialPortrait: ProfilePhotoLite | null;
+}
+
 export interface PortraitDbClient {
   profilePhoto: {
     findFirst(args: {
@@ -86,6 +102,17 @@ export interface PortraitDbClient {
       orderBy?: Record<string, "asc" | "desc">;
       select?: Record<string, boolean>;
     }): Promise<ProfilePhotoLite[]>;
+  };
+  /** Phase 26A: looked up once per resolve to check Officer.officialPortraitId (Tier 0). Optional so pre-26A test fakes remain valid (Tier 0 is simply skipped when absent). */
+  officer?: {
+    findUnique(args: {
+      where: Record<string, unknown>;
+      select?: Record<string, unknown>;
+    }): Promise<OfficerOfficialPortraitLite | null>;
+    findMany?(args: {
+      where: Record<string, unknown>;
+      select?: Record<string, unknown>;
+    }): Promise<OfficerOfficialPortraitLite[]>;
   };
 }
 
@@ -109,11 +136,16 @@ const SELECT = {
 
 const SELECT_BATCH = { ...SELECT, matchedOfficerId: true, updatedAt: true };
 
+const OFFICIAL_PORTRAIT_SELECT = {
+  officerId: true,
+  officialPortrait: { select: SELECT },
+};
+
 function toResolved(photo: ProfilePhotoLite, source: PortraitSource): ResolvedOfficerPortrait {
   return { driveFileId: photo.driveFileId, thumbnailUrl: photo.thumbnailUrl, webViewUrl: photo.webViewUrl, source };
 }
 
-/** The 3 non-placeholder tiers, in priority order, as (where-clause, source-tag) pairs. */
+/** The 3 automatic (non-official, non-placeholder) tiers, in priority order. */
 function tierClauses(officerId: string): Array<{ where: Record<string, unknown>; source: PortraitSource }> {
   return [
     { where: { matchedOfficerId: officerId, isProfile: true, sourceType: "UPLOAD" }, source: "UPLOADED" },
@@ -124,13 +156,20 @@ function tierClauses(officerId: string): Array<{ where: Record<string, unknown>;
 
 /**
  * Pure resolver over an injected client (testable). Returns the portrait for
- * `officerId` via the 4-tier priority above, or the placeholder result when
- * none exists. The legacy officer image is never consulted.
+ * `officerId` via the priority above (Tier 0 Official Portrait first, when the
+ * client supports the lookup), or the placeholder result when none exists.
+ * The legacy officer image is never consulted.
  */
 export async function resolveOfficerPortraitWith(
   db: PortraitDbClient,
   officerId: string
 ): Promise<ResolvedOfficerPortrait> {
+  // Tier 0 — Official Portrait (Phase 26A).
+  if (db.officer) {
+    const officer = await db.officer.findUnique({ where: { officerId }, select: OFFICIAL_PORTRAIT_SELECT });
+    if (officer?.officialPortrait) return toResolved(officer.officialPortrait, "OFFICIAL_PORTRAIT");
+  }
+
   for (const { where, source } of tierClauses(officerId)) {
     const match = await db.profilePhoto.findFirst({ where, orderBy: { updatedAt: "desc" }, select: SELECT });
     if (match) return toResolved(match, source);
@@ -149,12 +188,13 @@ export function resolveOfficerPortrait(officerId: string): Promise<ResolvedOffic
 }
 
 /**
- * Batch resolver: the SAME 4-tier priority as `resolveOfficerPortraitWith`,
- * for many officers at once — 3 queries total (one per non-placeholder tier,
- * scoped to `officerIds` via `matchedOfficerId IN (...)`), never N queries per
- * officer. This is the sanctioned building block for Officer List / Dashboard
- * / Search photo rendering (wired in via lib/api/api_handlers.ts, Phase
- * 24B-3); no caller may re-implement the priority independently.
+ * Batch resolver: the SAME priority as `resolveOfficerPortraitWith`, for many
+ * officers at once — a constant number of queries total (one for Tier 0 +
+ * one per automatic tier, each scoped via an `IN (...)` clause), never N
+ * queries per officer. This is the sanctioned building block for Officer
+ * List / Dashboard / Search photo rendering (wired in via
+ * lib/api/api_handlers.ts, Phase 24B-3); no caller may re-implement the
+ * priority independently.
  *
  * Returns a Map from officerId to its resolved portrait; every id in
  * `officerIds` is present in the result (placeholder when untrusted/missing).
@@ -167,11 +207,27 @@ export async function resolveOfficerPortraitsBatchWith(
   if (officerIds.length === 0) return result;
 
   const remaining = new Set(officerIds);
+
+  // Tier 0 — Official Portrait (Phase 26A), batched via findMany when available.
+  if (db.officer?.findMany) {
+    const officers = await db.officer.findMany({
+      where: { officerId: { in: [...remaining] } },
+      select: OFFICIAL_PORTRAIT_SELECT,
+    });
+    for (const officer of officers) {
+      if (officer.officialPortrait && remaining.has(officer.officerId)) {
+        result.set(officer.officerId, toResolved(officer.officialPortrait, "OFFICIAL_PORTRAIT"));
+        remaining.delete(officer.officerId);
+      }
+    }
+  }
+
   const findMany = db.profilePhoto.findMany;
   if (!findMany) {
     // Fallback for a client that only implements findFirst (e.g. a minimal
-    // test fake): resolve one officer at a time via the single-officer path.
-    for (const id of officerIds) result.set(id, await resolveOfficerPortraitWith(db, id));
+    // test fake): resolve remaining officers one at a time via the
+    // single-officer path (which itself still tries Tier 0 first).
+    for (const id of remaining) result.set(id, await resolveOfficerPortraitWith(db, id));
     return result;
   }
 

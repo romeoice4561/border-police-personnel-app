@@ -1,5 +1,6 @@
 /**
- * Officer Portrait API handlers (Phase 24B-1; history/set-current Phase 24B-2).
+ * Officer Portrait API handlers (Phase 24B-1; history/set-current Phase
+ * 24B-2; official portrait Phase 26A).
  *
  * Framework-agnostic core of the portrait endpoints. Each takes a
  * PortraitUploadService + already-resolved params (or a raw Request) and
@@ -11,6 +12,7 @@
  *   DELETE /api/officers/{id}/portrait  — remove current (soft; history kept)
  *   GET    /api/officers/{id}/portrait/history        — every portrait ever linked, newest first
  *   POST   /api/officers/{id}/portrait/history/{photoId}  — "Set as Current" (no re-upload)
+ *   PUT    /api/officers/{id}/portrait/official        — pin/unpin the Official Portrait (Phase 26A)
  */
 
 import { badRequest, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
@@ -18,6 +20,7 @@ import { officerIdParamSchema } from "@/lib/api/api_schemas";
 import { z } from "zod";
 import { PortraitUploadError, type PortraitUploadService } from "@/lib/portrait/portrait_upload_service";
 import type { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
+import type { OfficerRepository } from "@/lib/database/repositories/officer_repository";
 
 /** Maps a PortraitUploadError code to an HTTP status. */
 function statusForCode(code: PortraitUploadError["code"]): number {
@@ -146,4 +149,50 @@ export async function handleSetCurrentPortrait(
 
   const updated = await profilePhotoService.setCurrent(photoIdParsed.data.photoId);
   return jsonOk(updated);
+}
+
+const setOfficialPortraitBodySchema = z.object({
+  /** The ProfilePhoto id to pin as official, or null to unpin (fall back to the automatic resolver tiers). */
+  photoId: z.number().int().positive().nullable(),
+});
+
+/**
+ * PUT — Phase 26A: pins (or unpins) the officer's OFFICIAL portrait
+ * (Officer.officialPortraitId). Never touches the ProfilePhoto row itself —
+ * the original Drive card / any prior upload is never overwritten or
+ * deleted, only the officer's display pointer changes. 404 if the officer
+ * doesn't exist, or if a non-null photoId isn't a photo linked to this
+ * officer (never lets an officer "steal" another officer's photo).
+ */
+export async function handleSetOfficialPortrait(
+  officerRepo: OfficerRepository,
+  profilePhotoService: ProfilePhotoService,
+  rawOfficerId: string,
+  request: Request
+): Promise<Response> {
+  const paramParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!paramParsed.success) return badRequest("Invalid officer id");
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return badRequest("Request body must be valid JSON");
+  }
+  const bodyParsed = setOfficialPortraitBodySchema.safeParse(body);
+  if (!bodyParsed.success) return badRequest("Invalid request", bodyParsed.error.issues);
+
+  const { photoId } = bodyParsed.data;
+
+  if (photoId !== null) {
+    const photo = await profilePhotoService.getById(photoId);
+    if (!photo || photo.matchedOfficerId !== paramParsed.data.id) {
+      return notFound("No such portrait for this officer.");
+    }
+  }
+
+  const updated = await officerRepo.setOfficialPortrait(paramParsed.data.id, photoId);
+  if (!updated) return notFound("Officer not found.");
+
+  return jsonOk({ officerId: updated.officerId, officialPortraitId: photoId });
 }

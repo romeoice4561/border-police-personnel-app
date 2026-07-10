@@ -146,4 +146,20 @@ export class OfficerRepository {
 
     return this.db.officer.update({ where: { officerId }, data });
   }
+
+  /**
+   * Phase 26A: pins `profilePhotoId` as the officer's OFFICIAL portrait
+   * (Officer.officialPortraitId) — displayed everywhere in preference to any
+   * automatic resolver tier. Pass `null` to unpin (falls back to the
+   * automatic tiers). Never touches the ProfilePhoto row itself — the
+   * original Drive card / prior uploads are never overwritten or deleted by
+   * this call, only the officer's DISPLAY pointer changes. Returns null when
+   * the officer doesn't exist.
+   */
+  async setOfficialPortrait(officerId: string, profilePhotoId: number | null): Promise<Officer | null> {
+    const existing = await this.db.officer.findUnique({ where: { officerId } });
+    if (!existing) return null;
+
+    return this.db.officer.update({ where: { officerId }, data: { officialPortraitId: profilePhotoId } });
+  }
 }

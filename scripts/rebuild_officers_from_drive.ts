@@ -101,7 +101,7 @@ import { PhoneRepository } from "@/lib/database/repositories/phone_repository";
 import { ImportJobRepository } from "@/lib/database/repositories/import_job_repository";
 import { ImportLogRepository } from "@/lib/database/repositories/import_log_repository";
 import { PrismaProfilePhotoRepository, type ProfilePhotoDbClient } from "@/lib/profile_photo/prisma_profile_photo_repository";
-import { MatchStatus, OcrStatus, PortraitClassification } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, PhotoType } from "@/lib/profile_photo/profile_photo_types";
 
 const LOGS_DIR = path.join(process.cwd(), "logs");
 const TEMP_DIR = path.join(os.tmpdir(), "bppis-officer-rebuild");
@@ -355,6 +355,11 @@ async function main(): Promise<void> {
         classification: PortraitClassification.Unknown,
         classifiedBy: null,
         classifiedAt: null,
+        // Phase 26A (added after this script's original Phase 25 authoring):
+        // every image discovered by this pipeline is the original Drive
+        // profile card. Type-completeness only — no Phase 25 pipeline
+        // behavior (scan/OCR/Vision/matching/create-only semantics) changed.
+        photoType: PhotoType.GoogleProfileCard,
       });
       photosLinked += 1;
 

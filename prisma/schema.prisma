@@ -74,6 +74,21 @@ model Officer {
   lineId           String?
   facebookUrl      String?
 
+  // Phase 26A: Official Portrait Architecture. A single pinned pointer to the
+  // ProfilePhoto row that is this officer's OFFICIAL portrait — displayed
+  // everywhere (header, list, dashboard, search) in preference to any Drive
+  // scan/manual match. Nullable: most officers have no official portrait yet,
+  // in which case the existing resolver tiers (Manual Upload > Manual Match >
+  // Google Drive Portrait > Placeholder) are unchanged. SetNull (not Cascade)
+  // so deleting/reassigning a ProfilePhoto row can never cascade into Officer;
+  // in practice ProfilePhoto rows are never deleted (portrait history is
+  // permanent — see ProfilePhoto.photoType docs), so this should stay set
+  // once assigned. officialPortraitId is a real relation (unlike
+  // ProfilePhoto.matchedOfficerId's loose string match) because it is a
+  // single canonical pointer, not a discovery-time best-guess link.
+  officialPortrait   ProfilePhoto? @relation("OfficialPortrait", fields: [officialPortraitId], references: [id], onDelete: SetNull)
+  officialPortraitId Int?
+
   timeline         Timeline[]
   phones           Phone[]
   education        Education[]
@@ -86,6 +101,7 @@ model Officer {
   @@index([regionId])
   @@index([battalionId])
   @@index([companyId])
+  @@index([officialPortraitId])
 }
 
 /// One career-timeline row for an officer. Unique per (officer, sequence) so
@@ -356,6 +372,32 @@ model ProfilePhoto {
   classifiedBy     String?
   classifiedAt     DateTime?
 
+  // Phase 26A: Official Portrait Architecture. `photoType` records WHAT this
+  // image fundamentally IS, independent of `classification` (what the
+  // reviewer verified the content shows) and `isProfile`/matchStatus (which
+  // one is currently the resolved portrait):
+  //   GOOGLE_PROFILE_CARD — the original Drive-scanned profile card (Phase 25
+  //                          rebuild default for every existing row). MUST
+  //                          NEVER be overwritten or deleted — it is the
+  //                          permanent historical document (Part 13).
+  //   OFFICIAL_PORTRAIT   — a portrait explicitly designated as the officer's
+  //                          official photo (via upload or "Set as Official").
+  //   UPLOADED            — a manual upload not (yet) designated official.
+  //   OTHER               — anything else (future use).
+  // Existing rows all default to GOOGLE_PROFILE_CARD (a safe, accurate
+  // backfill — every pre-26A row came from the Phase 25 Drive rebuild); the
+  // migration additionally sets photoType=UPLOADED for existing rows whose
+  // sourceType is already "UPLOAD" (Phase 24B-1 uploads), so the two columns
+  // agree from day one. This column never gates the resolver by itself —
+  // `Officer.officialPortraitId` is the single source of truth for "the
+  // official portrait"; photoType is descriptive metadata for the gallery/
+  // history UI and future classification.
+  photoType        String   @default("GOOGLE_PROFILE_CARD")
+
+  // Opposite side of Officer.officialPortrait (Phase 26A). A ProfilePhoto can
+  // be the pinned official portrait of at most one officer.
+  officialPortraitOf Officer[] @relation("OfficialPortrait")
+
   @@index([matchStatus])
   @@index([region])
   @@index([company])
@@ -366,6 +408,7 @@ model ProfilePhoto {
   // Fast lookup of an officer's current portrait.
   @@index([matchedOfficerId, isProfile])
   @@index([classification])
+  @@index([photoType])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

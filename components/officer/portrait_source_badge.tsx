@@ -1,5 +1,6 @@
 /**
- * PortraitSourceBadge (Phase 24B-2; simplified priority Phase 24B-3).
+ * PortraitSourceBadge (Phase 24B-2; simplified priority Phase 24B-3; Official
+ * Portrait tier Phase 26A).
  *
  * Shows which resolver tier produced the currently-displayed portrait, so a
  * reviewer immediately knows what they're looking at.
@@ -7,6 +8,7 @@
 import type { PortraitSource } from "@/lib/server/officer_portrait_service";
 
 const LABELS: Record<PortraitSource, { dot: string; label: string }> = {
+  OFFICIAL_PORTRAIT: { dot: "⭐", label: "Official Portrait" },
   UPLOADED: { dot: "🟢", label: "Uploaded" },
   MANUAL_MATCH: { dot: "🟡", label: "Verified Manual Match" },
   DRIVE_PORTRAIT: { dot: "🔵", label: "Google Drive Portrait" },

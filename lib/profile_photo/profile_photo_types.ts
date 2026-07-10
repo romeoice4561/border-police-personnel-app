@@ -91,6 +91,10 @@ export interface ProfilePhoto {
   classifiedBy: string | null;
   /** When `classification` was last set; null until classified. */
   classifiedAt: string | null;
+
+  // Phase 26A (Official Portrait Architecture) — additive.
+  /** What this image fundamentally IS — see PhotoType. Default GOOGLE_PROFILE_CARD (every pre-26A row came from the Phase 25 Drive rebuild). */
+  photoType: PhotoType;
 }
 
 /** Input to create/update one ProfilePhoto (everything except id/createdAt/updatedAt, which the repository owns). */
@@ -160,4 +164,23 @@ export const NON_PORTRAIT_CLASSIFICATIONS: readonly PortraitClassification[] = [
 export interface ClassificationCount {
   classification: PortraitClassification;
   count: number;
+}
+
+/**
+ * What this image fundamentally IS (Phase 26A — Official Portrait
+ * Architecture), independent of `classification` (what a reviewer verified
+ * the content shows) and `isProfile`/matchStatus (which row the automatic
+ * resolver currently prefers). Officer.officialPortraitId is the single
+ * source of truth for "the official portrait"; photoType is descriptive
+ * metadata the Photo Gallery groups by.
+ */
+export enum PhotoType {
+  /** The original Drive-scanned profile card (Phase 25 rebuild default). MUST NEVER be overwritten or deleted — permanent historical document. */
+  GoogleProfileCard = "GOOGLE_PROFILE_CARD",
+  /** Explicitly designated as the officer's official photo. */
+  OfficialPortrait = "OFFICIAL_PORTRAIT",
+  /** A manual upload not (yet) designated official. */
+  Uploaded = "UPLOADED",
+  /** Anything else. */
+  Other = "OTHER",
 }

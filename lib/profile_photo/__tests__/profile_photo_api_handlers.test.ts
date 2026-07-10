@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 
 import { InMemoryProfilePhotoRepository } from "@/lib/profile_photo/profile_photo_repository";
 import { ProfilePhotoService } from "@/lib/profile_photo/profile_photo_service";
-import { MatchStatus, OcrStatus, PortraitClassification, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
+import { MatchStatus, OcrStatus, PortraitClassification, PhotoType, type ProfilePhotoInput } from "@/lib/profile_photo/profile_photo_types";
 import {
   handleListProfilePhotos,
   handleClassificationCounts,
@@ -45,6 +45,7 @@ function photo(ov: Partial<ProfilePhotoInput> = {}): ProfilePhotoInput {
     classification: PortraitClassification.Unknown,
     classifiedBy: null,
     classifiedAt: null,
+    photoType: PhotoType.GoogleProfileCard,
     ...ov,
   };
 }

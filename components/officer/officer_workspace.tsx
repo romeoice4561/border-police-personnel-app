@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
+import { officerFullName } from "@/lib/ui/officer_summary";
 import { useOfficerWorkspace } from "@/components/officer/use_officer_workspace";
 import { ProfileHeader } from "@/components/officer/profile_header";
 import { ProfileEditor } from "@/components/officer/profile_editor";
@@ -35,6 +36,7 @@ import { TrainingEditor } from "@/components/officer/training_editor";
 import { AchievementsSection } from "@/components/officer/achievements_section";
 import { DocumentsSection } from "@/components/officer/documents_section";
 import { NotesSection } from "@/components/officer/notes_section";
+import { PhotoGallery } from "@/components/officer/photo_gallery";
 import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
@@ -121,6 +123,11 @@ export function OfficerWorkspace({ officer, knownUnits, portrait }: OfficerWorks
           <AchievementsSection />
           <DocumentsSection />
           <NotesSection />
+
+          <section className="rounded-2xl border border-border bg-neutral-bg p-4">
+            <h2 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h2>
+            <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} />
+          </section>
 
           <OfficerQualityCard officer={officer} />
         </div>
