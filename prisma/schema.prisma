@@ -130,9 +130,29 @@ model Timeline {
   source     String?
   verified   String  @default("ยังไม่ตรวจ")
 
+  // Phase 26B Part 3: structured date model, additive alongside the legacy
+  // `year` free-text column above (never altered/dropped — every pre-26B row
+  // and every Phase 25 import keeps working unchanged). `day`/`month` are
+  // nullable (many legacy rows only ever recorded a year); `yearBE` is the
+  // Buddhist-Era year as a real integer (distinct from `yearValue`, which is
+  // a best-effort parse of the free-text `year` and may hold a Gregorian or
+  // otherwise-ambiguous number). `isPresent` marks an ongoing/current
+  // position (the "ปัจจุบัน" case) — when true, yearBE/month/day describe the
+  // START of that position, not an end date. `effectiveDate` is a real DATE
+  // auto-derived from day/month/yearBE (month/day default to 1 when unknown)
+  // for sorting/range queries without re-parsing text; NULL until the row is
+  // migrated (by the backfill script) or edited through the new date editor.
+  day           Int?
+  month         Int?
+  yearBE        Int?
+  isPresent     Boolean   @default(false)
+  effectiveDate DateTime? @db.Date
+
   @@unique([officerId, sequence])
   @@index([yearValue])
   @@index([unit])
+  @@index([effectiveDate])
+  @@index([yearBE])
 }
 
 /// Phase 23A: one education record for an officer (year, institution, degree,

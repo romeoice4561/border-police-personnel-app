@@ -13,6 +13,7 @@
 
 import type { OfficerWithRelations, Timeline } from "@/lib/database/query_types";
 import { bandForScore, LOW_CONFIDENCE_THRESHOLD } from "@/lib/ui/quality";
+import { yearBEToGregorian } from "@/lib/officer_profile/thai_date";
 
 /** Display full name, falling back to the officer id when names are blank. */
 export function officerFullName(officer: { firstName: string; lastName: string; officerId: string }): string {
@@ -67,17 +68,41 @@ export function buildQualitySummary(officer: OfficerWithRelations): string {
 }
 
 /**
- * Timeline sorted by year, newest → oldest. `yearValue` (the parsed numeric
- * year) drives the order; entries without a parseable year sort last, in their
- * original sequence, rather than being guessed at.
+ * A single comparable timestamp for sorting, preferring the precise
+ * `effectiveDate` (Phase 26B Part 3 structured model, day/month-aware) and
+ * falling back to Jan 1 of `yearValue` for a row not yet migrated. `yearValue`
+ * is a Buddhist-Era number (every legacy import/editor writes B.E., e.g.
+ * 2560, never a Gregorian year — see Timeline.year's schema comment), so it
+ * is converted to Gregorian here, exactly as `effectiveDate` already is, so
+ * rows from either era compare on the same timeline without one
+ * systematically winning ties. Null when neither is available.
+ */
+function timelineSortKey(entry: Timeline): number | null {
+  if (entry.effectiveDate) return new Date(entry.effectiveDate).getTime();
+  if (entry.yearValue !== null) return Date.UTC(yearBEToGregorian(entry.yearValue), 0, 1);
+  return null;
+}
+
+/**
+ * Timeline sorted by year, newest → oldest. Phase 26B Part 3: a row migrated
+ * to the structured date model sorts by its precise `effectiveDate`; a row
+ * not yet migrated falls back to `yearValue` (the parsed numeric year),
+ * exactly as before this phase — both compare on the same underlying
+ * timestamp. An entry marked `isPresent` always sorts first (it is, by
+ * definition, the most recent/ongoing entry) ahead of any dated entry.
+ * Entries with no derivable date sort last, in their original sequence,
+ * rather than being guessed at.
  */
 export function sortTimelineByYear(timeline: Timeline[]): Timeline[] {
   return [...timeline].sort((a, b) => {
-    const av = a.yearValue;
-    const bv = b.yearValue;
-    if (av === null && bv === null) return a.sequence - b.sequence;
-    if (av === null) return 1;
-    if (bv === null) return -1;
-    return bv - av;
+    if (a.isPresent && !b.isPresent) return -1;
+    if (!a.isPresent && b.isPresent) return 1;
+
+    const ak = timelineSortKey(a);
+    const bk = timelineSortKey(b);
+    if (ak === null && bk === null) return a.sequence - b.sequence;
+    if (ak === null) return 1;
+    if (bk === null) return -1;
+    return bk - ak;
   });
 }

@@ -285,6 +285,11 @@ export interface OfficerProfileSaveRequest {
     unit: string | null;
     source: string | null;
     verified: string;
+    /** Phase 26B Part 3: structured date model — additive alongside `year`/`yearValue` above. */
+    day: number | null;
+    month: number | null;
+    yearBE: number | null;
+    isPresent: boolean;
   }>;
   education?: Array<{ year: string | null; institution: string; degree: string | null; notes: string | null }>;
   training?: Array<{ year: string | null; course: string; organization: string | null; notes: string | null }>;

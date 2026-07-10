@@ -19,6 +19,7 @@ import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { CareerTimelineRow } from "@/components/officer/career_timeline_section";
 import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hooks";
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
+import { formatThaiDate } from "@/lib/officer_profile/thai_date";
 
 export interface ProfileDraft {
   rank: string;
@@ -50,12 +51,18 @@ export interface TrainingDraftRow {
 
 export interface TimelineDraftRow {
   key: string;
+  /** Legacy free-text year, preserved for backward compatibility and as a fallback display when the structured fields below are unset. */
   year: string;
   rank: string;
   position: string;
   unit: string;
   source: string;
   verified: string;
+  /** Phase 26B Part 3: structured date model — the editor's primary input; `year` above is kept in sync from these. */
+  day: number | null;
+  month: number | null;
+  yearBE: number | null;
+  isPresent: boolean;
 }
 
 let nextKey = 1;
@@ -89,6 +96,10 @@ function toTimelineDrafts(officer: OfficerWithRelations): TimelineDraftRow[] {
       unit: t.unit ?? "",
       source: t.source ?? "",
       verified: t.verified,
+      day: t.day ?? null,
+      month: t.month ?? null,
+      yearBE: t.yearBE ?? null,
+      isPresent: t.isPresent ?? false,
     }));
 }
 
@@ -147,16 +158,30 @@ export function useOfficerWorkspace(officer: OfficerWithRelations) {
         lineId: profile.lineId.trim() || null,
         facebookUrl: profile.facebookUrl.trim() || null,
       },
-      timeline: timeline.map((row, i) => ({
-        sequence: i,
-        year: row.year,
-        yearValue: /^\d+$/.test(row.year) ? Number(row.year) : null,
-        rank: row.rank.trim() || null,
-        position: row.position,
-        unit: row.unit.trim() || null,
-        source: row.source.trim() || null,
-        verified: row.verified || "ยังไม่ตรวจ",
-      })),
+      timeline: timeline.map((row, i) => {
+        // The legacy free-text `year` is DERIVED from the structured fields
+        // whenever the row has been edited through the new Day/Month/Year
+        // dropdowns (yearBE set), so every reader that still displays `year`
+        // (or hasn't been migrated to the structured fields yet) keeps
+        // showing an accurate value. A row the user never touched in the new
+        // editor (yearBE still null) keeps its original free-text `year`
+        // verbatim — never overwritten with a guess.
+        const year = row.yearBE != null ? formatThaiDate(row) : row.year;
+        return {
+          sequence: i,
+          year,
+          yearValue: row.yearBE ?? (/^\d+$/.test(row.year) ? Number(row.year) : null),
+          rank: row.rank.trim() || null,
+          position: row.position,
+          unit: row.unit.trim() || null,
+          source: row.source.trim() || null,
+          verified: row.verified || "ยังไม่ตรวจ",
+          day: row.day,
+          month: row.month,
+          yearBE: row.yearBE,
+          isPresent: row.isPresent,
+        };
+      }),
       education: education.map((row) => ({
         year: row.year.trim() || null,
         institution: row.institution,
@@ -198,7 +223,19 @@ export type OfficerWorkspaceState = ReturnType<typeof useOfficerWorkspace>;
 
 /** Re-exported so section components can build a fresh empty row without importing internals. */
 export function emptyTimelineRow(): TimelineDraftRow {
-  return { key: newKey(), year: "", rank: "", position: "", unit: "", source: "", verified: "ยังไม่ตรวจ" };
+  return {
+    key: newKey(),
+    year: "",
+    rank: "",
+    position: "",
+    unit: "",
+    source: "",
+    verified: "ยังไม่ตรวจ",
+    day: null,
+    month: null,
+    yearBE: null,
+    isPresent: false,
+  };
 }
 
 export function emptyEducationRow(): EducationDraftRow {

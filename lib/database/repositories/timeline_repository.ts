@@ -24,6 +24,17 @@ export interface TimelineRowInput {
   rank?: string | null;
   source?: string | null;
   verified?: string;
+  /**
+   * Phase 26B Part 3: structured date model, additive alongside `year`/
+   * `yearValue` above (never replaced — every caller that doesn't know about
+   * these fields, e.g. the Phase 25 import pipeline, simply omits them and
+   * the DB defaults/nulls apply, exactly like `rank`/`source` above).
+   */
+  day?: number | null;
+  month?: number | null;
+  yearBE?: number | null;
+  isPresent?: boolean;
+  effectiveDate?: Date | null;
 }
 
 export class TimelineRepository {

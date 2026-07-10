@@ -30,6 +30,7 @@ import { Camera, Upload, RefreshCw, Trash2, Maximize2, History, Loader2, X, Aler
 import { OfficerPhoto } from "@/components/officer/officer_photo";
 import { PortraitSourceBadge } from "@/components/officer/portrait_source_badge";
 import { PortraitHistoryPanel } from "@/components/officer/portrait_history_panel";
+import { PhotoModal } from "@/components/officer/photo_modal";
 import { Button } from "@/components/ui/button";
 import type { PortraitSource } from "@/lib/server/officer_portrait_service";
 import {
@@ -207,9 +208,12 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         />
       ) : null}
 
-      {previewFull && thumbnailUrl ? (
-        <FullSizePreview name={name} url={webViewUrl || thumbnailUrl} onClose={() => setPreviewFull(false)} />
-      ) : null}
+      <PhotoModal
+        open={previewFull}
+        onClose={() => setPreviewFull(false)}
+        photo={{ driveFileId, thumbnailUrl, webViewUrl }}
+        name={name}
+      />
     </div>
   );
 }
@@ -301,40 +305,6 @@ function CropDialog({
           </Button>
         </div>
       </div>
-    </div>,
-    document.body
-  );
-}
-
-/** Minimal full-size portrait preview overlay. */
-function FullSizePreview({ name, url, onClose }: { name: string; url: string; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Portrait of ${name}`}
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      style={{ backgroundColor: "rgba(0,0,0,0.9)" }}
-      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close preview"
-        className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white hover:bg-white/15"
-      >
-        <X className="h-5 w-5" aria-hidden="true" />
-      </button>
-      {/* eslint-disable-next-line @next/next/no-img-element -- external storage URL; next/image remote loader intentionally unused */}
-      <img src={url} alt={`Portrait of ${name}`} referrerPolicy="no-referrer" className="max-h-full max-w-full rounded-lg object-contain" />
     </div>,
     document.body
   );

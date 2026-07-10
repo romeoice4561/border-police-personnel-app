@@ -13,6 +13,7 @@
 import { ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Timeline } from "@/lib/database/query_types";
 import { sortTimelineByYear } from "@/lib/ui/officer_summary";
+import { formatThaiDate } from "@/lib/officer_profile/thai_date";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
 /** The display row shape — now backed entirely by real Timeline columns (Phase 23A). */
@@ -26,11 +27,17 @@ export interface CareerTimelineRow {
   verified: string;
 }
 
-/** Maps a persisted Timeline row onto the display shape. */
+/**
+ * Maps a persisted Timeline row onto the display shape. Phase 26B Part 3: a
+ * row migrated to the structured date model (yearBE set) renders via
+ * formatThaiDate for a consistent "1 มกราคม 2560" / "ปัจจุบัน" display; a row
+ * not yet migrated falls back to its legacy free-text `year` verbatim,
+ * unchanged from before this phase.
+ */
 function toCareerTimelineRow(entry: Timeline): CareerTimelineRow {
   return {
     id: entry.id,
-    date: entry.year,
+    date: entry.yearBE != null || entry.isPresent ? formatThaiDate(entry) : entry.year,
     rank: entry.rank,
     position: entry.position,
     unit: entry.unit,

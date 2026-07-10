@@ -23,6 +23,7 @@
  */
 
 import { z } from "zod";
+import { isValidDay, isValidMonth, isValidYearBE, toEffectiveDate } from "@/lib/officer_profile/thai_date";
 
 /** Reasonable upper bound so a field can't be used to store megabytes, without rejecting real Thai text. */
 const MAX_FIELD = 500;
@@ -70,16 +71,33 @@ export const officerProfilePatchSchema = z.object({
  * (ranges, Thai dates, "ปัจจุบัน" all valid). rank/unit/source are free-form
  * and nullable; verified is free-form with a sensible default applied upstream.
  */
-export const timelineRowSchema = z.object({
-  sequence: z.coerce.number().int().min(0),
-  year: z.string().trim().min(1).max(MAX_FIELD),
-  yearValue: z.coerce.number().int().nullable(),
-  rank: z.string().trim().max(MAX_FIELD).nullable(),
-  position: z.string().trim().min(1).max(MAX_FIELD),
-  unit: z.string().trim().max(MAX_FIELD).nullable().transform((v) => (v && v.length > 0 ? v : null)),
-  source: z.string().trim().max(MAX_FIELD).nullable().transform((v) => (v && v.length > 0 ? v : null)),
-  verified: z.string().trim().min(1).max(MAX_FIELD),
-});
+export const timelineRowSchema = z
+  .object({
+    sequence: z.coerce.number().int().min(0),
+    year: z.string().trim().min(1).max(MAX_FIELD),
+    yearValue: z.coerce.number().int().nullable(),
+    rank: z.string().trim().max(MAX_FIELD).nullable(),
+    position: z.string().trim().min(1).max(MAX_FIELD),
+    unit: z.string().trim().max(MAX_FIELD).nullable().transform((v) => (v && v.length > 0 ? v : null)),
+    source: z.string().trim().max(MAX_FIELD).nullable().transform((v) => (v && v.length > 0 ? v : null)),
+    verified: z.string().trim().min(1).max(MAX_FIELD),
+    // Phase 26B Part 3: structured date fields, all optional/nullable — a
+    // row saved before the new editor touched it (or a caller that doesn't
+    // send them) simply omits them, leaving day/month/yearBE/effectiveDate
+    // null and isPresent false, exactly like the legacy `year` column always
+    // behaved for un-migrated rows.
+    day: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidDay(v), { message: "Invalid day" }),
+    month: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidMonth(v), { message: "Invalid month" }),
+    yearBE: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidYearBE(v), { message: "Invalid Buddhist-Era year" }),
+    isPresent: z.boolean().optional(),
+  })
+  .transform((row) => ({
+    ...row,
+    // effectiveDate is ALWAYS server-derived from day/month/yearBE — never
+    // trusted from the client, so it can never drift from the structured
+    // fields it's supposed to summarize.
+    effectiveDate: toEffectiveDate({ day: row.day ?? null, month: row.month ?? null, yearBE: row.yearBE ?? null }),
+  }));
 
 /** Nullable free-form text: caps length, normalizes "" → null. */
 const nullableText = z

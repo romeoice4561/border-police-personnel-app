@@ -43,7 +43,27 @@ const fakePortraits: PortraitBatchResolver = {
 
 function container() {
   const client = new FakeReadDatabaseClient(seeds(), {
-    timeline: { "ภาค1/1": [{ id: 1, officerId: 1, sequence: 0, year: "2564", yearValue: 2564, rank: null, position: "ผบ.ร้อย", unit: "ตชด.447", source: null, verified: "ยังไม่ตรวจ" }] },
+    timeline: {
+      "ภาค1/1": [
+        {
+          id: 1,
+          officerId: 1,
+          sequence: 0,
+          year: "2564",
+          yearValue: 2564,
+          rank: null,
+          position: "ผบ.ร้อย",
+          unit: "ตชด.447",
+          source: null,
+          verified: "ยังไม่ตรวจ",
+          day: null,
+          month: null,
+          yearBE: null,
+          isPresent: false,
+          effectiveDate: null,
+        },
+      ],
+    },
     phones: { "ภาค1/1": ["081-111-1111"] },
   });
   return createApiContainer(client, fakePortraits);

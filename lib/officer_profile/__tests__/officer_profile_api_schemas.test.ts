@@ -127,6 +127,51 @@ test("trainingRowSchema requires course; blank year/organization/notes normalize
   assert.equal(trainingRowSchema.safeParse({ year: null, course: "", organization: null, notes: null }).success, false);
 });
 
+// ── Phase 26B Part 3: structured date model ──────────────────────────────────
+
+test("timelineRowSchema accepts a row with structured day/month/yearBE and derives effectiveDate server-side", () => {
+  const base = { sequence: 0, year: "1 มิถุนายน 2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({ ...base, day: 1, month: 6, yearBE: 2560 });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.ok(result.data.effectiveDate);
+    assert.equal(result.data.effectiveDate!.getUTCFullYear(), 2017);
+    assert.equal(result.data.effectiveDate!.getUTCMonth(), 5);
+    assert.equal(result.data.effectiveDate!.getUTCDate(), 1);
+  }
+});
+
+test("timelineRowSchema derives effectiveDate from yearBE alone, defaulting month/day to Jan 1", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({ ...base, yearBE: 2560 });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.effectiveDate!.getUTCMonth(), 0);
+    assert.equal(result.data.effectiveDate!.getUTCDate(), 1);
+  }
+});
+
+test("timelineRowSchema leaves effectiveDate null when day/month/yearBE are all omitted (row not yet migrated)", () => {
+  const base = { sequence: 0, year: "2567-ปัจจุบัน", yearValue: null, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse(base);
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.effectiveDate, null);
+});
+
+test("timelineRowSchema rejects an out-of-range day/month/yearBE rather than silently truncating", () => {
+  const base = { sequence: 0, year: "x", yearValue: null, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  assert.equal(timelineRowSchema.safeParse({ ...base, day: 32 }).success, false);
+  assert.equal(timelineRowSchema.safeParse({ ...base, month: 13 }).success, false);
+  assert.equal(timelineRowSchema.safeParse({ ...base, yearBE: 1000 }).success, false);
+});
+
+test("timelineRowSchema accepts isPresent alongside a known start date", () => {
+  const base = { sequence: 0, year: "2560-ปัจจุบัน", yearValue: null, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({ ...base, yearBE: 2560, isPresent: true });
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.isPresent, true);
+});
+
 test("officerProfileSaveSchema validates full timeline/education/training arrays together", () => {
   const result = officerProfileSaveSchema.safeParse({
     timeline: [

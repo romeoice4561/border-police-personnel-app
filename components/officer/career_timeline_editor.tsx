@@ -26,11 +26,18 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
-import { YEAR_OPTIONS } from "@/lib/officer_profile/year_options";
 import { TIMELINE_SOURCE_OPTIONS, TIMELINE_VERIFIED_OPTIONS } from "@/lib/officer_profile/timeline_status_options";
+import { MONTH_OPTIONS, YEAR_BE_OPTIONS, formatThaiDate } from "@/lib/officer_profile/thai_date";
 import { emptyTimelineRow, type TimelineDraftRow } from "@/components/officer/use_officer_workspace";
 
 const VERIFIED_SELECT_OPTIONS = TIMELINE_VERIFIED_OPTIONS.map((v) => ({ value: v, label: v }));
+
+const DAY_SELECT_OPTIONS = [
+  { value: "", label: "วัน" },
+  ...Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+];
+const MONTH_SELECT_OPTIONS = [{ value: "", label: "เดือน" }, ...MONTH_OPTIONS.map((m) => ({ value: String(m.value), label: m.label }))];
+const YEAR_BE_SELECT_OPTIONS = [{ value: "", label: "พ.ศ." }, ...YEAR_BE_OPTIONS.map((y) => ({ value: String(y), label: String(y) }))];
 
 export interface CareerTimelineEditorProps {
   rows: TimelineDraftRow[];
@@ -66,17 +73,61 @@ export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimel
           <p className="py-6 text-center text-sm text-muted">ยังไม่มีข้อมูลประวัติการรับราชการ — กด &quot;เพิ่มแถว&quot; เพื่อเริ่มกรอก</p>
         ) : (
           rows.map((row) => (
-            <div key={row.key} className="grid grid-cols-1 gap-3 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-6">
-              <LabeledField label="ปี">
-                <Combobox
-                  value={row.year}
-                  onChange={(value) => updateRow(row.key, { year: value })}
-                  suggestions={YEAR_OPTIONS}
-                  placeholder="พ.ศ. เช่น 2560"
-                  aria-label="ปี"
-                />
-              </LabeledField>
+            <div key={row.key} className="space-y-3 rounded-xl border border-border p-4">
+              {/* Phase 26B Part 3: structured Day / Month(Thai) / Year(B.E.) + Present, the editor's primary date input. */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-12">
+                <LabeledField label="วัน" className="lg:col-span-2">
+                  <Select
+                    options={DAY_SELECT_OPTIONS}
+                    value={row.day != null ? String(row.day) : ""}
+                    onChange={(e) => updateRow(row.key, { day: e.target.value ? Number(e.target.value) : null })}
+                    disabled={row.isPresent}
+                    aria-label="วัน"
+                  />
+                </LabeledField>
 
+                <LabeledField label="เดือน" className="lg:col-span-3">
+                  <Select
+                    options={MONTH_SELECT_OPTIONS}
+                    value={row.month != null ? String(row.month) : ""}
+                    onChange={(e) => updateRow(row.key, { month: e.target.value ? Number(e.target.value) : null })}
+                    disabled={row.isPresent}
+                    aria-label="เดือน"
+                  />
+                </LabeledField>
+
+                <LabeledField label="ปี (พ.ศ.)" className="lg:col-span-3">
+                  <Select
+                    options={YEAR_BE_SELECT_OPTIONS}
+                    value={row.yearBE != null ? String(row.yearBE) : ""}
+                    onChange={(e) => updateRow(row.key, { yearBE: e.target.value ? Number(e.target.value) : null })}
+                    aria-label="ปี (พ.ศ.)"
+                  />
+                </LabeledField>
+
+                <LabeledField label="สถานะปัจจุบัน" className="lg:col-span-4">
+                  <label className="flex h-9.5 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={row.isPresent}
+                      onChange={(e) => updateRow(row.key, { isPresent: e.target.checked, day: e.target.checked ? null : row.day })}
+                      aria-label="ปัจจุบัน (ยังดำรงตำแหน่งนี้อยู่)"
+                    />
+                    ปัจจุบัน (ยังดำรงตำแหน่งอยู่)
+                  </label>
+                </LabeledField>
+              </div>
+
+              {row.yearBE == null && row.year ? (
+                <p className="text-xs text-muted">
+                  ข้อมูลเดิม (ยังไม่ได้แปลงเป็นรูปแบบใหม่): <span className="font-medium text-foreground">{row.year}</span> — เลือกปี (พ.ศ.)
+                  ด้านบนเพื่ออัปเดตเป็นรูปแบบโครงสร้างใหม่
+                </p>
+              ) : row.yearBE != null ? (
+                <p className="text-xs text-muted">แสดงผล: {formatThaiDate(row)}</p>
+              ) : null}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <LabeledField label="ยศ">
                 <Combobox
                   value={row.rank}
@@ -138,6 +189,7 @@ export function CareerTimelineEditor({ rows, onChange, knownUnits }: CareerTimel
                   aria-label="สถานะ"
                 />
               </LabeledField>
+              </div>
             </div>
           ))
         )}
