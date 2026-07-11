@@ -1,18 +1,27 @@
 /**
  * CareerTimelineSection (Phase 21A — Editable Profile Foundation, Part 6;
  * Phase 23A — real rank/source/verified data; Phase 26B Part 5 Part F/H —
- * full organization hierarchy + verification-status badge per row).
+ * full organization hierarchy + verification-status badge per row; Phase
+ * 26B Part 6 Part F/G/V — stacked readable rows, richer verification detail,
+ * full-width proportional layout).
  *
- * Read-only timeline view: Date, Rank, Position, and the FULL organization
- * hierarchy (Company/Battalion/Division/Headquarters — Part F, replacing the
- * old Unit-only column) shown for every historical row without opening the
- * editor, plus Source and a colored Verification badge (Part H). Each row is
- * a permanent historical snapshot (Part J/M) — its org hierarchy and
- * verification fields are whatever was persisted for THAT row, resolved
- * against the current org tree only for display labels (never re-derived or
- * changed by editing the officer's current profile). The editable
- * counterpart is CareerTimelineEditor, shown instead when the workspace is
- * in edit mode.
+ * Read-only timeline view. Phase 26B Part 6 Part F: rather than one dense
+ * "Company / Battalion / Division / Headquarters" line, Position and each
+ * organization level now stack vertically (spec's own example: "รอง ผกก." /
+ * "ร้อย ตชด.415" / "กก.ตชด.41" / "บก.ตชด.ภาค4" / "บช.ตชด." — most senior line
+ * first) so a reader scans top-to-bottom instead of parsing a slash-joined
+ * string. Part G: Verified By / Verified Date / Verification Remark now
+ * render alongside the status badge, not just the badge. Part V: the
+ * Position + Organization columns get proportionally more width, Source and
+ * Verified are narrower, and long values wrap instead of truncating or
+ * forcing horizontal scroll on typical viewport widths.
+ *
+ * Each row is a permanent historical snapshot (Part J/M, Phase 26B Part 5) —
+ * its org hierarchy and verification fields are whatever was persisted for
+ * THAT row, resolved against the current org tree only for display labels
+ * (never re-derived or changed by editing the officer's current profile).
+ * The editable counterpart is CareerTimelineEditor, shown instead when the
+ * workspace is in edit mode.
  */
 import { ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Timeline } from "@/lib/database/query_types";
@@ -37,6 +46,9 @@ export interface CareerTimelineRow {
   battalion: string | null;
   company: string | null;
   verificationStatus: string | null;
+  verifiedBy: string | null;
+  verifiedDate: string | null;
+  verificationRemark: string | null;
 }
 
 /**
@@ -66,23 +78,51 @@ function toCareerTimelineRow(entry: Timeline, orgTree: OrgTree): CareerTimelineR
     battalion: labels.battalion,
     company: labels.company,
     verificationStatus: entry.verificationStatus ?? null,
+    verifiedBy: entry.verifiedBy ?? null,
+    verifiedDate: entry.verifiedDate ? new Date(entry.verifiedDate).toISOString().slice(0, 10) : null,
+    verificationRemark: entry.verificationRemark ?? null,
   };
 }
 
 const VERIFIED_STATUS = "ยืนยันแล้ว";
 
-/** "รอง ผกก. / ร้อย ตชด.434 / กก.ตชด.43 / บก.ตชด.ภาค4 / บช.ตชด." — spec's own Part F example: Company/Battalion/Division/Headquarters joined most-specific-first, skipping unresolved levels. */
-function orgHierarchyDisplay(row: CareerTimelineRow): string {
-  return [row.company, row.battalion, row.borderPatrolDivision, row.headquarters].filter(Boolean).join(" / ") || "—";
+/** Phase 26B Part 6 Part F: Position, then Company/Battalion/Division/Headquarters, stacked most-senior-line-first — the spec's own worked example laid out as rows, not a slash-joined string. */
+function OrganizationStack({ row }: { row: CareerTimelineRow }) {
+  const lines = [row.position, row.company, row.battalion, row.borderPatrolDivision, row.headquarters].filter(Boolean);
+  if (lines.length === 0) return <span className="text-muted">—</span>;
+  return (
+    <div className="space-y-0.5">
+      {lines.map((line, i) => (
+        <p key={i} className={i === 0 ? "wrap-break-word text-sm font-medium text-foreground" : "wrap-break-word text-xs text-muted"}>
+          {line}
+        </p>
+      ))}
+    </div>
+  );
 }
 
-function VerificationStatusBadge({ status }: { status: string | null }) {
-  if (!status || !isValidTimelineVerificationStatus(status)) return null;
-  const meta = VERIFICATION_STATUS_META[status];
+/** Phase 26B Part 6 Part G: status badge PLUS Verified By / Verified Date / Remark — not just the badge. */
+function VerificationDetail({ row }: { row: CareerTimelineRow }) {
+  const status = row.verificationStatus;
+  const meta = status && isValidTimelineVerificationStatus(status) ? VERIFICATION_STATUS_META[status] : null;
   return (
-    <Badge tone={meta.color}>
-      {meta.labelTh} / {meta.labelEn}
-    </Badge>
+    <div className="space-y-1">
+      {row.verified === VERIFIED_STATUS ? (
+        <span className="inline-flex items-center gap-1 text-good">
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          {row.verified}
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-muted">
+          <ShieldQuestion className="h-4 w-4" aria-hidden="true" />
+          {row.verified}
+        </span>
+      )}
+      {meta ? <Badge tone={meta.color}>{meta.labelTh} / {meta.labelEn}</Badge> : null}
+      {row.verifiedBy ? <p className="text-xs text-muted">โดย {row.verifiedBy}</p> : null}
+      {row.verifiedDate ? <p className="text-xs tabular-nums text-muted">{row.verifiedDate}</p> : null}
+      {row.verificationRemark ? <p className="wrap-break-word text-xs text-muted italic">&quot;{row.verificationRemark}&quot;</p> : null}
+    </div>
   );
 }
 
@@ -98,41 +138,41 @@ export function CareerTimelineSection({ timeline, orgTree }: { timeline: Timelin
         {rows.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted">No career-history entries on record.</p>
         ) : (
+          // Phase 26B Part 6 Part V: table-layout:fixed with explicit
+          // proportional column widths (Position+Organization get the most
+          // room, Source/Verified are narrower) so the table fills the full
+          // card width instead of shrinking to content and forcing a
+          // horizontal scrollbar on typical viewports. overflow-x-auto is
+          // kept as a safety net for very narrow screens only.
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-[10%]" />
+                <col className="w-[8%]" />
+                <col className="w-[42%]" />
+                <col className="w-[15%]" />
+                <col className="w-[25%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                   <th scope="col" className="px-5 py-3 font-medium">Date</th>
                   <th scope="col" className="px-5 py-3 font-medium">Rank</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Position</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Company / Battalion / Division / Headquarters</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Position / Organization</th>
                   <th scope="col" className="px-5 py-3 font-medium">Source</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Verified</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Verification</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-border last:border-0">
+                  <tr key={row.id} className="border-b border-border last:border-0 align-top">
                     <td className="whitespace-nowrap px-5 py-3 tabular-nums">{row.date || "—"}</td>
                     <td className="px-5 py-3 text-muted">{row.rank || "—"}</td>
-                    <td className="px-5 py-3">{row.position || "—"}</td>
-                    <td className="px-5 py-3 text-muted">{orgHierarchyDisplay(row)}</td>
-                    <td className="px-5 py-3 text-muted">{row.source || "—"}</td>
                     <td className="px-5 py-3">
-                      <div className="flex flex-col gap-1">
-                        {row.verified === VERIFIED_STATUS ? (
-                          <span className="inline-flex items-center gap-1 text-good">
-                            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                            {row.verified}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-muted">
-                            <ShieldQuestion className="h-4 w-4" aria-hidden="true" />
-                            {row.verified}
-                          </span>
-                        )}
-                        <VerificationStatusBadge status={row.verificationStatus} />
-                      </div>
+                      <OrganizationStack row={row} />
+                    </td>
+                    <td className="wrap-break-word px-5 py-3 text-muted">{row.source || "—"}</td>
+                    <td className="px-5 py-3">
+                      <VerificationDetail row={row} />
                     </td>
                   </tr>
                 ))}

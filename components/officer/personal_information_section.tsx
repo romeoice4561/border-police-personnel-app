@@ -1,22 +1,23 @@
 /**
- * PersonalInformationSection (Phase 26B Part 5 Part G/O).
+ * PersonalInformationSection (Phase 26B Part 5 Part G/O; Phase 26B Part 6
+ * Part E — reorganized into logical groups).
  *
- * Read-only display of the officer's Personal Information (Part G: Date of
- * Birth/Nickname/Blood Group/Rh/Marital Status/Children/Home Province/Shirt
- * Size/Nationality) plus the optional additional fields (Part O: Citizen
- * ID/Passport/Employee Number/Retirement Year+Countdown/Emergency Contact+
- * Phone/Address Summary/Current Province/Religion/Education Level/Weight/
- * Height/BMI/Uniform Shoe Size/Hat Size/Jacket Size). Every field is
- * genuinely optional — a missing value renders "—" (never invented). BMI and
- * Retirement Year/Countdown are AUTO-CALCULATED here for display only, never
- * persisted (Part O: "Retirement Year (Auto Calculated)", "BMI (Auto)").
+ * Read-only display of the officer's Personal Information, grouped into
+ * Identity / Personal / Family / Residence / Health / Uniform / Retirement
+ * (Part E) rather than one flat grid — the same fields as before, just
+ * organized so a reader can scan by category instead of an undifferentiated
+ * list. Every field is genuinely optional — a missing value renders "—"
+ * (never invented). BMI, Current Age, and Retirement Year/Countdown are
+ * AUTO-CALCULATED here for display only, never persisted (there is no
+ * Officer.bmi/currentAge/retirementYear column — recomputing on every read
+ * guarantees the displayed value can never drift from its inputs).
  */
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { BilingualLabel } from "@/components/ui/bilingual_label";
 import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
-import { yearGregorianToBE } from "@/lib/officer_profile/thai_date";
-import { calculateBmi, calculateRetirementYearBE } from "@/lib/officer_profile/retirement_calculator";
+import { yearGregorianToBE, THAI_MONTHS } from "@/lib/officer_profile/thai_date";
+import { calculateBmi, calculateRetirementYearBE, calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
 
 function Field({ labelKey, value }: { labelKey: keyof typeof FIELD_LABELS; value: string | number | null | undefined }) {
   const display = value === null || value === undefined || value === "" ? "—" : value;
@@ -28,6 +29,18 @@ function Field({ labelKey, value }: { labelKey: keyof typeof FIELD_LABELS; value
   );
 }
 
+/** A labeled sub-group within the Personal Information card (Part E: Identity/Personal/Family/Residence/Health/Uniform/Retirement). */
+function Group({ titleTh, titleEn, children }: { titleTh: string; titleEn: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-accent">
+        {titleTh} <span className="text-muted/70">/ {titleEn}</span>
+      </h3>
+      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">{children}</dl>
+    </div>
+  );
+}
+
 /** "1 มกราคม 2560" formatted from a persisted Gregorian Date, in Buddhist Era — consistent with the rest of the workspace's date display convention. */
 function formatDateOfBirth(date: Date | null): string | null {
   if (!date) return null;
@@ -35,45 +48,62 @@ function formatDateOfBirth(date: Date | null): string | null {
   const day = d.getUTCDate();
   const month = d.getUTCMonth() + 1;
   const yearBE = yearGregorianToBE(d.getUTCFullYear());
-  const THAI_MONTHS = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
   return `${day} ${THAI_MONTHS[month]} ${yearBE}`;
 }
 
 export function PersonalInformationSection({ officer }: { officer: OfficerWithRelations }) {
   const bmi = calculateBmi(officer.weightKg ?? null, officer.heightCm ?? null);
   const retirement = calculateRetirementYearBE(officer.dateOfBirth ?? null);
+  const currentAge = calculateCurrentAge(officer.dateOfBirth ?? null);
 
   return (
     <EditableSectionCard title="ข้อมูลส่วนบุคคล / Personal Information">
-      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Field labelKey="dateOfBirth" value={formatDateOfBirth(officer.dateOfBirth ?? null)} />
-        <Field labelKey="nickname" value={officer.nickname} />
-        <Field labelKey="bloodGroup" value={officer.bloodGroup} />
-        <Field labelKey="rh" value={officer.rh} />
-        <Field labelKey="maritalStatus" value={officer.maritalStatus} />
-        <Field labelKey="children" value={officer.children} />
-        <Field labelKey="homeProvince" value={officer.homeProvince} />
-        <Field labelKey="shirtSize" value={officer.shirtSize} />
-        <Field labelKey="nationality" value={officer.nationality} />
+      <div className="space-y-5">
+        <Group titleTh="ข้อมูลประจำตัว" titleEn="Identity">
+          <Field labelKey="citizenId" value={officer.citizenId} />
+          <Field labelKey="passportNumber" value={officer.passportNumber} />
+          <Field labelKey="employeeNumber" value={officer.employeeNumber} />
+        </Group>
 
-        <Field labelKey="citizenId" value={officer.citizenId} />
-        <Field labelKey="passportNumber" value={officer.passportNumber} />
-        <Field labelKey="employeeNumber" value={officer.employeeNumber} />
-        <Field labelKey="retirementYear" value={retirement ? retirement.retirementYearBE : null} />
-        <Field labelKey="retirementCountdown" value={retirement ? `${retirement.yearsRemaining} ปี` : null} />
-        <Field labelKey="emergencyContact" value={officer.emergencyContact} />
-        <Field labelKey="emergencyPhone" value={officer.emergencyPhone} />
-        <Field labelKey="addressSummary" value={officer.addressSummary} />
-        <Field labelKey="currentProvince" value={officer.currentProvince} />
-        <Field labelKey="religion" value={officer.religion} />
-        <Field labelKey="educationLevel" value={officer.educationLevel} />
-        <Field labelKey="weight" value={officer.weightKg} />
-        <Field labelKey="height" value={officer.heightCm} />
-        <Field labelKey="bmi" value={bmi} />
-        <Field labelKey="uniformShoeSize" value={officer.uniformShoeSize} />
-        <Field labelKey="hatSize" value={officer.hatSize} />
-        <Field labelKey="jacketSize" value={officer.jacketSize} />
-      </dl>
+        <Group titleTh="ข้อมูลส่วนตัว" titleEn="Personal">
+          <Field labelKey="dateOfBirth" value={formatDateOfBirth(officer.dateOfBirth ?? null)} />
+          <Field labelKey="currentAge" value={currentAge !== null ? `${currentAge} ปี` : null} />
+          <Field labelKey="nickname" value={officer.nickname} />
+          <Field labelKey="bloodGroup" value={officer.bloodGroup} />
+          <Field labelKey="rh" value={officer.rh} />
+          <Field labelKey="nationality" value={officer.nationality} />
+          <Field labelKey="religion" value={officer.religion} />
+        </Group>
+
+        <Group titleTh="ครอบครัว" titleEn="Family">
+          <Field labelKey="maritalStatus" value={officer.maritalStatus} />
+          <Field labelKey="children" value={officer.children} />
+        </Group>
+
+        <Group titleTh="ที่อยู่อาศัย" titleEn="Residence">
+          <Field labelKey="homeProvince" value={officer.homeProvince} />
+          <Field labelKey="currentProvince" value={officer.currentProvince} />
+          <Field labelKey="addressSummary" value={officer.addressSummary} />
+        </Group>
+
+        <Group titleTh="สุขภาพ" titleEn="Health">
+          <Field labelKey="height" value={officer.heightCm} />
+          <Field labelKey="weight" value={officer.weightKg} />
+          <Field labelKey="bmi" value={bmi} />
+        </Group>
+
+        <Group titleTh="เครื่องแบบ" titleEn="Uniform">
+          <Field labelKey="shirtSize" value={officer.shirtSize} />
+          <Field labelKey="jacketSize" value={officer.jacketSize} />
+          <Field labelKey="uniformShoeSize" value={officer.uniformShoeSize} />
+          <Field labelKey="hatSize" value={officer.hatSize} />
+        </Group>
+
+        <Group titleTh="เกษียณอายุราชการ" titleEn="Retirement">
+          <Field labelKey="retirementYear" value={retirement ? retirement.retirementYearBE : null} />
+          <Field labelKey="retirementCountdown" value={retirement ? `${retirement.yearsRemaining} ปี` : null} />
+        </Group>
+      </div>
     </EditableSectionCard>
   );
 }

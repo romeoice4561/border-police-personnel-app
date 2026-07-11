@@ -25,6 +25,7 @@ import {
   type Statistics,
   type UnitCount,
 } from "@/lib/ui/api_client";
+import type { OrgTree } from "@/lib/organization/org_tree";
 
 export const queryKeys = {
   officers: (query: OfficerQuery) => ["officers", query] as const,
@@ -35,6 +36,7 @@ export const queryKeys = {
   ranks: () => ["ranks"] as const,
   statistics: () => ["statistics"] as const,
   health: () => ["health"] as const,
+  organizationTree: () => ["organizationTree"] as const,
 };
 
 export function useOfficers(query: OfficerQuery): UseQueryResult<PaginatedResult<OfficerSummary>> {
@@ -87,4 +89,9 @@ export function useStatistics(): UseQueryResult<Statistics> {
 
 export function useHealth(): UseQueryResult<HealthStatus> {
   return useQuery({ queryKey: queryKeys.health(), queryFn: () => apiClient.getHealth(), retry: false });
+}
+
+/** Phase 26B Part 6 Part S: the shared org-hierarchy snapshot every page's filter framework instance draws Battalion/Company/Division options from. Rarely changes — cached like ranks/units. */
+export function useOrgTree(): UseQueryResult<OrgTree> {
+  return useQuery({ queryKey: queryKeys.organizationTree(), queryFn: () => apiClient.getOrganizationTree(), staleTime: 5 * 60 * 1000 });
 }

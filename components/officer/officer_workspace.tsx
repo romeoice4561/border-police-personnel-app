@@ -79,7 +79,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
 
   return (
     <div className="space-y-6">
-      <ProfileHeader officer={officer} portrait={portrait} />
+      <ProfileHeader officer={officer} portrait={portrait} orgTree={orgTree} />
 
       {editing ? (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -123,12 +123,6 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
             </>
           )}
 
-          {editing ? (
-            <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} orgTree={orgTree} />
-          ) : (
-            <CareerTimelineSection timeline={officer.timeline} orgTree={orgTree} />
-          )}
-
           <div className="grid gap-4 sm:grid-cols-2">
             {editing ? (
               <>
@@ -160,6 +154,17 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
           <ProfileActionsCard editing={editing} onEditProfile={startEditing} />
         </div>
       </div>
+
+      {/* Phase 26B Part 6 Part V: Career Timeline spans the FULL content
+          width (outside the 2/3+1/3 grid above) — it's the widest,
+          most information-dense section on the page, so squeezing it into
+          the 2/3 column alongside a persistent sidebar wasted the exact
+          horizontal space Part V asks to reclaim. */}
+      {editing ? (
+        <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} orgTree={orgTree} />
+      ) : (
+        <CareerTimelineSection timeline={officer.timeline} orgTree={orgTree} />
+      )}
     </div>
   );
 }

@@ -113,6 +113,50 @@ test("GET /officers rejects invalid query with 400 and details", async () => {
   assert.ok((json.error as { code: string }).code === "BAD_REQUEST");
 });
 
+// ── Phase 26B Part 6 Part M: new Officers-list filters ────────────────────
+
+function containerWithPortraitsAndOrg() {
+  const client = new FakeReadDatabaseClient([
+    { officerId: "ภาค1/1", rank: "พ.ต.อ.", firstName: "สมชาย", lastName: "ใจดี", headquartersId: 1, officialPortraitId: 501, phone: "081-111-1111" },
+    { officerId: "ภาค1/2", rank: "ร.ต.ท.", firstName: "อนิรุทธิ์", lastName: "ขาว", headquartersId: 2, driveFileId: "abc123", phone: null },
+    { officerId: "ภาค2/1", rank: "ร.ต.ท.", firstName: "วิชัย", lastName: "แดง", headquartersId: null, phone: "081-333-3333" },
+  ]);
+  return createApiContainer(client, fakePortraits);
+}
+
+test("GET /officers filters by headquartersId", async () => {
+  const res = await handleOfficerList(containerWithPortraitsAndOrg(), new URLSearchParams("headquartersId=1&pageSize=10"));
+  const data = (await body(res)).data as Array<{ officerId: string }>;
+  assert.deepEqual(data.map((o) => o.officerId), ["ภาค1/1"]);
+});
+
+test("GET /officers hasPortrait=true matches an official portrait pin OR a Drive photo identity", async () => {
+  const res = await handleOfficerList(containerWithPortraitsAndOrg(), new URLSearchParams("hasPortrait=true&pageSize=10"));
+  const data = (await body(res)).data as Array<{ officerId: string }>;
+  assert.deepEqual(data.map((o) => o.officerId).sort(), ["ภาค1/1", "ภาค1/2"]);
+});
+
+test("GET /officers hasPortrait=false matches neither", async () => {
+  const res = await handleOfficerList(containerWithPortraitsAndOrg(), new URLSearchParams("hasPortrait=false&pageSize=10"));
+  const data = (await body(res)).data as Array<{ officerId: string }>;
+  assert.deepEqual(data.map((o) => o.officerId), ["ภาค2/1"]);
+});
+
+test("GET /officers hasPhone=true/false filters on Officer.phone presence", async () => {
+  const withPhone = await handleOfficerList(containerWithPortraitsAndOrg(), new URLSearchParams("hasPhone=true&pageSize=10"));
+  const withPhoneData = (await body(withPhone)).data as Array<{ officerId: string }>;
+  assert.deepEqual(withPhoneData.map((o) => o.officerId).sort(), ["ภาค1/1", "ภาค2/1"]);
+
+  const withoutPhone = await handleOfficerList(containerWithPortraitsAndOrg(), new URLSearchParams("hasPhone=false&pageSize=10"));
+  const withoutPhoneData = (await body(withoutPhone)).data as Array<{ officerId: string }>;
+  assert.deepEqual(withoutPhoneData.map((o) => o.officerId), ["ภาค1/2"]);
+});
+
+test("GET /officers rejects an invalid verificationStatus value (closed set)", async () => {
+  const res = await handleOfficerList(containerWithPortraitsAndOrg(), new URLSearchParams("verificationStatus=APPROVED"));
+  assert.equal(res.status, 400);
+});
+
 test("Phase 24B-3: GET /officers attaches the resolved portrait to each row via ONE batch call (no N+1)", async () => {
   let callCount = 0;
   let lastRequestedIds: readonly string[] = [];

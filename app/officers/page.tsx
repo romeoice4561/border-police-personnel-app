@@ -1,16 +1,21 @@
 /**
  * Officers list (Phase 14): filterable, sortable, paginated officer table.
- * Filter/rank/unit options come from the /ranks and /units endpoints.
+ * Filter/rank options come from the /ranks and /organization/tree endpoints.
+ *
+ * Phase 26B Part 6 Part M: FilterPanel's Region text input + Min Quality
+ * number replaced by OfficerFilters (Rank/Company/Battalion/Border Patrol
+ * Division/Verification Status/Has Portrait/Has Phone/Sort), built on the
+ * shared FilterFramework (Part S) — no page-specific disclosure logic.
  */
 "use client";
 
 import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
-import { useOfficers, useGlobalSearch, useRanks, useUnits } from "@/lib/ui/hooks";
+import { useOfficers, useGlobalSearch, useRanks, useOrgTree } from "@/lib/ui/hooks";
 import { buildOfficerQuery, type OfficerListFilters } from "@/lib/ui/list_filters";
 import { PageHeader } from "@/components/common/page_header";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
-import { FilterPanel } from "@/components/common/filter_panel";
+import { OfficerFilters } from "@/components/common/officer_filters";
 import { OfficerTable } from "@/components/common/officer_table";
 import { Pagination } from "@/components/common/pagination";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -34,7 +39,7 @@ export default function OfficersPage() {
   const officers = useOfficers(query);
   const globalSearch = useGlobalSearch({ q: globalQuery, page, pageSize: PAGE_SIZE, sortBy, sortOrder });
   const ranks = useRanks();
-  const units = useUnits();
+  const orgTree = useOrgTree();
 
   const active = isGlobalSearching ? globalSearch : officers;
 
@@ -45,6 +50,12 @@ export default function OfficersPage() {
       setSortBy(field);
       setSortOrder("asc");
     }
+    setPage(1);
+  }
+
+  function onSortChange(nextSortBy: string, nextSortOrder: "asc" | "desc") {
+    setSortBy(nextSortBy);
+    setSortOrder(nextSortOrder);
     setPage(1);
   }
 
@@ -64,11 +75,14 @@ export default function OfficersPage() {
 
       <GlobalSearchBox value={globalQuery} onChange={onGlobalQueryChange} />
 
-      <FilterPanel
+      <OfficerFilters
         value={filters}
         ranks={(ranks.data ?? []).map((r) => r.rank)}
-        units={(units.data ?? []).map((u) => u.unit)}
+        orgTree={orgTree.data}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
         onChange={onFilterChange}
+        onSortChange={onSortChange}
       />
 
       {active.isPending ? (

@@ -50,9 +50,13 @@ function officer(seed: FakeOfficerSeed, id: number): Officer {
     knowledgeScore: seed.knowledgeScore ?? null,
     region: seed.region ?? null,
     confidence: seed.confidence ?? null,
+    headquartersId: seed.headquartersId ?? null,
     regionId: seed.regionId ?? null,
     battalionId: seed.battalionId ?? null,
     companyId: seed.companyId ?? null,
+    // Phase 26B Part 6 Part M: hasPortrait filter proxy fields.
+    officialPortraitId: seed.officialPortraitId ?? null,
+    driveFileId: seed.driveFileId ?? null,
     email: seed.email ?? null,
     lineId: seed.lineId ?? null,
     facebookUrl: seed.facebookUrl ?? null,

@@ -26,6 +26,15 @@ const officerSortFieldSchema = z
 
 const matchModeSchema = z.enum(["contains", "startsWith", "exact"]).default("contains");
 
+/** The 4-value Timeline verification status closed set (Phase 26B Part 5 Part D/H) — duplicated here as a literal union (not imported) to keep this schema module dependency-free of the officer_profile domain. */
+const verificationStatusFilterSchema = z.enum(["VERIFIED", "PENDING", "REJECTED", "NEEDS_REVIEW"]).optional();
+
+/** Accepts "true"/"false" query-string values as a real boolean; anything else (including absent) stays undefined. */
+const booleanQuerySchema = z
+  .enum(["true", "false"])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v === "true"));
+
 /** GET /officers query params. */
 export const officerListQuerySchema = z.object({
   page: pageSchema,
@@ -38,9 +47,14 @@ export const officerListQuerySchema = z.object({
   minQuality: z.coerce.number().int().min(0).max(100).optional(),
   minCareerYears: z.coerce.number().int().min(0).optional(),
   // Phase 20C: optional Organization master-data filters (helper references — additive).
+  headquartersId: z.coerce.number().int().positive().optional(),
   regionId: z.coerce.number().int().positive().optional(),
   battalionId: z.coerce.number().int().positive().optional(),
   companyId: z.coerce.number().int().positive().optional(),
+  // Phase 26B Part 6 Part M: new Officers-list filters.
+  verificationStatus: verificationStatusFilterSchema,
+  hasPortrait: booleanQuerySchema,
+  hasPhone: booleanQuerySchema,
 });
 
 /** GET /search query params. At least one search field must be present. */

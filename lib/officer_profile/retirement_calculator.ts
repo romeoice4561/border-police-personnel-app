@@ -41,3 +41,19 @@ export function calculateBmi(weightKg: number | null, heightCm: number | null): 
   const heightM = heightCm / 100;
   return Math.round((weightKg / (heightM * heightM)) * 10) / 10;
 }
+
+/**
+ * Current Age (Phase 26B Part 6 Part A/E) — whole years since Date of Birth,
+ * accounting for whether this year's birthday has occurred yet (not just a
+ * plain year subtraction). Returns null when dateOfBirth is unset.
+ */
+export function calculateCurrentAge(dateOfBirth: Date | null, today: Date = new Date()): number | null {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  let age = today.getUTCFullYear() - dob.getUTCFullYear();
+  const monthDiff = today.getUTCMonth() - dob.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < dob.getUTCDate())) {
+    age -= 1;
+  }
+  return Math.max(0, age);
+}

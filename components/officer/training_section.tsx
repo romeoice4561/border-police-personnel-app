@@ -1,11 +1,20 @@
 /**
  * TrainingSection (Phase 21A — Editable Profile Foundation, Part 9;
- * Phase 23A — real Training data).
+ * Phase 23A — real Training data; Phase 26B Part 6 Part J — reusable
+ * structure confirmation).
  *
  * Read-only Training card: lists each Training row (year, course,
  * organization, notes) or the empty state when the officer has none. The
  * editable counterpart is TrainingEditor, shown instead when the workspace
  * is in edit mode.
+ *
+ * Phase 26B Part 6 Part J's reusable structure (Course/Organization/Year/
+ * Certificate) is already satisfied by the persisted Training row for the
+ * first 3 fields (course/organization/year); Certificate is not yet a
+ * column (no schema change in this UX-only phase — see AGENTS.md's
+ * additive-only migration convention) and is documented here as the one
+ * future field, the same "prepare, don't invent the column yet" pattern
+ * used by AchievementsSection's FutureAchievement/ACHIEVEMENT_CATEGORY_OPTIONS.
  */
 import { BookOpen } from "lucide-react";
 import type { Training } from "@/lib/database/query_types";

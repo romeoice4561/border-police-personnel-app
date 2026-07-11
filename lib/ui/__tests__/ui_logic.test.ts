@@ -29,13 +29,24 @@ test("bandForScore maps scores to bands + status tones", () => {
 // ---- list filters / query building ----
 
 test("buildOfficerQuery includes paging/sort and drops empty filters", () => {
-  const q = buildOfficerQuery({ rank: "ร.ต.ท.", unit: "", minQuality: 80 }, 2, 20, "careerYears", "desc");
+  const q = buildOfficerQuery({ rank: "ร.ต.ท.", companyId: 1000, hasPortrait: true }, 2, 20, "careerYears", "desc");
   assert.equal(q.page, 2);
   assert.equal(q.pageSize, 20);
   assert.equal(q.sortBy, "careerYears");
   assert.equal(q.rank, "ร.ต.ท.");
-  assert.equal(q.minQuality, 80);
-  assert.equal("unit" in q, false); // empty dropped
+  assert.equal(q.companyId, 1000);
+  assert.equal(q.hasPortrait, true);
+  assert.equal("battalionId" in q, false); // empty dropped
+});
+
+test("buildOfficerQuery drops hasPortrait/hasPhone when unset, includes them when explicitly false (Phase 26B Part 6 Part M)", () => {
+  const unset = buildOfficerQuery({ rank: "ร.ต.ท." }, 1, 20, "createdAt", "desc");
+  assert.equal("hasPortrait" in unset, false);
+  assert.equal("hasPhone" in unset, false);
+
+  const explicitFalse = buildOfficerQuery({ hasPortrait: false, hasPhone: false }, 1, 20, "createdAt", "desc");
+  assert.equal(explicitFalse.hasPortrait, false);
+  assert.equal(explicitFalse.hasPhone, false);
 });
 
 test("hasSearchCriteria requires at least one field", () => {

@@ -2,7 +2,10 @@
  * ProfileHeader (Phase 21A — Editable Profile Foundation; Phase 23A —
  * Section 1: full header fields + phone copy/tel: action; Phase 23B —
  * trusted-portrait-only, bug #2 fix; Phase 26B Part 5 Part A — no-truncation
- * redesign).
+ * redesign; Phase 26B Part 6 Part A/B — compact info-grid redesign with the
+ * full field list: Rank/Full Name/English Name/Current Position/Current
+ * Organization/Phone/Email/LINE/Career Years/Current Age/Date of Birth/
+ * Verification Badge).
  *
  * The officer detail hero. Phase 23B: the portrait comes ONLY from a
  * trusted ProfilePhoto match (resolved server-side via
@@ -12,22 +15,27 @@
  * portraits. When no trusted portrait exists, OfficerPhoto shows a
  * placeholder.
  *
- * Phase 26B Part 5 Part A: names were being clipped by `truncate` (e.g. a
- * long Thai surname like "อุทุมเทียรดี ขุน..."). The fix is layout, not font
- * size — everything now sits in a single column to the RIGHT of the
- * portrait, the name is allowed to wrap onto 2 lines instead of being
- * clipped, and `title={name}` surfaces the full name on hover even when
- * wrapped. Portrait size is unchanged (still driven by PortraitManager).
+ * Phase 26B Part 6 Part A: the prior single-column stack (name, then one
+ * field per line) wasted vertical AND horizontal space once Email/LINE/
+ * Career Years/Age/DOB were added. Those now sit in a compact 2-column info
+ * grid to the right of the portrait — still never truncating (each cell
+ * wraps its own text), just denser. The verification badge stays large and
+ * prominent, anchored top-right of the info column so it's the first thing
+ * scanned after the name.
  */
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { officerFullName, currentTimelineRow } from "@/lib/ui/officer_summary";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
+import { calculateCareerYearsSimple } from "@/lib/officer_profile/career_calculator";
+import { calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
+import { currentYearBE, yearGregorianToBE, THAI_MONTHS } from "@/lib/officer_profile/thai_date";
+import { resolveOrgLabels, type OrgTree } from "@/lib/organization/org_tree";
 import { QualityBadge } from "@/components/common/quality_badge";
 import { PortraitManager } from "@/components/officer/portrait_manager";
 import { PhoneAction } from "@/components/officer/phone_action";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, Building2, ShieldCheck } from "lucide-react";
+import { Briefcase, Building2, Mail, MessageCircle, ShieldCheck, Cake, CalendarClock } from "lucide-react";
 
 export interface ProfileHeaderProps {
   officer: OfficerWithRelations;
@@ -37,37 +45,79 @@ export interface ProfileHeaderProps {
    * never used — see resolveOfficerPortrait.
    */
   portrait: ResolvedOfficerPortrait;
+  /** Phase 26B Part 6 Part A: resolves Current Organization for the header (Not Assigned fallback — same convention as CurrentOrganizationSection). */
+  orgTree: OrgTree;
 }
 
-function HeaderStat({ label, value }: { label: string; value: string | number | null }) {
-  if (value === null || value === "") return null;
+/** One compact header field: icon + label + value, wraps rather than truncates. */
+function HeaderField({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
+  label: string;
+  value: React.ReactNode;
+}) {
+  if (value === null || value === undefined || value === "") return null;
   return (
-    <div className="text-center sm:text-left">
-      <dt className="text-[11px] uppercase tracking-wide text-muted">{label}</dt>
-      <dd className="text-sm font-medium text-foreground">{value}</dd>
+    <div className="flex min-w-0 items-start gap-1.5">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
+      <div className="min-w-0">
+        <dt className="text-[11px] uppercase tracking-wide text-muted">{label}</dt>
+        <dd className="wrap-break-word text-sm font-medium text-foreground">{value}</dd>
+      </div>
     </div>
   );
 }
 
-/** Verification badge (Phase 26B Part 5 Part A/H): sourced from the officer's current (most recent) timeline row — VERIFIED=green, PENDING=orange, REJECTED=red, NEEDS_REVIEW=blue. Hidden until a row has been verified at least once. */
+/** Verification badge (Part G): sourced from the officer's current (most recent) timeline row — VERIFIED=green, PENDING=orange, REJECTED=red, NEEDS_REVIEW=blue. A neutral "not yet verified" badge shows when no row has ever been reviewed, so verification status is ALWAYS visible in the header (Part A: "remains highly visible"). */
 function VerificationBadge({ officer }: { officer: OfficerWithRelations }) {
   const row = currentTimelineRow(officer.timeline);
   const status = row?.verificationStatus;
-  if (!status || !isValidTimelineVerificationStatus(status)) return null;
+  if (!status || !isValidTimelineVerificationStatus(status)) {
+    return (
+      <Badge tone="neutral">
+        <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        ยังไม่ตรวจสอบ / Not Verified
+      </Badge>
+    );
+  }
   const meta = VERIFICATION_STATUS_META[status];
   return (
-    <Badge tone={meta.color}>
-      <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+    <Badge tone={meta.color} className="px-3 py-1 text-sm">
+      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
       {meta.labelTh} / {meta.labelEn}
     </Badge>
   );
 }
 
-export function ProfileHeader({ officer, portrait }: ProfileHeaderProps) {
+/** "1 มกราคม 2560" formatted from a persisted Gregorian Date, in Buddhist Era. */
+function formatDateOfBirth(date: Date | null): string | null {
+  if (!date) return null;
+  const d = new Date(date);
+  const day = d.getUTCDate();
+  const month = d.getUTCMonth() + 1;
+  const yearBE = yearGregorianToBE(d.getUTCFullYear());
+  return `${day} ${THAI_MONTHS[month]} ${yearBE}`;
+}
+
+export function ProfileHeader({ officer, portrait, orgTree }: ProfileHeaderProps) {
   const name = officerFullName(officer);
+  const careerYears = calculateCareerYearsSimple(officer.timeline, currentYearBE());
+  const currentAge = calculateCurrentAge(officer.dateOfBirth ?? null);
+  const orgLabels = resolveOrgLabels(orgTree, {
+    headquartersId: officer.headquartersId ?? null,
+    regionId: officer.regionId ?? null,
+    battalionId: officer.battalionId ?? null,
+    companyId: officer.companyId ?? null,
+  });
+  const currentOrganization = [orgLabels.company, orgLabels.battalion, orgLabels.borderPatrolDivision, orgLabels.headquarters]
+    .filter(Boolean)
+    .join(" / ");
 
   return (
-    <header className="flex flex-col gap-4">
+    <header className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         {/* Phase 24B-1: the portrait is always shown (image or placeholder) and
             is now uploadable/replaceable/removable. The current portrait comes
@@ -84,43 +134,43 @@ export function ProfileHeader({ officer, portrait }: ProfileHeaderProps) {
           />
         </div>
 
-        {/* Phase 26B Part 5 Part A: everything lives in one column right of the
-            portrait — rank, full name (2-line wrap, never truncated, full text
-            on hover), an English-name placeholder for future bilingual data,
-            current position/organization, phone, and the verification badge. */}
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <p className="text-sm text-muted">{officer.rank || "—"}</p>
-          <h1 title={name} className="wrap-break-word text-2xl leading-tight font-semibold text-foreground xl:max-w-2xl">
-            {name}
-          </h1>
-          <p className="text-xs text-muted/70">English Name — coming soon</p>
+        <div className="min-w-0 flex-1">
+          {/* Name row: rank + full name (never truncated, wraps if needed) on the left, verification badge pinned top-right so it's always the first thing scanned. */}
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm text-muted">{officer.rank || "—"}</p>
+              <h1 title={name} className="wrap-break-word text-2xl leading-tight font-semibold text-foreground">
+                {name}
+              </h1>
+              <p className="text-xs text-muted/70">English Name — coming soon</p>
+            </div>
+            <VerificationBadge officer={officer} />
+          </div>
 
-          <p className="flex items-center gap-1.5 text-sm text-muted">
-            <Briefcase className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="wrap-break-word">{officer.currentPosition || "—"}</span>
-          </p>
-          {officer.currentUnit ? (
-            <p className="flex items-center gap-1.5 text-sm text-muted">
-              <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="wrap-break-word">{officer.currentUnit}</span>
-            </p>
+          {/* Phase 26B Part 6 Part A: compact 2-column info grid — every field
+              from the spec's list, none truncated (each cell wraps). */}
+          <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            <HeaderField icon={Briefcase} label="Current Position" value={officer.currentPosition} />
+            <HeaderField icon={Building2} label="Current Organization" value={currentOrganization || "ยังไม่ได้ระบุ / Not Assigned"} />
+            <HeaderField icon={Mail} label="Email" value={officer.email} />
+            <HeaderField icon={MessageCircle} label="LINE" value={officer.lineId} />
+            <HeaderField icon={CalendarClock} label="Career Years" value={careerYears > 0 ? `${careerYears} ปี / years` : null} />
+            <HeaderField icon={Cake} label="Current Age" value={currentAge !== null ? `${currentAge} ปี / years` : null} />
+            <HeaderField icon={Cake} label="Date of Birth" value={formatDateOfBirth(officer.dateOfBirth ?? null)} />
+          </dl>
+
+          {officer.phone ? (
+            <div className="mt-3">
+              <PhoneAction phone={officer.phone} />
+            </div>
           ) : null}
-          {officer.phone ? <PhoneAction phone={officer.phone} /> : null}
 
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <QualityBadge score={officer.qualityScore} />
             {officer.region ? <Badge>{officer.region}</Badge> : null}
-            <VerificationBadge officer={officer} />
           </div>
         </div>
       </div>
-
-      <dl className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-neutral-bg/40 p-3 sm:grid-cols-4">
-        <HeaderStat label="หน่วย" value={officer.currentUnit} />
-        <HeaderStat label="ภาค" value={officer.region} />
-        <HeaderStat label="อายุราชการ" value={officer.careerYears > 0 ? `${officer.careerYears} ปี` : null} />
-        <HeaderStat label="คะแนนคุณภาพ" value={officer.qualityScore !== null ? `${officer.qualityScore}/100` : null} />
-      </dl>
     </header>
   );
 }

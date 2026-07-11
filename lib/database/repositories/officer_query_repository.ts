@@ -38,9 +38,22 @@ export interface OfficerListParams {
   minQuality?: number;
   minCareerYears?: number;
   /** Phase 20C: optional Organization master-data filters (helper references — additive). */
+  headquartersId?: number;
   regionId?: number;
   battalionId?: number;
   companyId?: number;
+  /**
+   * Phase 26B Part 6 Part M: matches officers with AT LEAST ONE timeline row
+   * at this verification status (not necessarily their most-recent row —
+   * finding "any REJECTED/NEEDS_REVIEW row to triage" is the useful list
+   * query; identifying each officer's single "current" row would need a
+   * correlated-max subquery Prisma's relation filters can't express, and is
+   * out of scope for a list filter).
+   */
+  verificationStatus?: string;
+  /** True officer has EITHER an official portrait pin OR the Phase 17B Drive-import photo identity — a coarse, cheap proxy for "resolves to a real portrait" that doesn't require running the full tiered resolver (lib/server/officer_portrait_service.ts) per row just to filter a list. */
+  hasPortrait?: boolean;
+  hasPhone?: boolean;
 }
 
 /** Search parameters — each optional; provided fields are AND-combined. */
@@ -110,9 +123,15 @@ export class OfficerQueryRepository {
     if (params.region) where.region = stringFilter(params.region, "exact");
     if (typeof params.minQuality === "number") where.qualityScore = { gte: params.minQuality };
     if (typeof params.minCareerYears === "number") where.careerYears = { gte: params.minCareerYears };
+    if (typeof params.headquartersId === "number") where.headquartersId = params.headquartersId;
     if (typeof params.regionId === "number") where.regionId = params.regionId;
     if (typeof params.battalionId === "number") where.battalionId = params.battalionId;
     if (typeof params.companyId === "number") where.companyId = params.companyId;
+    if (params.verificationStatus) where.timeline = { some: { verificationStatus: params.verificationStatus } };
+    if (params.hasPortrait === true) where.OR = [{ officialPortraitId: { not: null } }, { driveFileId: { not: null } }];
+    if (params.hasPortrait === false) where.AND = [{ officialPortraitId: null }, { driveFileId: null }];
+    if (params.hasPhone === true) where.phone = { not: null };
+    if (params.hasPhone === false) where.phone = null;
 
     return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);
   }

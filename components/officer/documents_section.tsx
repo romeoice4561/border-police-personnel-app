@@ -1,10 +1,18 @@
 /**
- * DocumentsSection (Phase 21A — Editable Profile Foundation, Part 5).
+ * DocumentsSection (Phase 21A — Editable Profile Foundation, Part 5; Phase
+ * 26B Part 6 Part H — "No documents yet" empty state).
  *
  * Architecture + UI only: five document categories (Official Portrait, GP7,
- * Appointment Orders, Certificates, Other Documents), each rendered as a
- * "Coming Soon" card. No upload, no storage, no API — this only prepares the
- * layout for a future Documents module.
+ * Appointment Orders, Certificates, Other Documents). No upload, no storage,
+ * no API — this only prepares the layout for a future Documents module.
+ *
+ * Phase 26B Part 6 Part H: "Coming Soon" read as if the whole feature were
+ * unavailable, when really each category is simply EMPTY right now (the
+ * module itself already exists as a placeholder). Each tile now says "No
+ * documents yet" — an empty-state message, not a feature-availability
+ * message — matching the "Coming Soon" badge that already correctly marks
+ * the card HEADER (the upload feature itself isn't built yet) while the
+ * per-category body describes its actual (empty) content state.
  */
 import { FileText, IdCard, ScrollText, Award, FolderOpen } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
@@ -35,7 +43,7 @@ export function DocumentsSection() {
           >
             <Icon className="h-6 w-6 text-muted" aria-hidden="true" />
             <span className="text-sm font-medium text-foreground">{label}</span>
-            <span className="text-xs text-muted">Coming Soon</span>
+            <span className="text-xs text-muted">No documents yet</span>
           </div>
         ))}
       </div>

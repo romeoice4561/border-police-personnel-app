@@ -68,6 +68,8 @@ export const FIELD_LABELS = {
   source: bilingual("ที่มาของข้อมูล", "Source"),
 
   // Part G — personal information
+  currentAge: bilingual("อายุปัจจุบัน", "Current Age"),
+  careerYears: bilingual("อายุราชการ", "Career Years"),
   dateOfBirth: bilingual("วันเกิด", "Date of Birth"),
   bloodGroup: bilingual("กรุ๊ปเลือด", "Blood Group"),
   rh: bilingual("หมู่เลือด Rh", "Rh"),

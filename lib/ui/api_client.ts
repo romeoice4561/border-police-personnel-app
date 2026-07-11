@@ -162,6 +162,15 @@ export interface OfficerQuery {
   region?: string;
   minQuality?: number;
   minCareerYears?: number;
+  /** Phase 20C: Organization master-data filters (helper references — additive). */
+  headquartersId?: number;
+  regionId?: number;
+  battalionId?: number;
+  companyId?: number;
+  /** Phase 26B Part 6 Part M: new Officers-list filters. */
+  verificationStatus?: string;
+  hasPortrait?: boolean;
+  hasPhone?: boolean;
 }
 
 export interface SearchQuery extends OfficerQuery {
@@ -353,6 +362,12 @@ export interface OfficerProfileSaveResponse {
 }
 
 export const apiClient = {
+  /** Phase 26B Part 6 Part S: the shared Headquarters/Division/Battalion/Company snapshot, for every page's org-hierarchy filter dropdowns. */
+  async getOrganizationTree(): Promise<import("@/lib/organization/org_tree").OrgTree> {
+    const { data } = await request<import("@/lib/organization/org_tree").OrgTree>("/organization/tree");
+    return data;
+  },
+
   async listOfficers(query: OfficerQuery = {}): Promise<PaginatedResult<OfficerSummary>> {
     const { data, meta } = await request<OfficerSummary[]>(`/officers${toQueryString(query)}`);
     return { data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };

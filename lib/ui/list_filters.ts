@@ -10,11 +10,22 @@
 import type { OfficerQuery, SearchQuery } from "@/lib/ui/api_client";
 import type { SearchFormValue } from "@/components/common/search_bar";
 
+/**
+ * Phase 26B Part 6 Part M: the Officers-list filter set. `region`/
+ * `minQuality` (Part M: "are not useful") are REPLACED by structured
+ * org-hierarchy ids + the new operational filters below — kept here as
+ * dead-but-typed fields would be worse than just removing them, and no
+ * other page reads OfficerListFilters (grep-confirmed: only officers/page.tsx).
+ */
 export interface OfficerListFilters {
   rank?: string;
-  unit?: string;
-  region?: string;
-  minQuality?: number;
+  headquartersId?: number;
+  regionId?: number;
+  battalionId?: number;
+  companyId?: number;
+  verificationStatus?: string;
+  hasPortrait?: boolean;
+  hasPhone?: boolean;
 }
 
 /** Builds the /officers query from filters + paging + sort. Drops empty values. */
@@ -27,9 +38,13 @@ export function buildOfficerQuery(
 ): OfficerQuery {
   const query: OfficerQuery = { page, pageSize, sortBy, sortOrder };
   if (filters.rank) query.rank = filters.rank;
-  if (filters.unit) query.unit = filters.unit;
-  if (filters.region) query.region = filters.region;
-  if (typeof filters.minQuality === "number" && !Number.isNaN(filters.minQuality)) query.minQuality = filters.minQuality;
+  if (typeof filters.headquartersId === "number") query.headquartersId = filters.headquartersId;
+  if (typeof filters.regionId === "number") query.regionId = filters.regionId;
+  if (typeof filters.battalionId === "number") query.battalionId = filters.battalionId;
+  if (typeof filters.companyId === "number") query.companyId = filters.companyId;
+  if (filters.verificationStatus) query.verificationStatus = filters.verificationStatus;
+  if (typeof filters.hasPortrait === "boolean") query.hasPortrait = filters.hasPortrait;
+  if (typeof filters.hasPhone === "boolean") query.hasPhone = filters.hasPhone;
   return query;
 }
 
