@@ -14,7 +14,7 @@
  * consistency, not what the "real" registered units are.
  */
 
-import type { OrganizationCodeResolution } from "@/lib/organization/organization_types";
+import type { OrganizationCodeResolution, OrganizationPath } from "@/lib/organization/organization_types";
 
 const THAI_DIGITS: Record<string, string> = {
   "๐": "0", "๑": "1", "๒": "2", "๓": "3", "๔": "4",
@@ -126,3 +126,61 @@ export function parseOrganizationCode(raw: string): OrganizationCodeResolution {
 export const REGION_DISPLAY_NAME = (code: string): string => `ภาค ${code}`;
 export const BATTALION_DISPLAY_NAME = (code: string): string => `กก.ตชด.${code}`;
 export const COMPANY_DISPLAY_NAME = (code: string): string => `ตชด.${code}`;
+
+// ---------------------------------------------------------------------------
+// Static framework lookups (organization_master.ts).
+//
+// These operate on the hardcoded DIVISIONS/BATTALIONS maps in
+// organization_master.ts — distinct from parseOrganizationCode above, which
+// parses raw OCR/folder text against the editable, DB-backed hierarchy.
+// Every function here is a plain lookup: given a code, find where it sits in
+// the static master tree, or whether it's valid at all.
+// ---------------------------------------------------------------------------
+
+import { DIVISIONS, BATTALIONS } from "@/lib/organization/organization_master";
+
+/** True when `code` is a battalion code present in the static master hierarchy. */
+export function isValidBattalion(code: string): boolean {
+  return Object.prototype.hasOwnProperty.call(BATTALIONS, code);
+}
+
+/** True when `code` is a company (number) code present in the static master hierarchy. */
+export function isValidCompany(code: string): boolean {
+  return Object.values(BATTALIONS).some((companies) => companies.includes(code));
+}
+
+/** The battalion code a company number belongs to, or null if the company isn't in the master hierarchy. */
+export function findBattalion(companyNumber: string): string | null {
+  for (const [battalionCode, companies] of Object.entries(BATTALIONS)) {
+    if (companies.includes(companyNumber)) return battalionCode;
+  }
+  return null;
+}
+
+/** The division code a battalion belongs to, or null if the battalion isn't in the master hierarchy. */
+export function findDivisionOfBattalion(battalionCode: string): string | null {
+  for (const [divisionCode, battalions] of Object.entries(DIVISIONS)) {
+    if (battalions.includes(battalionCode)) return divisionCode;
+  }
+  return null;
+}
+
+/** The division code a company number belongs to (via its battalion), or null if unresolvable. */
+export function findDivision(companyNumber: string): string | null {
+  const battalionCode = findBattalion(companyNumber);
+  return battalionCode ? findDivisionOfBattalion(battalionCode) : null;
+}
+
+/** Alias of findDivision — "Region" is the term used elsewhere in the app for the division level. */
+export function findRegion(companyNumber: string): string | null {
+  return findDivision(companyNumber);
+}
+
+/** The full division -> battalion -> company path for a company number, or null if unresolvable. */
+export function getOrganizationPath(companyNumber: string): OrganizationPath | null {
+  const battalionCode = findBattalion(companyNumber);
+  if (!battalionCode) return null;
+  const divisionCode = findDivisionOfBattalion(battalionCode);
+  if (!divisionCode) return null;
+  return { divisionCode, battalionCode, companyCode: companyNumber };
+}

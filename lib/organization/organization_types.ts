@@ -72,3 +72,57 @@ export interface UnresolvedOrganizationCode {
   sourceModule: string;
   createdAt: string;
 }
+
+/**
+ * Static framework types (organization_master.ts / organization_generator.ts
+ * / dropdown_options.ts / gallery_generator.ts / organization_helpers.ts'
+ * lookup functions).
+ *
+ * Named with a `Master` prefix to stay distinct from Region/Battalion/Company
+ * above — those are DB row shapes for the editable, DB-backed hierarchy used
+ * by Officer/Timeline's OrgHierarchyPicker. The types below describe the
+ * plain hardcoded data in organization_master.ts and have no `id`/timestamps
+ * because they are not database rows.
+ */
+
+/** The top-level headquarters ("บช.ตชด."). There is exactly one. */
+export interface MasterOrganization {
+  name: string;
+  shortName: string;
+}
+
+/** A division ("ภาค N") in the static master hierarchy. */
+export interface MasterDivision {
+  code: string;
+  name: string;
+  battalionCodes: readonly string[];
+}
+
+/** A battalion ("กก.ตชด.NN") in the static master hierarchy. */
+export interface MasterBattalion {
+  code: string;
+  name: string;
+  divisionCode: string;
+  companyCodes: readonly string[];
+}
+
+/** A company ("ร้อย ตชด.NNN") in the static master hierarchy. */
+export interface MasterCompany {
+  code: string;
+  name: string;
+  battalionCode: string;
+  divisionCode: string;
+}
+
+/** The full division -> battalion -> company path for a given company code. */
+export interface OrganizationPath {
+  divisionCode: string;
+  battalionCode: string;
+  companyCode: string;
+}
+
+/** A single `<option>`-ready entry for any dropdown built from this framework. */
+export interface DropdownOption {
+  value: string;
+  label: string;
+}

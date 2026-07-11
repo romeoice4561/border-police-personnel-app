@@ -20,9 +20,10 @@ import type { Asset } from "@/lib/gallery/asset_types";
 import { useUpdateAssetMetadata } from "@/lib/gallery/gallery_hooks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { divisionDropdown } from "@/lib/organization/dropdown_options";
 
-/** Thai region options for the region dropdown. */
-const THAI_REGIONS = ["ภาค 1", "ภาค 2", "ภาค 3", "ภาค 4", "ภาค 5", "ภาค 6", "ภาค 7"];
+/** Region options for the region dropdown — from the shared organization framework, never hardcoded here. */
+const THAI_REGIONS = divisionDropdown.map((o) => o.label);
 
 interface GalleryEditModalProps {
   asset: Asset;
