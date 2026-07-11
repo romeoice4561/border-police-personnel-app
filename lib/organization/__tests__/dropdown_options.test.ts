@@ -4,11 +4,13 @@ import assert from "node:assert/strict";
 import { divisionDropdown, battalionDropdown, companyDropdown, companyNumberDropdown } from "@/lib/organization/dropdown_options";
 import { DIVISION_CODES, BATTALION_CODES, COMPANY_NUMBER_CODES } from "@/lib/organization/organization_master";
 
-test("divisionDropdown has one option per division, including the battalion-less legacy divisions 5-7", () => {
+test("divisionDropdown has one option per Border Patrol division (1-4 only, Phase 26D Part 7)", () => {
   assert.equal(divisionDropdown.length, DIVISION_CODES.length);
+  assert.equal(divisionDropdown.length, 4);
+  assert.equal(divisionDropdown.some((o) => o.value === "5"), false);
   assert.deepEqual(
-    divisionDropdown.find((o) => o.value === "5"),
-    { value: "5", label: "ภาค 5" }
+    divisionDropdown.find((o) => o.value === "4"),
+    { value: "4", label: "ภาค 4" }
   );
 });
 

@@ -151,23 +151,23 @@ export function OrgHierarchyPicker({ tree, value, onChange }: OrgHierarchyPicker
         />
       </LabeledField>
 
-      <LabeledField label="ตชด.ภาค (Border Patrol Division)">
+      <LabeledField label="กองบังคับการ ตชด.ภาค (Region)">
         <Combobox
           value={value.regionText}
           onChange={onRegionChange}
           suggestions={BORDER_PATROL_DIVISION_OPTIONS}
           placeholder="เลือกหรือพิมพ์ภาค"
-          aria-label="ตชด.ภาค"
+          aria-label="กองบังคับการ ตชด.ภาค"
         />
       </LabeledField>
 
-      <LabeledField label="กองกำกับการ (Battalion)">
+      <LabeledField label="กองกำกับ (Battalion)">
         <Combobox
           value={value.battalionText}
           onChange={onBattalionChange}
           suggestions={battalionOptions.map((b) => b.nameTh)}
-          placeholder="เลือกหรือพิมพ์กองกำกับการ"
-          aria-label="กองกำกับการ"
+          placeholder="เลือกหรือพิมพ์กองกำกับ"
+          aria-label="กองกำกับ"
         />
       </LabeledField>
 

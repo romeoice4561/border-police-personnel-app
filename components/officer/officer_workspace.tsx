@@ -105,6 +105,10 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          {/* Phase 26D Part 1: Basic Information -> Career -> Current
+              Organization -> Contact -> Personal Information, in that
+              reading order — Career Timeline immediately follows Personal
+              Information (below, outside this grid). */}
           {editing ? (
             <>
               <ProfileEditor profile={workspace.profile} onChange={workspace.setProfile} knownUnits={knownUnits} orgTree={orgTree} />
@@ -116,37 +120,11 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
                 <BasicInformationSection officer={officer} />
                 <CareerSection officer={officer} />
               </div>
-              {/* Phase 26B Part 5 Part I: Current Organization sits immediately below Current Position, above Contact/Timeline — never below the timeline. */}
               <CurrentOrganizationSection officer={officer} orgTree={orgTree} />
               <ContactSection officer={officer} />
               <PersonalInformationSection officer={officer} />
             </>
           )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {editing ? (
-              <>
-                <EducationEditor rows={workspace.education} onChange={workspace.setEducation} />
-                <TrainingEditor rows={workspace.training} onChange={workspace.setTraining} />
-              </>
-            ) : (
-              <>
-                <EducationSection education={officer.education} />
-                <TrainingSection training={officer.training} />
-              </>
-            )}
-          </div>
-
-          <AchievementsSection />
-          <DocumentsSection />
-          <NotesSection />
-
-          <section className="rounded-2xl border border-border bg-neutral-bg p-4">
-            <h2 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h2>
-            <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} />
-          </section>
-
-          <OfficerQualityCard officer={officer} />
         </div>
 
         <div className="space-y-4">
@@ -155,16 +133,41 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
         </div>
       </div>
 
-      {/* Phase 26B Part 6 Part V: Career Timeline spans the FULL content
-          width (outside the 2/3+1/3 grid above) — it's the widest,
-          most information-dense section on the page, so squeezing it into
-          the 2/3 column alongside a persistent sidebar wasted the exact
-          horizontal space Part V asks to reclaim. */}
+      {/* Phase 26B Part 6 Part V / Phase 26D Part 1: Career Timeline spans
+          the FULL content width (outside the 2/3+1/3 grid) — it's the
+          widest, most information-dense section on the page — and now
+          immediately follows Personal Information above. */}
       {editing ? (
         <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} orgTree={orgTree} />
       ) : (
         <CareerTimelineSection timeline={officer.timeline} orgTree={orgTree} />
       )}
+
+      {/* Phase 26D Part 1: Achievements -> Documents -> Notes -> Training -> Education -> Photo Gallery -> Officer Quality Card. */}
+      <AchievementsSection />
+      <DocumentsSection />
+      <NotesSection />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {editing ? (
+          <>
+            <TrainingEditor rows={workspace.training} onChange={workspace.setTraining} />
+            <EducationEditor rows={workspace.education} onChange={workspace.setEducation} />
+          </>
+        ) : (
+          <>
+            <TrainingSection training={officer.training} />
+            <EducationSection education={officer.education} />
+          </>
+        )}
+      </div>
+
+      <section className="rounded-2xl border border-border bg-neutral-bg p-4">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h2>
+        <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} />
+      </section>
+
+      <OfficerQualityCard officer={officer} />
     </div>
   );
 }

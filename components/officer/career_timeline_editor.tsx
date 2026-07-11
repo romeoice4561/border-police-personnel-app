@@ -145,6 +145,7 @@ export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimeline
                 <p className="text-xs text-muted">แสดงผล: {formatThaiDate(row)}</p>
               ) : null}
 
+              {/* Phase 26D Part 2 order: Date (above) -> Rank -> Position -> Organization -> Unit Name -> Verification (end). */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <LabeledField label="ยศ">
                   <Combobox
@@ -175,26 +176,10 @@ export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimeline
                     aria-label="ที่มาของข้อมูล"
                   />
                 </LabeledField>
-
-                <LabeledField label="สถานะ" className="lg:col-span-2">
-                  <Select
-                    options={VERIFIED_SELECT_OPTIONS}
-                    value={row.verified}
-                    onChange={(e) => updateRow(row.key, { verified: e.target.value })}
-                    aria-label="สถานะ"
-                  />
-                </LabeledField>
-
-                <div className="flex items-end justify-end lg:col-span-4">
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeRow(row.key)} aria-label="ลบแถวนี้">
-                    <Trash2 className="h-4 w-4 text-serious" aria-hidden="true" />
-                  </Button>
-                </div>
               </div>
 
               {/* Phase 26B Part C: structured Headquarters / Border Patrol
-                  Division / Battalion / Company hierarchy, replacing the
-                  single free-text "หน่วย" field as the primary input. */}
+                  Division / Battalion / Company hierarchy — "Organization". */}
               <OrgHierarchyPicker
                 tree={orgTree}
                 value={{
@@ -210,16 +195,41 @@ export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimeline
                 onChange={(orgValue) => updateRow(row.key, orgValue)}
               />
 
-              {!row.companyId && !row.battalionId && !row.regionId && !row.headquartersId && row.unit ? (
-                <p className="text-xs text-muted">
-                  ข้อมูลเดิม (ยังไม่ได้แปลงเป็นรูปแบบใหม่): <span className="font-medium text-foreground">{row.unit}</span> — เลือกหน่วยด้านบนเพื่ออัปเดตเป็นรูปแบบโครงสร้างใหม่
-                </p>
-              ) : null}
+              {/* Phase 26D Part 2: "Unit Name" — the legacy free-text unit
+                  field, now a visible labeled input (previously shown only as
+                  a fallback hint) for a row whose organization predates the
+                  structured hierarchy above. */}
+              <LabeledField label="ชื่อหน่วย (ข้อมูลเดิม)">
+                <input
+                  type="text"
+                  className="h-9.5 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  value={row.unit}
+                  onChange={(e) => updateRow(row.key, { unit: e.target.value })}
+                  placeholder="เช่น ร้อย ตชด.415"
+                  aria-label="ชื่อหน่วย"
+                />
+              </LabeledField>
 
-              {/* Phase 26B Part 5 Part D/H/M: verification triad — a NEW
-                  closed 4-value status (VERIFIED/PENDING/REJECTED/
-                  NEEDS_REVIEW), additive alongside "สถานะ" above. Every
-                  historical row keeps its own verification state permanently. */}
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+                <LabeledField label="สถานะ" className="w-40">
+                  <Select
+                    options={VERIFIED_SELECT_OPTIONS}
+                    value={row.verified}
+                    onChange={(e) => updateRow(row.key, { verified: e.target.value })}
+                    aria-label="สถานะ"
+                  />
+                </LabeledField>
+
+                <Button type="button" variant="ghost" size="icon" onClick={() => removeRow(row.key)} aria-label="ลบแถวนี้">
+                  <Trash2 className="h-4 w-4 text-serious" aria-hidden="true" />
+                </Button>
+              </div>
+
+              {/* Phase 26B Part 5 Part D/H/M / Phase 26D Part 2: verification
+                  triad — moved to the END of the card. A NEW closed 4-value
+                  status (VERIFIED/PENDING/REJECTED/NEEDS_REVIEW), additive
+                  alongside "สถานะ" above. Every historical row keeps its own
+                  verification state permanently. */}
               <div className="grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-4">
                 <LabeledField label="สถานะการตรวจสอบ / Verification Status">
                   <Select

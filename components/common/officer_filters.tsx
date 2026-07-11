@@ -112,13 +112,13 @@ export function OfficerFilters({ value, ranks, orgTree, sortBy, sortOrder, onCha
   const advancedFilters = (
     <>
       <label className="text-xs font-medium text-muted">
-        <span className="sr-only">Border Patrol Division</span>
+        <span className="sr-only">กองบังคับการ ตชด.ภาค (Region)</span>
         <select
           className={controlClass}
           value={value.regionId ?? ""}
           onChange={(e) => onDivisionChange(e.target.value ? Number(e.target.value) : undefined)}
         >
-          <option value="">All divisions</option>
+          <option value="">ทุกภาค</option>
           {regions.map((r) => (
             <option key={r.id} value={r.id}>
               {divisionLabelForRegion(r)}
@@ -128,14 +128,14 @@ export function OfficerFilters({ value, ranks, orgTree, sortBy, sortOrder, onCha
       </label>
 
       <label className="text-xs font-medium text-muted">
-        <span className="sr-only">Battalion</span>
+        <span className="sr-only">กองกำกับ (Battalion)</span>
         <select
           className={controlClass}
           value={value.battalionId ?? ""}
           onChange={(e) => onBattalionChange(e.target.value ? Number(e.target.value) : undefined)}
           disabled={!value.regionId}
         >
-          <option value="">All battalions</option>
+          <option value="">ทุกกองกำกับ</option>
           {battalionOptions.map((b) => (
             <option key={b.id} value={b.id}>
               {b.nameTh}
@@ -145,14 +145,14 @@ export function OfficerFilters({ value, ranks, orgTree, sortBy, sortOrder, onCha
       </label>
 
       <label className="text-xs font-medium text-muted">
-        <span className="sr-only">Company</span>
+        <span className="sr-only">กองร้อย (Company)</span>
         <select
           className={controlClass}
           value={value.companyId ?? ""}
           onChange={(e) => set("companyId", e.target.value ? Number(e.target.value) : undefined)}
           disabled={!value.battalionId}
         >
-          <option value="">All companies</option>
+          <option value="">ทุกกองร้อย</option>
           {companyOptions.map((c) => (
             <option key={c.id} value={c.id}>
               {c.nameTh}

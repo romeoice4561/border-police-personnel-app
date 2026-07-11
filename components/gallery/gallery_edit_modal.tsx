@@ -14,16 +14,20 @@
 "use client";
 
 import { useState, useEffect, useCallback, type KeyboardEvent, type FormEvent } from "react";
-import { X, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { X, ExternalLink, CheckCircle2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { ImageOff } from "lucide-react";
 import type { Asset } from "@/lib/gallery/asset_types";
 import { useUpdateAssetMetadata } from "@/lib/gallery/gallery_hooks";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/ui/cn";
-import { divisionDropdown } from "@/lib/organization/dropdown_options";
+import { galleryRegionDropdown } from "@/lib/organization/gallery_region_options";
+import { battalionDropdown, companyDropdown } from "@/lib/organization/dropdown_options";
 
-/** Region options for the region dropdown — from the shared organization framework, never hardcoded here. */
-const THAI_REGIONS = divisionDropdown.map((o) => o.label);
+/** Suggestions only — never a forced/closed list, so existing OCR/legacy values are always preserved (Phase 26D Part 4). */
+const REGION_SUGGESTIONS = galleryRegionDropdown.map((o) => o.label);
+const BATTALION_SUGGESTIONS = battalionDropdown.map((o) => o.label);
+const COMPANY_SUGGESTIONS = companyDropdown.map((o) => o.label);
 
 interface GalleryEditModalProps {
   asset: Asset;
@@ -60,6 +64,8 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
   const [form, setForm]             = useState<FormState>(() => initialFormState(asset));
   const [keywordInput, setKwInput]  = useState("");
   const [imgFailed, setImgFailed]   = useState(false);
+  /* Phase 26D Part 5: image preview collapsed by default so the form gets the full width; the aside becomes a slim toggle rail when collapsed. */
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const mutation = useUpdateAssetMetadata();
 
@@ -171,72 +177,94 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
         <form id="edit-metadata-form" onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 overflow-y-auto">
 
-            {/* Left: image preview + read-only info */}
-            <aside className="hidden w-64 shrink-0 flex-col gap-4 border-r border-border bg-neutral-bg/30 p-5 sm:flex">
-              {/* Thumbnail */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-neutral-bg">
-                {hasThumbnail ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={asset.thumbnailUrl as string}
-                    alt={folderName}
-                    referrerPolicy="no-referrer"
-                    onError={() => setImgFailed(true)}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-muted" aria-hidden="true">
-                    <ImageOff className="h-10 w-10 opacity-30" />
-                  </div>
-                )}
-                {asset.verified ? (
-                  <span
-                    className="absolute right-2 top-2 rounded-md bg-good-bg px-1.5 py-0.5 text-[10px] font-semibold text-good"
-                    title="ยืนยันแล้ว"
-                  >
-                    ✓ ยืนยัน
-                  </span>
-                ) : null}
-              </div>
+            {/* Left: collapsible image preview + read-only info. Collapsed by
+                default (Phase 26D Part 5) so the form gets the full width;
+                expanding reveals the thumbnail + read-only fields. */}
+            <aside
+              className={cn(
+                "hidden shrink-0 flex-col border-r border-border bg-neutral-bg/30 sm:flex",
+                previewOpen ? "w-64 gap-4 p-5" : "w-12 items-center py-5"
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewOpen((v) => !v)}
+                className="flex items-center gap-1.5 self-start rounded-md p-1 text-xs font-medium text-muted hover:bg-neutral-bg hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                aria-expanded={previewOpen}
+                aria-label={previewOpen ? "ย่อภาพตัวอย่าง" : "แสดงภาพตัวอย่าง"}
+              >
+                {previewOpen ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                {previewOpen ? "ภาพตัวอย่าง" : null}
+              </button>
 
-              {/* Read-only info */}
-              <dl className="space-y-3 text-xs">
-                <ReadOnlyField label="ชื่อไฟล์" value={fileName} />
-                <ReadOnlyField label="โฟลเดอร์" value={folderName} />
-                {asset.thumbnailUrl ? (
-                  <div>
-                    <dt className="font-medium text-muted">Thumbnail</dt>
-                    <dd className="mt-0.5">
-                      <a
-                        href={asset.thumbnailUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-accent hover:underline"
+              {previewOpen ? (
+                <>
+                  {/* Thumbnail */}
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-neutral-bg">
+                    {hasThumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={asset.thumbnailUrl as string}
+                        alt={folderName}
+                        referrerPolicy="no-referrer"
+                        onError={() => setImgFailed(true)}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted" aria-hidden="true">
+                        <ImageOff className="h-10 w-10 opacity-30" />
+                      </div>
+                    )}
+                    {asset.verified ? (
+                      <span
+                        className="absolute right-2 top-2 rounded-md bg-good-bg px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                        title="ยืนยันแล้ว"
                       >
-                        เปิดภาพ <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      </a>
-                    </dd>
+                        ✓ ยืนยัน
+                      </span>
+                    ) : null}
                   </div>
-                ) : null}
-                {driveLink ? (
-                  <div>
-                    <dt className="font-medium text-muted">Drive</dt>
-                    <dd className="mt-0.5">
-                      <a
-                        href={driveLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-accent hover:underline"
-                      >
-                        เปิดใน Drive <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      </a>
-                    </dd>
-                  </div>
-                ) : null}
-              </dl>
+
+                  {/* Read-only info */}
+                  <dl className="space-y-3 text-xs">
+                    <ReadOnlyField label="ชื่อไฟล์" value={fileName} />
+                    <ReadOnlyField label="โฟลเดอร์" value={folderName} />
+                    {asset.thumbnailUrl ? (
+                      <div>
+                        <dt className="font-medium text-muted">Thumbnail</dt>
+                        <dd className="mt-0.5">
+                          <a
+                            href={asset.thumbnailUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-accent hover:underline"
+                          >
+                            เปิดภาพ <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        </dd>
+                      </div>
+                    ) : null}
+                    {driveLink ? (
+                      <div>
+                        <dt className="font-medium text-muted">Drive</dt>
+                        <dd className="mt-0.5">
+                          <a
+                            href={driveLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-accent hover:underline"
+                          >
+                            เปิดใน Drive <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </>
+              ) : null}
             </aside>
 
-            {/* Right: editable fields */}
+            {/* Right: editable fields — expands to fill the width freed by the collapsed preview */}
             <div className="flex-1 space-y-4 overflow-y-auto p-5">
 
               {/* Mobile: compact read-only summary */}
@@ -263,42 +291,39 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
                 </div>
               </div>
 
-              {/* ── Region ── */}
-              <FormField label="ภาค" htmlFor="edit-region">
-                <select
+              {/* ── Region (กองบังคับการ ตชด.ภาค) — suggestions from the shared framework, custom values preserved ── */}
+              <FormField label="ภาค (กองบังคับการ ตชด.ภาค)" htmlFor="edit-region">
+                <Combobox
                   id="edit-region"
-                  className={inputCls}
                   value={form.region}
-                  onChange={(e) => set("region", e.target.value)}
-                >
-                  <option value="">– ไม่ระบุ –</option>
-                  {THAI_REGIONS.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </FormField>
-
-              {/* ── Battalion ── */}
-              <FormField label="กองกำกับ" htmlFor="edit-battalion">
-                <input
-                  id="edit-battalion"
-                  type="text"
-                  className={inputCls}
-                  placeholder="เช่น กก.ตชด.14"
-                  value={form.battalion}
-                  onChange={(e) => set("battalion", e.target.value)}
+                  onChange={(v) => set("region", v)}
+                  suggestions={REGION_SUGGESTIONS}
+                  placeholder="เลือกหรือพิมพ์ภาค"
+                  aria-label="ภาค"
                 />
               </FormField>
 
-              {/* ── Company ── */}
+              {/* ── Battalion (กองกำกับ) — suggestions from the shared framework, custom values preserved ── */}
+              <FormField label="กองกำกับ" htmlFor="edit-battalion">
+                <Combobox
+                  id="edit-battalion"
+                  value={form.battalion}
+                  onChange={(v) => set("battalion", v)}
+                  suggestions={BATTALION_SUGGESTIONS}
+                  placeholder="เลือกหรือพิมพ์กองกำกับ"
+                  aria-label="กองกำกับ"
+                />
+              </FormField>
+
+              {/* ── Company (กองร้อย) — suggestions from the shared framework, custom values preserved ── */}
               <FormField label="กองร้อย" htmlFor="edit-company">
-                <input
+                <Combobox
                   id="edit-company"
-                  type="text"
-                  className={inputCls}
-                  placeholder="เช่น ร้อย ตชด.144"
                   value={form.company}
-                  onChange={(e) => set("company", e.target.value)}
+                  onChange={(v) => set("company", v)}
+                  suggestions={COMPANY_SUGGESTIONS}
+                  placeholder="เลือกหรือพิมพ์กองร้อย"
+                  aria-label="กองร้อย"
                 />
               </FormField>
 
