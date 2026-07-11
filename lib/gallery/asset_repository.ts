@@ -13,6 +13,7 @@
 
 import type { Asset, AssetMetadataPatch, AssetQuery, PaginatedAssets, AssetCategoryCount, AssetFacetCount } from "@/lib/gallery/asset_types";
 import { AssetCategory, isGalleryCategory } from "@/lib/gallery/asset_category";
+import { isBattalionVariantOf } from "@/lib/organization/gallery_battalion_normalization";
 
 /** Read/write contract every Asset repository implements. */
 export interface AssetRepository {
@@ -85,7 +86,12 @@ export class InMemoryAssetRepository implements AssetRepository {
       if (query.category !== undefined && a.category !== query.category) return false;
       if (query.region && !textMatches(a.region, query.region, "exact")) return false;
       if (query.company && !textMatches(a.company, query.company, "exact")) return false;
-      if (query.battalion && !textMatches(a.battalion, query.battalion, "exact")) return false;
+      // Phase 27 Part 8: the Battalion filter dropdown sends a canonical
+      // "กก.ตชด.NN" label, but a.battalion may be a legacy/OCR text variant
+      // ("กก.ตชด. NN", "กองกำกับการ ตชด.NN", ...) — matched as equivalent
+      // rather than requiring an exact string match, so real stored data
+      // stays findable through the canonical dropdown.
+      if (query.battalion && !(a.battalion && isBattalionVariantOf(a.battalion, query.battalion))) return false;
       if (query.companyId !== undefined && (a.companyId ?? null) !== query.companyId) return false;
       if (query.verified !== undefined && Boolean(a.verified) !== query.verified) return false;
       if (query.search) {

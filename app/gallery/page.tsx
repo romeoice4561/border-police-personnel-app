@@ -8,7 +8,7 @@ import { GalleryClient } from "@/components/gallery/gallery_client";
 
 export const metadata = {
   title: "คลังรูปภาพ | ระบบข้อมูลกำลังพล ตชด.",
-  description: "เรียกดูแผนที่ แผนผังโครงสร้าง แผนผังการวางกำลัง และข้อมูลภาพถ่าย",
+  description: "เรียกดูแผนที่ โครงสร้างชุด ชปข./ชปส. แผนผังการวางกำลัง และข้อมูลภาพถ่าย",
 };
 
 export default function GalleryPage() {

@@ -112,6 +112,62 @@ function stringFilter(value: string, match: MatchMode): Record<string, unknown> 
   return { contains: value, mode: "insensitive" };
 }
 
+/** True for a query that is 1-2 digits and nothing else — too short to be a safe unqualified substring match (Phase 27 Part 9). */
+function isShortNumericQuery(q: string): boolean {
+  return /^\d{1,2}$/.test(q);
+}
+
+const containsInsensitive = (q: string) => ({ contains: q, mode: "insensitive" as const });
+
+/**
+ * The full broad OR fan-out for globalSearch — every free-text field,
+ * unqualified `contains`. Used for non-numeric queries and for numeric
+ * queries of 3+ digits (a realistic company/battalion code length).
+ */
+function broadContainsQueryWhere(q: string): Array<Record<string, unknown>> {
+  const contains = containsInsensitive(q);
+  return [
+    { firstName: contains },
+    { lastName: contains },
+    { officerId: contains },
+    { rank: contains },
+    { currentPosition: contains },
+    { currentUnit: contains },
+    { phone: contains },
+    { region: contains },
+    { regionRef: { nameTh: contains } },
+    { battalionRef: { nameTh: contains } },
+    { companyRef: { nameTh: contains } },
+  ];
+}
+
+/**
+ * The restricted OR fan-out for a 1-2 digit all-numeric query (Phase 27 Part
+ * 9). Never searches `phone` (a short digit run is near-guaranteed to
+ * substring-match some phone number). Never runs a blanket `contains`
+ * against free text (position/currentUnit) — only `startsWith`, since a real
+ * organization code (company/battalion number) legitimately starting with
+ * these digits is the one case worth matching; a code merely CONTAINING
+ * these digits elsewhere is very likely incidental. The linked
+ * Region/Battalion/Company display names and officerId are still matched via
+ * `contains` — those are structured/short fields where a 1-2 digit
+ * substring is meaningful (e.g. "4" inside "ภาค 4" or "ภาค4/79"), not noisy
+ * free text like a phone number.
+ */
+function shortNumericQueryWhere(q: string): Array<Record<string, unknown>> {
+  const contains = containsInsensitive(q);
+  const startsWith = { startsWith: q, mode: "insensitive" as const };
+  return [
+    { officerId: contains },
+    { currentPosition: startsWith },
+    { currentUnit: startsWith },
+    { region: contains },
+    { regionRef: { nameTh: contains } },
+    { battalionRef: { nameTh: contains } },
+    { companyRef: { nameTh: contains } },
+  ];
+}
+
 export class OfficerQueryRepository {
   constructor(private readonly db: ReadDatabaseClient) {}
 
@@ -169,32 +225,32 @@ export class OfficerQueryRepository {
 
   /**
    * Phase 26B Part B: Global Search — one free-text query OR-matched across
-   * every Officer field the spec lists in a single query (always
-   * contains+case-insensitive): first/last name, phone, officerId, rank,
-   * position, region, unit, plus the linked Region/Battalion/Company
-   * display names (so typing "434" finds an officer whose COMPANY is
-   * "ตชด.434" even when the officer's own free-text `currentUnit` says
-   * something else). `extraOfficerIds` (from other search providers, e.g.
-   * Drive filename) are unioned in via a plain `officerId IN (...)` OR
-   * branch, so this repository stays ignorant of ProfilePhoto/other tables.
+   * every Officer field the spec lists in a single query (contains+
+   * case-insensitive): first/last name, phone, officerId, rank, position,
+   * region, unit, plus the linked Region/Battalion/Company display names (so
+   * typing "434" finds an officer whose COMPANY is "ตชด.434" even when the
+   * officer's own free-text `currentUnit` says something else).
+   * `extraOfficerIds` (from other search providers, e.g. Drive filename) are
+   * unioned in via a plain `officerId IN (...)` OR branch, so this repository
+   * stays ignorant of ProfilePhoto/other tables.
+   *
+   * Phase 27 Part 9 — short all-digit queries ("1"-"2" digits, e.g. "44") are
+   * NOT run through the broad `contains` fan-out above: an unqualified
+   * 1-2-digit substring is too short to be meaningful against free-text
+   * fields — it matches incidentally inside a phone number, an officerId, or
+   * any legacy currentUnit/position string, surfacing officers with no real
+   * relationship to the query (e.g. querying "44" returning a Battalion 21
+   * officer purely because their PHONE NUMBER happens to contain "44").
+   * Instead, a short all-digit query only matches structured numeric-ish
+   * fields precisely (currentUnit/position via startsWith, never phone, never
+   * a blanket contains) — see shortNumericQueryWhere below. A 3+ digit
+   * numeric query (e.g. "434", realistic for a company/battalion code) still
+   * uses the full broad `contains` fan-out, preserving the existing "434
+   * finds ตชด.434" behavior the test suite already locks in.
    */
   async globalSearch(params: GlobalSearchParams): Promise<PaginatedOfficers> {
     const q = params.q.trim();
-    const contains = { contains: q, mode: "insensitive" as const };
-
-    const or: Array<Record<string, unknown>> = [
-      { firstName: contains },
-      { lastName: contains },
-      { officerId: contains },
-      { rank: contains },
-      { currentPosition: contains },
-      { currentUnit: contains },
-      { phone: contains },
-      { region: contains },
-      { regionRef: { nameTh: contains } },
-      { battalionRef: { nameTh: contains } },
-      { companyRef: { nameTh: contains } },
-    ];
+    const or = isShortNumericQuery(q) ? shortNumericQueryWhere(q) : broadContainsQueryWhere(q);
 
     if (params.extraOfficerIds && params.extraOfficerIds.length > 0) {
       or.push({ officerId: { in: [...params.extraOfficerIds] } });

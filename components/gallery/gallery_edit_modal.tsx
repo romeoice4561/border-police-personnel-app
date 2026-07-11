@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, type KeyboardEvent, type FormEvent } from "react";
+import { useState, useEffect, useCallback, useMemo, type KeyboardEvent, type FormEvent } from "react";
 import { X, ExternalLink, CheckCircle2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { ImageOff } from "lucide-react";
 import type { Asset } from "@/lib/gallery/asset_types";
@@ -22,12 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/ui/cn";
 import { galleryRegionDropdown } from "@/lib/organization/gallery_region_options";
-import { battalionDropdown, companyDropdown } from "@/lib/organization/dropdown_options";
+import { battalionLabelsForRegion, companyLabelsForBattalion, autoFillFromCompanyLabel } from "@/lib/organization/gallery_org_helpers";
+import { unitNamePrefixForCategory } from "@/lib/organization/gallery_unit_name_prefixes";
+import { createGalleryUnitNames } from "@/lib/organization/gallery_generator";
 
 /** Suggestions only — never a forced/closed list, so existing OCR/legacy values are always preserved (Phase 26D Part 4). */
 const REGION_SUGGESTIONS = galleryRegionDropdown.map((o) => o.label);
-const BATTALION_SUGGESTIONS = battalionDropdown.map((o) => o.label);
-const COMPANY_SUGGESTIONS = companyDropdown.map((o) => o.label);
 
 interface GalleryEditModalProps {
   asset: Asset;
@@ -89,6 +89,37 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
   const set = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
   }, []);
+
+  /* ── Cascading suggestions (Phase 27 Part 2/3/4): Battalion narrows to the
+     selected Region's battalions, Company narrows to the selected Battalion's
+     companies — same shared-framework data as Officer/Timeline's
+     OrgHierarchyPicker, just resolved from label text instead of ids since
+     Gallery's fields have no FK/id linkage. Falls back to the FULL list
+     (never an empty/blocked list) when the current text doesn't resolve. */
+  const battalionSuggestions = useMemo(() => battalionLabelsForRegion(form.region), [form.region]);
+  const companySuggestions = useMemo(() => companyLabelsForBattalion(form.battalion), [form.battalion]);
+
+  /* ── Auto-fill from Company (Phase 27 Part 7): selecting a recognized
+     company fills Unit Number, and — if this asset's category has a
+     generated-unit-name convention — suggests a Unit Name built from that
+     convention. Never overwrites a value the user already edited. */
+  const unitNamePrefix = unitNamePrefixForCategory(asset.category);
+  const handleCompanyChange = useCallback(
+    (value: string) => {
+      const resolved = autoFillFromCompanyLabel(value);
+      setForm((f) => {
+        const next: FormState = { ...f, company: value };
+        if (resolved) {
+          if (!f.unitNumber) next.unitNumber = resolved.companyNumber;
+          if (!f.unitName && unitNamePrefix) {
+            next.unitName = createGalleryUnitNames(unitNamePrefix.prefix, [resolved.companyNumber], { spaced: unitNamePrefix.spaced })[0];
+          }
+        }
+        return next;
+      });
+    },
+    [unitNamePrefix]
+  );
 
   const addKeyword = useCallback((raw: string) => {
     const trimmed = raw.trim();
@@ -303,25 +334,25 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
                 />
               </FormField>
 
-              {/* ── Battalion (กองกำกับ) — suggestions from the shared framework, custom values preserved ── */}
+              {/* ── Battalion (กองกำกับ) — suggestions narrowed to the selected Region (Phase 27 Part 3), custom values preserved ── */}
               <FormField label="กองกำกับ" htmlFor="edit-battalion">
                 <Combobox
                   id="edit-battalion"
                   value={form.battalion}
                   onChange={(v) => set("battalion", v)}
-                  suggestions={BATTALION_SUGGESTIONS}
+                  suggestions={battalionSuggestions}
                   placeholder="เลือกหรือพิมพ์กองกำกับ"
                   aria-label="กองกำกับ"
                 />
               </FormField>
 
-              {/* ── Company (กองร้อย) — suggestions from the shared framework, custom values preserved ── */}
+              {/* ── Company (กองร้อย) — suggestions narrowed to the selected Battalion (Phase 27 Part 4), custom values preserved. Selecting a recognized company auto-fills Unit Number/Unit Name below (Part 7). ── */}
               <FormField label="กองร้อย" htmlFor="edit-company">
                 <Combobox
                   id="edit-company"
                   value={form.company}
-                  onChange={(v) => set("company", v)}
-                  suggestions={COMPANY_SUGGESTIONS}
+                  onChange={handleCompanyChange}
+                  suggestions={companySuggestions}
                   placeholder="เลือกหรือพิมพ์กองร้อย"
                   aria-label="กองร้อย"
                 />

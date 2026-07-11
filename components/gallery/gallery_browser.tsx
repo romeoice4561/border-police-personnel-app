@@ -9,7 +9,7 @@
  */
 "use client";
 
-import { useState, useCallback, useDeferredValue } from "react";
+import { useState, useCallback, useMemo, useDeferredValue } from "react";
 import { ChevronLeft, Search, X, ArrowUpDown, ShieldCheck } from "lucide-react";
 import { ASSET_CATEGORY_LABELS } from "@/lib/gallery/asset_category";
 import type { AssetCategory } from "@/lib/gallery/asset_category";
@@ -21,6 +21,7 @@ import { PhotoModal } from "@/components/officer/photo_modal";
 import { Skeleton, ErrorState, EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { battalionLabelsForRegion } from "@/lib/organization/gallery_org_helpers";
 
 const PAGE_SIZE = 24;
 
@@ -93,12 +94,14 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
 
   const handleRegionChange = useCallback((value: string) => {
     setRegion(value);
+    setBattalion("");
     setCompany("");
     setPage(1);
   }, []);
 
   const handleBattalionChange = useCallback((value: string) => {
     setBattalion(value);
+    setCompany("");
     setPage(1);
   }, []);
 
@@ -131,6 +134,12 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
   const companies  = data?.facetCounts.companies ?? [];
   const assets     = data?.data ?? [];
   const pagination = data?.pagination;
+
+  /* Phase 27 Part 8: Battalion now reuses the shared organization framework
+     (same data as Officer/Timeline and the Gallery edit modal) instead of a
+     free-text input with no options — narrowed to the selected Region's
+     battalions, same cascading convention as officer_filters.tsx. */
+  const battalionOptions = useMemo(() => battalionLabelsForRegion(region), [region]);
 
   const hasFilters = Boolean(region || battalion || company || verifiedOnly || searchInput || sortValue !== DEFAULT_SORT);
   const categoryLabel = ASSET_CATEGORY_LABELS[category];
@@ -182,28 +191,28 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
           ))}
         </select>
 
-        {/* Battalion — free-text filter (Phase 22A) */}
-        <div className="relative">
-          <input
-            type="text"
-            id="gallery-battalion-input"
-            placeholder="กองกำกับ..."
-            value={battalion}
-            onChange={(e) => handleBattalionChange(e.target.value)}
-            className={cn(controlClass, "min-w-[130px]", battalion ? "pr-7" : "pr-3")}
-            aria-label="กรองตามกองกำกับ"
-          />
-          {battalion ? (
-            <button
-              type="button"
-              onClick={() => handleBattalionChange("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
-              aria-label="ล้างตัวกรองกองกำกับ"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
+        {/* Battalion (กองกำกับ) — Phase 27 Part 8: reuses the shared
+            organization framework (same canonical "กก.ตชด.NN" labels as
+            Officer/Timeline and the Gallery edit modal), cascaded by the
+            selected Region. A backend normalization layer
+            (gallery_battalion_normalization.ts) maps this canonical label to
+            every legacy/OCR text variant actually stored, so real data
+            stays findable through the dropdown. */}
+        <label className="sr-only" htmlFor="gallery-battalion-select">กองกำกับ</label>
+        <select
+          id="gallery-battalion-select"
+          className={cn(controlClass, "min-w-[130px]")}
+          value={battalion}
+          onChange={(e) => handleBattalionChange(e.target.value)}
+          aria-label="กรองตามกองกำกับ"
+        >
+          <option value="">ทุกกองกำกับ</option>
+          {battalionOptions.map((label) => (
+            <option key={label} value={label}>
+              {label}
+            </option>
+          ))}
+        </select>
 
         {/* Company — shown when facet has options or a value is already selected */}
         {(companies.length > 0 || company) ? (

@@ -24,6 +24,7 @@ import type {
 } from "@/lib/gallery/asset_types";
 import { AssetCategory, isGalleryCategory } from "@/lib/gallery/asset_category";
 import type { AssetRepository } from "@/lib/gallery/asset_repository";
+import { battalionQueryVariants } from "@/lib/organization/gallery_battalion_normalization";
 
 /** A persisted Asset row (matches the Prisma Asset model, including Phase 22A columns). */
 export interface AssetRow {
@@ -190,7 +191,13 @@ export class PrismaAssetRepository implements AssetRepository {
     if (query.category !== undefined) where.category = query.category;
     if (query.region) where.region = query.region;
     if (query.company) where.company = query.company;
-    if (query.battalion) where.battalion = query.battalion;
+    // Phase 27 Part 8: the Battalion filter dropdown sends a canonical
+    // "กก.ตชด.NN" label, but the stored battalion text may be a legacy/OCR
+    // variant ("กก.ตชด. NN", "กองกำกับการ ตชด.NN", ...) — matched against
+    // every known-equivalent variant (case-insensitive) instead of requiring
+    // an exact string match, so real stored data stays findable through the
+    // canonical dropdown.
+    if (query.battalion) where.battalion = { in: [...battalionQueryVariants(query.battalion)], mode: "insensitive" };
     if (query.companyId !== undefined) where.companyId = query.companyId;
     if (query.verified  !== undefined) where.verified  = query.verified;
     if (query.search) {

@@ -71,7 +71,7 @@ export function isGalleryCategory(category: AssetCategory): boolean {
 export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
   [AssetCategory.Profile]: "ข้อมูลบุคคล",
   [AssetCategory.NeighborMap]: "แผนที่หน่วยข้างเคียง",
-  [AssetCategory.OrgChart]: "แผนผังโครงสร้าง",
+  [AssetCategory.OrgChart]: "โครงสร้างชุด ชปข./ชปส.",
   [AssetCategory.DeploymentMap]: "แผนผังการวางกำลัง",
   [AssetCategory.CompanyLocation]: "แผนที่ตั้งกองร้อย",
   [AssetCategory.BattalionLocation]: "แผนที่ตั้ง กองกำกับ ตชด.",

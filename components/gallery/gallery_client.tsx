@@ -26,7 +26,7 @@ export function GalleryClient() {
     <div className="space-y-6">
       <PageHeader
         title="คลังรูปภาพ"
-        description="เรียกดูแผนที่ แผนผังโครงสร้าง แผนผังการวางกำลัง และข้อมูลภาพถ่าย"
+        description="เรียกดูแผนที่ โครงสร้างชุด ชปข./ชปส. แผนผังการวางกำลัง และข้อมูลภาพถ่าย"
         actions={
           view.kind === "browser" ? undefined : (
             <span className="inline-flex items-center gap-1.5 text-sm text-muted">
