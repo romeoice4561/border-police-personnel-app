@@ -1,26 +1,46 @@
 /**
  * ProfileEditor (Phase 23A — Officer Profile Workspace, Sections 2/5;
- * Phase 23B — rank preserves existing free-form value).
+ * Phase 23B — rank preserves existing free-form value; Phase 26B Part 5 Part
+ * C/I — structured Current Organization hierarchy replaces the free-text
+ * Unit field).
  *
  * The editable form for every field that lives directly on the Officer row:
- * rank, first/last name, current position (free text), current unit (Combobox
- * — existing units suggested but free text always allowed), phone, and the
- * contact channels (email/LINE/Facebook). Rendered in place of
- * BasicInformationSection + CareerSection + ContactSection when the workspace
- * is in edit mode.
+ * rank, first/last name, current position (free text), the structured
+ * Current Organization hierarchy (Headquarters/Division/Battalion/Company —
+ * Part C/I, immediately below Current Position), phone, and the contact
+ * channels (email/LINE/Facebook/nickname), all in this ONE section — no
+ * separate card. Rendered in place of BasicInformationSection +
+ * CareerSection + ContactSection when the workspace is in edit mode.
  *
  * Phase 23B fix: rank was a fixed-option <Select> that blanked any imported
  * rank outside the standard list (e.g. "ร.ท."). It is now a Combobox so the
  * existing value is preserved while the standard ranks are still suggested.
+ *
+ * Phase 26B Part 5 Part C: the old free-text "หน่วย" Combobox is REMOVED —
+ * OrgHierarchyPicker is the only way to set the officer's current
+ * organization now. The legacy `currentUnit` text is still derived and sent
+ * (see useOfficerWorkspace's save()) so every reader that hasn't been
+ * migrated to the structured fields keeps showing an accurate value.
  *
  * Pure controlled component over the ProfileDraft from useOfficerWorkspace.
  */
 "use client";
 
 import { Combobox } from "@/components/ui/combobox";
+import { Select } from "@/components/ui/select";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { BilingualLabel } from "@/components/ui/bilingual_label";
+import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
+import { BLOOD_GROUP_OPTIONS } from "@/lib/officer_profile/blood_group_options";
+import { RH_OPTIONS } from "@/lib/officer_profile/rh_options";
+import { MARITAL_STATUS_OPTIONS } from "@/lib/officer_profile/marital_status_options";
+import { SHIRT_SIZE_OPTIONS } from "@/lib/officer_profile/shirt_size_options";
+import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
+import { NATIONALITY_OPTIONS } from "@/lib/officer_profile/nationality_options";
+import { OrgHierarchyPicker, type OrgHierarchyValue } from "@/components/officer/org_hierarchy_picker";
+import type { OrgTree } from "@/lib/organization/org_tree";
 import type { ProfileDraft } from "@/components/officer/use_officer_workspace";
 
 const inputCls =
@@ -37,16 +57,43 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; 
   );
 }
 
+/** Phase 26B Part 5 Part K: a Field variant whose label goes through the shared BilingualLabel primitive, for new Part G/O fields. */
+function BilingualField({ labelKey, htmlFor, children }: { labelKey: keyof typeof FIELD_LABELS; htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <BilingualLabel text={FIELD_LABELS[labelKey]} htmlFor={htmlFor} />
+      {children}
+    </div>
+  );
+}
+
 export interface ProfileEditorProps {
   profile: ProfileDraft;
   onChange: (profile: ProfileDraft) => void;
-  /** Existing unit names across all officers, for the Unit combobox's suggestions. */
+  /** Existing unit names across all officers — no longer used by this editor (Part C removed the free-text Unit field) but kept in the prop signature so callers passing it are unaffected. */
   knownUnits: readonly string[];
+  /** Phase 26B Part 5 Part C: the organization master-data tree, for the Current Organization hierarchy picker. */
+  orgTree: OrgTree;
 }
 
-export function ProfileEditor({ profile, onChange, knownUnits }: ProfileEditorProps) {
+export function ProfileEditor({ profile, onChange, orgTree }: ProfileEditorProps) {
   function set<K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) {
     onChange({ ...profile, [key]: value });
+  }
+
+  const orgValue: OrgHierarchyValue = {
+    headquartersId: profile.headquartersId,
+    headquartersText: profile.headquartersText,
+    regionId: profile.regionId,
+    regionText: profile.regionText,
+    battalionId: profile.battalionId,
+    battalionText: profile.battalionText,
+    companyId: profile.companyId,
+    companyText: profile.companyText,
+  };
+
+  function onOrgChange(next: OrgHierarchyValue) {
+    onChange({ ...profile, ...next });
   }
 
   return (
@@ -96,15 +143,15 @@ export function ProfileEditor({ profile, onChange, knownUnits }: ProfileEditorPr
             aria-label="ตำแหน่ง"
           />
         </Field>
-        <Field label="หน่วย (กองร้อย/กองกำกับ/ภาค)">
-          <Combobox
-            value={profile.currentUnit}
-            onChange={(value) => set("currentUnit", value)}
-            suggestions={knownUnits}
-            placeholder="พิมพ์หรือเลือกหน่วย"
-            aria-label="หน่วย"
-          />
-        </Field>
+
+        {/* Phase 26B Part 5 Part C/I: Current Organization sits immediately
+            below Current Position, spans the full width (4 comboboxes side
+            by side on desktop), and is followed by Phone/Email/LINE/
+            Facebook/Nickname in this SAME section — not a separate card. */}
+        <div className="sm:col-span-2">
+          <p className="mb-1.5 text-xs font-medium text-muted">หน่วยงานปัจจุบัน (Current Organization)</p>
+          <OrgHierarchyPicker tree={orgTree} value={orgValue} onChange={onOrgChange} />
+        </div>
 
         <Field label="เบอร์โทร" htmlFor="edit-phone">
           <input
@@ -146,6 +193,164 @@ export function ProfileEditor({ profile, onChange, knownUnits }: ProfileEditorPr
             onChange={(e) => set("facebookUrl", e.target.value)}
           />
         </Field>
+        <Field label="ชื่อเล่น (Nickname)" htmlFor="edit-nickname">
+          <input
+            id="edit-nickname"
+            type="text"
+            className={inputCls}
+            value={profile.nickname}
+            onChange={(e) => set("nickname", e.target.value)}
+          />
+        </Field>
+      </CardBody>
+    </Card>
+  );
+}
+
+/**
+ * Phase 26B Part 5 Part G/O: Personal Information + optional additional
+ * fields, as its own card (mirrors the read-only PersonalInformationSection
+ * being its own card) — kept separate from ProfileEditor's Basic
+ * Information & Contact card rather than growing that one indefinitely.
+ */
+export function PersonalInformationEditor({ profile, onChange }: { profile: ProfileDraft; onChange: (profile: ProfileDraft) => void }) {
+  function set<K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) {
+    onChange({ ...profile, [key]: value });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>ข้อมูลส่วนบุคคล / Personal Information</CardTitle>
+      </CardHeader>
+      <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <BilingualField labelKey="dateOfBirth" htmlFor="edit-dateOfBirth">
+          <input
+            id="edit-dateOfBirth"
+            type="date"
+            className={inputCls}
+            value={profile.dateOfBirth}
+            onChange={(e) => set("dateOfBirth", e.target.value)}
+          />
+        </BilingualField>
+        <BilingualField labelKey="bloodGroup" htmlFor="edit-bloodGroup">
+          <Select
+            id="edit-bloodGroup"
+            options={BLOOD_GROUP_OPTIONS.map((v) => ({ value: v, label: v }))}
+            placeholder="— ไม่ระบุ —"
+            value={profile.bloodGroup}
+            onChange={(e) => set("bloodGroup", e.target.value)}
+          />
+        </BilingualField>
+        <BilingualField labelKey="rh" htmlFor="edit-rh">
+          <Select
+            id="edit-rh"
+            options={RH_OPTIONS.map((v) => ({ value: v, label: v }))}
+            placeholder="— ไม่ระบุ —"
+            value={profile.rh}
+            onChange={(e) => set("rh", e.target.value)}
+          />
+        </BilingualField>
+        <BilingualField labelKey="maritalStatus" htmlFor="edit-maritalStatus">
+          <Select
+            id="edit-maritalStatus"
+            options={MARITAL_STATUS_OPTIONS.map((v) => ({ value: v, label: v }))}
+            placeholder="— ไม่ระบุ —"
+            value={profile.maritalStatus}
+            onChange={(e) => set("maritalStatus", e.target.value)}
+          />
+        </BilingualField>
+        <BilingualField labelKey="children" htmlFor="edit-children">
+          <input
+            id="edit-children"
+            type="number"
+            min="0"
+            className={inputCls}
+            value={profile.children}
+            onChange={(e) => set("children", e.target.value)}
+          />
+        </BilingualField>
+        <BilingualField labelKey="homeProvince" htmlFor="edit-homeProvince">
+          <Combobox
+            id="edit-homeProvince"
+            value={profile.homeProvince}
+            onChange={(value) => set("homeProvince", value)}
+            suggestions={THAI_PROVINCE_OPTIONS}
+            placeholder="เลือกหรือพิมพ์จังหวัด"
+            aria-label="จังหวัดภูมิลำเนา"
+          />
+        </BilingualField>
+        <BilingualField labelKey="shirtSize" htmlFor="edit-shirtSize">
+          <Combobox
+            id="edit-shirtSize"
+            value={profile.shirtSize}
+            onChange={(value) => set("shirtSize", value)}
+            suggestions={SHIRT_SIZE_OPTIONS}
+            placeholder="เลือกหรือพิมพ์ขนาด"
+            aria-label="ขนาดเสื้อ"
+          />
+        </BilingualField>
+        <BilingualField labelKey="nationality" htmlFor="edit-nationality">
+          <Combobox
+            id="edit-nationality"
+            value={profile.nationality}
+            onChange={(value) => set("nationality", value)}
+            suggestions={NATIONALITY_OPTIONS}
+            placeholder="เลือกหรือพิมพ์สัญชาติ"
+            aria-label="สัญชาติ"
+          />
+        </BilingualField>
+
+        {/* Phase 26B Part 5 Part O — optional additional fields. */}
+        <BilingualField labelKey="citizenId" htmlFor="edit-citizenId">
+          <input id="edit-citizenId" type="text" className={inputCls} value={profile.citizenId} onChange={(e) => set("citizenId", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="passportNumber" htmlFor="edit-passportNumber">
+          <input id="edit-passportNumber" type="text" className={inputCls} value={profile.passportNumber} onChange={(e) => set("passportNumber", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="employeeNumber" htmlFor="edit-employeeNumber">
+          <input id="edit-employeeNumber" type="text" className={inputCls} value={profile.employeeNumber} onChange={(e) => set("employeeNumber", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="emergencyContact" htmlFor="edit-emergencyContact">
+          <input id="edit-emergencyContact" type="text" className={inputCls} value={profile.emergencyContact} onChange={(e) => set("emergencyContact", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="emergencyPhone" htmlFor="edit-emergencyPhone">
+          <input id="edit-emergencyPhone" type="tel" className={inputCls} value={profile.emergencyPhone} onChange={(e) => set("emergencyPhone", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="currentProvince" htmlFor="edit-currentProvince">
+          <Combobox
+            id="edit-currentProvince"
+            value={profile.currentProvince}
+            onChange={(value) => set("currentProvince", value)}
+            suggestions={THAI_PROVINCE_OPTIONS}
+            placeholder="เลือกหรือพิมพ์จังหวัด"
+            aria-label="จังหวัดที่อยู่ปัจจุบัน"
+          />
+        </BilingualField>
+        <BilingualField labelKey="addressSummary" htmlFor="edit-addressSummary">
+          <input id="edit-addressSummary" type="text" className={inputCls} value={profile.addressSummary} onChange={(e) => set("addressSummary", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="religion" htmlFor="edit-religion">
+          <input id="edit-religion" type="text" className={inputCls} value={profile.religion} onChange={(e) => set("religion", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="educationLevel" htmlFor="edit-educationLevel">
+          <input id="edit-educationLevel" type="text" className={inputCls} value={profile.educationLevel} onChange={(e) => set("educationLevel", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="weight" htmlFor="edit-weightKg">
+          <input id="edit-weightKg" type="number" min="0" step="0.1" className={inputCls} value={profile.weightKg} onChange={(e) => set("weightKg", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="height" htmlFor="edit-heightCm">
+          <input id="edit-heightCm" type="number" min="0" step="0.1" className={inputCls} value={profile.heightCm} onChange={(e) => set("heightCm", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="uniformShoeSize" htmlFor="edit-uniformShoeSize">
+          <input id="edit-uniformShoeSize" type="text" className={inputCls} value={profile.uniformShoeSize} onChange={(e) => set("uniformShoeSize", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="hatSize" htmlFor="edit-hatSize">
+          <input id="edit-hatSize" type="text" className={inputCls} value={profile.hatSize} onChange={(e) => set("hatSize", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="jacketSize" htmlFor="edit-jacketSize">
+          <input id="edit-jacketSize" type="text" className={inputCls} value={profile.jacketSize} onChange={(e) => set("jacketSize", e.target.value)} />
+        </BilingualField>
       </CardBody>
     </Card>
   );

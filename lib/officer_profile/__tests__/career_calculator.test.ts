@@ -7,6 +7,7 @@ import {
   calculateYearsInRank,
   calculateYearsInPosition,
   calculatePromotionWaitingYears,
+  calculateCareerYearsSimple,
   type TimelineDateLike,
 } from "@/lib/officer_profile/career_calculator";
 
@@ -85,4 +86,30 @@ test("calculateYearsInPosition groups by position independently of rank", () => 
 test("calculatePromotionWaitingYears equals calculateYearsInRank", () => {
   const entries = [entry({ yearBE: 2550, rank: "A" }), entry({ yearBE: 2560, rank: "B", isPresent: true })];
   assert.equal(calculatePromotionWaitingYears(entries, TODAY), calculateYearsInRank(entries, TODAY));
+});
+
+// ── Phase 26B Part 5 Part B: calculateCareerYearsSimple ──────────────────────
+
+test("matches the spec's own worked example exactly: current 2569, earliest 2536 -> 33", () => {
+  const entries = [{ yearBE: 2536 }, { yearBE: 2560 }, { yearBE: 2569 }];
+  assert.equal(calculateCareerYearsSimple(entries, 2569), 33);
+});
+
+test("uses only the EARLIEST yearBE, ignoring row order", () => {
+  const entries = [{ yearBE: 2560 }, { yearBE: 2536 }, { yearBE: 2555 }];
+  assert.equal(calculateCareerYearsSimple(entries, 2569), 33);
+});
+
+test("returns 0 when no entry has a structured yearBE (never guesses from legacy free-text year)", () => {
+  assert.equal(calculateCareerYearsSimple([], 2569), 0);
+  assert.equal(calculateCareerYearsSimple([{ yearBE: null }, { yearBE: undefined }], 2569), 0);
+});
+
+test("ignores un-migrated rows (yearBE null) mixed in with migrated ones", () => {
+  const entries = [{ yearBE: 2540 }, { yearBE: null }, { yearBE: 2560 }];
+  assert.equal(calculateCareerYearsSimple(entries, 2569), 29);
+});
+
+test("never returns a negative value (a future/bad yearBE never produces negative career years)", () => {
+  assert.equal(calculateCareerYearsSimple([{ yearBE: 2580 }], 2569), 0);
 });

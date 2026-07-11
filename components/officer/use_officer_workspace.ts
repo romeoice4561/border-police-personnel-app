@@ -33,6 +33,40 @@ export interface ProfileDraft {
   email: string;
   lineId: string;
   facebookUrl: string;
+  /** Phase 26B Part 5 Part C/I: structured Current Organization hierarchy, replacing the free-text Unit editor field. */
+  headquartersId: number | null;
+  headquartersText: string;
+  regionId: number | null;
+  regionText: string;
+  battalionId: number | null;
+  battalionText: string;
+  companyId: number | null;
+  companyText: string;
+  nickname: string;
+  /** Phase 26B Part 5 Part G: Personal Information. */
+  dateOfBirth: string;
+  bloodGroup: string;
+  rh: string;
+  maritalStatus: string;
+  children: string;
+  homeProvince: string;
+  shirtSize: string;
+  nationality: string;
+  /** Phase 26B Part 5 Part O: optional additional fields. */
+  citizenId: string;
+  passportNumber: string;
+  employeeNumber: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  addressSummary: string;
+  currentProvince: string;
+  religion: string;
+  educationLevel: string;
+  weightKg: string;
+  heightCm: string;
+  uniformShoeSize: string;
+  hatSize: string;
+  jacketSize: string;
 }
 
 export interface EducationDraftRow {
@@ -75,6 +109,11 @@ export interface TimelineDraftRow {
   battalionText: string;
   companyId: number | null;
   companyText: string;
+  /** Phase 26B Part 5 Part D/H/M: verification triad — additive alongside the existing `verified` free-text field above. */
+  verificationStatus: string;
+  verifiedBy: string;
+  verifiedDate: string;
+  verificationRemark: string;
 }
 
 let nextKey = 1;
@@ -83,7 +122,13 @@ function newKey(): string {
   return `draft-${nextKey++}`;
 }
 
-function toProfileDraft(officer: OfficerWithRelations): ProfileDraft {
+/** Formats a persisted Date as "YYYY-MM-DD" for an HTML date input, or "" when unset. */
+function toDateInputValue(date: Date | null | undefined): string {
+  if (!date) return "";
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+function toProfileDraft(officer: OfficerWithRelations, tree: OrgTree): ProfileDraft {
   return {
     rank: officer.rank,
     firstName: officer.firstName,
@@ -94,6 +139,37 @@ function toProfileDraft(officer: OfficerWithRelations): ProfileDraft {
     email: officer.email ?? "",
     lineId: officer.lineId ?? "",
     facebookUrl: officer.facebookUrl ?? "",
+    headquartersId: officer.headquartersId ?? null,
+    headquartersText: findLabel(tree.headquarters, (h) => h.nameTh, officer.headquartersId ?? null),
+    regionId: officer.regionId ?? null,
+    regionText: findDivisionLabel(tree.regions, officer.regionId ?? null),
+    battalionId: officer.battalionId ?? null,
+    battalionText: findLabel(tree.battalions, (b) => b.nameTh, officer.battalionId ?? null),
+    companyId: officer.companyId ?? null,
+    companyText: findLabel(tree.companies, (c) => c.nameTh, officer.companyId ?? null),
+    nickname: officer.nickname ?? "",
+    dateOfBirth: toDateInputValue(officer.dateOfBirth),
+    bloodGroup: officer.bloodGroup ?? "",
+    rh: officer.rh ?? "",
+    maritalStatus: officer.maritalStatus ?? "",
+    children: officer.children != null ? String(officer.children) : "",
+    homeProvince: officer.homeProvince ?? "",
+    shirtSize: officer.shirtSize ?? "",
+    nationality: officer.nationality ?? "",
+    citizenId: officer.citizenId ?? "",
+    passportNumber: officer.passportNumber ?? "",
+    employeeNumber: officer.employeeNumber ?? "",
+    emergencyContact: officer.emergencyContact ?? "",
+    emergencyPhone: officer.emergencyPhone ?? "",
+    addressSummary: officer.addressSummary ?? "",
+    currentProvince: officer.currentProvince ?? "",
+    religion: officer.religion ?? "",
+    educationLevel: officer.educationLevel ?? "",
+    weightKg: officer.weightKg != null ? String(officer.weightKg) : "",
+    heightCm: officer.heightCm != null ? String(officer.heightCm) : "",
+    uniformShoeSize: officer.uniformShoeSize ?? "",
+    hatSize: officer.hatSize ?? "",
+    jacketSize: officer.jacketSize ?? "",
   };
 }
 
@@ -134,6 +210,10 @@ function toTimelineDrafts(officer: OfficerWithRelations, tree: OrgTree): Timelin
       battalionText: findLabel(tree.battalions, (b) => b.nameTh, t.battalionId ?? null),
       companyId: t.companyId ?? null,
       companyText: findLabel(tree.companies, (c) => c.nameTh, t.companyId ?? null),
+      verificationStatus: t.verificationStatus ?? "",
+      verifiedBy: t.verifiedBy ?? "",
+      verifiedDate: toDateInputValue(t.verifiedDate),
+      verificationRemark: t.verificationRemark ?? "",
     }));
 }
 
@@ -159,7 +239,7 @@ function toTrainingDrafts(officer: OfficerWithRelations): TrainingDraftRow[] {
 
 export function useOfficerWorkspace(officer: OfficerWithRelations, orgTree: OrgTree) {
   const [editing, setEditing] = useState(false);
-  const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer));
+  const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer, orgTree));
   const [timeline, setTimeline] = useState<TimelineDraftRow[]>(() => toTimelineDrafts(officer, orgTree));
   const [education, setEducation] = useState<EducationDraftRow[]>(() => toEducationDrafts(officer));
   const [training, setTraining] = useState<TrainingDraftRow[]>(() => toTrainingDrafts(officer));
@@ -167,7 +247,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, orgTree: OrgT
   const mutation = useSaveOfficerProfile();
 
   const startEditing = useCallback(() => {
-    setProfile(toProfileDraft(officer));
+    setProfile(toProfileDraft(officer, orgTree));
     setTimeline(toTimelineDrafts(officer, orgTree));
     setEducation(toEducationDrafts(officer));
     setTraining(toTrainingDrafts(officer));
@@ -186,11 +266,45 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, orgTree: OrgT
         firstName: profile.firstName,
         lastName: profile.lastName,
         currentPosition: profile.currentPosition.trim() || null,
-        currentUnit: profile.currentUnit.trim() || null,
+        // The legacy free-text currentUnit is DERIVED from the most specific
+        // resolved org level (company > battalion > region > headquarters)
+        // whenever the Current Organization picker has resolved a
+        // selection, so every reader that still displays currentUnit (or
+        // hasn't been migrated to the structured org fields yet) keeps
+        // showing an accurate value — never overwritten with a guess when no
+        // structured selection exists.
+        currentUnit: (profile.companyText || profile.battalionText || profile.regionText || profile.headquartersText || profile.currentUnit).trim() || null,
         phone: profile.phone.trim() || null,
         email: profile.email.trim() || null,
         lineId: profile.lineId.trim() || null,
         facebookUrl: profile.facebookUrl.trim() || null,
+        headquartersId: profile.headquartersId,
+        regionId: profile.regionId,
+        battalionId: profile.battalionId,
+        companyId: profile.companyId,
+        nickname: profile.nickname.trim() || null,
+        dateOfBirth: profile.dateOfBirth.trim() || null,
+        bloodGroup: profile.bloodGroup.trim() || null,
+        rh: profile.rh.trim() || null,
+        maritalStatus: profile.maritalStatus.trim() || null,
+        children: profile.children.trim() ? Number(profile.children) : null,
+        homeProvince: profile.homeProvince.trim() || null,
+        shirtSize: profile.shirtSize.trim() || null,
+        nationality: profile.nationality.trim() || null,
+        citizenId: profile.citizenId.trim() || null,
+        passportNumber: profile.passportNumber.trim() || null,
+        employeeNumber: profile.employeeNumber.trim() || null,
+        emergencyContact: profile.emergencyContact.trim() || null,
+        emergencyPhone: profile.emergencyPhone.trim() || null,
+        addressSummary: profile.addressSummary.trim() || null,
+        currentProvince: profile.currentProvince.trim() || null,
+        religion: profile.religion.trim() || null,
+        educationLevel: profile.educationLevel.trim() || null,
+        weightKg: profile.weightKg.trim() ? Number(profile.weightKg) : null,
+        heightCm: profile.heightCm.trim() ? Number(profile.heightCm) : null,
+        uniformShoeSize: profile.uniformShoeSize.trim() || null,
+        hatSize: profile.hatSize.trim() || null,
+        jacketSize: profile.jacketSize.trim() || null,
       },
       // Phase 26A stabilization (bug #1): a row added via "เพิ่มแถว" but
       // never filled in (still fully blank) previously reached the server
@@ -243,6 +357,10 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, orgTree: OrgT
           regionId: row.regionId,
           battalionId: row.battalionId,
           companyId: row.companyId,
+          verificationStatus: row.verificationStatus || null,
+          verifiedBy: row.verifiedBy.trim() || null,
+          verifiedDate: row.verifiedDate.trim() || null,
+          verificationRemark: row.verificationRemark.trim() || null,
         };
         }),
       // Phase 26A stabilization (bug #1): same untouched-blank-row filter as timeline above.
@@ -311,6 +429,10 @@ export function emptyTimelineRow(): TimelineDraftRow {
     battalionText: "",
     companyId: null,
     companyText: "",
+    verificationStatus: "",
+    verifiedBy: "",
+    verifiedDate: "",
+    verificationRemark: "",
   };
 }
 

@@ -24,6 +24,7 @@
 
 import { z } from "zod";
 import { isValidDay, isValidMonth, isValidYearBE, toEffectiveDate } from "@/lib/officer_profile/thai_date";
+import { isValidTimelineVerificationStatus } from "@/lib/officer_profile/verification_options";
 
 /** Reasonable upper bound so a field can't be used to store megabytes, without rejecting real Thai text. */
 const MAX_FIELD = 500;
@@ -62,6 +63,38 @@ export const officerProfilePatchSchema = z.object({
     .refine((v) => v === null || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), { message: "Invalid email address" }),
   lineId: optionalText,
   facebookUrl: optionalText,
+  // Phase 26B Part 5 Part C/I: structured Current Organization hierarchy —
+  // ids only, resolved client-side by OrgHierarchyPicker; never re-derived
+  // from text server-side (no guessing).
+  headquartersId: z.coerce.number().int().positive().nullable().optional(),
+  regionId: z.coerce.number().int().positive().nullable().optional(),
+  battalionId: z.coerce.number().int().positive().nullable().optional(),
+  companyId: z.coerce.number().int().positive().nullable().optional(),
+  nickname: optionalText,
+  // Phase 26B Part 5 Part G: Personal Information.
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  bloodGroup: optionalText,
+  rh: optionalText,
+  maritalStatus: optionalText,
+  children: z.coerce.number().int().min(0).nullable().optional(),
+  homeProvince: optionalText,
+  shirtSize: optionalText,
+  nationality: optionalText,
+  // Phase 26B Part 5 Part O: optional additional fields.
+  citizenId: optionalText,
+  passportNumber: optionalText,
+  employeeNumber: optionalText,
+  emergencyContact: optionalText,
+  emergencyPhone: optionalText,
+  addressSummary: optionalText,
+  currentProvince: optionalText,
+  religion: optionalText,
+  educationLevel: optionalText,
+  weightKg: z.coerce.number().positive().nullable().optional(),
+  heightCm: z.coerce.number().positive().nullable().optional(),
+  uniformShoeSize: optionalText,
+  hatSize: optionalText,
+  jacketSize: optionalText,
 });
 
 /**
@@ -98,6 +131,20 @@ export const timelineRowSchema = z
     regionId: z.coerce.number().int().positive().nullable().optional(),
     battalionId: z.coerce.number().int().positive().nullable().optional(),
     companyId: z.coerce.number().int().positive().nullable().optional(),
+    // Phase 26B Part 5 Part D/H/M: verification triad — additive alongside
+    // the existing free-text `verified` above (untouched). A true closed set
+    // (unlike Rank/Position/Unit, there is no "preserve free legacy value"
+    // concern — every row's verificationStatus starts unset).
+    verificationStatus: z
+      .string()
+      .trim()
+      .nullable()
+      .optional()
+      .refine((v) => v == null || v === "" || isValidTimelineVerificationStatus(v), { message: "Invalid verification status" })
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    verifiedBy: z.string().trim().max(MAX_FIELD).nullable().optional().transform((v) => (v && v.length > 0 ? v : null)),
+    verifiedDate: z.coerce.date().nullable().optional(),
+    verificationRemark: z.string().trim().max(MAX_FIELD).nullable().optional().transform((v) => (v && v.length > 0 ? v : null)),
   })
   .transform((row) => ({
     ...row,

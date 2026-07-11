@@ -109,3 +109,25 @@ function yearsInGroup<T extends TimelineDateLike>(entries: readonly T[], key: (e
 export function calculatePromotionWaitingYears<T extends TimelineDateLike>(entries: readonly T[], today: Date = new Date()): number {
   return calculateYearsInRank(entries, today);
 }
+
+/**
+ * Phase 26B Part 5 Part B: "Career Years (Calculated)" — ALWAYS the current
+ * Buddhist year minus the earliest timeline entry's Buddhist year, a plain
+ * integer subtraction (spec's own worked example: 2569 - 2536 = 33). This is
+ * DELIBERATELY simpler than calculateCareerYears (which is day/month-aware
+ * and returns a fractional value) — Part B is explicit that the imported
+ * `Officer.careerYears` must never be treated as the calculated value, and
+ * the calculated value must be reproducible from the timeline alone by this
+ * exact formula, not an approximation. Only entries with a structured
+ * `yearBE` contribute (an un-migrated row with just the legacy free-text
+ * `year` is not guessed at); returns 0 when no entry has a yearBE yet.
+ */
+export function calculateCareerYearsSimple<T extends { yearBE?: number | null }>(
+  entries: readonly T[],
+  currentYearBE: number
+): number {
+  const years = entries.map((e) => e.yearBE).filter((y): y is number => typeof y === "number");
+  if (years.length === 0) return 0;
+  const earliest = Math.min(...years);
+  return Math.max(0, currentYearBE - earliest);
+}

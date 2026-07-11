@@ -220,3 +220,132 @@ test("timelineRowSchema accepts explicit null org hierarchy ids (unlinking)", ()
   const result = timelineRowSchema.safeParse({ ...base, headquartersId: null, regionId: null, battalionId: null, companyId: null });
   assert.equal(result.success, true);
 });
+
+// ── Phase 26B Part 5 Part D/H/M: verification triad ──────────────────────────
+
+test("timelineRowSchema accepts a row with the new verification triad set", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({
+    ...base,
+    verificationStatus: "VERIFIED",
+    verifiedBy: "Admin",
+    verifiedDate: "2026-07-07",
+    verificationRemark: "ตรวจสอบแล้ว",
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.verificationStatus, "VERIFIED");
+    assert.equal(result.data.verifiedBy, "Admin");
+    assert.equal(result.data.verificationRemark, "ตรวจสอบแล้ว");
+  }
+});
+
+test("timelineRowSchema normalizes the verification triad to null when omitted (row not yet touched by the new UI)", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse(base);
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.verificationStatus, null);
+    assert.equal(result.data.verifiedBy, null);
+  }
+});
+
+test("timelineRowSchema rejects a verificationStatus outside the closed 4-value set", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  assert.equal(timelineRowSchema.safeParse({ ...base, verificationStatus: "APPROVED" }).success, false);
+});
+
+test("timelineRowSchema normalizes a blank verificationStatus/verifiedBy/verificationRemark to null", () => {
+  const base = { sequence: 0, year: "2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
+  const result = timelineRowSchema.safeParse({ ...base, verificationStatus: "", verifiedBy: "", verificationRemark: "" });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.verificationStatus, null);
+    assert.equal(result.data.verifiedBy, null);
+    assert.equal(result.data.verificationRemark, null);
+  }
+});
+
+// ── Phase 26B Part 5 Part C/G/O: officer profile — org hierarchy + personal info ──
+
+test("officerProfilePatchSchema accepts the Current Organization hierarchy ids", () => {
+  const result = officerProfileSaveSchema.safeParse({
+    profile: { headquartersId: 1, regionId: 10, battalionId: 100, companyId: 1000, nickname: "หนึ่ง" },
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.profile?.companyId, 1000);
+    assert.equal(result.data.profile?.nickname, "หนึ่ง");
+  }
+});
+
+test("officerProfilePatchSchema rejects a non-positive org hierarchy id", () => {
+  assert.equal(officerProfileSaveSchema.safeParse({ profile: { companyId: 0 } }).success, false);
+  assert.equal(officerProfileSaveSchema.safeParse({ profile: { companyId: -5 } }).success, false);
+});
+
+test("officerProfilePatchSchema accepts Part G Personal Information fields", () => {
+  const result = officerProfileSaveSchema.safeParse({
+    profile: {
+      dateOfBirth: "1990-05-15",
+      bloodGroup: "O",
+      rh: "Rh+",
+      maritalStatus: "สมรส",
+      children: 2,
+      homeProvince: "เชียงใหม่",
+      shirtSize: "L",
+      nationality: "ไทย",
+    },
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.profile?.bloodGroup, "O");
+    assert.equal(result.data.profile?.children, 2);
+    assert.ok(result.data.profile?.dateOfBirth instanceof Date);
+  }
+});
+
+test("officerProfilePatchSchema rejects a negative children count", () => {
+  assert.equal(officerProfileSaveSchema.safeParse({ profile: { children: -1 } }).success, false);
+});
+
+test("officerProfilePatchSchema accepts Part O optional fields including weight/height", () => {
+  const result = officerProfileSaveSchema.safeParse({
+    profile: {
+      citizenId: "1234567890123",
+      passportNumber: "AA123456",
+      employeeNumber: "EMP-001",
+      emergencyContact: "นางสมหญิง",
+      emergencyPhone: "081-111-1111",
+      addressSummary: "123 หมู่ 4 ต.บ้านใหม่",
+      currentProvince: "เชียงใหม่",
+      religion: "พุทธ",
+      educationLevel: "ปริญญาตรี",
+      weightKg: 70.5,
+      heightCm: 175.2,
+      uniformShoeSize: "9",
+      hatSize: "58",
+      jacketSize: "L",
+    },
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.profile?.weightKg, 70.5);
+    assert.equal(result.data.profile?.heightCm, 175.2);
+  }
+});
+
+test("officerProfilePatchSchema rejects a non-positive weight/height (Part O)", () => {
+  assert.equal(officerProfileSaveSchema.safeParse({ profile: { weightKg: 0 } }).success, false);
+  assert.equal(officerProfileSaveSchema.safeParse({ profile: { heightCm: -1 } }).success, false);
+});
+
+test("officerProfilePatchSchema leaves all Part C/G/O fields undefined when omitted (existing profile-only saves are unaffected)", () => {
+  const result = officerProfileSaveSchema.safeParse({ profile: { rank: "ร.ต.ท." } });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.profile?.headquartersId, undefined);
+    assert.equal(result.data.profile?.dateOfBirth, undefined);
+    assert.equal(result.data.profile?.weightKg, undefined);
+  }
+});

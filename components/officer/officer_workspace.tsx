@@ -23,10 +23,12 @@ import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_serv
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { useOfficerWorkspace } from "@/components/officer/use_officer_workspace";
 import { ProfileHeader } from "@/components/officer/profile_header";
-import { ProfileEditor } from "@/components/officer/profile_editor";
+import { ProfileEditor, PersonalInformationEditor } from "@/components/officer/profile_editor";
 import { BasicInformationSection } from "@/components/officer/basic_information_section";
 import { CareerSection } from "@/components/officer/career_section";
+import { CurrentOrganizationSection } from "@/components/officer/current_organization_section";
 import { ContactSection } from "@/components/officer/contact_section";
+import { PersonalInformationSection } from "@/components/officer/personal_information_section";
 import { CareerTimelineSection } from "@/components/officer/career_timeline_section";
 import { CareerTimelineEditor } from "@/components/officer/career_timeline_editor";
 import { EducationSection } from "@/components/officer/education_section";
@@ -104,21 +106,27 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {editing ? (
-            <ProfileEditor profile={workspace.profile} onChange={workspace.setProfile} knownUnits={knownUnits} />
+            <>
+              <ProfileEditor profile={workspace.profile} onChange={workspace.setProfile} knownUnits={knownUnits} orgTree={orgTree} />
+              <PersonalInformationEditor profile={workspace.profile} onChange={workspace.setProfile} />
+            </>
           ) : (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
                 <BasicInformationSection officer={officer} />
                 <CareerSection officer={officer} />
               </div>
+              {/* Phase 26B Part 5 Part I: Current Organization sits immediately below Current Position, above Contact/Timeline — never below the timeline. */}
+              <CurrentOrganizationSection officer={officer} orgTree={orgTree} />
               <ContactSection officer={officer} />
+              <PersonalInformationSection officer={officer} />
             </>
           )}
 
           {editing ? (
             <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} orgTree={orgTree} />
           ) : (
-            <CareerTimelineSection timeline={officer.timeline} />
+            <CareerTimelineSection timeline={officer.timeline} orgTree={orgTree} />
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">

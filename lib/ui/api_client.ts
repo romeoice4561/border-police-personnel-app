@@ -284,6 +284,36 @@ export interface OfficerProfileSaveRequest {
     email?: string | null;
     lineId?: string | null;
     facebookUrl?: string | null;
+    /** Phase 26B Part 5 Part C/I: structured Current Organization hierarchy. */
+    headquartersId?: number | null;
+    regionId?: number | null;
+    battalionId?: number | null;
+    companyId?: number | null;
+    nickname?: string | null;
+    /** Phase 26B Part 5 Part G: Personal Information. */
+    dateOfBirth?: string | null;
+    bloodGroup?: string | null;
+    rh?: string | null;
+    maritalStatus?: string | null;
+    children?: number | null;
+    homeProvince?: string | null;
+    shirtSize?: string | null;
+    nationality?: string | null;
+    /** Phase 26B Part 5 Part O: optional additional fields. */
+    citizenId?: string | null;
+    passportNumber?: string | null;
+    employeeNumber?: string | null;
+    emergencyContact?: string | null;
+    emergencyPhone?: string | null;
+    addressSummary?: string | null;
+    currentProvince?: string | null;
+    religion?: string | null;
+    educationLevel?: string | null;
+    weightKg?: number | null;
+    heightCm?: number | null;
+    uniformShoeSize?: string | null;
+    hatSize?: string | null;
+    jacketSize?: string | null;
   };
   timeline?: Array<{
     sequence: number;
@@ -304,6 +334,11 @@ export interface OfficerProfileSaveRequest {
     regionId: number | null;
     battalionId: number | null;
     companyId: number | null;
+    /** Phase 26B Part 5 Part D/H/M: verification triad — additive alongside the existing `verified` above. */
+    verificationStatus: string | null;
+    verifiedBy: string | null;
+    verifiedDate: string | null;
+    verificationRemark: string | null;
   }>;
   education?: Array<{ year: string | null; institution: string; degree: string | null; notes: string | null }>;
   training?: Array<{ year: string | null; course: string; organization: string | null; notes: string | null }>;

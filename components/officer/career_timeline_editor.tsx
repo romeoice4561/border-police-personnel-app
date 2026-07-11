@@ -29,11 +29,26 @@ import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
 import { TIMELINE_SOURCE_OPTIONS, TIMELINE_VERIFIED_OPTIONS } from "@/lib/officer_profile/timeline_status_options";
 import { MONTH_OPTIONS, YEAR_BE_OPTIONS, formatThaiDate } from "@/lib/officer_profile/thai_date";
+import {
+  TIMELINE_VERIFICATION_STATUS_OPTIONS,
+  VERIFICATION_STATUS_META,
+  VERIFIED_BY_OPTIONS,
+} from "@/lib/officer_profile/verification_options";
 import { emptyTimelineRow, type TimelineDraftRow } from "@/components/officer/use_officer_workspace";
 import { OrgHierarchyPicker } from "@/components/officer/org_hierarchy_picker";
 import type { OrgTree } from "@/lib/organization/org_tree";
 
 const VERIFIED_SELECT_OPTIONS = TIMELINE_VERIFIED_OPTIONS.map((v) => ({ value: v, label: v }));
+
+// Phase 26B Part 5 Part D/H: the NEW closed 4-value verification status —
+// additive alongside the existing free-text "สถานะ" (verified) select above.
+const VERIFICATION_STATUS_SELECT_OPTIONS = [
+  { value: "", label: "— ยังไม่ระบุ —" },
+  ...TIMELINE_VERIFICATION_STATUS_OPTIONS.map((v) => ({
+    value: v,
+    label: `${VERIFICATION_STATUS_META[v].labelTh} / ${VERIFICATION_STATUS_META[v].labelEn}`,
+  })),
+];
 
 const DAY_SELECT_OPTIONS = [
   { value: "", label: "วัน" },
@@ -200,6 +215,51 @@ export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimeline
                   ข้อมูลเดิม (ยังไม่ได้แปลงเป็นรูปแบบใหม่): <span className="font-medium text-foreground">{row.unit}</span> — เลือกหน่วยด้านบนเพื่ออัปเดตเป็นรูปแบบโครงสร้างใหม่
                 </p>
               ) : null}
+
+              {/* Phase 26B Part 5 Part D/H/M: verification triad — a NEW
+                  closed 4-value status (VERIFIED/PENDING/REJECTED/
+                  NEEDS_REVIEW), additive alongside "สถานะ" above. Every
+                  historical row keeps its own verification state permanently. */}
+              <div className="grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-4">
+                <LabeledField label="สถานะการตรวจสอบ / Verification Status">
+                  <Select
+                    options={VERIFICATION_STATUS_SELECT_OPTIONS}
+                    value={row.verificationStatus}
+                    onChange={(e) => updateRow(row.key, { verificationStatus: e.target.value })}
+                    aria-label="สถานะการตรวจสอบ"
+                  />
+                </LabeledField>
+
+                <LabeledField label="ผู้ตรวจสอบ / Verified By">
+                  <Combobox
+                    value={row.verifiedBy}
+                    onChange={(value) => updateRow(row.key, { verifiedBy: value })}
+                    suggestions={VERIFIED_BY_OPTIONS}
+                    placeholder="เลือกหรือพิมพ์ผู้ตรวจสอบ"
+                    aria-label="ผู้ตรวจสอบ"
+                  />
+                </LabeledField>
+
+                <LabeledField label="วันที่ตรวจสอบ / Verified Date">
+                  <input
+                    type="date"
+                    className="h-9.5 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    value={row.verifiedDate}
+                    onChange={(e) => updateRow(row.key, { verifiedDate: e.target.value })}
+                    aria-label="วันที่ตรวจสอบ"
+                  />
+                </LabeledField>
+
+                <LabeledField label="หมายเหตุการตรวจสอบ / Verification Remark">
+                  <textarea
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    rows={1}
+                    value={row.verificationRemark}
+                    onChange={(e) => updateRow(row.key, { verificationRemark: e.target.value })}
+                    aria-label="หมายเหตุการตรวจสอบ"
+                  />
+                </LabeledField>
+              </div>
             </div>
           ))
         )}

@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildQualitySummary, officerFullName, sortTimelineByYear } from "@/lib/ui/officer_summary";
+import { buildQualitySummary, officerFullName, sortTimelineByYear, currentTimelineRow } from "@/lib/ui/officer_summary";
 import type { OfficerWithRelations, Timeline } from "@/lib/database/query_types";
 
 /** Builds a Timeline row with the Phase 23A/26B fields defaulted, so fixtures only specify what they test. */
@@ -30,6 +30,10 @@ function timelineRow(ov: Partial<Timeline> & { id: number; officerId: number; se
     regionId: null,
     battalionId: null,
     companyId: null,
+    verificationStatus: null,
+    verifiedBy: null,
+    verifiedDate: null,
+    verificationRemark: null,
     ...ov,
   };
 }
@@ -150,4 +154,15 @@ test("sortTimelineByYear does not mutate the input array", () => {
   const snapshot = rows.map((r) => r.id);
   sortTimelineByYear(rows);
   assert.deepEqual(rows.map((r) => r.id), snapshot);
+});
+
+test("currentTimelineRow returns the present-first/newest-first row, or null for an empty timeline (Phase 26B Part 5 Part A)", () => {
+  const rows: Timeline[] = [
+    timelineRow({ id: 1, officerId: 1, sequence: 0, year: "2554", yearValue: 2554, position: "a" }),
+    timelineRow({ id: 2, officerId: 1, sequence: 1, year: "2560-ปัจจุบัน", yearBE: 2560, isPresent: true, position: "ongoing", verificationStatus: "VERIFIED" }),
+  ];
+  const row = currentTimelineRow(rows);
+  assert.equal(row?.id, 2);
+  assert.equal(row?.verificationStatus, "VERIFIED");
+  assert.equal(currentTimelineRow([]), null);
 });

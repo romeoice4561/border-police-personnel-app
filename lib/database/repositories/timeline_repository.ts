@@ -44,6 +44,18 @@ export interface TimelineRowInput {
   regionId?: number | null;
   battalionId?: number | null;
   companyId?: number | null;
+  /**
+   * Phase 26B Part 5 Part D/H/M: verification triad — ADDITIVE alongside the
+   * existing free-text `verified` column above (untouched). A NEW closed
+   * 4-value status (see verification_options.ts) plus who/when/why verified
+   * it. Omitted by any caller that doesn't know about these fields, same
+   * convention as day/month/yearBE — every historical row permanently keeps
+   * whatever verification state it had when it was saved.
+   */
+  verificationStatus?: string | null;
+  verifiedBy?: string | null;
+  verifiedDate?: Date | null;
+  verificationRemark?: string | null;
 }
 
 export class TimelineRepository {

@@ -7,6 +7,7 @@ import {
   autoFillFromCompany,
   autoFillFromBattalion,
   autoFillFromRegion,
+  resolveOrgLabels,
   EMPTY_ORG_SELECTION,
   type OrgTree,
 } from "@/lib/organization/org_tree";
@@ -63,4 +64,33 @@ test("autoFillFromRegion returns EMPTY_ORG_SELECTION when the region has no head
   t.regions[0].headquartersId = null;
   const result = autoFillFromRegion(t, 10);
   assert.deepEqual(result, { headquartersId: null, regionId: 10, battalionId: null, companyId: null });
+});
+
+// ── Phase 26B Part 5 Part F: resolveOrgLabels ─────────────────────────────
+
+test("resolveOrgLabels resolves the spec's own worked example (434 -> 43 -> ตชด.ภ.4 -> บช.ตชด.)", () => {
+  const t = tree();
+  const labels = resolveOrgLabels(t, { headquartersId: 1, regionId: 10, battalionId: 100, companyId: 1000 });
+  assert.deepEqual(labels, {
+    headquarters: "บช.ตชด.",
+    borderPatrolDivision: "ตชด.ภ.4",
+    battalion: "กก.ตชด.43",
+    company: "ตชด.434",
+  });
+});
+
+test("resolveOrgLabels returns null per level when unset or unresolved, never invents a label", () => {
+  const t = tree();
+  assert.deepEqual(resolveOrgLabels(t, EMPTY_ORG_SELECTION), {
+    headquarters: null,
+    borderPatrolDivision: null,
+    battalion: null,
+    company: null,
+  });
+  assert.deepEqual(resolveOrgLabels(t, { headquartersId: 999, regionId: null, battalionId: null, companyId: null }), {
+    headquarters: null,
+    borderPatrolDivision: null,
+    battalion: null,
+    company: null,
+  });
 });

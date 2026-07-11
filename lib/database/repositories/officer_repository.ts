@@ -63,6 +63,37 @@ export interface OfficerProfilePatch {
   email?: string | null;
   lineId?: string | null;
   facebookUrl?: string | null;
+  /** Phase 26B Part 5 Part C/I: structured Current Organization hierarchy, replacing the free-text Unit field in the editor (Timeline.unit and this officer's currentUnit legacy text are left untouched — see the workspace hook's derivation). */
+  headquartersId?: number | null;
+  regionId?: number | null;
+  battalionId?: number | null;
+  companyId?: number | null;
+  /** Phase 26B Part 5 Part C: nickname now lives alongside Phone/Email/LINE/Facebook in the same Current Organization section, not a separate card. */
+  nickname?: string | null;
+  /** Phase 26B Part 5 Part G: Personal Information. */
+  dateOfBirth?: Date | null;
+  bloodGroup?: string | null;
+  rh?: string | null;
+  maritalStatus?: string | null;
+  children?: number | null;
+  homeProvince?: string | null;
+  shirtSize?: string | null;
+  nationality?: string | null;
+  /** Phase 26B Part 5 Part O: optional additional fields. */
+  citizenId?: string | null;
+  passportNumber?: string | null;
+  employeeNumber?: string | null;
+  emergencyContact?: string | null;
+  emergencyPhone?: string | null;
+  addressSummary?: string | null;
+  currentProvince?: string | null;
+  religion?: string | null;
+  educationLevel?: string | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  uniformShoeSize?: string | null;
+  hatSize?: string | null;
+  jacketSize?: string | null;
 }
 
 export class OfficerRepository {
@@ -141,6 +172,33 @@ export class OfficerRepository {
     if ("email" in patch) data.email = patch.email;
     if ("lineId" in patch) data.lineId = patch.lineId;
     if ("facebookUrl" in patch) data.facebookUrl = patch.facebookUrl;
+    if ("headquartersId" in patch) data.headquartersId = patch.headquartersId;
+    if ("regionId" in patch) data.regionId = patch.regionId;
+    if ("battalionId" in patch) data.battalionId = patch.battalionId;
+    if ("companyId" in patch) data.companyId = patch.companyId;
+    if ("nickname" in patch) data.nickname = patch.nickname;
+    if ("dateOfBirth" in patch) data.dateOfBirth = patch.dateOfBirth;
+    if ("bloodGroup" in patch) data.bloodGroup = patch.bloodGroup;
+    if ("rh" in patch) data.rh = patch.rh;
+    if ("maritalStatus" in patch) data.maritalStatus = patch.maritalStatus;
+    if ("children" in patch) data.children = patch.children;
+    if ("homeProvince" in patch) data.homeProvince = patch.homeProvince;
+    if ("shirtSize" in patch) data.shirtSize = patch.shirtSize;
+    if ("nationality" in patch) data.nationality = patch.nationality;
+    if ("citizenId" in patch) data.citizenId = patch.citizenId;
+    if ("passportNumber" in patch) data.passportNumber = patch.passportNumber;
+    if ("employeeNumber" in patch) data.employeeNumber = patch.employeeNumber;
+    if ("emergencyContact" in patch) data.emergencyContact = patch.emergencyContact;
+    if ("emergencyPhone" in patch) data.emergencyPhone = patch.emergencyPhone;
+    if ("addressSummary" in patch) data.addressSummary = patch.addressSummary;
+    if ("currentProvince" in patch) data.currentProvince = patch.currentProvince;
+    if ("religion" in patch) data.religion = patch.religion;
+    if ("educationLevel" in patch) data.educationLevel = patch.educationLevel;
+    if ("weightKg" in patch) data.weightKg = patch.weightKg;
+    if ("heightCm" in patch) data.heightCm = patch.heightCm;
+    if ("uniformShoeSize" in patch) data.uniformShoeSize = patch.uniformShoeSize;
+    if ("hatSize" in patch) data.hatSize = patch.hatSize;
+    if ("jacketSize" in patch) data.jacketSize = patch.jacketSize;
 
     if (Object.keys(data).length === 0) return existing;
 

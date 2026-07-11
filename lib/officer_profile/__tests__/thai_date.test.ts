@@ -13,6 +13,7 @@ import {
   toEffectiveDate,
   formatThaiDate,
   parseLegacyTimelineYear,
+  currentYearBE,
 } from "@/lib/officer_profile/thai_date";
 
 test("MONTH_OPTIONS has exactly 12 entries, 1-indexed, matching THAI_MONTHS", () => {
@@ -51,6 +52,11 @@ test("yearBEToGregorian / yearGregorianToBE round-trip (BE = CE + 543)", () => {
   assert.equal(yearBEToGregorian(2560), 2017);
   assert.equal(yearGregorianToBE(2017), 2560);
   assert.equal(yearBEToGregorian(yearGregorianToBE(2020)), 2020);
+});
+
+test("currentYearBE converts the given date's Gregorian year to Buddhist Era", () => {
+  assert.equal(currentYearBE(new Date(Date.UTC(2026, 6, 7))), 2569);
+  assert.equal(currentYearBE(new Date(Date.UTC(2000, 0, 1))), 2543);
 });
 
 test("toEffectiveDate defaults month/day to 1 when unknown, anchoring a year-only entry", () => {

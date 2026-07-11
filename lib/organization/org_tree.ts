@@ -11,6 +11,8 @@
  * unit-testable without a database.
  */
 
+import { divisionLabelForRegion } from "@/lib/organization/border_patrol_division_options";
+
 export interface OrgTreeHeadquarters {
   id: number;
   code: string;
@@ -96,4 +98,32 @@ export function autoFillFromRegion(tree: OrgTree, regionId: number | null): OrgS
   const region = tree.regions.find((r) => r.id === regionId);
   if (!region) return EMPTY_ORG_SELECTION;
   return { headquartersId: region.headquartersId, regionId: region.id, battalionId: null, companyId: null };
+}
+
+/** Display labels resolved from an OrgSelection's ids, or null per level when unset/unresolved (never invented). */
+export interface OrgLabels {
+  headquarters: string | null;
+  /** The Border Patrol Division combobox's friendly label ("ตชด.ภ.4"), not the raw Region.nameTh. */
+  borderPatrolDivision: string | null;
+  battalion: string | null;
+  company: string | null;
+}
+
+/**
+ * Resolves an officer/timeline row's org-hierarchy ids against the tree into
+ * display labels — the single place this lookup lives, shared by every
+ * read-only viewer (Part F's timeline viewer, Part C/I's Current
+ * Organization section) so they never hand-roll their own `tree.x.find(...)`.
+ */
+export function resolveOrgLabels(tree: OrgTree, selection: OrgSelection): OrgLabels {
+  const headquarters = selection.headquartersId != null ? tree.headquarters.find((h) => h.id === selection.headquartersId) : undefined;
+  const region = selection.regionId != null ? tree.regions.find((r) => r.id === selection.regionId) : undefined;
+  const battalion = selection.battalionId != null ? tree.battalions.find((b) => b.id === selection.battalionId) : undefined;
+  const company = selection.companyId != null ? tree.companies.find((c) => c.id === selection.companyId) : undefined;
+  return {
+    headquarters: headquarters?.nameTh ?? null,
+    borderPatrolDivision: region ? divisionLabelForRegion(region) : null,
+    battalion: battalion?.nameTh ?? null,
+    company: company?.nameTh ?? null,
+  };
 }

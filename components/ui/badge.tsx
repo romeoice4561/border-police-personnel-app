@@ -20,6 +20,7 @@ const badge = cva(
         serious: "bg-serious-bg text-serious",
         critical: "bg-critical-bg text-critical",
         neutral: "bg-neutral-bg text-neutral",
+        accent: "bg-accent/10 text-accent",
       },
     },
     defaultVariants: { tone: "default" },

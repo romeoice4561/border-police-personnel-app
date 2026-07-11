@@ -79,6 +79,11 @@ export function yearGregorianToBE(yearCE: number): number {
   return yearCE + 543;
 }
 
+/** The current Buddhist-Era year (Phase 26B Part 5 Part B — "Career Years (Calculated)" always anchors to this). Accepts an explicit `now` for deterministic tests. */
+export function currentYearBE(now: Date = new Date()): number {
+  return yearGregorianToBE(now.getUTCFullYear());
+}
+
 /**
  * Builds the DATE-only effectiveDate a structured timeline entry sorts and
  * compares by. Day/month default to 1 when unknown (a year-only entry still

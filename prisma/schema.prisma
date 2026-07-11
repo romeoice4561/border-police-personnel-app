@@ -78,6 +78,51 @@ model Officer {
   email            String?
   lineId           String?
   facebookUrl      String?
+  // Phase 26B Part 5 Part C/I: nickname is shown alongside the other contact
+  // channels (Phone/Email/LINE/Facebook/Nickname), not a separate section.
+  nickname         String?
+
+  // Phase 26B Part 5 Part G: Personal Information, extending Basic
+  // Information. All nullable/additive — every existing officer simply has
+  // these unset until a human fills them in; nothing is backfilled or
+  // guessed. dateOfBirth is stored as a real DATE (Thai Buddhist Era is a
+  // DISPLAY concern only — see thai_date.ts's yearBEToGregorian/
+  // yearGregorianToBE — so the column itself is a normal Gregorian date).
+  // bloodGroup/rh/maritalStatus/shirtSize/nationality are free-form TEXT
+  // (not a DB enum) so the UI's dropdowns can offer curated suggestions
+  // while still accepting a "Custom" value, exactly like Rank/Position/Unit
+  // already do (see lib/officer_profile/*_options.ts) — never a closed set
+  // that could silently blank an imported/edited value outside the list.
+  dateOfBirth      DateTime? @db.Date
+  bloodGroup       String?
+  rh               String?
+  maritalStatus    String?
+  children         Int?
+  homeProvince     String?
+  shirtSize        String?
+  nationality      String?
+
+  // Phase 26B Part 5 Part O (optional improvements — all nullable/additive,
+  // no regression risk). Free-form TEXT throughout for the same
+  // "curated-suggestion, never a closed set" reason as the Part G fields
+  // above. retirementYear/retirementCountdown are intentionally NOT stored
+  // columns — Part O labels them "Auto Calculated", so they are derived at
+  // read time from dateOfBirth (see lib/officer_profile/retirement.ts),
+  // never persisted, so they can never drift from the source date.
+  citizenId        String?
+  passportNumber   String?
+  employeeNumber   String?
+  emergencyContact String?
+  emergencyPhone   String?
+  addressSummary   String?
+  currentProvince  String?
+  religion         String?
+  educationLevel   String?
+  weightKg         Float?
+  heightCm         Float?
+  uniformShoeSize  String?
+  hatSize          String?
+  jacketSize       String?
 
   // Phase 26A: Official Portrait Architecture. A single pinned pointer to the
   // ProfilePhoto row that is this officer's OFFICIAL portrait — displayed
@@ -172,6 +217,22 @@ model Timeline {
   companyRef     Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   companyId      Int?
 
+  // Phase 26B Part 5 Part D/H/M: a richer verification TRIAD, additive
+  // alongside the existing `verified` free-text status above (never altered
+  // — every pre-26B row and reader of `verified` keeps working unchanged).
+  // `verificationStatus` is a new, distinct 4-value closed set
+  // (VERIFIED/PENDING/REJECTED/NEEDS_REVIEW — see
+  // lib/officer_profile/verification_options.ts) rather than a backfilled
+  // replacement of `verified`'s 3 Thai strings, so no existing row's
+  // meaning is reinterpreted and no backfill/guess is required — a row
+  // simply has verificationStatus=null until a human explicitly sets it via
+  // the new editor. verifiedBy/verifiedDate/verificationRemark are the
+  // supporting audit fields Part H asks for.
+  verificationStatus  String?
+  verifiedBy          String?
+  verifiedDate        DateTime? @db.Date
+  verificationRemark  String?
+
   @@unique([officerId, sequence])
   @@index([yearValue])
   @@index([unit])
@@ -181,6 +242,7 @@ model Timeline {
   @@index([regionId])
   @@index([battalionId])
   @@index([companyId])
+  @@index([verificationStatus])
 }
 
 /// Phase 23A: one education record for an officer (year, institution, degree,

@@ -106,3 +106,13 @@ export function sortTimelineByYear(timeline: Timeline[]): Timeline[] {
     return bk - ak;
   });
 }
+
+/**
+ * The officer's most current timeline row (Phase 26B Part 5 Part A/H) — the
+ * first row after `sortTimelineByYear` (present-first, newest-first) — used
+ * to source the header's Verification Badge. Returns null for an officer
+ * with no timeline rows yet; never guesses.
+ */
+export function currentTimelineRow(timeline: Timeline[]): Timeline | null {
+  return sortTimelineByYear(timeline)[0] ?? null;
+}
