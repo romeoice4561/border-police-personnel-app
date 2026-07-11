@@ -11,6 +11,7 @@
 
 "use client";
 
+import { useMemo } from "react";
 import { useQuery, keepPreviousData, type UseQueryResult } from "@tanstack/react-query";
 import {
   apiClient,
@@ -26,6 +27,7 @@ import {
   type UnitCount,
 } from "@/lib/ui/api_client";
 import type { OrgTree } from "@/lib/organization/org_tree";
+import { organizationEngineFromTree, type OrganizationEngine } from "@/lib/organization/organization_engine";
 
 export const queryKeys = {
   officers: (query: OfficerQuery) => ["officers", query] as const,
@@ -94,4 +96,19 @@ export function useHealth(): UseQueryResult<HealthStatus> {
 /** Phase 26B Part 6 Part S: the shared org-hierarchy snapshot every page's filter framework instance draws Battalion/Company/Division options from. Rarely changes — cached like ranks/units. */
 export function useOrgTree(): UseQueryResult<OrgTree> {
   return useQuery({ queryKey: queryKeys.organizationTree(), queryFn: () => apiClient.getOrganizationTree(), staleTime: 5 * 60 * 1000 });
+}
+
+/**
+ * Phase 27: the shared OrganizationEngine, built from the same org-tree
+ * snapshot useOrgTree() fetches. OrganizationEngine is a class instance (not
+ * JSON-serializable), so it can't be the query's own return value — this
+ * wraps the already-fetched OrgTree client-side instead, memoized so a
+ * re-render doesn't rebuild the engine unless the underlying tree changed.
+ * Every client component that needs organization dropdowns/cascading should
+ * call this ONE hook rather than each building its own
+ * `organizationEngineFromTree(orgTree.data)`.
+ */
+export function useOrganizationEngine(): OrganizationEngine | undefined {
+  const orgTree = useOrgTree();
+  return useMemo(() => (orgTree.data ? organizationEngineFromTree(orgTree.data) : undefined), [orgTree.data]);
 }

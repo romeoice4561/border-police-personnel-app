@@ -74,6 +74,23 @@ export interface UnresolvedOrganizationCode {
 }
 
 /**
+ * Phase 27: a legacy/OCR-variant/unofficial text form that maps to a real,
+ * still-registered Region/Battalion/Company — distinct from
+ * UnresolvedOrganizationCode above (which is for text that maps to NOTHING).
+ * Exactly one of regionId/battalionId/companyId is set, matching the level
+ * the alias resolves to.
+ */
+export interface OrganizationAliasEntry {
+  id: number;
+  aliasText: string;
+  regionId: number | null;
+  battalionId: number | null;
+  companyId: number | null;
+  source: string;
+  createdAt: string;
+}
+
+/**
  * Static framework types (organization_master.ts / organization_generator.ts
  * / dropdown_options.ts / gallery_generator.ts / organization_helpers.ts'
  * lookup functions).

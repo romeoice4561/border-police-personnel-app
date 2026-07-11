@@ -36,7 +36,7 @@ import {
 } from "@/lib/officer_profile/verification_options";
 import { emptyTimelineRow, type TimelineDraftRow } from "@/components/officer/use_officer_workspace";
 import { OrgHierarchyPicker } from "@/components/officer/org_hierarchy_picker";
-import type { OrgTree } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 const VERIFIED_SELECT_OPTIONS = TIMELINE_VERIFIED_OPTIONS.map((v) => ({ value: v, label: v }));
 
@@ -60,11 +60,11 @@ const YEAR_BE_SELECT_OPTIONS = [{ value: "", label: "พ.ศ." }, ...YEAR_BE_OPT
 export interface CareerTimelineEditorProps {
   rows: TimelineDraftRow[];
   onChange: (rows: TimelineDraftRow[]) => void;
-  /** Phase 26B Part C/D: the full Headquarters/Region/Battalion/Company snapshot for the org hierarchy pickers. */
-  orgTree: OrgTree;
+  /** Phase 27: the shared OrganizationEngine, for the org hierarchy pickers. */
+  organizationEngine: OrganizationEngine;
 }
 
-export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimelineEditorProps) {
+export function CareerTimelineEditor({ rows, onChange, organizationEngine }: CareerTimelineEditorProps) {
   function updateRow(key: string, patch: Partial<TimelineDraftRow>) {
     onChange(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
@@ -181,7 +181,7 @@ export function CareerTimelineEditor({ rows, onChange, orgTree }: CareerTimeline
               {/* Phase 26B Part C: structured Headquarters / Border Patrol
                   Division / Battalion / Company hierarchy — "Organization". */}
               <OrgHierarchyPicker
-                tree={orgTree}
+                organizationEngine={organizationEngine}
                 value={{
                   headquartersId: row.headquartersId,
                   headquartersText: row.headquartersText,

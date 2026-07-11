@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
-import { useOfficers, useGlobalSearch, useRanks, useOrgTree } from "@/lib/ui/hooks";
+import { useOfficers, useGlobalSearch, useRanks, useOrganizationEngine } from "@/lib/ui/hooks";
 import { buildOfficerQuery, type OfficerListFilters } from "@/lib/ui/list_filters";
 import { PageHeader } from "@/components/common/page_header";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
@@ -39,7 +39,7 @@ export default function OfficersPage() {
   const officers = useOfficers(query);
   const globalSearch = useGlobalSearch({ q: globalQuery, page, pageSize: PAGE_SIZE, sortBy, sortOrder });
   const ranks = useRanks();
-  const orgTree = useOrgTree();
+  const organizationEngine = useOrganizationEngine();
 
   const active = isGlobalSearching ? globalSearch : officers;
 
@@ -78,7 +78,7 @@ export default function OfficersPage() {
       <OfficerFilters
         value={filters}
         ranks={(ranks.data ?? []).map((r) => r.rank)}
-        orgTree={orgTree.data}
+        organizationEngine={organizationEngine}
         sortBy={sortBy}
         sortOrder={sortOrder}
         onChange={onFilterChange}

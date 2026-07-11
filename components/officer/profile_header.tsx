@@ -30,7 +30,7 @@ import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/l
 import { calculateCareerYearsSimple } from "@/lib/officer_profile/career_calculator";
 import { calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
 import { currentYearBE, yearGregorianToBE, THAI_MONTHS } from "@/lib/officer_profile/thai_date";
-import { resolveOrgLabels, type OrgTree } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { QualityBadge } from "@/components/common/quality_badge";
 import { PortraitManager } from "@/components/officer/portrait_manager";
 import { PhoneAction } from "@/components/officer/phone_action";
@@ -45,8 +45,8 @@ export interface ProfileHeaderProps {
    * never used — see resolveOfficerPortrait.
    */
   portrait: ResolvedOfficerPortrait;
-  /** Phase 26B Part 6 Part A: resolves Current Organization for the header (Not Assigned fallback — same convention as CurrentOrganizationSection). */
-  orgTree: OrgTree;
+  /** Phase 27: the shared OrganizationEngine, for resolving Current Organization in the header (Not Assigned fallback — same convention as CurrentOrganizationSection). */
+  organizationEngine: OrganizationEngine;
 }
 
 /** One compact header field: icon + label + value, wraps rather than truncates. */
@@ -102,11 +102,11 @@ function formatDateOfBirth(date: Date | null): string | null {
   return `${day} ${THAI_MONTHS[month]} ${yearBE}`;
 }
 
-export function ProfileHeader({ officer, portrait, orgTree }: ProfileHeaderProps) {
+export function ProfileHeader({ officer, portrait, organizationEngine }: ProfileHeaderProps) {
   const name = officerFullName(officer);
   const careerYears = calculateCareerYearsSimple(officer.timeline, currentYearBE());
   const currentAge = calculateCurrentAge(officer.dateOfBirth ?? null);
-  const orgLabels = resolveOrgLabels(orgTree, {
+  const orgLabels = organizationEngine.resolveLabels({
     headquartersId: officer.headquartersId ?? null,
     regionId: officer.regionId ?? null,
     battalionId: officer.battalionId ?? null,

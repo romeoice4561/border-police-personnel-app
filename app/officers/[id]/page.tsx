@@ -19,7 +19,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getOfficerProfile } from "@/lib/server/officer_service";
 import { getKnownUnits } from "@/lib/server/unit_service";
-import { getOrgTree } from "@/lib/server/org_tree_service";
+import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
 import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
@@ -34,10 +34,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function OfficerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const officerId = decodeURIComponent(id);
-  const [officer, knownUnits, orgTree, portrait] = await Promise.all([
+  const [officer, knownUnits, organizationEngine, portrait] = await Promise.all([
     getOfficerProfile(officerId),
     getKnownUnits(),
-    getOrgTree(),
+    loadOrganizationEngine(),
     resolveOfficerPortrait(officerId),
   ]);
 
@@ -54,7 +54,12 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
         </Link>
       </Button>
 
-      <OfficerWorkspace officer={officer} knownUnits={knownUnits} orgTree={orgTree} portrait={portrait} />
+      {/* OrganizationEngine is a class instance and cannot cross the Server
+          -> Client Component boundary (RSC only serializes plain objects).
+          Hand off the plain OrgTree snapshot instead — OfficerWorkspace
+          (client) wraps it in organizationEngineFromTree() itself, exactly
+          like the client-fetch path (useOrganizationEngine) already does. */}
+      <OfficerWorkspace officer={officer} knownUnits={knownUnits} orgTree={organizationEngine.getOrganizationTree()} portrait={portrait} />
     </div>
   );
 }

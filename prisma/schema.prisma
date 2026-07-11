@@ -389,6 +389,7 @@ model Region {
   battalions   Battalion[]
   officers     Officer[]
   timeline     Timeline[]
+  aliases      OrganizationAlias[]
 
   @@index([headquartersId])
 }
@@ -409,6 +410,7 @@ model Battalion {
   companies    Company[]
   officers     Officer[]
   timeline     Timeline[]
+  aliases      OrganizationAlias[]
 
   @@index([regionId])
 }
@@ -429,6 +431,7 @@ model Company {
   assets       Asset[]
   officers     Officer[]
   timeline     Timeline[]
+  aliases      OrganizationAlias[]
 
   @@index([battalionId])
 }
@@ -445,6 +448,44 @@ model UnresolvedOrganizationCode {
   createdAt    DateTime @default(now())
 
   @@index([sourceModule])
+}
+
+/// Phase 27 (Organization Engine): a legacy/OCR-variant/unofficial text form
+/// that maps to a real, still-registered Region/Battalion/Company row —
+/// distinct from UnresolvedOrganizationCode above, which is for text that
+/// maps to NOTHING. An alias exists for text that DOES resolve, just not by
+/// exact/normalized match against the canonical row's own code/nameTh (e.g.
+/// an observed company code that the official master list doesn't include,
+/// or "กองกำกับการตำรวจตระเวนชายแดนที่ 41" for battalion "41").
+///
+/// Additive only — this table starts EMPTY. No existing Region/Battalion/
+/// Company row is altered, relabeled, or removed by adding this table.
+/// Populating it (e.g. migrating the organization_seed.ts codes that fall
+/// outside the official list into aliases) is a separate, future, dedicated
+/// data-migration phase — see lib/organization/organization_engine.ts's
+/// module docblock for the full migration plan.
+///
+/// Exactly one of canonicalRegionId/canonicalBattalionId/canonicalCompanyId
+/// is set, matching the level the alias resolves to (never invents a level
+/// the alias text didn't specify).
+model OrganizationAlias {
+  id                Int       @id @default(autoincrement())
+  /// The raw legacy/OCR-variant/unofficial text this alias recognizes.
+  aliasText         String
+  canonicalRegion    Region?    @relation(fields: [canonicalRegionId], references: [id], onDelete: Cascade)
+  canonicalRegionId  Int?
+  canonicalBattalion Battalion? @relation(fields: [canonicalBattalionId], references: [id], onDelete: Cascade)
+  canonicalBattalionId Int?
+  canonicalCompany   Company?   @relation(fields: [canonicalCompanyId], references: [id], onDelete: Cascade)
+  canonicalCompanyId Int?
+  /// Where this alias came from (e.g. "observed-seed-migration", "ocr-variant", "manual") — for audit, not logic.
+  source            String
+  createdAt         DateTime  @default(now())
+
+  @@index([aliasText])
+  @@index([canonicalRegionId])
+  @@index([canonicalBattalionId])
+  @@index([canonicalCompanyId])
 }
 
 /// Phase 21C: a Profile Photo — every image discovered under a Drive

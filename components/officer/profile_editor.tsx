@@ -40,7 +40,7 @@ import { SHIRT_SIZE_OPTIONS } from "@/lib/officer_profile/shirt_size_options";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
 import { NATIONALITY_OPTIONS } from "@/lib/officer_profile/nationality_options";
 import { OrgHierarchyPicker, type OrgHierarchyValue } from "@/components/officer/org_hierarchy_picker";
-import type { OrgTree } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import type { ProfileDraft } from "@/components/officer/use_officer_workspace";
 
 const inputCls =
@@ -72,11 +72,11 @@ export interface ProfileEditorProps {
   onChange: (profile: ProfileDraft) => void;
   /** Existing unit names across all officers — no longer used by this editor (Part C removed the free-text Unit field) but kept in the prop signature so callers passing it are unaffected. */
   knownUnits: readonly string[];
-  /** Phase 26B Part 5 Part C: the organization master-data tree, for the Current Organization hierarchy picker. */
-  orgTree: OrgTree;
+  /** Phase 27: the shared OrganizationEngine, for the Current Organization hierarchy picker. */
+  organizationEngine: OrganizationEngine;
 }
 
-export function ProfileEditor({ profile, onChange, orgTree }: ProfileEditorProps) {
+export function ProfileEditor({ profile, onChange, organizationEngine }: ProfileEditorProps) {
   function set<K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) {
     onChange({ ...profile, [key]: value });
   }
@@ -150,7 +150,7 @@ export function ProfileEditor({ profile, onChange, orgTree }: ProfileEditorProps
             Facebook/Nickname in this SAME section — not a separate card. */}
         <div className="sm:col-span-2">
           <p className="mb-1.5 text-xs font-medium text-muted">หน่วยงานปัจจุบัน (Current Organization)</p>
-          <OrgHierarchyPicker tree={orgTree} value={orgValue} onChange={onOrgChange} />
+          <OrgHierarchyPicker organizationEngine={organizationEngine} value={orgValue} onChange={onOrgChange} />
         </div>
 
         <Field label="เบอร์โทร" htmlFor="edit-phone">

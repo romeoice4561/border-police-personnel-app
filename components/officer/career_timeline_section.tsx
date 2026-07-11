@@ -27,7 +27,7 @@ import { ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Timeline } from "@/lib/database/query_types";
 import { sortTimelineByYear } from "@/lib/ui/officer_summary";
 import { formatThaiDate } from "@/lib/officer_profile/thai_date";
-import { resolveOrgLabels, type OrgTree } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,8 +59,8 @@ export interface CareerTimelineRow {
  * not yet migrated falls back to its legacy free-text `year` verbatim,
  * unchanged from before this phase.
  */
-function toCareerTimelineRow(entry: Timeline, orgTree: OrgTree): CareerTimelineRow {
-  const labels = resolveOrgLabels(orgTree, {
+function toCareerTimelineRow(entry: Timeline, organizationEngine: OrganizationEngine): CareerTimelineRow {
+  const labels = organizationEngine.resolveLabels({
     headquartersId: entry.headquartersId ?? null,
     regionId: entry.regionId ?? null,
     battalionId: entry.battalionId ?? null,
@@ -157,8 +157,8 @@ function TimelineCard({ row }: { row: CareerTimelineRow }) {
   );
 }
 
-export function CareerTimelineSection({ timeline, orgTree }: { timeline: Timeline[]; orgTree: OrgTree }) {
-  const rows = sortTimelineByYear(timeline).map((entry) => toCareerTimelineRow(entry, orgTree));
+export function CareerTimelineSection({ timeline, organizationEngine }: { timeline: Timeline[]; organizationEngine: OrganizationEngine }) {
+  const rows = sortTimelineByYear(timeline).map((entry) => toCareerTimelineRow(entry, organizationEngine));
 
   return (
     <Card>

@@ -17,7 +17,7 @@
  */
 import { Building2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
-import { resolveOrgLabels, type OrgTree } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { EditableSectionCard, SectionEmptyState } from "@/components/officer/editable_section_card";
 import { BilingualLabel } from "@/components/ui/bilingual_label";
 import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
@@ -31,8 +31,8 @@ function Field({ labelKey, value }: { labelKey: keyof typeof FIELD_LABELS; value
   );
 }
 
-export function CurrentOrganizationSection({ officer, orgTree }: { officer: OfficerWithRelations; orgTree: OrgTree }) {
-  const labels = resolveOrgLabels(orgTree, {
+export function CurrentOrganizationSection({ officer, organizationEngine }: { officer: OfficerWithRelations; organizationEngine: OrganizationEngine }) {
+  const labels = organizationEngine.resolveLabels({
     headquartersId: officer.headquartersId ?? null,
     regionId: officer.regionId ?? null,
     battalionId: officer.battalionId ?? null,

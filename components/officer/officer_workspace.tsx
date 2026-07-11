@@ -16,6 +16,7 @@
  */
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
@@ -43,6 +44,7 @@ import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
 import { Button } from "@/components/ui/button";
+import { organizationEngineFromTree } from "@/lib/organization/organization_engine";
 import type { OrgTree } from "@/lib/organization/org_tree";
 
 export interface OfficerWorkspaceProps {
@@ -51,13 +53,19 @@ export interface OfficerWorkspaceProps {
   knownUnits: readonly string[];
   /** Trusted portrait (from a matched ProfilePhoto), resolved server-side. */
   portrait: ResolvedOfficerPortrait;
-  /** Phase 26B Part C/D: the full Headquarters/Region/Battalion/Company snapshot for the Timeline org pickers. */
+  /**
+   * Phase 27: the raw org-tree snapshot, fetched server-side. Wrapped into an
+   * OrganizationEngine HERE (client-side) rather than accepted as an
+   * OrganizationEngine prop directly — a class instance can't cross the
+   * Server -> Client Component boundary (RSC only serializes plain data).
+   */
   orgTree: OrgTree;
 }
 
 export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: OfficerWorkspaceProps) {
   const router = useRouter();
-  const workspace = useOfficerWorkspace(officer, orgTree);
+  const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
+  const workspace = useOfficerWorkspace(officer, organizationEngine);
   const { editing, startEditing, cancel, save, isSaving, saveError } = workspace;
 
   async function handleSave() {
@@ -79,7 +87,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
 
   return (
     <div className="space-y-6">
-      <ProfileHeader officer={officer} portrait={portrait} orgTree={orgTree} />
+      <ProfileHeader officer={officer} portrait={portrait} organizationEngine={organizationEngine} />
 
       {editing ? (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -111,7 +119,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
               Information (below, outside this grid). */}
           {editing ? (
             <>
-              <ProfileEditor profile={workspace.profile} onChange={workspace.setProfile} knownUnits={knownUnits} orgTree={orgTree} />
+              <ProfileEditor profile={workspace.profile} onChange={workspace.setProfile} knownUnits={knownUnits} organizationEngine={organizationEngine} />
               <PersonalInformationEditor profile={workspace.profile} onChange={workspace.setProfile} />
             </>
           ) : (
@@ -120,7 +128,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
                 <BasicInformationSection officer={officer} />
                 <CareerSection officer={officer} />
               </div>
-              <CurrentOrganizationSection officer={officer} orgTree={orgTree} />
+              <CurrentOrganizationSection officer={officer} organizationEngine={organizationEngine} />
               <ContactSection officer={officer} />
               <PersonalInformationSection officer={officer} />
             </>
@@ -138,9 +146,9 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
           widest, most information-dense section on the page — and now
           immediately follows Personal Information above. */}
       {editing ? (
-        <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} orgTree={orgTree} />
+        <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} organizationEngine={organizationEngine} />
       ) : (
-        <CareerTimelineSection timeline={officer.timeline} orgTree={orgTree} />
+        <CareerTimelineSection timeline={officer.timeline} organizationEngine={organizationEngine} />
       )}
 
       {/* Phase 26D Part 1: Achievements -> Documents -> Notes -> Training -> Education -> Photo Gallery -> Officer Quality Card. */}

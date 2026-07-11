@@ -10,7 +10,7 @@
  * Idempotent: every upsert is keyed on the model's unique `code`.
  */
 
-import type { Battalion, Company, CompanyWithAncestry, Region, UnresolvedOrganizationCode } from "@/lib/organization/organization_types";
+import type { Battalion, Company, CompanyWithAncestry, OrganizationAliasEntry, Region, UnresolvedOrganizationCode } from "@/lib/organization/organization_types";
 import type { OrganizationRepository } from "@/lib/organization/organization_repository";
 
 interface RegionRow {
@@ -50,6 +50,16 @@ interface UnresolvedRow {
   createdAt: Date | string;
 }
 
+interface AliasRow {
+  id: number;
+  aliasText: string;
+  canonicalRegionId: number | null;
+  canonicalBattalionId: number | null;
+  canonicalCompanyId: number | null;
+  source: string;
+  createdAt: Date | string;
+}
+
 interface RegionDelegate {
   findUnique(args: { where: { code: string } }): Promise<RegionRow | null>;
   findMany(args?: { orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">> }): Promise<RegionRow[]>;
@@ -79,12 +89,18 @@ interface UnresolvedDelegate {
   findMany(args?: { where?: Record<string, unknown> }): Promise<UnresolvedRow[]>;
 }
 
+interface AliasDelegate {
+  create(args: { data: Record<string, unknown> }): Promise<AliasRow>;
+  findMany(args?: { where?: Record<string, unknown> }): Promise<AliasRow[]>;
+}
+
 /** The client surface this repository depends on. Structurally satisfied by PrismaClient and by fakes. */
 export interface OrganizationDbClient {
   region: RegionDelegate;
   battalion: BattalionDelegate;
   company: CompanyDelegate;
   unresolvedOrganizationCode: UnresolvedDelegate;
+  organizationAlias: AliasDelegate;
 }
 
 function toIso(value: Date | string): string {
@@ -105,6 +121,18 @@ function rowToCompany(row: CompanyRow): Company {
 
 function rowToUnresolved(row: UnresolvedRow): UnresolvedOrganizationCode {
   return { id: row.id, raw: row.raw, reason: row.reason, sourceModule: row.sourceModule, createdAt: toIso(row.createdAt) };
+}
+
+function rowToAlias(row: AliasRow): OrganizationAliasEntry {
+  return {
+    id: row.id,
+    aliasText: row.aliasText,
+    regionId: row.canonicalRegionId,
+    battalionId: row.canonicalBattalionId,
+    companyId: row.canonicalCompanyId,
+    source: row.source,
+    createdAt: toIso(row.createdAt),
+  };
 }
 
 export class PrismaOrganizationRepository implements OrganizationRepository {
@@ -196,5 +224,27 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       sourceModule !== undefined ? { where: { sourceModule } } : undefined
     );
     return rows.map(rowToUnresolved);
+  }
+
+  async listAliases(): Promise<OrganizationAliasEntry[]> {
+    const rows = await this.db.organizationAlias.findMany();
+    return rows.map(rowToAlias);
+  }
+
+  async createAlias(
+    aliasText: string,
+    canonical: { regionId?: number; battalionId?: number; companyId?: number },
+    source: string
+  ): Promise<OrganizationAliasEntry> {
+    const row = await this.db.organizationAlias.create({
+      data: {
+        aliasText,
+        canonicalRegionId: canonical.regionId ?? null,
+        canonicalBattalionId: canonical.battalionId ?? null,
+        canonicalCompanyId: canonical.companyId ?? null,
+        source,
+      },
+    });
+    return rowToAlias(row);
   }
 }

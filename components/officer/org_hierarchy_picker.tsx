@@ -9,9 +9,10 @@
  *
  * Part D — Smart Auto Fill: selecting a Company derives its Battalion,
  * Region, and Headquarters automatically (and selecting a Battalion derives
- * Region/Headquarters, etc.) via lib/organization/org_tree.ts's pure
- * autoFillFrom* helpers. The user may always override any level afterward —
- * auto-fill only ever SETS the ancestor ids, it never locks them.
+ * Region/Headquarters, etc.) via the shared OrganizationEngine's `.cascade`
+ * (Phase 27 — every screen's cascading logic goes through this ONE engine).
+ * The user may always override any level afterward — auto-fill only ever
+ * SETS the ancestor ids, it never locks them.
  *
  * A typed value that doesn't match any known row in the tree is preserved as
  * free text (matching the existing Rank/Position/Unit convention) but does
@@ -24,15 +25,8 @@
 "use client";
 
 import { Combobox } from "@/components/ui/combobox";
-import {
-  battalionsForRegion,
-  companiesForBattalion,
-  autoFillFromCompany,
-  autoFillFromBattalion,
-  autoFillFromRegion,
-  type OrgTree,
-  type OrgSelection,
-} from "@/lib/organization/org_tree";
+import type { OrgSelection } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { HEADQUARTERS_OPTIONS } from "@/lib/organization/headquarters_options";
 import { BORDER_PATROL_DIVISION_DEFAULTS, BORDER_PATROL_DIVISION_OPTIONS, divisionLabelForRegion } from "@/lib/organization/border_patrol_division_options";
 
@@ -45,20 +39,22 @@ export interface OrgHierarchyValue extends OrgSelection {
 }
 
 export interface OrgHierarchyPickerProps {
-  tree: OrgTree;
+  /** Phase 27: the shared OrganizationEngine — the ONE source this picker's cascading options and auto-fill read from. */
+  organizationEngine: OrganizationEngine;
   value: OrgHierarchyValue;
   onChange: (value: OrgHierarchyValue) => void;
 }
 
-function findByLabel<T extends { id: number }>(rows: T[], label: (row: T) => string, text: string): T | undefined {
+function findByLabel<T extends { id: number }>(rows: readonly T[], label: (row: T) => string, text: string): T | undefined {
   const needle = text.trim();
   if (!needle) return undefined;
   return rows.find((r) => label(r) === needle);
 }
 
-export function OrgHierarchyPicker({ tree, value, onChange }: OrgHierarchyPickerProps) {
-  const battalionOptions = battalionsForRegion(tree, value.regionId);
-  const companyOptions = companiesForBattalion(tree, value.battalionId);
+export function OrgHierarchyPicker({ organizationEngine, value, onChange }: OrgHierarchyPickerProps) {
+  const tree = organizationEngine.getOrganizationTree();
+  const battalionOptions = organizationEngine.getBattalions(value.regionId);
+  const companyOptions = organizationEngine.getCompanies(value.battalionId);
 
   function onHeadquartersChange(text: string) {
     const match = findByLabel(tree.headquarters, (h) => h.nameTh, text);
@@ -90,7 +86,7 @@ export function OrgHierarchyPicker({ tree, value, onChange }: OrgHierarchyPicker
   function onRegionChange(text: string) {
     const match = findRegionByDivisionLabel(text);
     if (match) {
-      const filled = autoFillFromRegion(tree, match.id);
+      const filled = organizationEngine.cascade.fromRegion(match.id);
       onChange({
         ...value,
         regionText: text,
@@ -108,7 +104,7 @@ export function OrgHierarchyPicker({ tree, value, onChange }: OrgHierarchyPicker
   function onBattalionChange(text: string) {
     const match = findByLabel(battalionOptions, (b) => b.nameTh, text);
     if (match) {
-      const filled = autoFillFromBattalion(tree, match.id);
+      const filled = organizationEngine.cascade.fromBattalion(match.id);
       onChange({
         ...value,
         battalionText: text,
@@ -125,7 +121,7 @@ export function OrgHierarchyPicker({ tree, value, onChange }: OrgHierarchyPicker
   function onCompanyChange(text: string) {
     const match = findByLabel(companyOptions, (c) => c.nameTh, text);
     if (match) {
-      const filled = autoFillFromCompany(tree, match.id);
+      const filled = organizationEngine.cascade.fromCompany(match.id);
       onChange({
         ...value,
         companyText: text,

@@ -22,8 +22,8 @@ test("works with ANY prefix, no per-prefix special-casing", () => {
 
 // ── createGalleryUnitNames (Phase 27 Part 5) ──
 
-test("createGalleryUnitNames defaults to the full shared company list when no companyList is supplied", () => {
-  const names = createGalleryUnitNames("ชปข./ชปส.");
+test("createGalleryUnitNames requires an explicit companyList (Phase 27: no silent fallback to a static dataset)", () => {
+  const names = createGalleryUnitNames("ชปข./ชปส.", [...COMPANY_NUMBER_CODES]);
   assert.equal(names.length, COMPANY_NUMBER_CODES.length);
   assert.equal(names[0], "ชปข./ชปส.114");
   assert.equal(names.at(-1), "ชปข./ชปส.449");

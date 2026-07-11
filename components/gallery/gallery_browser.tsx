@@ -9,19 +9,20 @@
  */
 "use client";
 
-import { useState, useCallback, useMemo, useDeferredValue } from "react";
+import { useState, useCallback, useDeferredValue } from "react";
 import { ChevronLeft, Search, X, ArrowUpDown, ShieldCheck } from "lucide-react";
 import { ASSET_CATEGORY_LABELS } from "@/lib/gallery/asset_category";
 import type { AssetCategory } from "@/lib/gallery/asset_category";
 import type { Asset } from "@/lib/gallery/asset_types";
 import { useGalleryAssets } from "@/lib/gallery/gallery_hooks";
+import { useOrganizationEngine } from "@/lib/ui/hooks";
+import { battalionLabelsForRegion } from "@/lib/organization/gallery_org_helpers";
 import { GalleryAssetCard } from "@/components/gallery/gallery_asset_card";
 import { GalleryEditModal } from "@/components/gallery/gallery_edit_modal";
 import { PhotoModal } from "@/components/officer/photo_modal";
 import { Skeleton, ErrorState, EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
-import { battalionLabelsForRegion } from "@/lib/organization/gallery_org_helpers";
 
 const PAGE_SIZE = 24;
 
@@ -62,6 +63,7 @@ interface GalleryBrowserProps {
 }
 
 export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
+  const organizationEngine = useOrganizationEngine();
   const [region, setRegion]           = useState("");
   const [battalion, setBattalion]     = useState("");
   const [company, setCompany]         = useState("");
@@ -135,11 +137,11 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
   const assets     = data?.data ?? [];
   const pagination = data?.pagination;
 
-  /* Phase 27 Part 8: Battalion now reuses the shared organization framework
-     (same data as Officer/Timeline and the Gallery edit modal) instead of a
+  /* Phase 27 Part 8: Battalion reuses the shared OrganizationEngine (same
+     source as Officer/Timeline and the Gallery edit modal) instead of a
      free-text input with no options — narrowed to the selected Region's
      battalions, same cascading convention as officer_filters.tsx. */
-  const battalionOptions = useMemo(() => battalionLabelsForRegion(region), [region]);
+  const battalionOptions = organizationEngine ? battalionLabelsForRegion(organizationEngine, region) : [];
 
   const hasFilters = Boolean(region || battalion || company || verifiedOnly || searchInput || sortValue !== DEFAULT_SORT);
   const categoryLabel = ASSET_CATEGORY_LABELS[category];
@@ -377,9 +379,10 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
       ) : null}
 
       {/* ── Metadata edit modal (Phase 22A) ── */}
-      {editAsset ? (
+      {editAsset && organizationEngine ? (
         <GalleryEditModal
           asset={editAsset}
+          organizationEngine={organizationEngine}
           onClose={() => setEditAsset(null)}
         />
       ) : null}

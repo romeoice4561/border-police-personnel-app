@@ -21,16 +21,16 @@ import { useUpdateAssetMetadata } from "@/lib/gallery/gallery_hooks";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/ui/cn";
-import { galleryRegionDropdown } from "@/lib/organization/gallery_region_options";
+import { galleryRegionOptions } from "@/lib/organization/gallery_region_options";
 import { battalionLabelsForRegion, companyLabelsForBattalion, autoFillFromCompanyLabel } from "@/lib/organization/gallery_org_helpers";
 import { unitNamePrefixForCategory } from "@/lib/organization/gallery_unit_name_prefixes";
 import { createGalleryUnitNames } from "@/lib/organization/gallery_generator";
-
-/** Suggestions only — never a forced/closed list, so existing OCR/legacy values are always preserved (Phase 26D Part 4). */
-const REGION_SUGGESTIONS = galleryRegionDropdown.map((o) => o.label);
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 interface GalleryEditModalProps {
   asset: Asset;
+  /** Phase 27: the shared OrganizationEngine — the ONE source Battalion/Company suggestions and auto-fill read from. */
+  organizationEngine: OrganizationEngine;
   onClose: () => void;
 }
 
@@ -60,7 +60,7 @@ function initialFormState(asset: Asset): FormState {
   };
 }
 
-export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
+export function GalleryEditModal({ asset, organizationEngine, onClose }: GalleryEditModalProps) {
   const [form, setForm]             = useState<FormState>(() => initialFormState(asset));
   const [keywordInput, setKwInput]  = useState("");
   const [imgFailed, setImgFailed]   = useState(false);
@@ -90,14 +90,19 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
     setForm((f) => ({ ...f, [key]: value }));
   }, []);
 
+  /* Region suggestions: every engine-backed Border Patrol region plus
+     Gallery's additional legacy regions (5-7) — never a forced/closed list,
+     so existing OCR/legacy values are always preserved (Phase 26D Part 4). */
+  const regionSuggestions = useMemo(() => galleryRegionOptions(organizationEngine).map((o) => o.label), [organizationEngine]);
+
   /* ── Cascading suggestions (Phase 27 Part 2/3/4): Battalion narrows to the
      selected Region's battalions, Company narrows to the selected Battalion's
      companies — same shared-framework data as Officer/Timeline's
      OrgHierarchyPicker, just resolved from label text instead of ids since
      Gallery's fields have no FK/id linkage. Falls back to the FULL list
      (never an empty/blocked list) when the current text doesn't resolve. */
-  const battalionSuggestions = useMemo(() => battalionLabelsForRegion(form.region), [form.region]);
-  const companySuggestions = useMemo(() => companyLabelsForBattalion(form.battalion), [form.battalion]);
+  const battalionSuggestions = useMemo(() => battalionLabelsForRegion(organizationEngine, form.region), [organizationEngine, form.region]);
+  const companySuggestions = useMemo(() => companyLabelsForBattalion(organizationEngine, form.battalion), [organizationEngine, form.battalion]);
 
   /* ── Auto-fill from Company (Phase 27 Part 7): selecting a recognized
      company fills Unit Number, and — if this asset's category has a
@@ -106,7 +111,7 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
   const unitNamePrefix = unitNamePrefixForCategory(asset.category);
   const handleCompanyChange = useCallback(
     (value: string) => {
-      const resolved = autoFillFromCompanyLabel(value);
+      const resolved = autoFillFromCompanyLabel(organizationEngine, value);
       setForm((f) => {
         const next: FormState = { ...f, company: value };
         if (resolved) {
@@ -118,7 +123,7 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
         return next;
       });
     },
-    [unitNamePrefix]
+    [organizationEngine, unitNamePrefix]
   );
 
   const addKeyword = useCallback((raw: string) => {
@@ -328,7 +333,7 @@ export function GalleryEditModal({ asset, onClose }: GalleryEditModalProps) {
                   id="edit-region"
                   value={form.region}
                   onChange={(v) => set("region", v)}
-                  suggestions={REGION_SUGGESTIONS}
+                  suggestions={regionSuggestions}
                   placeholder="เลือกหรือพิมพ์ภาค"
                   aria-label="ภาค"
                 />

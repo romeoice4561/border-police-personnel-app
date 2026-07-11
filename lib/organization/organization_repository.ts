@@ -12,7 +12,7 @@
  * duplicates rows. No OCR, no AI, no officer tables, no globals, no singleton.
  */
 
-import type { Battalion, Company, CompanyWithAncestry, Region, UnresolvedOrganizationCode } from "@/lib/organization/organization_types";
+import type { Battalion, Company, CompanyWithAncestry, OrganizationAliasEntry, Region, UnresolvedOrganizationCode } from "@/lib/organization/organization_types";
 
 export interface OrganizationRepository {
   upsertRegion(code: string, nameTh: string, displayOrder: number): Promise<Region>;
@@ -30,6 +30,11 @@ export interface OrganizationRepository {
   /** Records a raw code that couldn't be mapped to the hierarchy, for manual review. */
   recordUnresolved(raw: string, reason: string, sourceModule: string): Promise<UnresolvedOrganizationCode>;
   listUnresolved(sourceModule?: string): Promise<UnresolvedOrganizationCode[]>;
+
+  /** Phase 27: every registered alias (legacy/OCR-variant/unofficial text -> canonical Region/Battalion/Company). */
+  listAliases(): Promise<OrganizationAliasEntry[]>;
+  /** Records a new alias. Additive — never overwrites an existing alias for the same text. */
+  createAlias(aliasText: string, canonical: { regionId?: number; battalionId?: number; companyId?: number }, source: string): Promise<OrganizationAliasEntry>;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,6 +46,7 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
   private battalions = new Map<string, Battalion>();
   private companies = new Map<string, Company>();
   private unresolved: UnresolvedOrganizationCode[] = [];
+  private aliases: OrganizationAliasEntry[] = [];
   private nextId = 1;
 
   private now(): string {
@@ -127,5 +133,27 @@ export class InMemoryOrganizationRepository implements OrganizationRepository {
     return sourceModule === undefined
       ? [...this.unresolved]
       : this.unresolved.filter((u) => u.sourceModule === sourceModule);
+  }
+
+  async listAliases(): Promise<OrganizationAliasEntry[]> {
+    return [...this.aliases];
+  }
+
+  async createAlias(
+    aliasText: string,
+    canonical: { regionId?: number; battalionId?: number; companyId?: number },
+    source: string
+  ): Promise<OrganizationAliasEntry> {
+    const entry: OrganizationAliasEntry = {
+      id: this.nextId++,
+      aliasText,
+      regionId: canonical.regionId ?? null,
+      battalionId: canonical.battalionId ?? null,
+      companyId: canonical.companyId ?? null,
+      source,
+      createdAt: this.now(),
+    };
+    this.aliases.push(entry);
+    return entry;
   }
 }

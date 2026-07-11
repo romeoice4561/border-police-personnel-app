@@ -20,8 +20,7 @@ import type { CareerTimelineRow } from "@/components/officer/career_timeline_sec
 import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hooks";
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
 import { formatThaiDate } from "@/lib/officer_profile/thai_date";
-import type { OrgTree } from "@/lib/organization/org_tree";
-import { divisionLabelForRegion } from "@/lib/organization/border_patrol_division_options";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 export interface ProfileDraft {
   rank: string;
@@ -128,7 +127,13 @@ function toDateInputValue(date: Date | null | undefined): string {
   return new Date(date).toISOString().slice(0, 10);
 }
 
-function toProfileDraft(officer: OfficerWithRelations, tree: OrgTree): ProfileDraft {
+function toProfileDraft(officer: OfficerWithRelations, organizationEngine: OrganizationEngine): ProfileDraft {
+  const orgLabels = organizationEngine.resolveLabels({
+    headquartersId: officer.headquartersId ?? null,
+    regionId: officer.regionId ?? null,
+    battalionId: officer.battalionId ?? null,
+    companyId: officer.companyId ?? null,
+  });
   return {
     rank: officer.rank,
     firstName: officer.firstName,
@@ -140,13 +145,13 @@ function toProfileDraft(officer: OfficerWithRelations, tree: OrgTree): ProfileDr
     lineId: officer.lineId ?? "",
     facebookUrl: officer.facebookUrl ?? "",
     headquartersId: officer.headquartersId ?? null,
-    headquartersText: findLabel(tree.headquarters, (h) => h.nameTh, officer.headquartersId ?? null),
+    headquartersText: orgLabels.headquarters ?? "",
     regionId: officer.regionId ?? null,
-    regionText: findDivisionLabel(tree.regions, officer.regionId ?? null),
+    regionText: orgLabels.borderPatrolDivision ?? "",
     battalionId: officer.battalionId ?? null,
-    battalionText: findLabel(tree.battalions, (b) => b.nameTh, officer.battalionId ?? null),
+    battalionText: orgLabels.battalion ?? "",
     companyId: officer.companyId ?? null,
-    companyText: findLabel(tree.companies, (c) => c.nameTh, officer.companyId ?? null),
+    companyText: orgLabels.company ?? "",
     nickname: officer.nickname ?? "",
     dateOfBirth: toDateInputValue(officer.dateOfBirth),
     bloodGroup: officer.bloodGroup ?? "",
@@ -173,48 +178,42 @@ function toProfileDraft(officer: OfficerWithRelations, tree: OrgTree): ProfileDr
   };
 }
 
-/** Looks up a row's display label from the org tree by id, or "" when unset/unresolved (never invented). */
-function findLabel<T extends { id: number }>(rows: readonly T[], label: (row: T) => string, id: number | null): string {
-  if (id === null) return "";
-  const row = rows.find((r) => r.id === id);
-  return row ? label(row) : "";
-}
-
-/** The Border Patrol Division combobox's display label ("ตชด.ภ.4") for a persisted regionId, or "" when unset/unresolved. */
-function findDivisionLabel(regions: OrgTree["regions"], regionId: number | null): string {
-  if (regionId === null) return "";
-  const region = regions.find((r) => r.id === regionId);
-  return region ? divisionLabelForRegion(region) : "";
-}
-
-function toTimelineDrafts(officer: OfficerWithRelations, tree: OrgTree): TimelineDraftRow[] {
+function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: OrganizationEngine): TimelineDraftRow[] {
   return [...officer.timeline]
     .sort((a, b) => a.sequence - b.sequence)
-    .map((t) => ({
-      key: newKey(),
-      year: t.year,
-      rank: t.rank ?? "",
-      position: t.position,
-      unit: t.unit ?? "",
-      source: t.source ?? "",
-      verified: t.verified,
-      day: t.day ?? null,
-      month: t.month ?? null,
-      yearBE: t.yearBE ?? null,
-      isPresent: t.isPresent ?? false,
-      headquartersId: t.headquartersId ?? null,
-      headquartersText: findLabel(tree.headquarters, (h) => h.nameTh, t.headquartersId ?? null),
-      regionId: t.regionId ?? null,
-      regionText: findDivisionLabel(tree.regions, t.regionId ?? null),
-      battalionId: t.battalionId ?? null,
-      battalionText: findLabel(tree.battalions, (b) => b.nameTh, t.battalionId ?? null),
-      companyId: t.companyId ?? null,
-      companyText: findLabel(tree.companies, (c) => c.nameTh, t.companyId ?? null),
-      verificationStatus: t.verificationStatus ?? "",
-      verifiedBy: t.verifiedBy ?? "",
-      verifiedDate: toDateInputValue(t.verifiedDate),
-      verificationRemark: t.verificationRemark ?? "",
-    }));
+    .map((t) => {
+      const orgLabels = organizationEngine.resolveLabels({
+        headquartersId: t.headquartersId ?? null,
+        regionId: t.regionId ?? null,
+        battalionId: t.battalionId ?? null,
+        companyId: t.companyId ?? null,
+      });
+      return {
+        key: newKey(),
+        year: t.year,
+        rank: t.rank ?? "",
+        position: t.position,
+        unit: t.unit ?? "",
+        source: t.source ?? "",
+        verified: t.verified,
+        day: t.day ?? null,
+        month: t.month ?? null,
+        yearBE: t.yearBE ?? null,
+        isPresent: t.isPresent ?? false,
+        headquartersId: t.headquartersId ?? null,
+        headquartersText: orgLabels.headquarters ?? "",
+        regionId: t.regionId ?? null,
+        regionText: orgLabels.borderPatrolDivision ?? "",
+        battalionId: t.battalionId ?? null,
+        battalionText: orgLabels.battalion ?? "",
+        companyId: t.companyId ?? null,
+        companyText: orgLabels.company ?? "",
+        verificationStatus: t.verificationStatus ?? "",
+        verifiedBy: t.verifiedBy ?? "",
+        verifiedDate: toDateInputValue(t.verifiedDate),
+        verificationRemark: t.verificationRemark ?? "",
+      };
+    });
 }
 
 function toEducationDrafts(officer: OfficerWithRelations): EducationDraftRow[] {
@@ -237,22 +236,22 @@ function toTrainingDrafts(officer: OfficerWithRelations): TrainingDraftRow[] {
   }));
 }
 
-export function useOfficerWorkspace(officer: OfficerWithRelations, orgTree: OrgTree) {
+export function useOfficerWorkspace(officer: OfficerWithRelations, organizationEngine: OrganizationEngine) {
   const [editing, setEditing] = useState(false);
-  const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer, orgTree));
-  const [timeline, setTimeline] = useState<TimelineDraftRow[]>(() => toTimelineDrafts(officer, orgTree));
+  const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer, organizationEngine));
+  const [timeline, setTimeline] = useState<TimelineDraftRow[]>(() => toTimelineDrafts(officer, organizationEngine));
   const [education, setEducation] = useState<EducationDraftRow[]>(() => toEducationDrafts(officer));
   const [training, setTraining] = useState<TrainingDraftRow[]>(() => toTrainingDrafts(officer));
 
   const mutation = useSaveOfficerProfile();
 
   const startEditing = useCallback(() => {
-    setProfile(toProfileDraft(officer, orgTree));
-    setTimeline(toTimelineDrafts(officer, orgTree));
+    setProfile(toProfileDraft(officer, organizationEngine));
+    setTimeline(toTimelineDrafts(officer, organizationEngine));
     setEducation(toEducationDrafts(officer));
     setTraining(toTrainingDrafts(officer));
     setEditing(true);
-  }, [officer, orgTree]);
+  }, [officer, organizationEngine]);
 
   const cancel = useCallback(() => {
     setEditing(false);

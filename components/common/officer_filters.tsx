@@ -16,8 +16,7 @@
 "use client";
 
 import type { OfficerListFilters } from "@/lib/ui/list_filters";
-import type { OrgTree } from "@/lib/organization/org_tree";
-import { battalionsForRegion, companiesForBattalion } from "@/lib/organization/org_tree";
+import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { divisionLabelForRegion } from "@/lib/organization/border_patrol_division_options";
 import { TIMELINE_VERIFICATION_STATUS_OPTIONS, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { FilterFramework } from "@/components/common/filter_framework";
@@ -41,7 +40,8 @@ export const OFFICER_SORT_OPTIONS: readonly OfficerSortOption[] = [
 export interface OfficerFiltersProps {
   value: OfficerListFilters;
   ranks: string[];
-  orgTree: OrgTree | undefined;
+  /** Phase 27: the shared OrganizationEngine — the ONE source every organization filter reads from. Undefined while the tree is still loading. */
+  organizationEngine: OrganizationEngine | undefined;
   sortBy: string;
   sortOrder: "asc" | "desc";
   onChange: (next: OfficerListFilters) => void;
@@ -52,14 +52,14 @@ function countActive(v: OfficerListFilters): number {
   return Object.values(v).filter((x) => x !== undefined && x !== "").length;
 }
 
-export function OfficerFilters({ value, ranks, orgTree, sortBy, sortOrder, onChange, onSortChange }: OfficerFiltersProps) {
+export function OfficerFilters({ value, ranks, organizationEngine, sortBy, sortOrder, onChange, onSortChange }: OfficerFiltersProps) {
   function set<K extends keyof OfficerListFilters>(key: K, v: OfficerListFilters[K]) {
     onChange({ ...value, [key]: v });
   }
 
-  const regions = orgTree?.regions ?? [];
-  const battalionOptions = orgTree ? battalionsForRegion(orgTree, value.regionId ?? null) : [];
-  const companyOptions = orgTree ? companiesForBattalion(orgTree, value.battalionId ?? null) : [];
+  const regions = organizationEngine?.getRegions() ?? [];
+  const battalionOptions = organizationEngine ? organizationEngine.getBattalions(value.regionId ?? null) : [];
+  const companyOptions = organizationEngine ? organizationEngine.getCompanies(value.battalionId ?? null) : [];
 
   function onDivisionChange(regionId: number | undefined) {
     // Selecting a Division clears the now-stale Battalion/Company selections (mirrors OrgHierarchyPicker's cascade convention).
