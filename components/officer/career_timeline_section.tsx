@@ -49,6 +49,7 @@ export interface CareerTimelineRow {
   verifiedBy: string | null;
   verifiedDate: string | null;
   verificationRemark: string | null;
+  isPresent: boolean;
 }
 
 /**
@@ -81,6 +82,7 @@ function toCareerTimelineRow(entry: Timeline, orgTree: OrgTree): CareerTimelineR
     verifiedBy: entry.verifiedBy ?? null,
     verifiedDate: entry.verifiedDate ? new Date(entry.verifiedDate).toISOString().slice(0, 10) : null,
     verificationRemark: entry.verificationRemark ?? null,
+    isPresent: entry.isPresent,
   };
 }
 
@@ -126,6 +128,35 @@ function VerificationDetail({ row }: { row: CareerTimelineRow }) {
   );
 }
 
+/**
+ * Phase 23B Bug #5: the mobile counterpart to the desktop table below — one
+ * stacked card per row (Date / Rank / Position+Organization / Source /
+ * Verification / Current badge), mirroring the OfficerTable ->
+ * OfficerCard sm:hidden/sm:block split already used on the officer list page.
+ * No horizontal scrolling, 16px+ body text, generous touch spacing.
+ */
+function TimelineCard({ row }: { row: CareerTimelineRow }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-base font-medium tabular-nums text-foreground">{row.date || "—"}</span>
+        {row.isPresent ? <Badge tone="good">ปัจจุบัน / Current</Badge> : null}
+      </div>
+      {row.rank ? <p className="text-sm text-muted">{row.rank}</p> : null}
+      <OrganizationStack row={row} />
+      {row.source ? (
+        <p className="text-sm text-muted">
+          <span className="font-medium text-foreground">Source: </span>
+          {row.source}
+        </p>
+      ) : null}
+      <div className="border-t border-border pt-2">
+        <VerificationDetail row={row} />
+      </div>
+    </div>
+  );
+}
+
 export function CareerTimelineSection({ timeline, orgTree }: { timeline: Timeline[]; orgTree: OrgTree }) {
   const rows = sortTimelineByYear(timeline).map((entry) => toCareerTimelineRow(entry, orgTree));
 
@@ -138,47 +169,62 @@ export function CareerTimelineSection({ timeline, orgTree }: { timeline: Timelin
         {rows.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted">No career-history entries on record.</p>
         ) : (
-          // Phase 26B Part 6 Part V: table-layout:fixed with explicit
-          // proportional column widths (Position+Organization get the most
-          // room, Source/Verified are narrower) so the table fills the full
-          // card width instead of shrinking to content and forcing a
-          // horizontal scrollbar on typical viewports. overflow-x-auto is
-          // kept as a safety net for very narrow screens only.
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-left text-sm">
-              <colgroup>
-                <col className="w-[10%]" />
-                <col className="w-[8%]" />
-                <col className="w-[42%]" />
-                <col className="w-[15%]" />
-                <col className="w-[25%]" />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                  <th scope="col" className="px-5 py-3 font-medium">Date</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Rank</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Position / Organization</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Source</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Verification</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-border last:border-0 align-top">
-                    <td className="whitespace-nowrap px-5 py-3 tabular-nums">{row.date || "—"}</td>
-                    <td className="px-5 py-3 text-muted">{row.rank || "—"}</td>
-                    <td className="px-5 py-3">
-                      <OrganizationStack row={row} />
-                    </td>
-                    <td className="wrap-break-word px-5 py-3 text-muted">{row.source || "—"}</td>
-                    <td className="px-5 py-3">
-                      <VerificationDetail row={row} />
-                    </td>
+          <>
+            {/* Mobile: stacked cards, no horizontal scrolling. */}
+            <div className="grid gap-3 p-4 sm:hidden">
+              {rows.map((row) => (
+                <TimelineCard key={row.id} row={row} />
+              ))}
+            </div>
+
+            {/* Desktop/tablet: table. Phase 26B Part 6 Part V: table-layout:fixed
+                with explicit proportional column widths (Position+Organization
+                get the most room, Source/Verified are narrower) so the table
+                fills the full card width instead of shrinking to content and
+                forcing a horizontal scrollbar on typical viewports.
+                overflow-x-auto is kept as a safety net for very narrow screens
+                only. */}
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[42%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[25%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                    <th scope="col" className="px-5 py-3 font-medium">Date</th>
+                    <th scope="col" className="px-5 py-3 font-medium">Rank</th>
+                    <th scope="col" className="px-5 py-3 font-medium">Position / Organization</th>
+                    <th scope="col" className="px-5 py-3 font-medium">Source</th>
+                    <th scope="col" className="px-5 py-3 font-medium">Verification</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-b border-border last:border-0 align-top">
+                      <td className="whitespace-nowrap px-5 py-3 tabular-nums">
+                        <span className="flex items-center gap-2">
+                          {row.date || "—"}
+                          {row.isPresent ? <Badge tone="good">ปัจจุบัน</Badge> : null}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-muted">{row.rank || "—"}</td>
+                      <td className="px-5 py-3">
+                        <OrganizationStack row={row} />
+                      </td>
+                      <td className="wrap-break-word px-5 py-3 text-muted">{row.source || "—"}</td>
+                      <td className="px-5 py-3">
+                        <VerificationDetail row={row} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </CardBody>
     </Card>
