@@ -32,15 +32,34 @@ export function battalionCodeFromLabel(engine: OrganizationEngine, label: string
   return engine.getBattalionByCode(code) ? code : null;
 }
 
-/** Extracts the bare division/region number (e.g. "4") from a region label (e.g. "ภาค 4" or "ตชด.ภาค 4"), or null if it isn't a recognized Border Patrol region. */
+/**
+ * Extracts the bare division/region number (e.g. "4") from a region label —
+ * ONLY on an EXACT match against a canonical region label/code/nameTh (e.g.
+ * "ตชด.ภาค 4", "ภาค 4", or the bare code "4" itself), never by grabbing "the
+ * first digit anywhere in the string" (Phase 27 Bug #3 fix). A regexp-style
+ * "first digit wins" match previously misresolved arbitrary/legacy Gallery
+ * region text (which is free text, not an id) to the wrong region purely
+ * because its first character happened to be a matching digit — e.g. any
+ * text starting with "1" silently resolved to Region 1 regardless of intent.
+ * Returns null (never guesses) for anything that isn't an exact canonical
+ * match — callers must treat null as "unresolved," not "assume region 1."
+ */
 export function divisionCodeFromLabel(engine: OrganizationEngine, label: string): string | null {
-  const match = label.match(/(\d)/);
-  if (!match) return null;
-  const code = match[1];
-  return engine.getRegionByCode(code) ? code : null;
+  const needle = label.trim();
+  if (!needle) return null;
+  for (const region of engine.getRegions()) {
+    if (region.code === needle || region.nameTh === needle) return region.code;
+  }
+  for (const option of engine.getRegionOptions()) {
+    if (option.label === needle) {
+      const region = engine.getRegions().find((r) => String(r.id) === option.value);
+      if (region) return region.code;
+    }
+  }
+  return null;
 }
 
-/** Battalion label suggestions scoped to a region (by its label text), or every battalion when the region doesn't resolve to a known Border Patrol division. */
+/** Battalion label suggestions scoped to a region (by its EXACT label text — Bug #3), or every battalion when the region text doesn't exactly resolve to a known Border Patrol division (safe default: never guesses a wrong region from partial/unresolved text). */
 export function battalionLabelsForRegion(engine: OrganizationEngine, regionLabel: string): readonly string[] {
   const region = divisionCodeFromLabel(engine, regionLabel);
   const regionRow = region ? engine.getRegionByCode(region) : null;

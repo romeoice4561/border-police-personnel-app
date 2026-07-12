@@ -20,6 +20,7 @@
  */
 "use client";
 
+import { useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,17 @@ export interface CareerTimelineEditorProps {
 }
 
 export function CareerTimelineEditor({ rows, onChange, organizationEngine }: CareerTimelineEditorProps) {
+  // Phase 27 Bug #6: the legacy "Unit Name" field reuses the SAME Combobox
+  // primitive as every other organization field (Gallery, OrgHierarchyPicker)
+  // — never a plain <input> — with suggestions sourced from the shared
+  // OrganizationEngine (battalion + company display names, since a legacy
+  // free-text unit could name either level). Still fully free text: any
+  // value not matching a suggestion is preserved, never blocked or cleared.
+  const unitNameSuggestions = useMemo(
+    () => [...organizationEngine.getBattalions().map((b) => b.nameTh), ...organizationEngine.getCompanies().map((c) => c.nameTh)],
+    [organizationEngine]
+  );
+
   function updateRow(key: string, patch: Partial<TimelineDraftRow>) {
     onChange(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
@@ -195,16 +207,17 @@ export function CareerTimelineEditor({ rows, onChange, organizationEngine }: Car
                 onChange={(orgValue) => updateRow(row.key, orgValue)}
               />
 
-              {/* Phase 26D Part 2: "Unit Name" — the legacy free-text unit
-                  field, now a visible labeled input (previously shown only as
-                  a fallback hint) for a row whose organization predates the
-                  structured hierarchy above. */}
+              {/* Phase 26D Part 2 / Phase 27 Bug #6: "Unit Name" — the legacy
+                  free-text unit field, for a row whose organization predates
+                  the structured hierarchy above. Now the same Combobox
+                  primitive as every other organization field (no duplicated
+                  UI), suggestions from the shared OrganizationEngine — never
+                  blocks or overwrites an existing custom value. */}
               <LabeledField label="ชื่อหน่วย (ข้อมูลเดิม)">
-                <input
-                  type="text"
-                  className="h-9.5 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                <Combobox
                   value={row.unit}
-                  onChange={(e) => updateRow(row.key, { unit: e.target.value })}
+                  onChange={(value) => updateRow(row.key, { unit: value })}
+                  suggestions={unitNameSuggestions}
                   placeholder="เช่น ร้อย ตชด.415"
                   aria-label="ชื่อหน่วย"
                 />

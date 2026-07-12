@@ -63,7 +63,7 @@ export function OrgHierarchyPicker({ organizationEngine, value, onChange }: OrgH
 
   /**
    * The "Border Patrol Division" combobox suggests friendly labels
-   * ("ตชด.ภ.4") that are NOT the real Region.nameTh ("ภาค 4") — resolve via
+   * ("ตชด.ภาค 4") that are NOT the real Region.nameTh ("ภาค 4") — resolve via
    * BORDER_PATROL_DIVISION_DEFAULTS' regionCode first (the common case, a
    * suggestion pick), falling back to a direct nameTh match so typing/
    * pasting the real region name also resolves.

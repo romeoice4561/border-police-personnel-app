@@ -1,59 +1,64 @@
 /**
- * Organization master-data seed (Phase 20A).
+ * Organization master-data seed (Phase 20A; corrected to the official
+ * nationwide list in Phase 27 Bug #4/#7).
  *
  * This is the ONE place the Region → Battalion → Company hierarchy is
  * defined as data — no organization codes are hardcoded anywhere else
  * (services/repositories/importers only ever read through this file or the
  * database it seeds). Replacing the nationwide list later means editing
- * ORGANIZATION_SEED below (or swapping in a JSON import) — no application
+ * OFFICIAL_STRUCTURE below (or swapping in a JSON import) — no application
  * code changes.
  *
- * PROVISIONAL DATA: seeded only from codes that (a) match the official
- * digit relationship (company's first two digits = its battalion; battalion's
- * first digit = its region — see organization_helpers.ts) AND (b) were
- * actually observed in already-imported officer/unit/timeline/Gallery-asset
- * data, so nothing here is invented. Codes seen in the data that do NOT fit
- * the relationship (e.g. a stray "ภาค 8", battalions "28"/"45"/"48", or
- * malformed leading-zero company codes) are deliberately EXCLUDED — they are
- * OCR noise, not real organization records. The full official nationwide
- * list (every battalion, all ~64 companies) will replace this seed later.
+ * OFFICIAL DATA: exactly the nationwide Border Patrol structure — 4 regions,
+ * 16 battalions, 66 companies (battalion "44" has 6 companies, every other
+ * battalion has 4). Mirrors organization_master.ts's DIVISIONS/BATTALIONS
+ * (the static bootstrap file), which is the source of truth for this list.
+ *
+ * A prior version of this seed (OBSERVED_STRUCTURE) was grounded in
+ * observed-but-unreconciled imported data and diverged from the official
+ * list: it was missing companies 448/449, and included 8 non-official codes
+ * (123, 143, 223, 241, 255, 311, 313, 331) that don't fit the real
+ * hierarchy. Those 8 codes are preserved as OrganizationAlias rows (see the
+ * organization_alias_legacy_codes migration) rather than silently dropped —
+ * any OCR/import text still bearing one of those codes resolves through the
+ * alias table to its real battalion instead of failing to resolve at all.
  */
 
 import type { OrganizationSeedEntry } from "@/lib/organization/organization_types";
 import { BATTALION_DISPLAY_NAME, COMPANY_DISPLAY_NAME, REGION_DISPLAY_NAME } from "@/lib/organization/organization_helpers";
 import type { OrganizationRepository } from "@/lib/organization/organization_repository";
 
-/** regionCode -> battalionCode -> companyCodes, grounded in observed imported data. */
-const OBSERVED_STRUCTURE: Record<string, Record<string, string[]>> = {
+/** regionCode -> battalionCode -> companyCodes — the official nationwide Border Patrol structure (4 regions, 16 battalions, 66 companies). */
+const OFFICIAL_STRUCTURE: Record<string, Record<string, string[]>> = {
   "1": {
     "11": ["114", "115", "116", "117"],
-    "12": ["123", "124", "125", "126", "127"],
+    "12": ["124", "125", "126", "127"],
     "13": ["134", "135", "136", "137"],
-    "14": ["143", "144", "145", "146", "147"],
+    "14": ["144", "145", "146", "147"],
   },
   "2": {
     "21": ["214", "215", "216", "217"],
-    "22": ["223", "224", "225", "226", "227"],
+    "22": ["224", "225", "226", "227"],
     "23": ["234", "235", "236", "237"],
-    "24": ["241", "244", "245", "246", "247", "255"],
+    "24": ["244", "245", "246", "247"],
   },
   "3": {
-    "31": ["311", "313", "314", "315", "316", "317"],
+    "31": ["314", "315", "316", "317"],
     "32": ["324", "325", "326", "327"],
-    "33": ["331", "334", "335", "336", "337"],
+    "33": ["334", "335", "336", "337"],
     "34": ["344", "345", "346", "347"],
   },
   "4": {
     "41": ["414", "415", "416", "417"],
     "42": ["424", "425", "426", "427"],
     "43": ["434", "435", "436", "437"],
-    "44": ["444", "445", "446", "447"],
+    "44": ["444", "445", "446", "447", "448", "449"],
   },
 };
 
 function buildSeed(): OrganizationSeedEntry[] {
   const entries: OrganizationSeedEntry[] = [];
-  for (const [regionCode, battalions] of Object.entries(OBSERVED_STRUCTURE)) {
+  for (const [regionCode, battalions] of Object.entries(OFFICIAL_STRUCTURE)) {
     for (const [battalionCode, companyCodes] of Object.entries(battalions)) {
       for (const companyCode of companyCodes) {
         entries.push({

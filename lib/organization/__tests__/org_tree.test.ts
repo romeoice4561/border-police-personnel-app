@@ -68,12 +68,12 @@ test("autoFillFromRegion returns EMPTY_ORG_SELECTION when the region has no head
 
 // ── Phase 26B Part 5 Part F: resolveOrgLabels ─────────────────────────────
 
-test("resolveOrgLabels resolves the spec's own worked example (434 -> 43 -> ตชด.ภ.4 -> บช.ตชด.)", () => {
+test("resolveOrgLabels resolves the spec's own worked example (434 -> 43 -> ตชด.ภาค 4 -> บช.ตชด.)", () => {
   const t = tree();
   const labels = resolveOrgLabels(t, { headquartersId: 1, regionId: 10, battalionId: 100, companyId: 1000 });
   assert.deepEqual(labels, {
     headquarters: "บช.ตชด.",
-    borderPatrolDivision: "ตชด.ภ.4",
+    borderPatrolDivision: "ตชด.ภาค 4",
     battalion: "กก.ตชด.43",
     company: "ตชด.434",
   });

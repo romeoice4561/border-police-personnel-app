@@ -103,7 +103,7 @@ export function autoFillFromRegion(tree: OrgTree, regionId: number | null): OrgS
 /** Display labels resolved from an OrgSelection's ids, or null per level when unset/unresolved (never invented). */
 export interface OrgLabels {
   headquarters: string | null;
-  /** The Border Patrol Division combobox's friendly label ("ตชด.ภ.4"), not the raw Region.nameTh. */
+  /** The Border Patrol Division combobox's friendly label ("ตชด.ภาค 4"), not the raw Region.nameTh. */
   borderPatrolDivision: string | null;
   battalion: string | null;
   company: string | null;

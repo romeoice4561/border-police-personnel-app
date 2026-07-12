@@ -22,6 +22,12 @@ test("seedOrganization is grounded and idempotent", async () => {
   assert.equal(regions.length, 4);
 });
 
+test("seedOrganization produces exactly the official nationwide counts (Phase 27 Bug #7: 4 regions, 16 battalions, 66 companies)", async () => {
+  const repository = new InMemoryOrganizationRepository();
+  const summary = await seedOrganization(repository);
+  assert.deepEqual(summary, { regions: 4, battalions: 16, companies: 66 });
+});
+
 test("getRegions / getBattalions / getCompanies traverse the hierarchy", async () => {
   const service = await seededService();
 
@@ -32,7 +38,7 @@ test("getRegions / getBattalions / getCompanies traverse the hierarchy", async (
   assert.deepEqual(battalions.map((b) => b.code).sort(), ["41", "42", "43", "44"]);
 
   const companies = await service.getCompanies("44");
-  assert.deepEqual(companies.map((c) => c.code).sort(), ["444", "445", "446", "447"]);
+  assert.deepEqual(companies.map((c) => c.code).sort(), ["444", "445", "446", "447", "448", "449"]);
 });
 
 test("findCompany / findBattalion / findRegion look up by code", async () => {
