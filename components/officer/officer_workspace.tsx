@@ -166,7 +166,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
 
       {/* Phase 26D Part 1: Achievements -> Documents -> Notes -> Training -> Education -> Photo Gallery -> Officer Quality Card. */}
       <AchievementsSection />
-      <DocumentsSection />
+      <DocumentsSection officerId={officer.officerId} documents={officer.documents} />
       <NotesSection />
 
       <div className="grid gap-4 sm:grid-cols-2">

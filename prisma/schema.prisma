@@ -144,6 +144,8 @@ model Officer {
   education        Education[]
   training         Training[]
   salaryHistory    SalaryHistory[]
+  /// Phase 29A: Officer Document Vault — every document uploaded for this officer.
+  documents        OfficerDocument[]
 
   @@index([rank])
   @@index([currentUnit])
@@ -897,6 +899,63 @@ model MasterDocumentType {
   @@index([isActive])
   @@index([isDeleted])
   @@map("master_document_types")
+}
+
+/// Phase 29A — Officer Document Vault Foundation.
+///
+/// Generic document record for every official document associated with an
+/// officer (National ID, Officer Card, ก.พ.7, Appointment Order, …).
+/// The `documentType` column is a free-text code from the built-in list in
+/// lib/document/document_types.ts — never a closed DB enum so new types can
+/// be added without a schema migration.
+///
+/// Design:
+///   • An officer may have many documents, spanning multiple types.
+///   • Each row is one stored file (or a metadata-only placeholder when
+///     `storagePath` is null — the row records the type was acknowledged but
+///     no file has been uploaded yet).
+///   • Versioning: `version` increments on replace; `isActive=false` on the
+///     superseded row (never deleted — history is permanent).
+///   • Storage follows the same Supabase Storage bucket strategy as portrait
+///     upload (Phase 24B-1), under a dedicated "documents" bucket.
+///     Path template: officers/{officerId}/documents/{documentType}/{uuid}.{ext}
+///   • No OCR, no AI, no auto-classification — pure metadata + bytes storage.
+///   • Future phases (AI import, OCR, export, commander dashboard) read this
+///     table without requiring schema changes here.
+model OfficerDocument {
+  id               Int       @id @default(autoincrement())
+  officer          Officer   @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId        Int
+  /// Extensible free-text code from lib/document/document_types.ts
+  /// (e.g. "NATIONAL_ID", "GP7", "APPOINTMENT_ORDER"). Never a DB enum.
+  documentType     String
+  /// Human-readable display title (e.g. "บัตรประชาชน นาย สมชาย"). Required.
+  title            String
+  description      String?
+  /// Supabase Storage object path (null for metadata-only rows with no file yet).
+  storagePath      String?
+  /// Publicly resolvable URL for the stored file; null when storagePath is null.
+  fileUrl          String?
+  originalFilename String?
+  mimeType         String?
+  /// File size in bytes; null for metadata-only rows.
+  fileSize         Int?
+  uploadedAt       DateTime?
+  uploadedBy       String?
+  verifiedAt       DateTime? @db.Date
+  verifiedBy       String?
+  /// Increments on every replace (first upload = 1). Used to surface "Version N" in history.
+  version          Int       @default(1)
+  /// false on superseded versions (soft-deleted on replace). True = the current active row for this type.
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([officerId])
+  @@index([documentType])
+  @@index([isActive])
+  @@index([officerId, documentType])
+  @@index([officerId, isActive])
 }
 
 /// A phone number associated with an officer. Unique per (officer, number).

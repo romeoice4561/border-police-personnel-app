@@ -260,7 +260,7 @@ export class OfficerQueryRepository {
     return this.paginate(where, params.page, params.pageSize, params.sortBy, params.sortOrder);
   }
 
-  /** Fetches one officer with its timeline (ordered by sequence), phones, education, training, and salary history (Phase 28A). */
+  /** Fetches one officer with its timeline (ordered by sequence), phones, education, training, salary history (Phase 28A), and documents (Phase 29A). */
   async findByOfficerId(officerId: string): Promise<OfficerWithRelations | null> {
     const officer = await this.db.officer.findUnique({
       where: { officerId },
@@ -270,6 +270,7 @@ export class OfficerQueryRepository {
         education: { orderBy: { id: "asc" } },
         training: { orderBy: { id: "asc" } },
         salaryHistory: { orderBy: { yearBE: "desc" } },
+        documents: { orderBy: { createdAt: "desc" } },
       },
     });
     return (officer as OfficerWithRelations) ?? null;

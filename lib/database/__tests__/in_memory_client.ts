@@ -107,8 +107,21 @@ function delegate(table: Table) {
     async findUnique(args: { where: Record<string, unknown> }) {
       return table.find(args.where);
     },
-    async findMany(args?: { where?: Record<string, unknown> }) {
-      return table.findMany(args?.where);
+    async findMany(args?: { where?: Record<string, unknown>; orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">> }) {
+      const rows = table.findMany(args?.where);
+      const orderByRaw = args?.orderBy;
+      const orderBy = Array.isArray(orderByRaw) ? orderByRaw[0] : orderByRaw;
+      if (orderBy) {
+        const [field, dir] = Object.entries(orderBy)[0];
+        rows.sort((a, b) => {
+          const av = a[field] as unknown as number | string;
+          const bv = b[field] as unknown as number | string;
+          if (av === bv) return 0;
+          const cmp = av > bv ? 1 : -1;
+          return dir === "asc" ? cmp : -cmp;
+        });
+      }
+      return rows;
     },
     async create(args: { data: Record<string, unknown> }) {
       return table.create(args.data);
@@ -125,6 +138,13 @@ function delegate(table: Table) {
     },
     async deleteMany(args?: { where?: Record<string, unknown> }) {
       return table.deleteMany(args?.where);
+    },
+    async updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }) {
+      const matches = table.findMany(args.where);
+      for (const row of matches) {
+        table.update({ id: row.id }, args.data);
+      }
+      return { count: matches.length };
     },
     async count(args?: { where?: Record<string, unknown> }) {
       return table.count(args?.where);
@@ -157,6 +177,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     if (c) return r.officerId === c.officerId && r.yearBE === c.yearBE;
     return r.id === w.id;
   });
+  private readonly officerDocuments = new Table((r, w) => r.id === w.id);
 
   /**
    * When set, any timeline.create for an officer whose row has this string
@@ -208,6 +229,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get salaryHistory() {
     return delegate(this.salaryHistories) as unknown as DatabaseClient["salaryHistory"];
   }
+  get officerDocument() {
+    return delegate(this.officerDocuments) as unknown as DatabaseClient["officerDocument"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
@@ -219,6 +243,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       educations: this.educations.snapshot(),
       trainings: this.trainings.snapshot(),
       salaryHistories: this.salaryHistories.snapshot(),
+      officerDocuments: this.officerDocuments.snapshot(),
     };
     try {
       return await fn(this);
@@ -230,6 +255,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.educations.restore(snaps.educations);
       this.trainings.restore(snaps.trainings);
       this.salaryHistories.restore(snaps.salaryHistories);
+      this.officerDocuments.restore(snaps.officerDocuments);
       throw error;
     }
   }
