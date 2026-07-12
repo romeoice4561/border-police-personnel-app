@@ -5,10 +5,11 @@
  * Read-only "ประวัติขั้นเงินเดือน" (Salary History) card: lists each
  * salary-history row (year, salary step, remarks), newest year first, plus
  * SalaryEvaluationCard showing career_salary_engine.ts's
- * evaluateTwoStepEligibility() result for the current Buddhist-Era year.
- * The editable counterpart is SalaryHistoryEditor, shown instead when the
- * workspace is in edit mode (the evaluation card is display-only and stays
- * visible in both modes — it reflects PERSISTED history, not unsaved edits).
+ * evaluateTwoStepEligibility() result for the current Buddhist-Era year,
+ * evaluated against PERSISTED history. The editable counterpart is
+ * SalaryHistoryEditor, shown instead when the workspace is in edit mode —
+ * it renders its own SalarySimulationCard (Phase 28C) over the unsaved
+ * draft, so this section's evaluation genuinely never changes until Save.
  */
 import { TrendingUp } from "lucide-react";
 import type { SalaryHistory } from "@/lib/database/query_types";

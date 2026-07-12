@@ -1,16 +1,14 @@
 /**
- * SalaryEvaluationCard (Phase 28B — Career Intelligence Engine; Phase 28C —
- * "Current Eligibility" title + accent border added to visually distinguish
- * it from SalarySimulationCard's unsaved-draft preview).
+ * SalarySimulationCard (Phase 28C — Career Intelligence Live Simulation).
  *
- * Presentational-only display of career_salary_engine.ts's
- * evaluateTwoStepEligibility() result for the CURRENT Buddhist-Era year,
- * evaluated against PERSISTED salary history — status (🟢 Eligible / 🔴 Not
- * Eligible / 🟡 Unknown) plus the human-readable reason. No business logic
- * lives here — this component only renders an already-computed
- * EvaluationResult, so the identical rule Dashboard/Search/Reports/a future
- * AI layer/Commander View use is what the officer profile shows. Never
- * changes while the user edits — only after Save (see SalarySimulationCard).
+ * Presentational-only preview of career_salary_engine.ts's
+ * evaluateTwoStepEligibility() result for the CURRENT (unsaved) draft rows
+ * being edited in SalaryHistoryEditor. Exactly the same engine call as
+ * SalaryEvaluationCard (Phase 28B) — the only difference is the input
+ * (draft rows vs. persisted rows) and the visual treatment (orange border +
+ * "Preview" badge, so a user editing history can never confuse this
+ * simulation with the officer's actual current eligibility, which never
+ * changes until Save). No database, no repository, no API — pure UI.
  */
 import { CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { EligibilityStatus, type EvaluationResult } from "@/lib/officer_profile/career_salary_engine";
@@ -40,20 +38,22 @@ const STATUS_META: Record<
     iconClass: "text-warning",
     tone: "warning",
     labelTh: "ไม่สามารถระบุได้",
-    labelEn: "Unknown",
+    labelEn: "Cannot determine",
   },
 };
 
-export function SalaryEvaluationCard({ result }: { result: EvaluationResult }) {
+export function SalarySimulationCard({ result }: { result: EvaluationResult }) {
   const meta = STATUS_META[result.status];
   const Icon = meta.icon;
 
   return (
-    <Card className="border-2 border-accent">
-      <CardHeader>
-        <CardTitle>สิทธิ์ปัจจุบัน พ.ศ. {result.yearBE} / Current Eligibility</CardTitle>
+    <Card className="border-2 border-warning">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle>จำลองผลการประเมิน พ.ศ. {result.yearBE} / Career Simulation</CardTitle>
+        <Badge tone="warning">พรีวิว / Preview</Badge>
       </CardHeader>
       <CardBody className="space-y-3">
+        <p className="text-xs font-medium text-muted">หากบันทึกตอนนี้ / If saved now</p>
         <div className="flex items-center gap-2">
           <Icon className={`h-5 w-5 shrink-0 ${meta.iconClass}`} aria-hidden="true" />
           <Badge tone={meta.tone}>
