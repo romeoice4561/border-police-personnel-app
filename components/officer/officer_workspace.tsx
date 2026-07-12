@@ -36,6 +36,8 @@ import { EducationSection } from "@/components/officer/education_section";
 import { EducationEditor } from "@/components/officer/education_editor";
 import { TrainingSection } from "@/components/officer/training_section";
 import { TrainingEditor } from "@/components/officer/training_editor";
+import { SalaryHistorySection } from "@/components/officer/salary_history_section";
+import { SalaryHistoryEditor } from "@/components/officer/salary_history_editor";
 import { AchievementsSection } from "@/components/officer/achievements_section";
 import { DocumentsSection } from "@/components/officer/documents_section";
 import { NotesSection } from "@/components/officer/notes_section";
@@ -141,10 +143,21 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
         </div>
       </div>
 
+      {/* Phase 28A: Salary History — an independent, reusable Career
+          Intelligence module (future 2-step eligibility/promotion
+          readiness/merit reports read from it, but it is not merged into
+          Career Timeline, which stays focused on assignment history only).
+          Immediately follows Personal Information above. */}
+      {editing ? (
+        <SalaryHistoryEditor rows={workspace.salaryHistory} onChange={workspace.setSalaryHistory} />
+      ) : (
+        <SalaryHistorySection salaryHistory={officer.salaryHistory} />
+      )}
+
       {/* Phase 26B Part 6 Part V / Phase 26D Part 1: Career Timeline spans
           the FULL content width (outside the 2/3+1/3 grid) — it's the
           widest, most information-dense section on the page — and now
-          immediately follows Personal Information above. */}
+          immediately follows Salary History above. */}
       {editing ? (
         <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} organizationEngine={organizationEngine} />
       ) : (

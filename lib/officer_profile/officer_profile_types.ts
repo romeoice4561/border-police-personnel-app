@@ -16,8 +16,9 @@ import type { OfficerProfilePatch } from "@/lib/database/repositories/officer_re
 import type { TimelineRowInput } from "@/lib/database/repositories/timeline_repository";
 import type { EducationRowInput } from "@/lib/database/repositories/education_repository";
 import type { TrainingRowInput } from "@/lib/database/repositories/training_repository";
+import type { SalaryHistoryRowInput } from "@/lib/database/repositories/salary_history_repository";
 
-export type { OfficerProfilePatch, TimelineRowInput, EducationRowInput, TrainingRowInput };
+export type { OfficerProfilePatch, TimelineRowInput, EducationRowInput, TrainingRowInput, SalaryHistoryRowInput };
 
 /** One batched save request for an officer's editable workspace data. */
 export interface OfficerProfileSaveInput {
@@ -28,6 +29,8 @@ export interface OfficerProfileSaveInput {
   education?: EducationRowInput[];
   /** When present, REPLACES the officer's entire training list. */
   training?: TrainingRowInput[];
+  /** When present, REPLACES the officer's entire salary-history list (Phase 28A). */
+  salaryHistory?: SalaryHistoryRowInput[];
 }
 
 /** Result of a save — which sections were actually written, for the UI to confirm. */
@@ -37,6 +40,7 @@ export interface OfficerProfileSaveResult {
   timelineRowCount: number | null;
   educationRowCount: number | null;
   trainingRowCount: number | null;
+  salaryHistoryRowCount: number | null;
 }
 
 /** Thrown when a save targets an officer that does not exist. */

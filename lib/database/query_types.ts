@@ -11,16 +11,17 @@
  * access goes through Prisma's typed delegate methods.
  */
 
-import type { Officer, Timeline, Unit, Phone, Education, Training } from "@/lib/database/database_types";
+import type { Officer, Timeline, Unit, Phone, Education, Training, SalaryHistory } from "@/lib/database/database_types";
 
-export type { Officer, Timeline, Unit, Phone, Education, Training };
+export type { Officer, Timeline, Unit, Phone, Education, Training, SalaryHistory };
 
-/** An officer with its related timeline, phones, education, and training (for the full-profile endpoint). */
+/** An officer with its related timeline, phones, education, training, and salary history (for the full-profile endpoint). */
 export interface OfficerWithRelations extends Officer {
   timeline: Timeline[];
   phones: Phone[];
   education: Education[];
   training: Training[];
+  salaryHistory: SalaryHistory[];
 }
 
 /** Generic read args mirroring the subset of Prisma's findMany options we use. */
@@ -67,6 +68,7 @@ export interface ReadDatabaseClient {
   phone: ReadDelegate<Phone>;
   education: ReadDelegate<Education>;
   training: ReadDelegate<Training>;
+  salaryHistory: ReadDelegate<SalaryHistory>;
 }
 
 /** Text match modes supported by search. */

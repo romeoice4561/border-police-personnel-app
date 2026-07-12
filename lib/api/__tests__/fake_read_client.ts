@@ -20,6 +20,7 @@ import type {
   Officer,
   Phone,
   ReadDatabaseClient,
+  SalaryHistory,
   Timeline,
   Training,
 } from "@/lib/database/query_types";
@@ -124,6 +125,7 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
   private readonly phonesByOfficer: Map<number, Phone[]>;
   private readonly educationByOfficer: Map<number, Education[]>;
   private readonly trainingByOfficer: Map<number, Training[]>;
+  private readonly salaryHistoryByOfficer: Map<number, SalaryHistory[]>;
 
   constructor(
     seeds: FakeOfficerSeed[],
@@ -132,6 +134,7 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
       phones?: Record<string, string[]>;
       education?: Record<string, Education[]>;
       training?: Record<string, Training[]>;
+      salaryHistory?: Record<string, SalaryHistory[]>;
     } = {}
   ) {
     this.officers = seeds.map((s, i) => officer(s, i + 1));
@@ -139,6 +142,7 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
     this.phonesByOfficer = new Map();
     this.educationByOfficer = new Map();
     this.trainingByOfficer = new Map();
+    this.salaryHistoryByOfficer = new Map();
 
     const idByOfficerId = new Map(this.officers.map((o) => [o.officerId, o.id]));
     for (const [officerId, rows] of Object.entries(relations.timeline ?? {})) {
@@ -157,6 +161,10 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
       const id = idByOfficerId.get(officerId);
       if (id) this.trainingByOfficer.set(id, rows);
     }
+    for (const [officerId, rows] of Object.entries(relations.salaryHistory ?? {})) {
+      const id = idByOfficerId.get(officerId);
+      if (id) this.salaryHistoryByOfficer.set(id, rows);
+    }
   }
 
   private officerDelegate() {
@@ -165,6 +173,7 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
     const phones = this.phonesByOfficer;
     const education = this.educationByOfficer;
     const training = this.trainingByOfficer;
+    const salaryHistory = this.salaryHistoryByOfficer;
 
     return {
       async findMany(args?: FindManyArgs): Promise<Officer[]> {
@@ -194,6 +203,7 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
             phones: phones.get(found.id) ?? [],
             education: education.get(found.id) ?? [],
             training: training.get(found.id) ?? [],
+            salaryHistory: salaryHistory.get(found.id) ?? [],
           } as Officer;
         }
         return found;
@@ -262,6 +272,9 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
   }
   get training() {
     return this.emptyDelegate() as unknown as ReadDatabaseClient["training"];
+  }
+  get salaryHistory() {
+    return this.emptyDelegate() as unknown as ReadDatabaseClient["salaryHistory"];
   }
 
   private emptyDelegate() {

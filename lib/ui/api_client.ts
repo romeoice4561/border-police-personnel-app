@@ -351,6 +351,8 @@ export interface OfficerProfileSaveRequest {
   }>;
   education?: Array<{ year: string | null; institution: string; degree: string | null; notes: string | null }>;
   training?: Array<{ year: string | null; course: string; organization: string | null; notes: string | null }>;
+  /** Phase 28A: Career Intelligence Foundation — one salary-step result per Buddhist-Era year. */
+  salaryHistory?: Array<{ yearBE: number; salaryStep: number; remarks: string | null }>;
 }
 
 export interface OfficerProfileSaveResponse {
@@ -359,6 +361,7 @@ export interface OfficerProfileSaveResponse {
   timelineRowCount: number | null;
   educationRowCount: number | null;
   trainingRowCount: number | null;
+  salaryHistoryRowCount: number | null;
 }
 
 export const apiClient = {

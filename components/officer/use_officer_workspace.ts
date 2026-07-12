@@ -19,7 +19,8 @@ import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { CareerTimelineRow } from "@/components/officer/career_timeline_section";
 import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hooks";
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
-import { formatThaiDate } from "@/lib/officer_profile/thai_date";
+import { formatThaiDate, currentYearBE } from "@/lib/officer_profile/thai_date";
+import { sortHistory } from "@/lib/officer_profile/career_salary_engine";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 export interface ProfileDraft {
@@ -82,6 +83,21 @@ export interface TrainingDraftRow {
   course: string;
   organization: string;
   notes: string;
+}
+
+/**
+ * Phase 28A — Career Intelligence Foundation. `yearBE`/`salaryStep` are kept
+ * as strings (same convention as every other Select-bound draft field in
+ * this file — see TimelineDraftRow's `day`/`month`/`yearBE` handling in the
+ * editor) so a blank/未-selected dropdown has an unambiguous "" state
+ * distinct from a real value; both are parsed to numbers only when building
+ * the save request.
+ */
+export interface SalaryHistoryDraftRow {
+  key: string;
+  yearBE: string;
+  salaryStep: string;
+  remarks: string;
 }
 
 export interface TimelineDraftRow {
@@ -236,12 +252,23 @@ function toTrainingDrafts(officer: OfficerWithRelations): TrainingDraftRow[] {
   }));
 }
 
+/** Phase 28A: newest year first (sortHistory's order — "Current Year first, then ย้อนหลัง"). */
+function toSalaryHistoryDrafts(officer: OfficerWithRelations): SalaryHistoryDraftRow[] {
+  return sortHistory(officer.salaryHistory).map((s) => ({
+    key: newKey(),
+    yearBE: String(s.yearBE),
+    salaryStep: String(s.salaryStep),
+    remarks: s.remarks ?? "",
+  }));
+}
+
 export function useOfficerWorkspace(officer: OfficerWithRelations, organizationEngine: OrganizationEngine) {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer, organizationEngine));
   const [timeline, setTimeline] = useState<TimelineDraftRow[]>(() => toTimelineDrafts(officer, organizationEngine));
   const [education, setEducation] = useState<EducationDraftRow[]>(() => toEducationDrafts(officer));
   const [training, setTraining] = useState<TrainingDraftRow[]>(() => toTrainingDrafts(officer));
+  const [salaryHistory, setSalaryHistory] = useState<SalaryHistoryDraftRow[]>(() => toSalaryHistoryDrafts(officer));
 
   const mutation = useSaveOfficerProfile();
 
@@ -250,6 +277,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
     setTimeline(toTimelineDrafts(officer, organizationEngine));
     setEducation(toEducationDrafts(officer));
     setTraining(toTrainingDrafts(officer));
+    setSalaryHistory(toSalaryHistoryDrafts(officer));
     setEditing(true);
   }, [officer, organizationEngine]);
 
@@ -379,11 +407,23 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
           organization: row.organization.trim() || null,
           notes: row.notes.trim() || null,
         })),
+      // Phase 28A: unlike Education/Training's free-text required field, Year
+      // and Salary Step are true closed-set dropdowns (Part 4's "no duplicate
+      // year" / 4-value step) — an untouched blank row (both dropdowns still
+      // unselected) is dropped rather than saved with an invented "-", since
+      // there is no meaningful placeholder for a missing year or step.
+      salaryHistory: salaryHistory
+        .filter((row) => row.yearBE.trim() && row.salaryStep.trim())
+        .map((row) => ({
+          yearBE: Number(row.yearBE),
+          salaryStep: Number(row.salaryStep),
+          remarks: row.remarks.trim() || null,
+        })),
     };
 
     await mutation.mutateAsync({ officerId: officer.officerId, body });
     setEditing(false);
-  }, [profile, timeline, education, training, officer.officerId, mutation]);
+  }, [profile, timeline, education, training, salaryHistory, officer.officerId, mutation]);
 
   return {
     editing,
@@ -400,6 +440,8 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
     setEducation,
     training,
     setTraining,
+    salaryHistory,
+    setSalaryHistory,
     newRowKey: newKey,
   };
 }
@@ -441,6 +483,11 @@ export function emptyEducationRow(): EducationDraftRow {
 
 export function emptyTrainingRow(): TrainingDraftRow {
   return { key: newKey(), year: "", course: "", organization: "", notes: "" };
+}
+
+/** A new blank Salary History row, defaulting Year to the CURRENT Buddhist-Era year (Part 3/8: "The current year should always be editable" / "Always calculate from today's date"). Never a hardcoded year. */
+export function emptySalaryHistoryRow(): SalaryHistoryDraftRow {
+  return { key: newKey(), yearBE: String(currentYearBE()), salaryStep: "", remarks: "" };
 }
 
 export type { CareerTimelineRow };

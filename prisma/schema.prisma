@@ -143,6 +143,7 @@ model Officer {
   phones           Phone[]
   education        Education[]
   training         Training[]
+  salaryHistory    SalaryHistory[]
 
   @@index([rank])
   @@index([currentUnit])
@@ -275,6 +276,35 @@ model Training {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  @@index([officerId])
+}
+
+/// Phase 28A — Career Intelligence Foundation: one salary-step result for an
+/// officer for one Buddhist-Era year. Every officer receives exactly one
+/// result per year (0.5/1.0/1.5/2.0 steps); `@@unique([officerId, yearBE])`
+/// enforces that at the database level. Historical years are preserved
+/// permanently — the UI only ever adds/edits/removes individual rows by id
+/// (same independent-CRUD-rows convention as Education/Training), never a
+/// replace-all timeline, so a prior year's record is never silently
+/// regenerated or lost when a later year is edited.
+///
+/// This table is intentionally minimal (foundation only, per Phase 28A's
+/// scope) — no eligibility/warning/AI-suggestion columns exist yet. Future
+/// phases (2-step eligibility, promotion readiness, awards, merit reports)
+/// are designed to layer on top by READING this table (via
+/// career_salary_engine.ts's pure utilities) rather than needing schema
+/// changes here.
+model SalaryHistory {
+  id         Int      @id @default(autoincrement())
+  officer    Officer  @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId  Int
+  yearBE     Int
+  salaryStep Float
+  remarks    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([officerId, yearBE])
   @@index([officerId])
 }
 

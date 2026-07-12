@@ -25,6 +25,7 @@
 import { z } from "zod";
 import { isValidDay, isValidMonth, isValidYearBE, toEffectiveDate } from "@/lib/officer_profile/thai_date";
 import { isValidTimelineVerificationStatus } from "@/lib/officer_profile/verification_options";
+import { SALARY_STEP_OPTIONS } from "@/lib/officer_profile/salary_step_options";
 
 /** Reasonable upper bound so a field can't be used to store megabytes, without rejecting real Thai text. */
 const MAX_FIELD = 500;
@@ -181,12 +182,33 @@ export const trainingRowSchema = z.object({
   notes: nullableText,
 });
 
+/**
+ * One Salary History row (Phase 28A — Career Intelligence Foundation).
+ * `salaryStep` is a true closed set (0.5/1.0/1.5/2.0 — the only 4 legal
+ * results per Section 10's spec), unlike Rank/Position/Unit's
+ * preserve-free-legacy-value convention; `yearBE` is validated the same way
+ * Timeline's structured date fields are. `@@unique([officerId, yearBE])` at
+ * the database level is the final guard against duplicate years — this
+ * schema only validates a single row's shape, not cross-row uniqueness
+ * within the array (the service layer's replace-all write doesn't need it,
+ * since the UI itself prevents adding a duplicate year — see Part 4's "no
+ * duplicate year" validation on the client).
+ */
+export const salaryHistoryRowSchema = z.object({
+  yearBE: z.coerce.number().int().refine((v) => isValidYearBE(v), { message: "Invalid Buddhist-Era year" }),
+  salaryStep: z.coerce.number().refine((v) => (SALARY_STEP_OPTIONS as readonly number[]).includes(v), {
+    message: "salaryStep must be one of 0.5, 1.0, 1.5, 2.0",
+  }),
+  remarks: nullableText,
+});
+
 /** The full batched-save request body — every section optional. */
 export const officerProfileSaveSchema = z.object({
   profile: officerProfilePatchSchema.optional(),
   timeline: z.array(timelineRowSchema).optional(),
   education: z.array(educationRowSchema).optional(),
   training: z.array(trainingRowSchema).optional(),
+  salaryHistory: z.array(salaryHistoryRowSchema).optional(),
 });
 
 export type OfficerProfileSaveBody = z.infer<typeof officerProfileSaveSchema>;

@@ -31,6 +31,11 @@ class Table {
     return this.rows.find((r) => this.matchUnique(r, where)) ?? null;
   }
 
+  findMany(where?: Record<string, unknown>): Row[] {
+    if (!where) return this.rows.map((r) => ({ ...r }));
+    return this.rows.filter((r) => Object.entries(where).every(([k, v]) => r[k] === v)).map((r) => ({ ...r }));
+  }
+
   create(data: Record<string, unknown>): Row {
     const row: Row = { id: this.nextId++, ...applyDefaults(data) };
     this.rows.push(row);
@@ -102,6 +107,9 @@ function delegate(table: Table) {
     async findUnique(args: { where: Record<string, unknown> }) {
       return table.find(args.where);
     },
+    async findMany(args?: { where?: Record<string, unknown> }) {
+      return table.findMany(args?.where);
+    },
     async create(args: { data: Record<string, unknown> }) {
       return table.create(args.data);
     },
@@ -144,6 +152,11 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   private readonly logs = new Table((r, w) => r.id === w.id);
   private readonly educations = new Table((r, w) => r.id === w.id);
   private readonly trainings = new Table((r, w) => r.id === w.id);
+  private readonly salaryHistories = new Table((r, w) => {
+    const c = composite(w, "officerId_yearBE");
+    if (c) return r.officerId === c.officerId && r.yearBE === c.yearBE;
+    return r.id === w.id;
+  });
 
   /**
    * When set, any timeline.create for an officer whose row has this string
@@ -192,6 +205,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get training() {
     return delegate(this.trainings) as unknown as DatabaseClient["training"];
   }
+  get salaryHistory() {
+    return delegate(this.salaryHistories) as unknown as DatabaseClient["salaryHistory"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
@@ -202,6 +218,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       phones: this.phonesTable.snapshot(),
       educations: this.educations.snapshot(),
       trainings: this.trainings.snapshot(),
+      salaryHistories: this.salaryHistories.snapshot(),
     };
     try {
       return await fn(this);
@@ -212,6 +229,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.phonesTable.restore(snaps.phones);
       this.educations.restore(snaps.educations);
       this.trainings.restore(snaps.trainings);
+      this.salaryHistories.restore(snaps.salaryHistories);
       throw error;
     }
   }
@@ -227,6 +245,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       logs: this.logs.rows.length,
       educations: this.educations.rows.length,
       trainings: this.trainings.rows.length,
+      salaryHistories: this.salaryHistories.rows.length,
     };
   }
 

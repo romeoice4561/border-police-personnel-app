@@ -16,13 +16,14 @@
 // Phase 16B: model types come from the Prisma 7 generated client (source
 // tree), re-exported under their plain names (Officer, Timeline, …) — types
 // are identical to the former @prisma/client imports.
-import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training } from "@/lib/generated/prisma/client";
+import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory } from "@/lib/generated/prisma/client";
 
-export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training };
+export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory };
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
 export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
   findUnique(args: { where: TWhereUnique }): Promise<TRow | null>;
+  findMany(args?: { where?: Record<string, unknown> }): Promise<TRow[]>;
   create(args: { data: TCreate }): Promise<TRow>;
   update(args: { where: TWhereUnique; data: TUpdate }): Promise<TRow>;
   upsert(args: { where: TWhereUnique; create: TCreate; update: TUpdate }): Promise<TRow>;
@@ -41,6 +42,8 @@ export interface DatabaseClient {
   /** Phase 23A: Officer Profile Workspace — Education/Training CRUD rows. */
   education: ModelDelegate<Education, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   training: ModelDelegate<Training, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase 28A: Career Intelligence Foundation — one salary-step result per officer per Buddhist-Era year. */
+  salaryHistory: ModelDelegate<SalaryHistory, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's
