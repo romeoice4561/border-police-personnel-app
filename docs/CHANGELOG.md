@@ -58,3 +58,19 @@
 ### Notes
 - Uses existing Personnel Calendar, Promotion, Commander Intelligence, and Organization engines.
 - No media UI, document thumbnail UI, portrait UI, database schema, OCR, AI, or storage behavior changed.
+
+## Phase 39 - Salary Step Intelligence Engine
+
+### Added
+- Pure Salary Step Intelligence Engine under `lib/salary_step/`.
+- Salary-step history model with fiscal year, review cycle, steps awarded, award type, and remarks.
+- Pluggable salary-step rule registry.
+- Configurable example rules for double-step candidacy, must-skip decisions, maximum-step limits, missing history, and manual review.
+- Commander Query filter hooks for salary-step intelligence.
+- Dashboard summary helpers for eligible double step, must skip, manual review, missing records, and average salary steps.
+- Unit tests for salary-step history, rules, registry, filters, and summaries.
+- `docs/SALARY_STEP_ENGINE.md`.
+
+### Notes
+- No UI, media UI, database schema, OCR, AI, storage, or payroll behavior changed.
+- Regulations are intentionally not hardcoded and can be configured later.

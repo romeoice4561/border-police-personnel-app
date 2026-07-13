@@ -98,3 +98,25 @@ Phase 30.2 is complete with no business logic or database changes.
 ## Notes
 - No DocumentThumbnail, Photo Gallery UI, Portrait UI, or other media UI was modified.
 - Export buttons are intentionally disabled placeholders pending file writer implementation.
+
+# Phase 39 — Salary Step Intelligence Engine
+
+**Status:** ✅ Complete
+
+## Objectives
+- Create a reusable Salary Step Intelligence Engine for commander decision support.
+- Support configurable fiscal-year/review-cycle salary-step history.
+- Provide pluggable rules without hardcoding regulations.
+- Prepare Commander Search filters and dashboard summary calculations.
+
+## Completed
+- ✅ Added pure `lib/salary_step/` engine module.
+- ✅ Added reusable salary-step history model and annual history adapter.
+- ✅ Added rule registry and configurable example rules.
+- ✅ Added dashboard summary helpers.
+- ✅ Added Commander Query filter hooks.
+- ✅ Added unit tests and `docs/SALARY_STEP_ENGINE.md`.
+
+## Notes
+- No UI, media UI, database schema, OCR, AI, storage, or payroll behavior changed.
+- Regulations remain external configuration for future phases.
