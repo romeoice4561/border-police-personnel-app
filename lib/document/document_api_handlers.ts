@@ -6,13 +6,12 @@
  * returns a Web Response using the shared { data } / { error } envelope,
  * so they are unit-testable with a fake service and no running server.
  *
- *   GET    /api/officers/{id}/documents            — list all active documents
- *   POST   /api/officers/{id}/documents            — upload a new document (multipart)
- *   GET    /api/officers/{id}/documents/{docId}    — one document by id
- *   DELETE /api/officers/{id}/documents/{docId}    — soft-delete a document
- *
- * Future AI import, OCR, export, history endpoints will add to this file
- * following the same handler pattern.
+ *   GET    /api/officers/{id}/documents                    — list all active documents
+ *   POST   /api/officers/{id}/documents                    — upload / replace a document (multipart)
+ *   GET    /api/officers/{id}/documents/history            — version history for a document type
+ *   GET    /api/officers/{id}/documents/{docId}            — one document by id
+ *   GET    /api/officers/{id}/documents/{docId}/download   — download file with attachment headers
+ *   DELETE /api/officers/{id}/documents/{docId}            — soft-delete a document
  */
 
 import { z } from "zod";
@@ -182,6 +181,57 @@ export async function handleDeleteDocument(
   if (!deleted) return notFound("Document not found or already inactive.");
 
   return jsonOk({ id: deleted.id, isActive: false });
+}
+
+/**
+ * GET download — proxies the stored file back to the client with
+ * Content-Disposition: attachment so the browser downloads it rather than
+ * opening it inline. Works for both images and PDFs.
+ *
+ * The file is fetched server-side from the stored publicUrl (Supabase
+ * Storage). This avoids cross-origin issues and ensures the correct
+ * Content-Disposition header is sent regardless of the storage backend.
+ */
+export async function handleDownloadDocument(
+  service: DocumentUploadService,
+  rawOfficerId: string,
+  rawDocId: string
+): Promise<Response> {
+  const officerParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!officerParsed.success) return badRequest("Invalid officer id");
+
+  const docParsed = docIdParamSchema.safeParse({ docId: rawDocId });
+  if (!docParsed.success) return badRequest("Invalid document id");
+
+  const info = await service.getDownloadInfo(docParsed.data.docId);
+  if (!info) return notFound("Document not found, is inactive, or has no stored file.");
+
+  let upstream: globalThis.Response;
+  try {
+    upstream = await fetch(info.fileUrl);
+  } catch (e) {
+    return jsonError(
+      "STORAGE",
+      `Could not reach storage: ${e instanceof Error ? e.message : String(e)}`,
+      502
+    );
+  }
+
+  if (!upstream.ok) {
+    return jsonError("STORAGE", `File not available (${upstream.status}).`, 502);
+  }
+
+  const safeFilename = info.filename.replace(/"/g, '\\"');
+  const headers = new Headers({
+    "Content-Type": info.mimeType,
+    "Content-Disposition":
+      `attachment; filename="${safeFilename}"; ` +
+      `filename*=UTF-8''${encodeURIComponent(info.filename)}`,
+  });
+  const contentLength = upstream.headers.get("content-length");
+  if (contentLength) headers.set("Content-Length", contentLength);
+
+  return new Response(upstream.body, { headers });
 }
 
 /**

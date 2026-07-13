@@ -1,26 +1,25 @@
 /**
- * DocumentsSection (Phase 29A — Officer Document Vault Foundation).
+ * DocumentsSection (Phase 29A / 29B — Officer Document Vault).
  *
- * Replaces the Phase 21A / 26B placeholder. Shows every official document
- * associated with an officer, organised by document type, with full action
- * buttons (Upload works; Replace/Download/History/Delete are disabled in
- * this phase per spec — buttons are visible but disabled).
+ * Shows every official document associated with an officer, organised by
+ * document type. All action buttons are functional in Phase 29B:
  *
- * Layout mirrors the Salary History and Career Timeline sections:
- * an EditableSectionCard with a table-style list inside.
+ *   Upload / Replace  — POST /api/officers/{id}/documents
+ *                       First upload sets version=1; subsequent uploads
+ *                       auto-increment the version and demote the prior
+ *                       active document (handled server-side).
+ *   Preview           — opens fileUrl in a new tab
+ *   Download          — GET /api/officers/{id}/documents/{docId}/download
+ *                       (server-side proxy with Content-Disposition: attachment)
+ *   History           — inline panel: GET …/documents/history?documentType=…
+ *   Delete            — inline confirm → DELETE …/documents/{docId}
  *
- * Actions per document row:
- *   Upload   — POST /api/officers/{id}/documents (fully functional)
- *   Preview  — opens fileUrl in a new tab (fully functional; placeholder
- *               if fileUrl is null)
- *   Replace  — disabled (future phase)
- *   Download — disabled (future phase)
- *   History  — disabled (future phase)
- *   Delete   — disabled (future phase)
+ * Layout mirrors Salary History and Career Timeline: EditableSectionCard
+ * wrapping a list of DocumentRow items.
  */
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText,
@@ -34,6 +33,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  X,
+  ChevronUp,
 } from "lucide-react";
 import type { OfficerDocument } from "@/lib/database/query_types";
 import { getDocumentTypes, findDocumentType } from "@/lib/document/document_types";
@@ -51,7 +52,7 @@ export interface DocumentsSectionProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(d: Date | string | null): string {
+function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = d instanceof Date ? d : new Date(d);
   return date.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
@@ -82,24 +83,153 @@ function statusBadge(doc: OfficerDocument | null) {
   );
 }
 
+// ── History panel ─────────────────────────────────────────────────────────────
+
+interface HistoryEntry {
+  id: number;
+  version: number;
+  uploadedAt: Date | string | null;
+  uploadedBy: string | null;
+  originalFilename: string | null;
+  isActive: boolean;
+  fileUrl: string | null;
+}
+
+interface HistoryPanelProps {
+  officerId: string;
+  typeCode: string;
+  labelEn: string;
+  onClose: () => void;
+}
+
+function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelProps) {
+  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const res = await fetch(
+          `/api/officers/${encodeURIComponent(officerId)}/documents/history?documentType=${encodeURIComponent(typeCode)}`
+        );
+        if (cancelled) return;
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+          throw new Error(body?.error?.message ?? `Failed to load history (${res.status}).`);
+        }
+        const body = (await res.json()) as { data: HistoryEntry[] };
+        if (!cancelled) setEntries(body.data ?? []);
+      } catch (e) {
+        if (!cancelled) setFetchError(e instanceof Error ? e.message : "Failed to load history.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [officerId, typeCode]);
+
+  return (
+    <div className="mt-2 rounded-md border border-border bg-surface p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold text-foreground">
+          ประวัติเวอร์ชัน — {labelEn}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-muted hover:text-foreground"
+          aria-label="Close history"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+
+      {loading && (
+        <p className="flex items-center gap-1 text-xs text-muted">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+          กำลังโหลด…
+        </p>
+      )}
+
+      {fetchError && (
+        <p className="flex items-center gap-1 text-xs text-serious">
+          <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+          {fetchError}
+        </p>
+      )}
+
+      {!loading && !fetchError && entries.length === 0 && (
+        <p className="text-xs text-muted">ยังไม่มีประวัติ</p>
+      )}
+
+      {!loading && entries.length > 0 && (
+        <ul className="space-y-1.5">
+          {entries.map((entry) => (
+            <li key={entry.id} className="flex items-start gap-2 text-xs">
+              <span className="mt-0.5 shrink-0">
+                {entry.isActive ? (
+                  <CheckCircle2 className="h-3 w-3 text-good" aria-label="Active" />
+                ) : (
+                  <Clock className="h-3 w-3 text-muted" aria-label="Inactive" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-foreground">v{entry.version}</span>
+                {" · "}
+                <span className="text-muted">{formatDate(entry.uploadedAt)}</span>
+                {entry.uploadedBy ? (
+                  <span className="text-muted"> · {entry.uploadedBy}</span>
+                ) : null}
+                {entry.originalFilename ? (
+                  <p className="truncate text-muted">{entry.originalFilename}</p>
+                ) : null}
+              </div>
+              {entry.fileUrl && (
+                <a
+                  href={entry.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-xs text-link hover:underline"
+                >
+                  View
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Row component ─────────────────────────────────────────────────────────────
 
 interface DocumentRowProps {
   officerId: string;
   typeCode: string;
   doc: OfficerDocument | null;
-  onUploaded: () => void;
+  onRefresh: () => void;
 }
 
-function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps) {
+function DocumentRow({ officerId, typeCode, doc, onRefresh }: DocumentRowProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const def = findDocumentType(typeCode);
   const labelEn = def?.labelEn ?? typeCode;
   const labelTh = def?.labelTh ?? typeCode;
 
+  // ── Upload / Replace ────────────────────────────────────────────────────────
   const handleFileSelected = useCallback(
     async (file: File) => {
       setError(null);
@@ -127,15 +257,52 @@ function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps)
           const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
           throw new Error(body?.error?.message ?? `Upload failed (${res.status}).`);
         }
-        onUploaded();
+        setHistoryOpen(false);
+        onRefresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed.");
       } finally {
         setBusy(false);
       }
     },
-    [officerId, typeCode, labelEn, onUploaded]
+    [officerId, typeCode, labelEn, onRefresh]
   );
+
+  // ── Download ────────────────────────────────────────────────────────────────
+  const handleDownload = useCallback(() => {
+    if (!doc) return;
+    // Create a temporary anchor to trigger the browser download prompt.
+    const a = document.createElement("a");
+    a.href = `/api/officers/${encodeURIComponent(officerId)}/documents/${doc.id}/download`;
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [officerId, doc]);
+
+  // ── Delete ──────────────────────────────────────────────────────────────────
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!doc) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/officers/${encodeURIComponent(officerId)}/documents/${doc.id}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(body?.error?.message ?? `Delete failed (${res.status}).`);
+      }
+      setConfirmDelete(false);
+      setHistoryOpen(false);
+      onRefresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed.");
+    } finally {
+      setBusy(false);
+    }
+  }, [officerId, doc, onRefresh]);
 
   return (
     <li className="rounded-lg border border-border bg-neutral-bg p-3">
@@ -149,7 +316,7 @@ function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps)
         <div className="shrink-0">{statusBadge(doc)}</div>
       </div>
 
-      {/* Document metadata (when a file exists) */}
+      {/* Document metadata */}
       {doc ? (
         <div className="mb-2 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-3">
           <span>
@@ -174,9 +341,37 @@ function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps)
         </p>
       ) : null}
 
+      {/* Delete confirmation prompt */}
+      {confirmDelete ? (
+        <div className="mb-2 flex items-center gap-2 rounded-md border border-serious/30 bg-serious/5 px-2 py-1.5 text-xs">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-serious" aria-hidden="true" />
+          <span className="flex-1 text-foreground">ยืนยันลบ? ข้อมูลจะถูกซ่อน แต่ไม่ได้ถูกลบถาวร</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={handleDeleteConfirm}
+            className="border-serious/40 text-serious hover:bg-serious/10"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : null}
+            ยืนยัน
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => setConfirmDelete(false)}
+          >
+            ยกเลิก
+          </Button>
+        </div>
+      ) : null}
+
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {/* Upload (or Replace when a doc exists) — fully functional */}
+        {/* Upload / Replace */}
         <Button
           type="button"
           variant="outline"
@@ -195,7 +390,7 @@ function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps)
           {doc ? "Replace" : "Upload"}
         </Button>
 
-        {/* Preview — opens fileUrl; disabled when no file */}
+        {/* Preview */}
         <Button
           type="button"
           variant="ghost"
@@ -210,45 +405,64 @@ function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps)
           Preview
         </Button>
 
-        {/* Download — disabled in this phase */}
+        {/* Download */}
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          disabled
+          disabled={!doc?.fileUrl || busy}
+          onClick={handleDownload}
           aria-label={`Download ${labelEn}`}
-          title="Coming in a future phase"
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           Download
         </Button>
 
-        {/* History — disabled in this phase */}
+        {/* History */}
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          disabled
+          disabled={!doc}
+          onClick={() => setHistoryOpen((v) => !v)}
           aria-label={`History for ${labelEn}`}
-          title="Coming in a future phase"
+          aria-expanded={historyOpen}
         >
-          <History className="h-3.5 w-3.5" aria-hidden="true" />
+          {historyOpen ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <History className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
           History
         </Button>
 
-        {/* Delete — disabled in this phase */}
+        {/* Delete */}
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          disabled
+          disabled={!doc || busy}
+          onClick={() => {
+            setConfirmDelete((v) => !v);
+            setHistoryOpen(false);
+          }}
           aria-label={`Delete ${labelEn}`}
-          title="Coming in a future phase"
+          className={doc ? "hover:text-serious" : ""}
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Delete
         </Button>
       </div>
+
+      {/* History panel (inline, expandable) */}
+      {historyOpen ? (
+        <HistoryPanel
+          officerId={officerId}
+          typeCode={typeCode}
+          labelEn={labelEn}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
 
       {/* Hidden file input */}
       <input
@@ -271,13 +485,13 @@ function DocumentRow({ officerId, typeCode, doc, onUploaded }: DocumentRowProps)
 export function DocumentsSection({ officerId, documents }: DocumentsSectionProps) {
   const router = useRouter();
 
-  const onUploaded = useCallback(() => {
+  const onRefresh = useCallback(() => {
     router.refresh();
   }, [router]);
 
   const documentTypes = getDocumentTypes();
 
-  // Build a lookup of the most recent active document per type.
+  // Most recent active document per type.
   const activeByType = new Map<string, OfficerDocument>();
   for (const doc of documents) {
     if (doc.isActive) {
@@ -288,8 +502,7 @@ export function DocumentsSection({ officerId, documents }: DocumentsSectionProps
     }
   }
 
-  // Also collect any active documents whose type is not in the built-in registry
-  // (unknown/future types) so they still appear.
+  // Active documents whose type is not in the built-in registry (future/custom types).
   const unknownTypeCodes = new Set<string>();
   for (const doc of documents) {
     if (doc.isActive && !documentTypes.find((t) => t.code === doc.documentType)) {
@@ -311,18 +524,17 @@ export function DocumentsSection({ officerId, documents }: DocumentsSectionProps
             officerId={officerId}
             typeCode={typeDef.code}
             doc={activeByType.get(typeDef.code) ?? null}
-            onUploaded={onUploaded}
+            onRefresh={onRefresh}
           />
         ))}
 
-        {/* Unknown/custom types stored in DB but not yet in registry */}
         {[...unknownTypeCodes].map((code) => (
           <DocumentRow
             key={code}
             officerId={officerId}
             typeCode={code}
             doc={activeByType.get(code) ?? null}
-            onUploaded={onUploaded}
+            onRefresh={onRefresh}
           />
         ))}
       </ul>

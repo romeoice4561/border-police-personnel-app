@@ -1,5 +1,5 @@
 /**
- * Officer Document Upload Service (Phase 29A — Officer Document Vault Foundation).
+ * Officer Document Upload Service (Phase 29A / 29B — Officer Document Vault).
  *
  * Orchestrates the upload/replace/list/delete of an officer's documents.
  * Reuses the existing PortraitStorage interface (same Supabase Storage REST
@@ -159,5 +159,21 @@ export class DocumentUploadService {
    */
   softDelete(id: number): Promise<OfficerDocument | null> {
     return this.repository.softDelete(id);
+  }
+
+  /**
+   * Returns the minimal metadata required to serve a file download:
+   * the public URL, the original filename, and the MIME type.
+   * Returns null when the document does not exist, is inactive, or has no
+   * stored file (e.g. a metadata-only row with no uploaded bytes).
+   */
+  async getDownloadInfo(id: number): Promise<{ fileUrl: string; filename: string; mimeType: string } | null> {
+    const doc = await this.repository.findById(id);
+    if (!doc || !doc.isActive || !doc.fileUrl) return null;
+    return {
+      fileUrl: doc.fileUrl,
+      filename: doc.originalFilename ?? `document-${doc.id}`,
+      mimeType: doc.mimeType ?? "application/octet-stream",
+    };
   }
 }
