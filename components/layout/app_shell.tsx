@@ -8,12 +8,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/commander-search", label: "Personnel Query", icon: SlidersHorizontal },
   { href: "/officers", label: "Officers", icon: Users },
   { href: "/search", label: "Search", icon: Search },
   { href: "/statistics", label: "Statistics", icon: BarChart3 },

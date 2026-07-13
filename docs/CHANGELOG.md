@@ -43,3 +43,18 @@
 
 ### Notes
 - No media UI, document thumbnail UI, database schema, OCR, AI, or storage behavior changed.
+
+## Phase 38 - Personnel Query Center (Commander Search)
+
+### Added
+- Commander Search Center at `/commander-search`.
+- Personnel Query sidebar navigation entry.
+- Query Builder for rank, current position, position level, organization, years in rank, years in position, age, service years, intelligence flags, priority, and profile completeness.
+- Query Summary cards with commander-focused aggregate values.
+- Interactive charts for result distribution, rank, position level, company, promotion timeline, and retirement timeline.
+- Sortable results table with portrait, rank, name, current position, position level, tenure, service, age, promotion, retirement, and priority.
+- Placeholder export actions for Excel, PDF, and CSV.
+
+### Notes
+- Uses existing Personnel Calendar, Promotion, Commander Intelligence, and Organization engines.
+- No media UI, document thumbnail UI, portrait UI, database schema, OCR, AI, or storage behavior changed.

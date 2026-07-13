@@ -43,3 +43,4 @@ Completed
 ----------
 ✅ Phase 30.2 – Media Display & UI Consistency
 ✅ Phase 37 – Commander Dashboard UI Integration
+✅ Phase 38 – Personnel Query Center (Commander Search)

@@ -77,3 +77,24 @@ Phase 30.2 is complete with no business logic or database changes.
 ## Notes
 - No media UI was modified in this phase.
 - No new database schema, storage, OCR, AI, or document logic changes were introduced.
+
+# Phase 38 — Personnel Query Center (Commander Search)
+
+**Status:** ✅ Complete
+
+## Objectives
+- Create a Commander Search Center for personnel decision support.
+- Support advanced filters for rank, position, organization, tenure, age, service, promotion readiness, retirement risk, missing records, completeness, and priority.
+- Reuse Personnel Calendar, Promotion, and Commander Intelligence engines.
+
+## Completed
+- ✅ Added `/commander-search` Personnel Query workspace.
+- ✅ Added sidebar navigation entry.
+- ✅ Added Query Builder, Summary Cards, Charts, Timelines, Results Table, and Export placeholders.
+- ✅ Added chart and summary drill-down interactions.
+- ✅ Results table supports sortable commander decision columns.
+- ✅ Server prepares personnel facts and intelligence outputs before client rendering.
+
+## Notes
+- No DocumentThumbnail, Photo Gallery UI, Portrait UI, or other media UI was modified.
+- Export buttons are intentionally disabled placeholders pending file writer implementation.

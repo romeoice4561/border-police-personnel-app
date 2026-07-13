@@ -26,7 +26,7 @@ function officerRepository(): OfficerQueryRepository {
   return cachedRepository;
 }
 
-async function getAllOfficerProfiles(): Promise<OfficerWithRelations[]> {
+export async function loadCommanderOfficerProfiles(): Promise<OfficerWithRelations[]> {
   const client = createDatabaseClient() as unknown as {
     officer: {
       findMany(args: Record<string, unknown>): Promise<OfficerWithRelations[]>;
@@ -92,7 +92,7 @@ function toIntelligenceInput(officer: OfficerWithRelations): OfficerIntelligence
 }
 
 export async function getCommanderDashboardIntelligence(): Promise<CommanderDashboard> {
-  const officers = await getAllOfficerProfiles();
+  const officers = await loadCommanderOfficerProfiles();
   return buildCommanderDashboard(officers.map(toIntelligenceInput));
 }
 
