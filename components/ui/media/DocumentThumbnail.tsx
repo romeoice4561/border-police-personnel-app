@@ -22,9 +22,9 @@
  *   - PDF / non-image / error states show the FileText icon — never a broken
  *     browser icon (Part 12).
  *
- * Dark mode (Part 14):
- *   Uses `bg-neutral-bg/80` (theme-aware) and `ring-border/30` so the
- *   thumbnail container automatically adapts to light/dark.
+ * Visual treatment:
+ *   Uses a white document canvas with subtle border/shadow so white paper
+ *   documents remain visible on dark or tinted cards.
  */
 "use client";
 
@@ -65,8 +65,9 @@ export interface DocumentThumbnailProps {
   documentTypeCode: string;
   /**
    * Canvas size variant:
-   * "md" — main card thumbnail → 144×112 px fixed canvas
-   * "sm" — history row thumbnail → 56×56 px
+   * "md" — main card thumbnail → responsive fixed canvas:
+   *        mobile 112×112, tablet 128×128, desktop 144×144
+   * "sm" — history row thumbnail → 64×64 px
    */
   size?: "md" | "sm";
   /** Accessible alt text for the image. Defaults to "Document". */
@@ -120,16 +121,17 @@ export function DocumentThumbnail({
     }, 200);
   }, [thumbnailUrl]);
 
-  const sizeCls = size === "sm" ? "h-14 w-14 rounded" : "h-28 w-36 rounded-md";
-  const iconCls = size === "sm" ? "h-5 w-5 text-muted" : "h-8 w-8 text-muted";
-  const imgPadCls = size === "sm" ? "p-1" : "p-2";
+  const sizeCls =
+    size === "sm" ? "h-16 w-16 rounded-md" : "h-28 w-28 rounded-lg sm:h-32 sm:w-32 lg:h-36 lg:w-36";
+  const iconCls = size === "sm" ? "h-6 w-6 text-muted" : "h-9 w-9 text-muted";
+  const imgPadCls = size === "sm" ? "p-1.5" : "p-2";
 
   const showShown = Boolean(shown && !shownError);
   const showIncoming = Boolean(incoming);
 
   return (
     <div
-      className={`relative shrink-0 overflow-hidden ${sizeCls} bg-neutral-bg/80 shadow-sm ring-1 ring-border/30`}
+      className={`relative shrink-0 overflow-hidden ${sizeCls} bg-white shadow-sm ring-1 ring-border/60 transition-transform duration-200 hover:scale-[1.02]`}
     >
       {!showShown && !showIncoming ? (
         /* PDF / non-image / error fallback — never a broken browser icon */

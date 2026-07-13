@@ -269,7 +269,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
 
       {!isInitialLoading && entries.length > 0 && (
         // Scroll container kept mounted across refreshes so scrollTop survives.
-        <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+        <ul className="max-h-80 space-y-3 overflow-y-auto pr-1">
           {entries.map((entry) => {
             const isRemoving = removingIds.has(entry.id);
             const nextVersionOnHistoryDelete = entry.isActive
@@ -280,8 +280,8 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                 key={entry.id}
                 className={`rounded-md transition-all duration-200 ${isRemoving ? "pointer-events-none scale-95 opacity-0" : "scale-100 opacity-100"}`}
               >
-                <div className="flex items-start gap-2 text-xs">
-                  {/* Phase 30.1 ISSUE 6: real thumbnail per history version (56px) */}
+                <div className="flex items-start gap-3 text-xs">
+                  {/* Real thumbnail per history version (64px). */}
                   <DocumentThumbnail
                     fileUrl={entry.fileUrl}
                     mimeType={entry.mimeType}
@@ -290,7 +290,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                     altText={`v${entry.version}`}
                   />
 
-                  <span className="mt-0.5 shrink-0">
+                  <span className="mt-1 shrink-0">
                     {entry.isActive ? (
                       <CheckCircle2 className="h-3 w-3 text-good" aria-label="Active" />
                     ) : (
@@ -298,29 +298,31 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                     )}
                   </span>
 
-                  <div className="min-w-0 flex-1">
-                    <span className="font-medium text-foreground">v{entry.version}</span>
-                    {entry.isActive ? (
-                      <span className="ml-1 rounded-sm bg-good/10 px-1 text-[9px] font-semibold uppercase tracking-wide text-good transition-colors duration-300">
-                        Current
-                      </span>
-                    ) : null}
-                    <span className="text-muted"> · {formatDate(entry.uploadedAt)}</span>
-                    {entry.uploadedBy ? (
-                      <span className="text-muted"> · {entry.uploadedBy}</span>
-                    ) : null}
+                  <div className="min-w-0 flex-1 space-y-1 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                      <span className="font-medium text-foreground">v{entry.version}</span>
+                      {entry.isActive ? (
+                        <span className="rounded-sm bg-good/10 px-1 text-[9px] font-semibold uppercase tracking-wide text-good transition-colors duration-300">
+                          Current
+                        </span>
+                      ) : null}
+                      <span className="text-muted">{formatDate(entry.uploadedAt)}</span>
+                      {entry.uploadedBy ? (
+                        <span className="text-muted">by {entry.uploadedBy}</span>
+                      ) : null}
+                    </div>
                     {entry.originalFilename ? (
                       <p className="truncate text-muted">{entry.originalFilename}</p>
                     ) : null}
                   </div>
 
                   {/* Preview + Download + Delete per version */}
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1 pt-0.5">
                     <button
                       type="button"
                       disabled={!entry.fileUrl}
                       onClick={() => openPreview(entry.fileUrl)}
-                      className="rounded p-1 text-muted hover:bg-neutral-bg hover:text-foreground disabled:opacity-40"
+                      className="rounded p-1 text-muted hover:bg-neutral-bg hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border disabled:opacity-40"
                       aria-label={`Preview version ${entry.version}`}
                       title="Preview"
                     >
@@ -330,7 +332,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                       type="button"
                       disabled={!entry.fileUrl}
                       onClick={() => triggerDownload(officerId, entry.id)}
-                      className="rounded p-1 text-muted hover:bg-neutral-bg hover:text-foreground disabled:opacity-40"
+                      className="rounded p-1 text-muted hover:bg-neutral-bg hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border disabled:opacity-40"
                       aria-label={`Download version ${entry.version}`}
                       title="Download"
                     >
@@ -340,7 +342,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                       type="button"
                       disabled={deletingId === entry.id}
                       onClick={() => setConfirmId(entry.id)}
-                      className="rounded p-1 text-muted hover:bg-serious/10 hover:text-serious disabled:opacity-30 disabled:hover:bg-transparent"
+                      className="rounded p-1 text-muted hover:bg-serious/10 hover:text-serious focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border disabled:opacity-30 disabled:hover:bg-transparent"
                       aria-label={`Delete version ${entry.version}`}
                       title="Delete"
                     >
@@ -525,9 +527,9 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
   }, [officerId, doc, onRefresh]);
 
   return (
-    <li className="rounded-lg border border-border bg-neutral-bg p-3">
+    <li className="rounded-lg border border-border bg-neutral-bg p-3 sm:p-4">
       {/* Header: thumbnail on the left, type info + badge on the right */}
-      <div className={`mb-2 flex items-start gap-2.5 transition-opacity duration-200 ${fadingOut ? "opacity-40" : "opacity-100"}`}>
+      <div className={`mb-3 flex flex-col gap-3 transition-opacity duration-200 sm:flex-row sm:items-start sm:gap-4 ${fadingOut ? "opacity-40" : "opacity-100"}`}>
         <DocumentThumbnail
           fileUrl={doc?.fileUrl}
           mimeType={doc?.mimeType}
@@ -535,7 +537,7 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
           altText={labelEn}
         />
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground">{labelEn}</p>
@@ -546,7 +548,7 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
 
           {/* Document metadata */}
           {doc ? (
-            <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-2 lg:grid-cols-3">
               <span>
                 <span className="font-medium text-foreground">อัพโหลด:</span> {formatDate(doc.uploadedAt)}
               </span>
