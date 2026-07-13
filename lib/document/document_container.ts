@@ -1,19 +1,21 @@
 /**
- * Document upload dependency container (Phase 29A — Officer Document Vault Foundation).
+ * Document upload dependency container (Phase 29A / 29B.1).
  *
- * Assembles DocumentUploadService over the real Prisma client + Supabase
- * Storage. Mirrors portrait_container.ts's DI seam:
- *   - createDocumentContainer(deps) builds the graph from any repo + storage
- *     (fakes in tests).
- *   - getDocumentContainer() lazily builds the production graph, reused per
- *     process. Returns { configured:false } when Supabase Storage is not set
- *     up (feature-var pattern) so the API answers with a clear 503 instead
- *     of crashing.
+ * Two exported factory functions with different requirements:
  *
- * Reuses SupabasePortraitStorage and resolveSupabaseStorageConfig from the
- * portrait module — documents go to a SEPARATE bucket
- * (SUPABASE_DOCUMENT_BUCKET, default "officer-documents") so portrait and
- * document bytes never share the same namespace.
+ *   getDocumentContainer()
+ *     Requires Supabase Storage to be configured (SUPABASE_SERVICE_ROLE_KEY
+ *     + NEXT_PUBLIC_SUPABASE_URL). Used by upload and download — the same
+ *     resolved configuration is shared. Returns { configured:false } when
+ *     the storage env vars are absent so the API answers 503 with an
+ *     actionable message instead of crashing.
+ *     NOTE: does NOT check bucket existence at init time. Bucket errors
+ *     surface naturally when storage.put() is called during an upload.
+ *
+ *   getDocumentReadContainer()
+ *     DB-only. Never touches storage. No env validation. Always succeeds as
+ *     long as the database is reachable. Used by history and other read-only
+ *     endpoints so they work even when Supabase Storage is not configured.
  */
 
 import { DocumentUploadService } from "@/lib/document/document_upload_service";
@@ -22,7 +24,7 @@ import { SupabasePortraitStorage, resolveSupabaseStorageConfig } from "@/lib/por
 import { DocumentRepository } from "@/lib/database/repositories/document_repository";
 import type { DatabaseClient } from "@/lib/database/database_types";
 import { DOCUMENT_BUCKET_DEFAULT } from "@/lib/storage/storage_config";
-import { validateStorageEnvironment, checkBucketExists } from "@/lib/storage/storage_diagnostics";
+import { validateStorageEnvironment } from "@/lib/storage/storage_diagnostics";
 
 export interface DocumentContainer {
   service: DocumentUploadService;
@@ -46,12 +48,15 @@ export type GetDocumentContainerResult =
 let cachedContainer: DocumentContainer | undefined;
 
 /**
- * Lazily builds the production container. Returns configured:false with a
- * readable reason when Supabase Storage variables are absent — the upload
- * endpoint maps that to 503 with an actionable message.
+ * Lazily builds the production container for operations that need storage
+ * (upload, download). Returns configured:false with an actionable reason
+ * when SUPABASE_SERVICE_ROLE_KEY or the Supabase URL is absent.
  *
- * The document bucket is SUPABASE_DOCUMENT_BUCKET (default "officer-documents"),
- * separate from the portrait bucket (SUPABASE_PORTRAIT_BUCKET / "officer-portraits").
+ * Does NOT check bucket existence at init time — bucket errors surface
+ * naturally from SupabasePortraitStorage.put() during an actual upload,
+ * which already emits a human-readable "bucket 'X' does not exist" message.
+ * Removing the pre-flight bucket check ensures that download (which never
+ * writes to storage) is not blocked by a missing or misspelled bucket name.
  */
 export async function getDocumentContainer(): Promise<GetDocumentContainerResult> {
   if (cachedContainer) {
@@ -67,17 +72,35 @@ export async function getDocumentContainer(): Promise<GetDocumentContainerResult
   const bucket = process.env.SUPABASE_DOCUMENT_BUCKET?.trim() || DOCUMENT_BUCKET_DEFAULT;
   const config = { ...baseConfig, bucket };
 
-  // Verify the bucket exists before claiming the container is configured.
-  // This distinguishes "env vars missing" from "bucket not created yet".
-  const bucketCheck = await checkBucketExists(baseConfig.supabaseUrl, baseConfig.serviceRoleKey, bucket);
-  if (!bucketCheck.exists) {
-    return { configured: false, reason: bucketCheck.error! };
-  }
-
   const { createDatabaseClient } = await import("@/lib/database/database");
   const db = createDatabaseClient() as unknown as DatabaseClient;
   const storage = new SupabasePortraitStorage(config);
 
   cachedContainer = createDocumentContainer({ db, storage });
   return { configured: true, container: cachedContainer };
+}
+
+/**
+ * Builds a DB-only container for read-only operations (history, list, etc.)
+ * that never write to storage. No env validation, no bucket check, no
+ * storage initialisation. Works even when Supabase Storage is completely
+ * unavailable or unconfigured.
+ *
+ * The injected storage is a no-op stub — it will throw if upload() is ever
+ * accidentally called through this container, making the misuse obvious.
+ */
+export async function getDocumentReadContainer(): Promise<DocumentContainer> {
+  const { createDatabaseClient } = await import("@/lib/database/database");
+  const db = createDatabaseClient() as unknown as DatabaseClient;
+
+  const noOpStorage: PortraitStorage = {
+    put: async () => {
+      throw new Error(
+        "getDocumentReadContainer() is for read-only operations — use getDocumentContainer() for uploads."
+      );
+    },
+    remove: async () => undefined,
+  };
+
+  return createDocumentContainer({ db, storage: noOpStorage });
 }
