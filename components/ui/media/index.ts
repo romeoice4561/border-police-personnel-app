@@ -20,7 +20,7 @@ export type { PortraitAvatarProps, AvatarSizePx } from "./PortraitAvatar";
 export { GalleryImage } from "./GalleryImage";
 export type { GalleryImageProps } from "./GalleryImage";
 
-export { DocumentThumbnail, deriveDocumentThumbnailUrl, getThumbnailFit } from "./DocumentThumbnail";
+export { DocumentThumbnail, deriveDocumentThumbnailUrl } from "./DocumentThumbnail";
 export type { DocumentThumbnailProps } from "./DocumentThumbnail";
 
 export { MediaPlaceholder } from "./MediaPlaceholder";

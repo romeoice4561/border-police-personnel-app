@@ -7,12 +7,9 @@
  * import, with no duplicated rendering logic.
  *
  * Object-fit behaviour:
- *   CARD_SHAPED_TYPES (ID cards, passports, driver licenses, officer cards)
- *     → object-cover — fills the frame, face/text stays large and legible,
- *       a small edge-crop is acceptable.
- *   All other types (GP7, certificates, appointment orders — typically A4)
- *     → object-contain on a taller canvas — full page always visible, no
- *       information cropped.
+ *   Documents always use object-contain, centered in a fixed-size canvas.
+ *   This preserves the original aspect ratio, avoids stretching, and keeps
+ *   thumbnails visually similar to Google Drive document previews.
  *
  * Cross-fade animation (Phase 30.1 ISSUE 7):
  *   Replacing the image (new fileUrl on the same slot) cross-fades between
@@ -33,10 +30,7 @@
 
 import { useCallback, useState } from "react";
 import { FileText } from "lucide-react";
-import {
-  DOCUMENT_CARD_TYPES,
-  DOCUMENT_THUMBNAIL_RENDER_WIDTH,
-} from "@/lib/ui/media_tokens";
+import { DOCUMENT_THUMBNAIL_RENDER_WIDTH } from "@/lib/ui/media_tokens";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,17 +54,6 @@ export function deriveDocumentThumbnailUrl(
   );
 }
 
-type ThumbnailFit = "cover" | "contain";
-
-/**
- * Determines the object-fit strategy for a given document type code:
- * - Card-shaped identity docs → "cover" (fills frame, face legible).
- * - A4-shaped forms / certificates → "contain" (whole page visible, no crop).
- */
-export function getThumbnailFit(documentTypeCode: string): ThumbnailFit {
-  return DOCUMENT_CARD_TYPES.has(documentTypeCode) ? "cover" : "contain";
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 export interface DocumentThumbnailProps {
@@ -82,9 +65,7 @@ export interface DocumentThumbnailProps {
   documentTypeCode: string;
   /**
    * Canvas size variant:
-   * "md" — main card thumbnail:
-   *        card-shaped types → 144×96 px landscape (object-cover)
-   *        A4-shaped types   → 112×144 px portrait  (object-contain)
+   * "md" — main card thumbnail → 144×112 px fixed canvas
    * "sm" — history row thumbnail → 56×56 px
    */
   size?: "md" | "sm";
@@ -101,20 +82,21 @@ export interface DocumentThumbnailProps {
 export function DocumentThumbnail({
   fileUrl,
   mimeType,
-  documentTypeCode,
   size = "md",
   altText = "Document",
 }: DocumentThumbnailProps) {
   const thumbnailUrl = deriveDocumentThumbnailUrl(fileUrl, mimeType);
   const isPdf = mimeType === "application/pdf";
-  const fit = getThumbnailFit(documentTypeCode);
 
   // Cross-fade state: `shown` is the currently-displayed (already-loaded)
   // image URL; `incoming` is a new URL loading in the background. Once it
   // finishes loading it fades in on top, then becomes `shown`.
   const [shown, setShown] = useState<string | null>(null);
   const [shownError, setShownError] = useState(false);
-  const [incoming, setIncoming] = useState<string | null>(null);
+  // Initialised to thumbnailUrl (not null) so the very first render starts
+  // loading the image immediately. The lastSeenUrl guard below only fires on
+  // *changes*, so without this initialisation the image never loads on mount.
+  const [incoming, setIncoming] = useState<string | null>(thumbnailUrl);
   const [incomingLoaded, setIncomingLoaded] = useState(false);
   // Tracks the last `thumbnailUrl` prop value seen — lets us detect a change
   // and adjust state DURING render (React's recommended "derive state from
@@ -138,17 +120,9 @@ export function DocumentThumbnail({
     }, 200);
   }, [thumbnailUrl]);
 
-  const sizeCls =
-    size === "sm"
-      ? "h-14 w-14 rounded"
-      : fit === "cover"
-        ? "h-24 w-36 rounded-md"
-        : "h-36 w-28 rounded-md";
+  const sizeCls = size === "sm" ? "h-14 w-14 rounded" : "h-28 w-36 rounded-md";
   const iconCls = size === "sm" ? "h-5 w-5 text-muted" : "h-8 w-8 text-muted";
-  // object-cover fills the frame (no padding); object-contain gets breathing
-  // room so the page never touches the border.
-  const imgFitCls = fit === "cover" ? "object-cover" : "object-contain";
-  const imgPadCls = fit === "cover" ? "" : size === "sm" ? "p-1" : "p-2";
+  const imgPadCls = size === "sm" ? "p-1" : "p-2";
 
   const showShown = Boolean(shown && !shownError);
   const showIncoming = Boolean(incoming);
@@ -175,7 +149,7 @@ export function DocumentThumbnail({
           src={shown!}
           alt={altText}
           loading="lazy"
-          className={`absolute inset-0 h-full w-full ${imgFitCls} ${imgPadCls} opacity-100 transition-opacity duration-200`}
+          className={`absolute inset-0 h-full w-full object-contain object-center ${imgPadCls} opacity-100 transition-opacity duration-200`}
           onError={() => setShownError(true)}
         />
       ) : null}
@@ -186,7 +160,7 @@ export function DocumentThumbnail({
           src={incoming!}
           alt={altText}
           loading="lazy"
-          className={`absolute inset-0 h-full w-full ${imgFitCls} ${imgPadCls} transition-opacity duration-200 ${incomingLoaded ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 h-full w-full object-contain object-center ${imgPadCls} transition-opacity duration-200 ${incomingLoaded ? "opacity-100" : "opacity-0"}`}
           onLoad={commitIncoming}
           onError={() => setIncoming(null)}
         />

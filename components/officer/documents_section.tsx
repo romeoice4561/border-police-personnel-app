@@ -17,8 +17,7 @@
  *                       works for the current version AND every historical
  *                       version — Phase 30.1 ISSUE 4).
  *   History           — inline panel: GET …/documents/history?documentType=…
- *                       every version exposes Preview / Download; old
- *                       (inactive) versions can also be deleted individually.
+ *                       every version exposes Preview / Download / Delete.
  *   Delete            — inline confirm (with full details) → DELETE …/documents/{docId}
  *                       Version-aware: deleting the current version promotes
  *                       the next-latest version to Current automatically.
@@ -27,11 +26,8 @@
  *   - The History panel is NEVER closed by Upload / Replace / Delete — it
  *     re-fetches only its own data (targeted refresh), preserving scroll
  *     position and open/closed accordion state.
- *   - Thumbnails use `object-cover` for card-like documents (ID cards,
- *     driver licenses, passports — DOCUMENT_FIT_COVER below) so the subject
- *     fills the frame and stays recognisable, and `object-contain` for
- *     A4-shaped documents/forms/certificates on a taller canvas so the whole
- *     page remains visible without cropping.
+ *   - Thumbnails use `object-contain` in a fixed canvas so documents never
+ *     overflow, stretch, or crop important edges.
  *   - Thumbnail image swaps (Replace) cross-fade instead of hard-remounting.
  */
 "use client";
@@ -192,10 +188,8 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [officerId, typeCode, internalRefreshKey, externalRefreshToken]);
 
-  // Phase 30.1 ISSUE 4: per-version Delete (only for inactive/historical
-  // entries — the Current version cannot be deleted from the History panel;
-  // use the card's own Delete button for that, which shows the full
-  // version-aware confirmation and promotion flow).
+  // Per-version Delete. The endpoint handles both inactive versions and the
+  // Current version; deleting Current promotes the newest remaining version.
   const handleConfirmDelete = useCallback(async (entry: HistoryEntry) => {
     setConfirmId(null);
     // Optimistic fade-out before the network round-trip completes.
@@ -278,6 +272,9 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
         <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
           {entries.map((entry) => {
             const isRemoving = removingIds.has(entry.id);
+            const nextVersionOnHistoryDelete = entry.isActive
+              ? entries.find((candidate) => candidate.id !== entry.id && !candidate.isActive)?.version ?? null
+              : null;
             return (
               <li
                 key={entry.id}
@@ -317,7 +314,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                     ) : null}
                   </div>
 
-                  {/* Phase 30.1 ISSUE 4: Preview + Download + Delete per version */}
+                  {/* Preview + Download + Delete per version */}
                   <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
@@ -341,15 +338,11 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                     </button>
                     <button
                       type="button"
-                      disabled={entry.isActive || deletingId === entry.id}
+                      disabled={deletingId === entry.id}
                       onClick={() => setConfirmId(entry.id)}
                       className="rounded p-1 text-muted hover:bg-serious/10 hover:text-serious disabled:opacity-30 disabled:hover:bg-transparent"
-                      aria-label={
-                        entry.isActive
-                          ? "Cannot delete the current version here — use the card's Delete button"
-                          : `Delete version ${entry.version}`
-                      }
-                      title={entry.isActive ? "Current version cannot be deleted here" : "Delete"}
+                      aria-label={`Delete version ${entry.version}`}
+                      title="Delete"
                     >
                       {deletingId === entry.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -379,9 +372,21 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose, externalRefreshTo
                       </div>
                       <div className="flex gap-1">
                         <dt className="font-medium text-foreground">Current Version:</dt>
-                        <dd>No</dd>
+                        <dd>{entry.isActive ? "Yes" : "No"}</dd>
                       </div>
                     </dl>
+                    {entry.isActive ? (
+                      nextVersionOnHistoryDelete !== null ? (
+                        <p className="text-foreground">
+                          Deleting this version will automatically promote{" "}
+                          <span className="font-semibold">Version {nextVersionOnHistoryDelete}</span> to Current.
+                        </p>
+                      ) : (
+                        <p className="text-foreground">
+                          This is the only version — deleting it will remove the current document for this type.
+                        </p>
+                      )
+                    ) : null}
                     <p className="font-medium text-serious">This operation cannot be undone.</p>
                     <div className="flex items-center gap-1.5 pt-0.5">
                       <Button
