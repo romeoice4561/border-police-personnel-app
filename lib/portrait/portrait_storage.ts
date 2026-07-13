@@ -14,6 +14,8 @@
  * server-only, never exposed to the client.
  */
 
+import { PORTRAIT_BUCKET_DEFAULT } from "@/lib/storage/storage_config";
+
 /** A stored object: the storage path plus its public + thumbnail URLs. */
 export interface StoredPortrait {
   /** Object path within the bucket (e.g. "officers/ภาค1-5/uuid.jpg"). */
@@ -75,7 +77,7 @@ export function resolveSupabaseStorageConfig(
   const supabaseUrl = resolveSupabaseUrl(env);
   if (!supabaseUrl) return null;
 
-  const bucket = env.SUPABASE_PORTRAIT_BUCKET?.trim() || "portraits";
+  const bucket = env.SUPABASE_PORTRAIT_BUCKET?.trim() || PORTRAIT_BUCKET_DEFAULT;
   return { supabaseUrl, serviceRoleKey, bucket };
 }
 
@@ -124,9 +126,19 @@ export class SupabasePortraitStorage implements PortraitStorage {
 
     if (!response.ok) {
       const detail = await safeText(response);
+      const isBucketMissing =
+        response.status === 400 &&
+        (detail.includes("Bucket not found") || detail.includes("bucket") || detail.includes("not found"));
+      if (isBucketMissing) {
+        throw new PortraitStorageConfigError(
+          `Storage bucket '${this.config.bucket}' does not exist. ` +
+            `Create it in your Supabase project under Storage → Buckets, ` +
+            `or set SUPABASE_PORTRAIT_BUCKET to an existing bucket name.`
+        );
+      }
       throw new PortraitStorageConfigError(
         `Supabase Storage upload failed (${response.status}): ${detail}. ` +
-          "Verify SUPABASE_SERVICE_ROLE_KEY and that the bucket exists."
+          `Verify SUPABASE_SERVICE_ROLE_KEY and that bucket '${this.config.bucket}' exists.`
       );
     }
 

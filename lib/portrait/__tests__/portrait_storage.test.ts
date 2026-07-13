@@ -23,7 +23,7 @@ test("resolves config from explicit URL + service-role key with default bucket",
   });
   assert.ok(cfg);
   assert.equal(cfg?.supabaseUrl, "https://proj.supabase.co");
-  assert.equal(cfg?.bucket, "portraits");
+  assert.equal(cfg?.bucket, "officer-portraits");
 });
 
 test("honors a custom bucket name", () => {

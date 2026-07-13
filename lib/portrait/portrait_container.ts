@@ -15,6 +15,7 @@ import type { PortraitPhotoClient } from "@/lib/portrait/portrait_upload_service
 import { PortraitUploadService } from "@/lib/portrait/portrait_upload_service";
 import type { PortraitStorage } from "@/lib/portrait/portrait_storage";
 import { SupabasePortraitStorage, resolveSupabaseStorageConfig } from "@/lib/portrait/portrait_storage";
+import { validateStorageEnvironment } from "@/lib/storage/storage_diagnostics";
 
 export interface PortraitContainer {
   service: PortraitUploadService;
@@ -42,12 +43,8 @@ let cachedClient: PortraitPhotoClient | undefined;
 export async function getPortraitContainer(): Promise<GetPortraitContainerResult> {
   const config = resolveSupabaseStorageConfig();
   if (!config) {
-    return {
-      configured: false,
-      reason:
-        "Portrait storage is not configured. Set SUPABASE_SERVICE_ROLE_KEY (and NEXT_PUBLIC_SUPABASE_URL) " +
-        "and create the Supabase Storage bucket to enable portrait uploads.",
-    };
+    const { reason } = validateStorageEnvironment();
+    return { configured: false, reason };
   }
 
   if (!cachedClient) {

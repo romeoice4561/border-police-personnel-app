@@ -12,8 +12,8 @@
  *
  * Reuses SupabasePortraitStorage and resolveSupabaseStorageConfig from the
  * portrait module — documents go to a SEPARATE bucket
- * (SUPABASE_DOCUMENT_BUCKET, default "documents") so portrait and document
- * bytes never share the same namespace.
+ * (SUPABASE_DOCUMENT_BUCKET, default "officer-documents") so portrait and
+ * document bytes never share the same namespace.
  */
 
 import { DocumentUploadService } from "@/lib/document/document_upload_service";
@@ -21,6 +21,8 @@ import type { PortraitStorage } from "@/lib/portrait/portrait_storage";
 import { SupabasePortraitStorage, resolveSupabaseStorageConfig } from "@/lib/portrait/portrait_storage";
 import { DocumentRepository } from "@/lib/database/repositories/document_repository";
 import type { DatabaseClient } from "@/lib/database/database_types";
+import { DOCUMENT_BUCKET_DEFAULT } from "@/lib/storage/storage_config";
+import { validateStorageEnvironment, checkBucketExists } from "@/lib/storage/storage_diagnostics";
 
 export interface DocumentContainer {
   service: DocumentUploadService;
@@ -48,8 +50,8 @@ let cachedContainer: DocumentContainer | undefined;
  * readable reason when Supabase Storage variables are absent — the upload
  * endpoint maps that to 503 with an actionable message.
  *
- * The document bucket is SUPABASE_DOCUMENT_BUCKET (default "documents"),
- * separate from the portrait bucket (SUPABASE_PORTRAIT_BUCKET / "portraits").
+ * The document bucket is SUPABASE_DOCUMENT_BUCKET (default "officer-documents"),
+ * separate from the portrait bucket (SUPABASE_PORTRAIT_BUCKET / "officer-portraits").
  */
 export async function getDocumentContainer(): Promise<GetDocumentContainerResult> {
   if (cachedContainer) {
@@ -58,16 +60,19 @@ export async function getDocumentContainer(): Promise<GetDocumentContainerResult
 
   const baseConfig = resolveSupabaseStorageConfig();
   if (!baseConfig) {
-    return {
-      configured: false,
-      reason:
-        "Document storage is not configured. Set SUPABASE_SERVICE_ROLE_KEY (and NEXT_PUBLIC_SUPABASE_URL) " +
-        "and create the Supabase Storage bucket to enable document uploads.",
-    };
+    const { reason } = validateStorageEnvironment();
+    return { configured: false, reason };
   }
 
-  const bucket = process.env.SUPABASE_DOCUMENT_BUCKET?.trim() || "documents";
+  const bucket = process.env.SUPABASE_DOCUMENT_BUCKET?.trim() || DOCUMENT_BUCKET_DEFAULT;
   const config = { ...baseConfig, bucket };
+
+  // Verify the bucket exists before claiming the container is configured.
+  // This distinguishes "env vars missing" from "bucket not created yet".
+  const bucketCheck = await checkBucketExists(baseConfig.supabaseUrl, baseConfig.serviceRoleKey, bucket);
+  if (!bucketCheck.exists) {
+    return { configured: false, reason: bucketCheck.error! };
+  }
 
   const { createDatabaseClient } = await import("@/lib/database/database");
   const db = createDatabaseClient() as unknown as DatabaseClient;
