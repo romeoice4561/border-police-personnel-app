@@ -12,7 +12,7 @@
 
 import type { NextRequest } from "next/server";
 import { guarded } from "@/lib/api/api_handlers";
-import { getDocumentContainer } from "@/lib/document/document_container";
+import { getDocumentReadContainer } from "@/lib/document/document_container";
 import { handleDownloadDocument } from "@/lib/document/document_api_handlers";
 
 export async function GET(
@@ -21,7 +21,9 @@ export async function GET(
 ): Promise<Response> {
   return guarded(async () => {
     const { id, docId } = await params;
-    const container = await getDocumentContainer();
+    // Download is a DB-only read — no storage.put() is ever called.
+    // getDocumentReadContainer() is lighter: no env validation, no storage stub.
+    const container = await getDocumentReadContainer();
     return handleDownloadDocument(
       container.service,
       decodeURIComponent(id),

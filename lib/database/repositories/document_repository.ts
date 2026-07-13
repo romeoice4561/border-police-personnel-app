@@ -126,6 +126,52 @@ export class DocumentRepository {
     return rows[0]?.version ?? 0;
   }
 
+  /**
+   * Promotes the most recently uploaded inactive version of a
+   * (officerId, documentType) pair back to active. Called when the current
+   * active version is deleted so the document family never becomes
+   * "orphaned" (no active version despite having history).
+   *
+   * `excludeId` — the id of the version that was just soft-deleted. It is
+   * now isActive=false too and must NOT be promoted back. Without this
+   * exclusion, the just-deleted row would be the first candidate.
+   *
+   * Returns the promoted document, or null when no OTHER inactive versions
+   * remain (i.e. the deleted version was the only history entry).
+   */
+  async promoteLatestInactiveForType(
+    officerId: number,
+    documentType: string,
+    excludeId?: number
+  ): Promise<OfficerDocument | null> {
+    const rows = await this.db.officerDocument.findMany({
+      where: { officerId, documentType, isActive: false },
+      orderBy: { version: "desc" },
+    });
+    // Skip the row we just soft-deleted — it must not be re-promoted.
+    const candidate = rows.find((r) => r.id !== excludeId);
+    if (!candidate) return null;
+    return this.db.officerDocument.update({
+      where: { id: candidate.id },
+      data: { isActive: true },
+    });
+  }
+
+  /**
+   * Physically removes an already-inactive (isActive=false) version from the
+   * database. Used when a user explicitly removes an old version from the
+   * history panel. Returns the deleted row, or null when:
+   *   - The row does not exist.
+   *   - The row is still active (use softDelete + promoteLatestInactiveForType
+   *     for the active version — never physically delete it directly).
+   */
+  async hardDeleteInactive(id: number): Promise<OfficerDocument | null> {
+    const existing = await this.findById(id);
+    if (!existing || existing.isActive) return null;
+    const result = await this.db.officerDocument.deleteMany({ where: { id } });
+    return result.count > 0 ? existing : null;
+  }
+
   countForOfficer(officerId: number): Promise<number> {
     return this.db.officerDocument.count({ where: { officerId } });
   }

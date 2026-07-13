@@ -96,8 +96,9 @@ function statusBadge(doc: OfficerDocument | null) {
  * Derives a Supabase image-render URL from a stored fileUrl.
  * Returns null for non-image MIME types (e.g. PDFs) or for URLs that don't
  * follow the Supabase Storage `/object/public/` pattern.
- * The render endpoint resizes the image server-side; it degrades to the
- * original when the image-transform add-on is not enabled.
+ * Uses width=320 without a height constraint so the render API returns the
+ * image at its native aspect ratio — the browser then applies object-contain
+ * to fit it without cropping (PART 4).
  */
 function deriveDocumentThumbnailUrl(
   fileUrl: string | null | undefined,
@@ -108,27 +109,35 @@ function deriveDocumentThumbnailUrl(
   if (!fileUrl.includes(OBJECT_SEGMENT)) return null;
   return (
     fileUrl.replace(OBJECT_SEGMENT, "/storage/v1/render/image/public/") +
-    "?width=128&height=128&resize=cover"
+    "?width=320"
   );
 }
 
 interface DocumentThumbnailProps {
   fileUrl: string | null | undefined;
   mimeType: string | null | undefined;
-  /** "md" = 56 × 56 px (document card header); "sm" = 32 × 32 px (history row). */
+  /**
+   * "md" = 80 × 80 px — document card header (PART 5: ~43% larger than old 56px).
+   * "sm" = 48 × 48 px — history row     (PART 6: real thumbnail replacing tiny icon).
+   */
   size?: "md" | "sm";
   altText?: string;
 }
 
 /**
- * Square thumbnail for a document card or history row.
+ * Thumbnail for a document card or history row.
  *
- * - Image documents (JPG/PNG/WEBP): Supabase render URL, with an animated
- *   skeleton while loading and silent fallback to the icon on error.
- * - PDFs / other types: styled icon (never a broken-image browser icon).
+ * PART 4: object-contain replaces object-cover — entire document is visible,
+ * no cropping. Portrait, landscape, and square images all render correctly.
+ * A subtle background fills the letterbox/pillarbox area. Padding ensures
+ * the image never touches the border edges.
+ *
+ * - Image documents (JPG/PNG/WEBP): Supabase render URL, animated skeleton
+ *   while loading, silent fallback to icon on error.
+ * - PDFs / other types: styled FileText icon (no broken browser icon).
  * - No document yet: neutral placeholder icon.
  *
- * Fixed dimensions on all branches prevent layout shift.
+ * Fixed outer dimensions on all branches prevent layout shift.
  */
 function DocumentThumbnail({ fileUrl, mimeType, size = "md", altText = "Document" }: DocumentThumbnailProps) {
   const [loaded, setLoaded] = useState(false);
@@ -138,23 +147,40 @@ function DocumentThumbnail({ fileUrl, mimeType, size = "md", altText = "Document
   const isPdf = mimeType === "application/pdf";
   const showImage = Boolean(thumbnailUrl && !imgError);
 
-  const sizeCls = size === "sm" ? "h-8 w-8 rounded" : "h-14 w-14 rounded-md";
-  const iconCls = size === "sm" ? "h-3.5 w-3.5 text-muted" : "h-5 w-5 text-muted";
+  // PART 5: md = 80px (was 56px — ~43% increase)
+  // PART 6: sm = 48px (was 32px — real thumbnail replacing tiny icon)
+  const sizeCls =
+    size === "sm"
+      ? "h-12 w-12 rounded"
+      : "h-20 w-20 rounded-md";
+  const iconCls =
+    size === "sm"
+      ? "h-4 w-4 text-muted"
+      : "h-6 w-6 text-muted";
 
   return (
-    <div className={`relative shrink-0 overflow-hidden ${sizeCls} bg-border/20`}>
+    // Outer container: fixed size, neutral background for letterbox areas,
+    // subtle shadow + ring border, no overflow-hidden so shadow is visible.
+    <div
+      className={`relative shrink-0 ${sizeCls} bg-neutral-bg/80 shadow-sm ring-1 ring-border/30`}
+    >
       {showImage ? (
         <>
           {/* Animated skeleton — hidden once the image has loaded */}
           {!loaded ? (
-            <div className="absolute inset-0 animate-pulse bg-border/40" aria-hidden="true" />
+            <div
+              className={`absolute inset-0 animate-pulse bg-border/40 ${sizeCls}`}
+              aria-hidden="true"
+            />
           ) : null}
           {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage render URL; next/image not applicable */}
           <img
             src={thumbnailUrl!}
             alt={altText}
             loading="lazy"
-            className={`h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+            // PART 4: object-contain — entire document visible, no crop.
+            // p-1.5 gives breathing room so the image never touches the border.
+            className={`absolute inset-0 h-full w-full object-contain p-1.5 transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
             onLoad={() => setLoaded(true)}
             onError={() => setImgError(true)}
           />
@@ -190,16 +216,22 @@ interface HistoryPanelProps {
   typeCode: string;
   labelEn: string;
   onClose: () => void;
+  /** Called after any version delete so the parent card can refresh. */
+  onVersionDeleted?: () => void;
 }
 
-function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelProps) {
+function HistoryPanel({ officerId, typeCode, labelEn, onClose, onVersionDeleted }: HistoryPanelProps) {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Increment to re-trigger the fetch effect after a delete.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const doLoad = async () => {
       setLoading(true);
       setFetchError(null);
       try {
@@ -219,11 +251,43 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
         if (!cancelled) setLoading(false);
       }
     };
-    void load();
+    void doLoad();
     return () => {
       cancelled = true;
     };
-  }, [officerId, typeCode]);
+  }, [officerId, typeCode, refreshKey]);
+
+  // PART 3: delete an individual version from the history panel.
+  const handleDeleteVersion = useCallback(async (entry: HistoryEntry, totalEntries: number) => {
+    const isLast = totalEntries === 1;
+    const confirmMsg = isLast
+      ? `ลบเวอร์ชันสุดท้าย (v${entry.version})?\nเอกสารประเภทนี้จะถูกลบทั้งหมด ยืนยัน?`
+      : entry.isActive
+        ? `ลบเวอร์ชันปัจจุบัน v${entry.version}?\nเวอร์ชันก่อนหน้าจะถูกตั้งเป็นปัจจุบันโดยอัตโนมัติ`
+        : `ลบ v${entry.version} ออกจากประวัติ?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setDeletingId(entry.id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(
+        `/api/officers/${encodeURIComponent(officerId)}/documents/${entry.id}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(body?.error?.message ?? `Delete failed (${res.status}).`);
+      }
+      // Re-trigger the fetch effect to reflect the change.
+      setRefreshKey((k) => k + 1);
+      onVersionDeleted?.();
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed.");
+    } finally {
+      setDeletingId(null);
+    }
+  }, [officerId, onVersionDeleted]);
 
   return (
     <div className="mt-2 rounded-md border border-border bg-surface p-3">
@@ -255,6 +319,13 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
         </p>
       )}
 
+      {deleteError && (
+        <p className="flex items-center gap-1 text-xs text-serious" role="alert">
+          <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+          {deleteError}
+        </p>
+      )}
+
       {!loading && !fetchError && entries.length === 0 && (
         <p className="text-xs text-muted">ยังไม่มีประวัติ</p>
       )}
@@ -262,8 +333,8 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
       {!loading && entries.length > 0 && (
         <ul className="space-y-2">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex items-center gap-2 text-xs">
-              {/* Small thumbnail per version */}
+            <li key={entry.id} className="flex items-start gap-2 text-xs">
+              {/* PART 6: real thumbnail per history version (48px) */}
               <DocumentThumbnail
                 key={entry.id}
                 fileUrl={entry.fileUrl}
@@ -272,7 +343,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
                 altText={`v${entry.version}`}
               />
 
-              <span className="shrink-0">
+              <span className="mt-0.5 shrink-0">
                 {entry.isActive ? (
                   <CheckCircle2 className="h-3 w-3 text-good" aria-label="Active" />
                 ) : (
@@ -282,8 +353,12 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
 
               <div className="min-w-0 flex-1">
                 <span className="font-medium text-foreground">v{entry.version}</span>
-                {" · "}
-                <span className="text-muted">{formatDate(entry.uploadedAt)}</span>
+                {entry.isActive ? (
+                  <span className="ml-1 rounded-sm bg-good/10 px-1 text-[9px] font-semibold uppercase tracking-wide text-good">
+                    Current
+                  </span>
+                ) : null}
+                <span className="text-muted"> · {formatDate(entry.uploadedAt)}</span>
                 {entry.uploadedBy ? (
                   <span className="text-muted"> · {entry.uploadedBy}</span>
                 ) : null}
@@ -292,16 +367,32 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
                 ) : null}
               </div>
 
-              {entry.fileUrl ? (
-                <a
-                  href={entry.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-xs text-link hover:underline"
+              {/* View + Delete per version (PART 3) */}
+              <div className="flex shrink-0 items-center gap-1">
+                {entry.fileUrl ? (
+                  <a
+                    href={entry.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-link hover:underline"
+                  >
+                    View
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={deletingId === entry.id}
+                  onClick={() => void handleDeleteVersion(entry, entries.length)}
+                  className="text-xs text-muted hover:text-serious disabled:opacity-40"
+                  aria-label={`Delete version ${entry.version}`}
                 >
-                  View
-                </a>
-              ) : null}
+                  {deletingId === entry.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -457,7 +548,11 @@ function DocumentRow({ officerId, typeCode, doc, onRefresh }: DocumentRowProps) 
       {confirmDelete ? (
         <div className="mb-2 flex items-center gap-2 rounded-md border border-serious/30 bg-serious/5 px-2 py-1.5 text-xs">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-serious" aria-hidden="true" />
-          <span className="flex-1 text-foreground">ยืนยันลบ? ข้อมูลจะถูกซ่อน แต่ไม่ได้ถูกลบถาวร</span>
+          <span className="flex-1 text-foreground">
+            {doc && doc.version > 1
+              ? `ลบเวอร์ชัน v${doc.version}? เวอร์ชันก่อนหน้าจะถูกตั้งเป็นปัจจุบัน`
+              : "ลบเวอร์ชันสุดท้าย? เอกสารประเภทนี้จะถูกลบทั้งหมด"}
+          </span>
           <Button
             type="button"
             variant="outline"
@@ -573,6 +668,10 @@ function DocumentRow({ officerId, typeCode, doc, onRefresh }: DocumentRowProps) 
           typeCode={typeCode}
           labelEn={labelEn}
           onClose={() => setHistoryOpen(false)}
+          onVersionDeleted={() => {
+            setHistoryOpen(false);
+            onRefresh();
+          }}
         />
       ) : null}
 

@@ -162,6 +162,74 @@ export class DocumentUploadService {
   }
 
   /**
+   * Soft-deletes the specified active version and automatically promotes the
+   * next-latest version to active so the document family never has zero
+   * active entries while history entries remain (PART 2 / PART 7 — Current
+   * Badge Logic).
+   *
+   * Returns null when the document does not exist or is already inactive (use
+   * deleteVersion() for already-inactive history entries).
+   * When the deleted version was the only remaining entry, `promoted` is null.
+   */
+  async softDeleteWithPromotion(
+    id: number
+  ): Promise<{ deleted: OfficerDocument; promoted: OfficerDocument | null } | null> {
+    const existing = await this.repository.findById(id);
+    if (!existing || !existing.isActive) return null;
+
+    const deleted = await this.repository.softDelete(id);
+    if (!deleted) return null;
+
+    // Pass `id` so the just-deleted row is excluded from promotion candidates.
+    const promoted = await this.repository.promoteLatestInactiveForType(
+      existing.officerId,
+      existing.documentType,
+      id
+    );
+
+    return { deleted, promoted };
+  }
+
+  /**
+   * Deletes a specific document version regardless of its active/inactive
+   * state (used by the per-version Delete button in the History panel,
+   * PART 3).
+   *
+   * Strategy:
+   *   - Active version: soft-delete (isActive=false) + auto-promote the next
+   *     latest inactive version to active (same as softDeleteWithPromotion).
+   *   - Inactive version: physically removed from the DB (hard delete) since
+   *     it is already superseded and the user is explicitly removing it from
+   *     the version history.
+   *
+   * Returns null when the document does not exist.
+   */
+  async deleteVersion(
+    id: number
+  ): Promise<{ deleted: OfficerDocument; promoted: OfficerDocument | null } | null> {
+    const existing = await this.repository.findById(id);
+    if (!existing) return null;
+
+    if (existing.isActive) {
+      // Active version: soft-delete + promote so no orphaned family
+      const deleted = await this.repository.softDelete(id);
+      if (!deleted) return null;
+      // Pass `id` so the just-deleted row is excluded from promotion candidates.
+      const promoted = await this.repository.promoteLatestInactiveForType(
+        existing.officerId,
+        existing.documentType,
+        id
+      );
+      return { deleted, promoted };
+    }
+
+    // Inactive (historical) version: physical removal
+    const deleted = await this.repository.hardDeleteInactive(id);
+    if (!deleted) return null;
+    return { deleted: { ...deleted, isActive: false }, promoted: null };
+  }
+
+  /**
    * Returns the minimal metadata required to serve a file download:
    * the public URL, the original filename, and the MIME type.
    * Returns null when the document does not exist, is inactive, or has no

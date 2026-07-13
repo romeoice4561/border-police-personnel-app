@@ -163,8 +163,17 @@ export async function handleGetDocument(
 }
 
 /**
- * DELETE — soft-delete a document (isActive=false). Never physically
- * removes the row or stored bytes. 404 when not found or already inactive.
+ * DELETE — version-aware soft-delete (PART 2 / PART 7).
+ *
+ * Soft-deletes the active current version (isActive=false) and automatically
+ * promotes the next-latest inactive version to active so the document family
+ * never exists without a "Current" badge while history entries remain.
+ *
+ * If this was the only version, `promoted` is null in the response — the
+ * card reverts to "ยังไม่มี" (no document).
+ *
+ * 404 when the document does not exist or is already inactive. To delete
+ * an already-inactive history entry, call handleDeleteVersion().
  */
 export async function handleDeleteDocument(
   service: DocumentUploadService,
@@ -177,10 +186,50 @@ export async function handleDeleteDocument(
   const docParsed = docIdParamSchema.safeParse({ docId: rawDocId });
   if (!docParsed.success) return badRequest("Invalid document id");
 
-  const deleted = await service.softDelete(docParsed.data.docId);
-  if (!deleted) return notFound("Document not found or already inactive.");
+  const result = await service.softDeleteWithPromotion(docParsed.data.docId);
+  if (!result) return notFound("Document not found or already inactive.");
 
-  return jsonOk({ id: deleted.id, isActive: false });
+  return jsonOk({
+    id: result.deleted.id,
+    isActive: false,
+    promoted: result.promoted
+      ? { id: result.promoted.id, version: result.promoted.version }
+      : null,
+  });
+}
+
+/**
+ * DELETE (history) — deletes any version from the history panel (PART 3).
+ *
+ * Unlike handleDeleteDocument (which only operates on the active current
+ * version), this handler accepts BOTH active and inactive versions:
+ *   - Active version: soft-delete + auto-promote next version (same as above).
+ *   - Inactive version: physically remove from DB (the user explicitly
+ *     purged it from the version history).
+ *
+ * 404 when the document id does not exist.
+ */
+export async function handleDeleteVersion(
+  service: DocumentUploadService,
+  rawOfficerId: string,
+  rawDocId: string
+): Promise<Response> {
+  const officerParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!officerParsed.success) return badRequest("Invalid officer id");
+
+  const docParsed = docIdParamSchema.safeParse({ docId: rawDocId });
+  if (!docParsed.success) return badRequest("Invalid document id");
+
+  const result = await service.deleteVersion(docParsed.data.docId);
+  if (!result) return notFound("Document version not found.");
+
+  return jsonOk({
+    id: result.deleted.id,
+    isActive: false,
+    promoted: result.promoted
+      ? { id: result.promoted.id, version: result.promoted.version }
+      : null,
+  });
 }
 
 /**
@@ -189,8 +238,11 @@ export async function handleDeleteDocument(
  * opening it inline. Works for both images and PDFs.
  *
  * The file is fetched server-side from the stored publicUrl (Supabase
- * Storage). This avoids cross-origin issues and ensures the correct
- * Content-Disposition header is sent regardless of the storage backend.
+ * Storage) using cache: 'no-store' to bypass Next.js's fetch cache.
+ * The entire body is buffered via arrayBuffer() before constructing the
+ * Response — streaming upstream.body directly as the response body causes
+ * Next.js's internal route-handler pipeline to conflict with the in-flight
+ * ReadableStream, resulting in an unhandled error (500).
  */
 export async function handleDownloadDocument(
   service: DocumentUploadService,
@@ -208,7 +260,8 @@ export async function handleDownloadDocument(
 
   let upstream: globalThis.Response;
   try {
-    upstream = await fetch(info.fileUrl);
+    // cache: 'no-store' prevents Next.js from caching binary file responses.
+    upstream = await fetch(info.fileUrl, { cache: "no-store" });
   } catch (e) {
     return jsonError(
       "STORAGE",
@@ -221,17 +274,30 @@ export async function handleDownloadDocument(
     return jsonError("STORAGE", `File not available (${upstream.status}).`, 502);
   }
 
+  // Buffer the entire body — avoids ReadableStream piping issues in Next.js
+  // route handlers and ensures Content-Length is always accurate.
+  let buffer: ArrayBuffer;
+  try {
+    buffer = await upstream.arrayBuffer();
+  } catch (e) {
+    return jsonError(
+      "STORAGE",
+      `Failed to read file from storage: ${e instanceof Error ? e.message : String(e)}`,
+      502
+    );
+  }
+
   const safeFilename = info.filename.replace(/"/g, '\\"');
   const headers = new Headers({
     "Content-Type": info.mimeType,
     "Content-Disposition":
       `attachment; filename="${safeFilename}"; ` +
       `filename*=UTF-8''${encodeURIComponent(info.filename)}`,
+    "Content-Length": String(buffer.byteLength),
+    "Cache-Control": "no-store",
   });
-  const contentLength = upstream.headers.get("content-length");
-  if (contentLength) headers.set("Content-Length", contentLength);
 
-  return new Response(upstream.body, { headers });
+  return new Response(buffer, { headers });
 }
 
 /**

@@ -10,7 +10,7 @@
 import type { NextRequest } from "next/server";
 import { guarded } from "@/lib/api/api_handlers";
 import { getDocumentContainer } from "@/lib/document/document_container";
-import { handleGetDocument, handleDeleteDocument } from "@/lib/document/document_api_handlers";
+import { handleGetDocument, handleDeleteVersion } from "@/lib/document/document_api_handlers";
 
 export async function GET(
   _request: NextRequest,
@@ -34,7 +34,10 @@ export async function DELETE(
   return guarded(async () => {
     const { id, docId } = await params;
     const container = await getDocumentContainer();
-    return handleDeleteDocument(
+    // handleDeleteVersion handles both active (soft-delete + promote) and
+    // inactive (hard-delete) versions — covers DocumentRow delete and
+    // History-panel per-version delete from a single endpoint.
+    return handleDeleteVersion(
       container.service,
       decodeURIComponent(id),
       docId

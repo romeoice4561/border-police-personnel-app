@@ -95,7 +95,14 @@ class FakeDb implements Pick<DatabaseClient, "officerDocument"> {
       return { count };
     },
     upsert: async () => { throw new Error("not implemented"); },
-    deleteMany: async () => { return { count: 0 }; },
+    deleteMany: async (args) => {
+      const w = (args?.where ?? {}) as Record<string, unknown>;
+      const before = this.rows.length;
+      this.rows = this.rows.filter((r) =>
+        !Object.entries(w).every(([k, v]) => (r as unknown as Record<string, unknown>)[k] === v)
+      );
+      return { count: before - this.rows.length };
+    },
     count: async (args) => {
       const w = (args?.where ?? {}) as Record<string, unknown>;
       return this.rows.filter((r) =>
@@ -425,5 +432,225 @@ describe("Regression", () => {
         return true;
       }
     );
+  });
+});
+
+// ── PART 2 / PART 7: softDeleteWithPromotion ─────────────────────────────────
+
+describe("softDeleteWithPromotion (PART 2 / PART 7)", () => {
+  test("deleting v2 (active) promotes v1 to active", async () => {
+    const { service } = setup();
+    const v1 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    const v2 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v2",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    const result = await service.softDeleteWithPromotion(v2.id);
+    assert.ok(result, "must return a result");
+    assert.equal(result.deleted.id, v2.id, "deleted must be v2");
+    assert.equal(result.deleted.isActive, false, "v2 must be inactive");
+    assert.ok(result.promoted, "v1 must be promoted");
+    assert.equal(result.promoted.id, v1.id, "promoted must be v1");
+    assert.equal(result.promoted.isActive, true, "v1 must now be active");
+  });
+
+  test("deleting v3 (active) promotes v2 (latest inactive)", async () => {
+    const { service } = setup();
+    for (let i = 1; i <= 3; i++) {
+      await service.upload({
+        officerPk: OFFICER_PK, officerId: OFFICER_ID,
+        documentType: "NATIONAL_ID", title: `v${i}`,
+        bytes: pdfBytes(), mimeType: "application/pdf",
+      });
+    }
+    const history = await service.getHistory(OFFICER_PK, "NATIONAL_ID");
+    const v3 = history.find((h) => h.version === 3)!;
+    const v2 = history.find((h) => h.version === 2)!;
+
+    const result = await service.softDeleteWithPromotion(v3.id);
+    assert.ok(result?.promoted, "v2 must be promoted");
+    assert.equal(result.promoted.version, 2, "latest inactive is v2");
+    assert.equal(result.promoted.isActive, true, "v2 must be active");
+
+    // v1 must remain inactive
+    const v1 = await service.getById(history.find((h) => h.version === 1)!.id);
+    assert.equal(v1?.isActive, false, "v1 must still be inactive");
+
+    // Only one active document for this type
+    const active = await service.listActive(OFFICER_PK);
+    const natId = active.filter((d) => d.documentType === "NATIONAL_ID");
+    assert.equal(natId.length, 1, "exactly one active NATIONAL_ID doc");
+    assert.equal(natId[0].version, 2, "promoted to v2");
+    void v2; // used for comment clarity only
+  });
+
+  test("deleting only version returns promoted=null", async () => {
+    const { service } = setup();
+    const v1 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "PASSPORT", title: "v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    const result = await service.softDeleteWithPromotion(v1.id);
+    assert.ok(result, "must return a result");
+    assert.equal(result.deleted.id, v1.id);
+    assert.equal(result.promoted, null, "no version to promote");
+
+    const active = await service.listActive(OFFICER_PK);
+    assert.equal(
+      active.filter((d) => d.documentType === "PASSPORT").length,
+      0,
+      "no active PASSPORT doc after deleting only version"
+    );
+  });
+
+  test("softDeleteWithPromotion on already-inactive version returns null", async () => {
+    const { service } = setup();
+    const v1 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    // Replace to make v1 inactive
+    await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v2",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    // v1 is now inactive — softDeleteWithPromotion must return null
+    const result = await service.softDeleteWithPromotion(v1.id);
+    assert.equal(result, null, "must return null for inactive version");
+  });
+
+  test("deleting from one type does not affect another type", async () => {
+    const { service } = setup();
+    await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "GP7 v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    const passportV1 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "PASSPORT", title: "Passport v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    const passportV2 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "PASSPORT", title: "Passport v2",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    // Delete passport v2 → v1 promoted
+    await service.softDeleteWithPromotion(passportV2.id);
+
+    // GP7 must remain active and untouched
+    const active = await service.listActive(OFFICER_PK);
+    const gp7 = active.find((d) => d.documentType === "GP7");
+    assert.ok(gp7, "GP7 must still be active");
+    assert.equal(gp7.version, 1, "GP7 version must still be 1");
+
+    const passport = active.find((d) => d.documentType === "PASSPORT");
+    assert.ok(passport, "PASSPORT must be active after promotion");
+    assert.equal(passport.id, passportV1.id, "PASSPORT active must be v1");
+  });
+});
+
+// ── PART 3: deleteVersion ─────────────────────────────────────────────────────
+
+describe("deleteVersion (PART 3 — per-history-version delete)", () => {
+  test("deleteVersion on active version soft-deletes and promotes", async () => {
+    const { service } = setup();
+    await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    const v2 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v2",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    const result = await service.deleteVersion(v2.id);
+    assert.ok(result?.promoted, "v1 must be promoted");
+    assert.equal(result.promoted.version, 1);
+
+    // v2 row still exists (soft-deleted), but inactive
+    const v2Row = await service.getById(v2.id);
+    assert.ok(v2Row, "soft-deleted row must still exist");
+    assert.equal(v2Row.isActive, false);
+  });
+
+  test("deleteVersion on inactive version physically removes the row", async () => {
+    const { service } = setup();
+    const v1 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    // Replace to make v1 inactive
+    await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "v2",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    // v1 is now inactive — deleteVersion physically removes it
+    const result = await service.deleteVersion(v1.id);
+    assert.ok(result, "must return a result");
+    assert.equal(result.promoted, null, "no promotion for inactive version");
+
+    // Row must be gone from DB
+    const v1Row = await service.getById(v1.id);
+    assert.equal(v1Row, null, "inactive version must be physically deleted");
+
+    // Active v2 must remain
+    const active = await service.listActive(OFFICER_PK);
+    assert.equal(active.length, 1, "v2 must still be active");
+    assert.equal(active[0].version, 2, "active version is v2");
+  });
+
+  test("deleteVersion on non-existent id returns null", async () => {
+    const { service } = setup();
+    const result = await service.deleteVersion(9999);
+    assert.equal(result, null);
+  });
+
+  test("deleteVersion: after deleting inactive history, getHistory shrinks", async () => {
+    const { service } = setup();
+    const v1 = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "NATIONAL_ID", title: "v1",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "NATIONAL_ID", title: "v2",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "NATIONAL_ID", title: "v3",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+
+    // History has 3 entries; v1 and v2 are inactive
+    const historyBefore = await service.getHistory(OFFICER_PK, "NATIONAL_ID");
+    assert.equal(historyBefore.length, 3);
+
+    // Delete v1 (inactive) from history
+    await service.deleteVersion(v1.id);
+
+    const historyAfter = await service.getHistory(OFFICER_PK, "NATIONAL_ID");
+    assert.equal(historyAfter.length, 2, "history must shrink by one after hard-delete");
+    assert.ok(!historyAfter.find((h) => h.id === v1.id), "v1 must be gone from history");
   });
 });
