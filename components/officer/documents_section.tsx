@@ -535,6 +535,7 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
           mimeType={doc?.mimeType}
           documentTypeCode={typeCode}
           altText={labelEn}
+          onClick={doc?.fileUrl ? () => openPreview(doc.fileUrl) : undefined}
         />
 
         <div className="min-w-0 flex-1 space-y-2">

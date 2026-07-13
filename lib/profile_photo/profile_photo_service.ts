@@ -90,6 +90,10 @@ export class ProfilePhotoService {
     return this.repository.setCurrent(id);
   }
 
+  deleteById(id: number): Promise<ProfilePhoto | null> {
+    return this.repository.deleteById(id);
+  }
+
   count(): Promise<number> {
     return this.repository.count();
   }

@@ -67,6 +67,7 @@ export interface ProfilePhotoDelegate {
   }): Promise<ProfilePhotoRow>;
   update(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<ProfilePhotoRow>;
   updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
+  delete(args: { where: Record<string, unknown> }): Promise<ProfilePhotoRow>;
   count(args?: { where?: Record<string, unknown> }): Promise<number>;
   groupBy(args: {
     by: string[];
@@ -289,6 +290,13 @@ export class PrismaProfilePhotoRepository implements ProfilePhotoRepository {
       data: { isProfile: false },
     });
     const row = await this.db.profilePhoto.update({ where: { id }, data: { isProfile: true } });
+    return rowToPhoto(row);
+  }
+
+  async deleteById(id: number): Promise<ProfilePhoto | null> {
+    const existing = await this.db.profilePhoto.findUnique({ where: { id } });
+    if (!existing) return null;
+    const row = await this.db.profilePhoto.delete({ where: { id } });
     return rowToPhoto(row);
   }
 

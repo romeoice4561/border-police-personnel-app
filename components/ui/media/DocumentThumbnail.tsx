@@ -65,13 +65,14 @@ export interface DocumentThumbnailProps {
   documentTypeCode: string;
   /**
    * Canvas size variant:
-   * "md" — main card thumbnail → responsive fixed canvas:
-   *        mobile 112×112, tablet 128×128, desktop 144×144
+   * "md" — main card thumbnail → 80×80 px visual identifier
    * "sm" — history row thumbnail → 64×64 px
    */
   size?: "md" | "sm";
   /** Accessible alt text for the image. Defaults to "Document". */
   altText?: string;
+  /** Optional shortcut action, typically Preview. */
+  onClick?: () => void;
 }
 
 /**
@@ -85,6 +86,7 @@ export function DocumentThumbnail({
   mimeType,
   size = "md",
   altText = "Document",
+  onClick,
 }: DocumentThumbnailProps) {
   const thumbnailUrl = deriveDocumentThumbnailUrl(fileUrl, mimeType);
   const isPdf = mimeType === "application/pdf";
@@ -121,18 +123,15 @@ export function DocumentThumbnail({
     }, 200);
   }, [thumbnailUrl]);
 
-  const sizeCls =
-    size === "sm" ? "h-16 w-16 rounded-md" : "h-28 w-28 rounded-lg sm:h-32 sm:w-32 lg:h-36 lg:w-36";
+  const sizeCls = size === "sm" ? "h-16 w-16 rounded-md" : "h-20 w-20 rounded-lg";
   const iconCls = size === "sm" ? "h-6 w-6 text-muted" : "h-9 w-9 text-muted";
   const imgPadCls = size === "sm" ? "p-1.5" : "p-2";
 
   const showShown = Boolean(shown && !shownError);
   const showIncoming = Boolean(incoming);
 
-  return (
-    <div
-      className={`relative shrink-0 overflow-hidden ${sizeCls} bg-white shadow-sm ring-1 ring-border/60 transition-transform duration-200 hover:scale-[1.02]`}
-    >
+  const content = (
+    <>
       {!showShown && !showIncoming ? (
         /* PDF / non-image / error fallback — never a broken browser icon */
         <div className="flex h-full w-full flex-col items-center justify-center gap-1">
@@ -175,6 +174,27 @@ export function DocumentThumbnail({
           aria-hidden="true"
         />
       ) : null}
+    </>
+  );
+
+  const className = `relative shrink-0 overflow-hidden ${sizeCls} bg-white shadow-sm ring-1 ring-border/60 transition-transform duration-200 hover:scale-[1.02]`;
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+        aria-label={`Preview ${altText}`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={className}>
+      {content}
     </div>
   );
 }

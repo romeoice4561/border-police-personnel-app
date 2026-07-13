@@ -83,6 +83,12 @@ export class FakeProfilePhotoDbClient implements ProfilePhotoDbClient {
         }
         return { count };
       },
+      async delete(args) {
+        const index = rows.findIndex((r) => matchesWhere(r, args.where));
+        if (index < 0) throw new Error("Record to delete not found");
+        const [row] = rows.splice(index, 1);
+        return { ...row };
+      },
       async count(args) {
         return rows.filter((r) => matchesWhere(r, args?.where)).length;
       },

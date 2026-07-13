@@ -151,6 +151,39 @@ export async function handleSetCurrentPortrait(
   return jsonOk(updated);
 }
 
+/**
+ * DELETE — removes a non-current, non-official gallery image from this
+ * officer's gallery. Current/official portraits are protected so deletion
+ * never silently leaves the officer without the displayed portrait.
+ */
+export async function handleDeleteGalleryPhoto(
+  profilePhotoService: ProfilePhotoService,
+  rawOfficerId: string,
+  rawPhotoId: string
+): Promise<Response> {
+  const paramParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!paramParsed.success) return badRequest("Invalid officer id");
+  const photoIdParsed = photoIdParamSchema.safeParse({ photoId: rawPhotoId });
+  if (!photoIdParsed.success) return badRequest("Invalid photo id");
+
+  const existing = await profilePhotoService.getById(photoIdParsed.data.photoId);
+  if (!existing || existing.matchedOfficerId !== paramParsed.data.id) {
+    return notFound("No such gallery image for this officer.");
+  }
+
+  if (existing.isProfile || existing.photoType === "OFFICIAL_PORTRAIT") {
+    return jsonError(
+      "CURRENT_PORTRAIT_PROTECTED",
+      "Current official portraits cannot be deleted. Choose another official portrait first.",
+      409
+    );
+  }
+
+  const deleted = await profilePhotoService.deleteById(photoIdParsed.data.photoId);
+  if (!deleted) return notFound("No such gallery image for this officer.");
+  return jsonOk({ id: deleted.id, deleted: true });
+}
+
 const setOfficialPortraitBodySchema = z.object({
   /** The ProfilePhoto id to pin as official, or null to unpin (fall back to the automatic resolver tiers). */
   photoId: z.number().int().positive().nullable(),

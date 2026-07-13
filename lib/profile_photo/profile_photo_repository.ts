@@ -49,6 +49,8 @@ export interface ProfilePhotoRepository {
    * photo doesn't exist or has no matchedOfficerId.
    */
   setCurrent(id: number): Promise<ProfilePhoto | null>;
+  /** Deletes a non-current, non-official gallery row. Returns null when absent. */
+  deleteById(id: number): Promise<ProfilePhoto | null>;
   count(): Promise<number>;
 }
 
@@ -183,6 +185,13 @@ export class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
       this.photos.set(p.driveFileId, { ...p, isProfile: isTarget, updatedAt: now });
     }
     return this.photos.get(target.driveFileId) ?? null;
+  }
+
+  async deleteById(id: number): Promise<ProfilePhoto | null> {
+    const existing = [...this.photos.values()].find((p) => p.id === id);
+    if (!existing) return null;
+    this.photos.delete(existing.driveFileId);
+    return existing;
   }
 
   async count(): Promise<number> {
