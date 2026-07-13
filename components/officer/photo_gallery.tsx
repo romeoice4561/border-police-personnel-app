@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PhotoModal } from "@/components/officer/photo_modal";
 import { resolveViewerSource } from "@/lib/ui/officer_photo_source";
+import { GalleryImage } from "@/components/ui/media/GalleryImage";
 
 interface GalleryEntry {
   id: number;
@@ -157,35 +158,22 @@ export function PhotoGallery({ officerId, name, officialPortraitId, refreshKey =
               const isOfficial = entry.id === officialPortraitId;
               return (
                 <div key={entry.id} className="group relative">
+                  {/* Gallery thumbnails use rounded-rectangle (Part 5 — Photo
+                      Gallery images are NOT portrait circles). Uses shared
+                      GalleryImage component (Phase 30.2). */}
                   <button
                     type="button"
                     onClick={() => setOpenIndex(index)}
-                    className="block aspect-square w-full overflow-hidden rounded-lg border border-border bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className="group block aspect-square w-full overflow-hidden rounded-lg border border-border bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     aria-label={`Open ${GROUP_LABEL[group.type]} image`}
                   >
-                    {source.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- external storage/Drive URL
-                      <img
-                        src={source.imageUrl}
-                        alt={`${GROUP_LABEL[group.type]} of ${name}`}
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                        onError={
-                          source.fallbackUrl
-                            ? (e) => {
-                                const img = e.currentTarget;
-                                img.onerror = null;
-                                img.src = source.fallbackUrl!;
-                              }
-                            : undefined
-                        }
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-muted">
-                        <ImageOff className="h-5 w-5" aria-hidden="true" />
-                      </div>
-                    )}
+                    <GalleryImage
+                      src={source.imageUrl}
+                      alt={`${GROUP_LABEL[group.type]} of ${name}`}
+                      fallbackSrc={source.fallbackUrl}
+                      hoverScale
+                      className="h-full w-full"
+                    />
                   </button>
 
                   <div className="pointer-events-none absolute left-1 top-1 flex flex-wrap gap-1">

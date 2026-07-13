@@ -12,10 +12,10 @@
  */
 "use client";
 
-import { useState } from "react";
-import { ImageOff, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import type { Asset } from "@/lib/gallery/asset_types";
 import { cn } from "@/lib/ui/cn";
+import { GalleryImage } from "@/components/ui/media/GalleryImage";
 
 interface GalleryAssetCardProps {
   asset: Asset;
@@ -24,10 +24,6 @@ interface GalleryAssetCardProps {
 }
 
 export function GalleryAssetCard({ asset, onOpen, onEdit }: GalleryAssetCardProps) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
-
-  const hasThumbnail = Boolean(asset.thumbnailUrl) && !imgFailed;
   const displayName  =
     asset.folderName ??
     asset.relativePath.split("/").pop() ??
@@ -42,35 +38,14 @@ export function GalleryAssetCard({ asset, onOpen, onEdit }: GalleryAssetCardProp
         className="flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         aria-label={`เปิดรูป ${displayName}`}
       >
-        {/* Thumbnail — fixed 4:3 aspect */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-neutral-bg">
-          {hasThumbnail ? (
-            // eslint-disable-next-line @next/next/no-img-element -- external Drive URL; next/image remote loader is intentionally not used so rendering never contacts Google.
-            <img
-              src={asset.thumbnailUrl as string}
-              alt={displayName}
-              loading="lazy"
-              decoding="async"
-              referrerPolicy="no-referrer"
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgFailed(true)}
-              className={cn(
-                "h-full w-full object-cover transition-all duration-300",
-                "group-hover:scale-105",
-                imgLoaded ? "opacity-100" : "opacity-0"
-              )}
-            />
-          ) : null}
-
-          {/* Placeholder shown until the image loads or when none is available */}
-          {(!hasThumbnail || !imgLoaded) ? (
-            <div
-              className="absolute inset-0 flex items-center justify-center text-muted"
-              aria-hidden="true"
-            >
-              <ImageOff className="h-8 w-8 opacity-30" />
-            </div>
-          ) : null}
+        {/* Thumbnail — fixed 4:3 aspect, uses shared GalleryImage (Phase 30.2) */}
+        <div className="relative aspect-[4/3] w-full">
+          <GalleryImage
+            src={asset.thumbnailUrl}
+            alt={displayName}
+            hoverScale
+            className="h-full w-full"
+          />
 
           {/* Verified badge */}
           {asset.verified ? (

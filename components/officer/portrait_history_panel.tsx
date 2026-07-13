@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 import { X, Star, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { OfficerPhoto } from "@/components/officer/officer_photo";
+import { AVATAR_SIZE } from "@/lib/ui/media_tokens";
 
 interface HistoryEntry {
   id: number;
@@ -128,17 +130,14 @@ export function PortraitHistoryPanel({ officerId, name, onClose, onChanged }: Po
                   key={entry.id}
                   className="flex items-center gap-3 rounded-xl border border-border bg-neutral-bg/40 p-2.5"
                 >
-                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-black/10">
-                    {entry.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- external storage/Drive URL
-                      <img
-                        src={entry.thumbnailUrl}
-                        alt={`Historical portrait (${SOURCE_LABEL[entry.sourceType] ?? entry.sourceType})`}
-                        referrerPolicy="no-referrer"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : null}
-                  </div>
+                  {/* Part 4 — Portrait History uses the same circular avatar
+                      style as Official Portrait (Phase 30.2 history-fix). */}
+                  <OfficerPhoto
+                    thumbnailUrl={entry.thumbnailUrl}
+                    name={name}
+                    size={AVATAR_SIZE.MD}
+                    enableViewer={false}
+                  />
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
