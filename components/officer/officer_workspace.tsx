@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
+import type { OfficerIntelligenceCard as OfficerIntelligenceCardData } from "@/lib/intelligence";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { useOfficerWorkspace } from "@/components/officer/use_officer_workspace";
 import { ProfileHeader } from "@/components/officer/profile_header";
@@ -45,6 +46,7 @@ import { PhotoGallery } from "@/components/officer/photo_gallery";
 import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
+import { OfficerIntelligenceCard } from "@/components/intelligence/officer_intelligence_card";
 import { Button } from "@/components/ui/button";
 import { organizationEngineFromTree } from "@/lib/organization/organization_engine";
 import type { OrgTree } from "@/lib/organization/org_tree";
@@ -55,6 +57,8 @@ export interface OfficerWorkspaceProps {
   knownUnits: readonly string[];
   /** Trusted portrait (from a matched ProfilePhoto), resolved server-side. */
   portrait: ResolvedOfficerPortrait;
+  /** Prepared by Commander Intelligence Engine on the server. */
+  intelligence: OfficerIntelligenceCardData | null;
   /**
    * Phase 27: the raw org-tree snapshot, fetched server-side. Wrapped into an
    * OrganizationEngine HERE (client-side) rather than accepted as an
@@ -64,7 +68,7 @@ export interface OfficerWorkspaceProps {
   orgTree: OrgTree;
 }
 
-export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: OfficerWorkspaceProps) {
+export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intelligence }: OfficerWorkspaceProps) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
@@ -143,6 +147,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
         </div>
 
         <div className="space-y-6">
+          {intelligence ? <OfficerIntelligenceCard card={intelligence} /> : null}
           <ProfileCompletenessCard officer={officer} />
           <ProfileActionsCard editing={editing} onEditProfile={startEditing} />
         </div>

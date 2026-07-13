@@ -52,6 +52,7 @@ export interface OfficerIntelligenceCard {
   promotionStatus: PromotionStatus;
   retirementStatus: RetirementStatus;
   profileCompleteness: CompletenessStatus;
+  profileCompletenessPercent: number | null;
   priority: OfficerPriority;
   priorityScore: number;
   flags: OfficerFlag[];

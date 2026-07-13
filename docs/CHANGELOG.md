@@ -29,3 +29,17 @@
 
 ### Notes
 - Admin gallery metadata preview remains unchanged by design.
+
+## Phase 37 - Commander Dashboard UI Integration
+
+### Added
+- Commander Dashboard widgets powered by the Commander Intelligence Engine.
+- Officer Profile intelligence card with promotion status, retirement status, priority, profile completion, flags, and recommendations.
+- Dashboard filters for promotion readiness, retirement risk, missing documents, missing portrait, training needs, and priority.
+
+### Changed
+- Dashboard now focuses on commander intelligence instead of generic recent-officer statistics.
+- Commander Intelligence Engine card output now includes prepared profile completion percentage for UI progress display.
+
+### Notes
+- No media UI, document thumbnail UI, database schema, OCR, AI, or storage behavior changed.

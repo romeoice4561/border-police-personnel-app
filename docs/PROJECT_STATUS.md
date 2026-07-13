@@ -57,3 +57,23 @@ are in place. No features have been implemented yet.
 
 ## Result
 Phase 30.2 is complete with no business logic or database changes.
+
+# Phase 37 — Commander Dashboard UI Integration
+
+**Status:** ✅ Complete
+
+## Objectives
+- Expose Commander Intelligence Engine output on the dashboard.
+- Display officer-level intelligence on Officer Profile.
+- Add intelligence filters for commander review workflows.
+
+## Completed
+- ✅ Commander Dashboard widgets use `buildCommanderDashboard()` summary output.
+- ✅ Officer Profile displays Promotion Status, Retirement Status, Priority, Profile Completion, flags, and recommendations from `buildOfficerIntelligenceCard()`.
+- ✅ Dashboard filters use existing intelligence flags and priority values.
+- ✅ Profile Completion is shown as percentage and progress bar from engine output.
+- ✅ UI components remain thin; intelligence calculations stay in server/pure library code.
+
+## Notes
+- No media UI was modified in this phase.
+- No new database schema, storage, OCR, AI, or document logic changes were introduced.

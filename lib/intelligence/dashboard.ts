@@ -27,6 +27,7 @@ export function buildOfficerIntelligenceCard(input: OfficerIntelligenceInput): O
     promotionStatus: promotionStatusFromInput(normalizedInput),
     retirementStatus: retirementStatusFromInput(normalizedInput),
     profileCompleteness: completenessStatus(input.profileCompletenessPercent),
+    profileCompletenessPercent: input.profileCompletenessPercent ?? null,
     priority: priorityFromScore(priorityScore),
     priorityScore,
     flags,

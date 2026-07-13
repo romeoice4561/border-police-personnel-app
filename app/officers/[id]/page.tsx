@@ -21,6 +21,7 @@ import { getOfficerProfile } from "@/lib/server/officer_service";
 import { getKnownUnits } from "@/lib/server/unit_service";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
 import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
+import { buildOfficerProfileIntelligence } from "@/lib/server/commander_intelligence_service";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,13 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
           Hand off the plain OrgTree snapshot instead — OfficerWorkspace
           (client) wraps it in organizationEngineFromTree() itself, exactly
           like the client-fetch path (useOrganizationEngine) already does. */}
-      <OfficerWorkspace officer={officer} knownUnits={knownUnits} orgTree={organizationEngine.getOrganizationTree()} portrait={portrait} />
+      <OfficerWorkspace
+        officer={officer}
+        knownUnits={knownUnits}
+        orgTree={organizationEngine.getOrganizationTree()}
+        portrait={portrait}
+        intelligence={buildOfficerProfileIntelligence(officer)}
+      />
     </div>
   );
 }
