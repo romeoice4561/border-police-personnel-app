@@ -93,7 +93,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <ProfileHeader officer={officer} portrait={portrait} organizationEngine={organizationEngine} onPortraitChanged={handlePortraitChanged} />
 
       {editing ? (
@@ -118,8 +118,8 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           {/* Phase 26D Part 1: Basic Information -> Career -> Current
               Organization -> Contact -> Personal Information, in that
               reading order — Career Timeline immediately follows Personal
@@ -131,7 +131,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
             </>
           ) : (
             <>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-6 sm:grid-cols-2">
                 <BasicInformationSection officer={officer} />
                 <CareerSection officer={officer} />
               </div>
@@ -142,7 +142,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <ProfileCompletenessCard officer={officer} />
           <ProfileActionsCard editing={editing} onEditProfile={startEditing} />
         </div>
@@ -169,12 +169,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
         <CareerTimelineSection timeline={officer.timeline} organizationEngine={organizationEngine} />
       )}
 
-      {/* Phase 26D Part 1: Achievements -> Documents -> Notes -> Training -> Education -> Photo Gallery -> Officer Quality Card. */}
-      <AchievementsSection />
-      <DocumentsSection officerId={officer.officerId} documents={officer.documents} />
-      <NotesSection />
-
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-6 sm:grid-cols-2">
         {editing ? (
           <>
             <TrainingEditor rows={workspace.training} onChange={workspace.setTraining} />
@@ -188,12 +183,29 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
         )}
       </div>
 
-      <section className="rounded-2xl border border-border bg-neutral-bg p-4">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h2>
-        <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} refreshKey={galleryKey} />
+      <AchievementsSection />
+
+      {/* Phase 31D.1: supporting evidence is grouped as Media after the core
+          career/qualification/achievement record. Existing gallery and
+          document components keep their props and behaviour unchanged. */}
+      <section className="space-y-4">
+        <div className="border-b border-border pb-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">Media</h2>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-neutral-bg p-4">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h3>
+          <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} refreshKey={galleryKey} />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <DocumentsSection officerId={officer.officerId} documents={officer.documents} />
+        </div>
       </section>
 
       <OfficerQualityCard officer={officer} />
+
+      <NotesSection />
     </div>
   );
 }
