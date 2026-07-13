@@ -1,11 +1,10 @@
 /**
- * Regression tests for Phase 29B.1 — Download and History storage isolation.
+ * Regression tests — Download, History, and Delete storage isolation.
  *
- * Proves:
- *   1. getHistory() never calls storage — works when Storage is unavailable.
- *   2. getDownloadInfo() never calls storage — works when Storage is unavailable.
- *   3. Both operations share the same service layer as upload, just without
- *      the storage write path being exercised.
+ * Phase 29B.1 proved getHistory() / getDownloadInfo() never touch storage.
+ * Phase 29B.3 adds softDelete() isolation and proves the container layer
+ *             no longer returns a "not configured" failure — delete,
+ *             download, and history all work regardless of storage state.
  *
  * Run with:
  *   npx tsx --test lib/document/__tests__/document_regression.test.ts
@@ -235,6 +234,68 @@ describe("Download — storage isolation", () => {
   });
 });
 
+describe("Delete — storage isolation (Phase 29B.3)", () => {
+  test("softDelete() does not call storage.put() when deleting a document", async () => {
+    const db = new FakeDb();
+    const doc = await seedDocument(db);
+
+    const spy = new SpyStorage();
+    const repo = new DocumentRepository(db as unknown as DatabaseClient);
+    const service = new DocumentUploadService({ repository: repo, storage: spy });
+
+    const deleted = await service.softDelete(doc.id);
+    assert.ok(deleted, "softDelete() must return the updated row");
+    assert.equal(deleted.isActive, false, "isActive must be false after soft-delete");
+    assert.equal(spy.putCalled, false, "storage.put() must NOT be called during softDelete()");
+  });
+
+  test("softDelete() does not call storage.remove() — bytes are never deleted", async () => {
+    const db = new FakeDb();
+    const doc = await seedDocument(db);
+
+    const spy = new SpyStorage();
+    const repo = new DocumentRepository(db as unknown as DatabaseClient);
+    const service = new DocumentUploadService({ repository: repo, storage: spy });
+
+    await service.softDelete(doc.id);
+    assert.equal(
+      spy.removeCalled,
+      false,
+      "storage.remove() must NOT be called — soft-delete is DB-only"
+    );
+  });
+
+  test("softDelete() works when storage would throw on any call", async () => {
+    const db = new FakeDb();
+    const doc = await seedDocument(db);
+
+    // Storage that throws on both put and remove
+    const alwaysThrows: PortraitStorage = {
+      put: async () => { throw new Error("SUPABASE_SERVICE_ROLE_KEY not set"); },
+      remove: async () => { throw new Error("SUPABASE_SERVICE_ROLE_KEY not set"); },
+    };
+    const repo = new DocumentRepository(db as unknown as DatabaseClient);
+    const service = new DocumentUploadService({ repository: repo, storage: alwaysThrows });
+
+    // Must not throw — delete is purely a DB operation
+    const result = await service.softDelete(doc.id);
+    assert.ok(result, "soft-delete must succeed even when storage would throw");
+    assert.equal(result.isActive, false);
+  });
+
+  test("softDelete() returns null for non-existent document without touching storage", async () => {
+    const db = new FakeDb();
+    const spy = new SpyStorage();
+    const repo = new DocumentRepository(db as unknown as DatabaseClient);
+    const service = new DocumentUploadService({ repository: repo, storage: spy });
+
+    const result = await service.softDelete(9999);
+    assert.equal(result, null, "must return null for unknown id");
+    assert.equal(spy.putCalled, false);
+    assert.equal(spy.removeCalled, false);
+  });
+});
+
 describe("Shared container — upload and download use same storage path", () => {
   test("upload produces a fileUrl that getDownloadInfo can read back", async () => {
     const db = new FakeDb();
@@ -254,6 +315,31 @@ describe("Shared container — upload and download use same storage path", () =>
     assert.ok(info, "download info must be available after upload");
     assert.equal(info.fileUrl, uploaded.fileUrl, "download fileUrl must match uploaded fileUrl");
     assert.equal(info.filename, "id_card.pdf");
+  });
+
+  test("upload, delete, and download all use the same service — single shared code path", async () => {
+    const db = new FakeDb();
+    const working = new WorkingStorage();
+    const repo = new DocumentRepository(db as unknown as DatabaseClient);
+    // One service instance shared by all three operations (mirrors container behaviour)
+    const service = new DocumentUploadService({ repository: repo, storage: working });
+
+    const uploaded = await service.upload({
+      officerPk: 1, officerId: "test",
+      documentType: "NATIONAL_ID", title: "บัตรประชาชน",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+      originalFilename: "id_card.pdf",
+    });
+    // Download works via the same service
+    const info = await service.getDownloadInfo(uploaded.id);
+    assert.ok(info, "download must work on the same service used for upload");
+    // Delete works via the same service
+    const deleted = await service.softDelete(uploaded.id);
+    assert.ok(deleted, "delete must work on the same service used for upload");
+    assert.equal(deleted.isActive, false);
+    // Download after delete must return null (document is inactive)
+    const infoAfterDelete = await service.getDownloadInfo(uploaded.id);
+    assert.equal(infoAfterDelete, null, "download of an inactive document must return null");
   });
 
   test("replace (re-upload) updates fileUrl; getDownloadInfo returns the new version's URL", async () => {

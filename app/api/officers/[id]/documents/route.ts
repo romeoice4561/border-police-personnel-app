@@ -10,7 +10,6 @@
 
 import type { NextRequest } from "next/server";
 import { guarded } from "@/lib/api/api_handlers";
-import { serviceUnavailable } from "@/lib/api/api_response";
 import { getDocumentContainer } from "@/lib/document/document_container";
 import { handleListDocuments, handleUploadDocument } from "@/lib/document/document_api_handlers";
 
@@ -20,11 +19,10 @@ export async function GET(
 ): Promise<Response> {
   return guarded(async () => {
     const { id } = await params;
-    const result = await getDocumentContainer();
-    if (!result.configured) return serviceUnavailable(result.reason);
+    const container = await getDocumentContainer();
     return handleListDocuments(
-      result.container.service,
-      result.container.repository,
+      container.service,
+      container.repository,
       decodeURIComponent(id)
     );
   });
@@ -36,11 +34,10 @@ export async function POST(
 ): Promise<Response> {
   return guarded(async () => {
     const { id } = await params;
-    const result = await getDocumentContainer();
-    if (!result.configured) return serviceUnavailable(result.reason);
+    const container = await getDocumentContainer();
     return handleUploadDocument(
-      result.container.service,
-      result.container.repository,
+      container.service,
+      container.repository,
       decodeURIComponent(id),
       request
     );
