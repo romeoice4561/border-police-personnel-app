@@ -49,6 +49,15 @@ export function driveFullImageUrl(fileId: string, width: number = FULL_RESOLUTIO
 }
 
 /**
+ * Returns true for synthetic file-ID values that are NOT real Google Drive IDs.
+ * Synthetic IDs use a "prefix:value" convention (e.g. "upload:<uuid>").
+ * Real Drive IDs are alphanumeric + hyphens/underscores and never contain a colon.
+ */
+export function isSyntheticFileId(fileId: string): boolean {
+  return fileId.includes(":");
+}
+
+/**
  * Resolves the viewer image source from the stored photo identity, applying the
  * documented precedence. Pure — deterministic URLs, no network.
  */
@@ -57,7 +66,10 @@ export function resolveViewerSource(input: OfficerPhotoInput, width: number = FU
   const thumb = clean(input.thumbnailUrl);
   const webView = clean(input.webViewUrl);
 
-  const fullFromId = fileId ? driveFullImageUrl(fileId, width) : null;
+  // Only generate a Drive URL for genuine Google Drive file IDs.
+  // Synthetic IDs (e.g. "upload:<uuid>") must fall through to thumbnailUrl so
+  // the <img> src is the Supabase render URL, not an invalid Drive path.
+  const fullFromId = fileId && !isSyntheticFileId(fileId) ? driveFullImageUrl(fileId, width) : null;
 
   // Primary: high-res from the file id; else the stored thumbnail.
   const imageUrl = fullFromId ?? thumb;

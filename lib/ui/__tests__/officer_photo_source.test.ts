@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { driveFullImageUrl, resolveViewerSource, FULL_RESOLUTION_WIDTH } from "@/lib/ui/officer_photo_source";
+import { driveFullImageUrl, isSyntheticFileId, resolveViewerSource, FULL_RESOLUTION_WIDTH } from "@/lib/ui/officer_photo_source";
 
 test("driveFullImageUrl derives a high-resolution image URL from a file id", () => {
   assert.equal(driveFullImageUrl("ABC"), `https://drive.google.com/thumbnail?id=ABC&sz=w${FULL_RESOLUTION_WIDTH}`);
@@ -64,4 +64,50 @@ test("no duplicate fallback when the derived high-res URL equals the stored thum
   const s = resolveViewerSource({ driveFileId: "Z", thumbnailUrl: url });
   assert.equal(s.imageUrl, url);
   assert.equal(s.fallbackUrl, null);
+});
+
+// ── FIX A: synthetic driveFileId handling ────────────────────────────────────
+
+test("isSyntheticFileId: upload: prefix is synthetic", () => {
+  assert.equal(isSyntheticFileId("upload:123e4567-e89b-12d3-a456-426614174000"), true);
+});
+
+test("isSyntheticFileId: plain Drive ID is not synthetic", () => {
+  assert.equal(isSyntheticFileId("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"), false);
+  assert.equal(isSyntheticFileId("ABC"), false);
+});
+
+test("isSyntheticFileId: any colon-prefixed value is treated as synthetic", () => {
+  assert.equal(isSyntheticFileId("future:some-other-id"), true);
+});
+
+test("synthetic upload: driveFileId uses thumbnailUrl as imageUrl, not a Drive URL", () => {
+  const thumbUrl = "https://example.supabase.co/storage/v1/render/image/public/officer-portraits/abc.jpg?width=256";
+  const s = resolveViewerSource({
+    driveFileId: "upload:123e4567-e89b-12d3-a456-426614174000",
+    thumbnailUrl: thumbUrl,
+    webViewUrl: null,
+  });
+  assert.equal(s.imageUrl, thumbUrl, "imageUrl must be the Supabase thumbnail, not a Drive URL");
+  assert.equal(s.fallbackUrl, null, "no fallback needed when imageUrl is already the thumbnail");
+  assert.equal(s.hasImage, true);
+  assert.ok(!s.imageUrl?.includes("drive.google.com"), "Drive URL must not be generated for synthetic IDs");
+});
+
+test("synthetic upload: driveFileId without thumbnailUrl → no image (hasImage false)", () => {
+  const s = resolveViewerSource({
+    driveFileId: "upload:123e4567-e89b-12d3-a456-426614174000",
+    thumbnailUrl: null,
+  });
+  assert.equal(s.imageUrl, null);
+  assert.equal(s.hasImage, false);
+});
+
+test("genuine Drive ID still generates a high-res URL (no regression)", () => {
+  const s = resolveViewerSource({
+    driveFileId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
+    thumbnailUrl: "https://drive.google.com/thumbnail?id=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms&sz=w256",
+  });
+  assert.ok(s.imageUrl?.includes("sz=w2048"), "genuine Drive ID must produce a high-res URL");
+  assert.equal(s.fallbackUrl, "https://drive.google.com/thumbnail?id=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms&sz=w256");
 });

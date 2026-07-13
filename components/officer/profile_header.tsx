@@ -47,6 +47,8 @@ export interface ProfileHeaderProps {
   portrait: ResolvedOfficerPortrait;
   /** Phase 27: the shared OrganizationEngine, for resolving Current Organization in the header (Not Assigned fallback — same convention as CurrentOrganizationSection). */
   organizationEngine: OrganizationEngine;
+  /** Forwarded to PortraitManager so the Photo Gallery can re-fetch after portrait mutations. */
+  onPortraitChanged?: () => void;
 }
 
 /** One compact header field: icon + label + value, wraps rather than truncates. */
@@ -102,7 +104,7 @@ function formatDateOfBirth(date: Date | null): string | null {
   return `${day} ${THAI_MONTHS[month]} ${yearBE}`;
 }
 
-export function ProfileHeader({ officer, portrait, organizationEngine }: ProfileHeaderProps) {
+export function ProfileHeader({ officer, portrait, organizationEngine, onPortraitChanged }: ProfileHeaderProps) {
   const name = officerFullName(officer);
   const careerYears = calculateCareerYearsSimple(officer.timeline, currentYearBE());
   const currentAge = calculateCurrentAge(officer.dateOfBirth ?? null);
@@ -131,6 +133,7 @@ export function ProfileHeader({ officer, portrait, organizationEngine }: Profile
             driveFileId={portrait.driveFileId}
             webViewUrl={portrait.webViewUrl}
             source={portrait.source}
+            onChanged={onPortraitChanged}
           />
         </div>
 

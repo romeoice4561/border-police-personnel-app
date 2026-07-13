@@ -48,12 +48,19 @@ export interface PortraitManagerProps {
   webViewUrl?: string | null;
   /** Which resolver tier produced `thumbnailUrl` (Phase 24B-2) — drives the source badge. */
   source: PortraitSource;
+  /**
+   * Called after a successful Upload, Replace, Delete, or history "Set as
+   * Current" so the Photo Gallery can re-fetch without a full page reload.
+   * The caller is responsible for calling router.refresh() if needed —
+   * PortraitManager also calls router.refresh() independently.
+   */
+  onChanged?: () => void;
 }
 
 const ACCEPT = Object.keys(ALLOWED_PORTRAIT_MIME).join(",");
 const CROP_OUTPUT_SIZE = 512;
 
-export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, webViewUrl, source }: PortraitManagerProps) {
+export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, webViewUrl, source, onChanged }: PortraitManagerProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickedSource, setPickedSource] = useState<{ url: string; mimeType: string } | null>(null);
@@ -98,6 +105,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
       }
       setPickedSource(null);
       router.refresh();
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
@@ -116,6 +124,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         throw new Error(body?.error?.message ?? `Remove failed (${res.status}).`);
       }
       router.refresh();
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Remove failed.");
     } finally {
@@ -204,7 +213,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
           officerId={officerId}
           name={name}
           onClose={() => setHistoryOpen(false)}
-          onChanged={() => router.refresh()}
+          onChanged={() => { router.refresh(); onChanged?.(); }}
         />
       ) : null}
 

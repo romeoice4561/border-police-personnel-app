@@ -44,6 +44,12 @@ export interface PhotoGalleryProps {
   name: string;
   /** The currently pinned official portrait id (Officer.officialPortraitId), or null. */
   officialPortraitId: number | null;
+  /**
+   * Increment this key to force the gallery to re-fetch portrait history.
+   * Use after Upload / Replace / Delete operations in PortraitManager so the
+   * gallery reflects the change without a full page reload.
+   */
+  refreshKey?: number;
 }
 
 const GROUP_ORDER: GalleryEntry["photoType"][] = ["OFFICIAL_PORTRAIT", "GOOGLE_PROFILE_CARD", "UPLOADED", "OTHER"];
@@ -55,7 +61,7 @@ const GROUP_LABEL: Record<GalleryEntry["photoType"], string> = {
   OTHER: "Other Images",
 };
 
-export function PhotoGallery({ officerId, name, officialPortraitId }: PhotoGalleryProps) {
+export function PhotoGallery({ officerId, name, officialPortraitId, refreshKey = 0 }: PhotoGalleryProps) {
   const router = useRouter();
   const [entries, setEntries] = useState<GalleryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +80,7 @@ export function PhotoGallery({ officerId, name, officialPortraitId }: PhotoGalle
     return () => {
       cancelled = true;
     };
-  }, [officerId]);
+  }, [officerId, refreshKey]);
 
   const grouped = useMemo(() => {
     if (!entries) return [];
@@ -165,6 +171,15 @@ export function PhotoGallery({ officerId, name, officialPortraitId }: PhotoGalle
                         referrerPolicy="no-referrer"
                         loading="lazy"
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        onError={
+                          source.fallbackUrl
+                            ? (e) => {
+                                const img = e.currentTarget;
+                                img.onerror = null;
+                                img.src = source.fallbackUrl!;
+                              }
+                            : undefined
+                        }
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-muted">

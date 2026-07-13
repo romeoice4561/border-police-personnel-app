@@ -16,7 +16,7 @@
  */
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
@@ -70,6 +70,11 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
   const workspace = useOfficerWorkspace(officer, organizationEngine);
   const { editing, startEditing, cancel, save, isSaving, saveError } = workspace;
 
+  // Incremented after Upload / Replace / Delete / history "Set as Current" so
+  // PhotoGallery's useEffect re-fetches portrait history without a page reload.
+  const [galleryKey, setGalleryKey] = useState(0);
+  const handlePortraitChanged = useCallback(() => setGalleryKey((k) => k + 1), []);
+
   async function handleSave() {
     // Phase 26A stabilization (bug #4/#5): a rejected save (validation
     // failure, network error, ...) previously propagated as an unhandled
@@ -89,7 +94,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
 
   return (
     <div className="space-y-6">
-      <ProfileHeader officer={officer} portrait={portrait} organizationEngine={organizationEngine} />
+      <ProfileHeader officer={officer} portrait={portrait} organizationEngine={organizationEngine} onPortraitChanged={handlePortraitChanged} />
 
       {editing ? (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -185,7 +190,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree }: Off
 
       <section className="rounded-2xl border border-border bg-neutral-bg p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h2>
-        <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} />
+        <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} refreshKey={galleryKey} />
       </section>
 
       <OfficerQualityCard officer={officer} />
