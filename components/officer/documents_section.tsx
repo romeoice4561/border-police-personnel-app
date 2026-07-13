@@ -1,5 +1,6 @@
 /**
- * DocumentsSection (Phase 29A / 29B — Officer Document Vault).
+ * DocumentsSection (Phase 29A / 29B — Officer Document Vault;
+ *                   Phase 29C — Document Thumbnails).
  *
  * Shows every official document associated with an officer, organised by
  * document type. All action buttons are functional in Phase 29B:
@@ -13,6 +14,12 @@
  *                       (server-side proxy with Content-Disposition: attachment)
  *   History           — inline panel: GET …/documents/history?documentType=…
  *   Delete            — inline confirm → DELETE …/documents/{docId}
+ *
+ * Phase 29C adds a visual thumbnail on the left of every document card and
+ * beside each history version row. For image documents (JPG/PNG/WEBP) a
+ * Supabase render URL is derived from the stored fileUrl; for PDFs and other
+ * non-image types a styled file icon is shown instead. No additional API
+ * requests are made and no storage behaviour is modified.
  *
  * Layout mirrors Salary History and Career Timeline: EditableSectionCard
  * wrapping a list of DocumentRow items.
@@ -83,6 +90,88 @@ function statusBadge(doc: OfficerDocument | null) {
   );
 }
 
+// ── Document thumbnail ────────────────────────────────────────────────────────
+
+/**
+ * Derives a Supabase image-render URL from a stored fileUrl.
+ * Returns null for non-image MIME types (e.g. PDFs) or for URLs that don't
+ * follow the Supabase Storage `/object/public/` pattern.
+ * The render endpoint resizes the image server-side; it degrades to the
+ * original when the image-transform add-on is not enabled.
+ */
+function deriveDocumentThumbnailUrl(
+  fileUrl: string | null | undefined,
+  mimeType: string | null | undefined
+): string | null {
+  if (!fileUrl || !mimeType?.startsWith("image/")) return null;
+  const OBJECT_SEGMENT = "/storage/v1/object/public/";
+  if (!fileUrl.includes(OBJECT_SEGMENT)) return null;
+  return (
+    fileUrl.replace(OBJECT_SEGMENT, "/storage/v1/render/image/public/") +
+    "?width=128&height=128&resize=cover"
+  );
+}
+
+interface DocumentThumbnailProps {
+  fileUrl: string | null | undefined;
+  mimeType: string | null | undefined;
+  /** "md" = 56 × 56 px (document card header); "sm" = 32 × 32 px (history row). */
+  size?: "md" | "sm";
+  altText?: string;
+}
+
+/**
+ * Square thumbnail for a document card or history row.
+ *
+ * - Image documents (JPG/PNG/WEBP): Supabase render URL, with an animated
+ *   skeleton while loading and silent fallback to the icon on error.
+ * - PDFs / other types: styled icon (never a broken-image browser icon).
+ * - No document yet: neutral placeholder icon.
+ *
+ * Fixed dimensions on all branches prevent layout shift.
+ */
+function DocumentThumbnail({ fileUrl, mimeType, size = "md", altText = "Document" }: DocumentThumbnailProps) {
+  const [loaded, setLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const thumbnailUrl = deriveDocumentThumbnailUrl(fileUrl, mimeType);
+  const isPdf = mimeType === "application/pdf";
+  const showImage = Boolean(thumbnailUrl && !imgError);
+
+  const sizeCls = size === "sm" ? "h-8 w-8 rounded" : "h-14 w-14 rounded-md";
+  const iconCls = size === "sm" ? "h-3.5 w-3.5 text-muted" : "h-5 w-5 text-muted";
+
+  return (
+    <div className={`relative shrink-0 overflow-hidden ${sizeCls} bg-border/20`}>
+      {showImage ? (
+        <>
+          {/* Animated skeleton — hidden once the image has loaded */}
+          {!loaded ? (
+            <div className="absolute inset-0 animate-pulse bg-border/40" aria-hidden="true" />
+          ) : null}
+          {/* eslint-disable-next-line @next/next/no-img-element -- Supabase Storage render URL; next/image not applicable */}
+          <img
+            src={thumbnailUrl!}
+            alt={altText}
+            loading="lazy"
+            className={`h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        </>
+      ) : (
+        /* PDF / non-image / error fallback — never a broken browser icon */
+        <div className="flex h-full w-full flex-col items-center justify-center gap-0.5">
+          <FileText className={iconCls} aria-hidden="true" />
+          {size === "md" && isPdf && fileUrl ? (
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted/70">PDF</span>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── History panel ─────────────────────────────────────────────────────────────
 
 interface HistoryEntry {
@@ -91,6 +180,7 @@ interface HistoryEntry {
   uploadedAt: Date | string | null;
   uploadedBy: string | null;
   originalFilename: string | null;
+  mimeType: string | null;
   isActive: boolean;
   fileUrl: string | null;
 }
@@ -170,16 +260,26 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
       )}
 
       {!loading && entries.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex items-start gap-2 text-xs">
-              <span className="mt-0.5 shrink-0">
+            <li key={entry.id} className="flex items-center gap-2 text-xs">
+              {/* Small thumbnail per version */}
+              <DocumentThumbnail
+                key={entry.id}
+                fileUrl={entry.fileUrl}
+                mimeType={entry.mimeType}
+                size="sm"
+                altText={`v${entry.version}`}
+              />
+
+              <span className="shrink-0">
                 {entry.isActive ? (
                   <CheckCircle2 className="h-3 w-3 text-good" aria-label="Active" />
                 ) : (
                   <Clock className="h-3 w-3 text-muted" aria-label="Inactive" />
                 )}
               </span>
+
               <div className="min-w-0 flex-1">
                 <span className="font-medium text-foreground">v{entry.version}</span>
                 {" · "}
@@ -191,7 +291,8 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
                   <p className="truncate text-muted">{entry.originalFilename}</p>
                 ) : null}
               </div>
-              {entry.fileUrl && (
+
+              {entry.fileUrl ? (
                 <a
                   href={entry.fileUrl}
                   target="_blank"
@@ -200,7 +301,7 @@ function HistoryPanel({ officerId, typeCode, labelEn, onClose }: HistoryPanelPro
                 >
                   View
                 </a>
-              )}
+              ) : null}
             </li>
           ))}
         </ul>
@@ -306,32 +407,43 @@ function DocumentRow({ officerId, typeCode, doc, onRefresh }: DocumentRowProps) 
 
   return (
     <li className="rounded-lg border border-border bg-neutral-bg p-3">
-      {/* Document type header */}
-      <div className="mb-2 flex items-start gap-2">
-        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">{labelEn}</p>
-          <p className="text-xs text-muted">{labelTh}</p>
-        </div>
-        <div className="shrink-0">{statusBadge(doc)}</div>
-      </div>
+      {/* Header: thumbnail on the left, type info + badge on the right */}
+      <div className="mb-2 flex items-start gap-2.5">
+        {/* key=doc.id resets loaded/error state when the document is replaced */}
+        <DocumentThumbnail
+          key={doc?.id ?? "empty"}
+          fileUrl={doc?.fileUrl}
+          mimeType={doc?.mimeType}
+          altText={labelEn}
+        />
 
-      {/* Document metadata */}
-      {doc ? (
-        <div className="mb-2 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-3">
-          <span>
-            <span className="font-medium text-foreground">อัพโหลด:</span> {formatDate(doc.uploadedAt)}
-          </span>
-          <span>
-            <span className="font-medium text-foreground">เวอร์ชัน:</span> {doc.version}
-          </span>
-          {doc.originalFilename ? (
-            <span className="truncate">
-              <span className="font-medium text-foreground">ไฟล์:</span> {doc.originalFilename}
-            </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">{labelEn}</p>
+              <p className="text-xs text-muted">{labelTh}</p>
+            </div>
+            <div className="shrink-0">{statusBadge(doc)}</div>
+          </div>
+
+          {/* Document metadata */}
+          {doc ? (
+            <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-3">
+              <span>
+                <span className="font-medium text-foreground">อัพโหลด:</span> {formatDate(doc.uploadedAt)}
+              </span>
+              <span>
+                <span className="font-medium text-foreground">เวอร์ชัน:</span> {doc.version}
+              </span>
+              {doc.originalFilename ? (
+                <span className="truncate">
+                  <span className="font-medium text-foreground">ไฟล์:</span> {doc.originalFilename}
+                </span>
+              ) : null}
+            </div>
           ) : null}
         </div>
-      ) : null}
+      </div>
 
       {/* Error */}
       {error ? (
