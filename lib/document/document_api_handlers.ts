@@ -47,6 +47,34 @@ function handleUploadError(error: unknown): Response {
   throw error;
 }
 
+/**
+ * RFC 6266: the plain `filename=` parameter of Content-Disposition must be a
+ * valid HTTP header ByteString (Latin-1, code points 0-255 only). The Web
+ * Headers constructor enforces this strictly — passing a raw Thai (or any
+ * non-Latin-1) filename directly throws:
+ *   TypeError: Cannot convert argument to a ByteString because the
+ *   character at index N has a value of M which is greater than 255.
+ *
+ * This is the confirmed root cause of the download 500 (see
+ * handleDownloadDocument below): documents whose `originalFilename` contains
+ * Thai characters (e.g. "ก.พ.7 ...pdf") crashed `new Headers({...})` at the
+ * exact line building Content-Disposition, while ASCII-only filenames
+ * (e.g. "733198.jpg") never hit this path — matching the observed behaviour
+ * where some downloads worked and others returned 500.
+ *
+ * Fix: strip to printable ASCII for this fallback parameter only. The
+ * accurate original name is always carried in `filename*` (RFC 5987, UTF-8
+ * percent-encoded via encodeURIComponent) — percent-encoded output is
+ * ASCII-only by construction, so it never hits the ByteString limit and
+ * modern browsers use it in preference to the plain `filename=` parameter.
+ */
+function asciiFallbackFilename(filename: string, mimeType: string | null | undefined): string {
+  const asciiOnly = filename.replace(/[^\x20-\x7E]/g, "").replace(/["\\]/g, "").trim();
+  if (asciiOnly.length > 0) return asciiOnly;
+  const ext = mimeType === "application/pdf" ? "pdf" : mimeType?.split("/")[1] ?? "bin";
+  return `document.${ext}`;
+}
+
 /** Resolves the Officer's numeric PK from their string officerId. */
 async function resolveOfficerPk(
   repository: DocumentRepository,
@@ -256,7 +284,7 @@ export async function handleDownloadDocument(
   if (!docParsed.success) return badRequest("Invalid document id");
 
   const info = await service.getDownloadInfo(docParsed.data.docId);
-  if (!info) return notFound("Document not found, is inactive, or has no stored file.");
+  if (!info) return notFound("Document not found or has no stored file.");
 
   let upstream: globalThis.Response;
   try {
@@ -287,7 +315,10 @@ export async function handleDownloadDocument(
     );
   }
 
-  const safeFilename = info.filename.replace(/"/g, '\\"');
+  // See asciiFallbackFilename() above — this is the ROOT CAUSE fix for the
+  // 500 INTERNAL_ERROR: non-ASCII (e.g. Thai) filenames crash the Headers
+  // constructor when passed raw into the plain filename= parameter.
+  const safeFilename = asciiFallbackFilename(info.filename, info.mimeType);
   const headers = new Headers({
     "Content-Type": info.mimeType,
     "Content-Disposition":

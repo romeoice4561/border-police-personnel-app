@@ -232,12 +232,17 @@ export class DocumentUploadService {
   /**
    * Returns the minimal metadata required to serve a file download:
    * the public URL, the original filename, and the MIME type.
-   * Returns null when the document does not exist, is inactive, or has no
-   * stored file (e.g. a metadata-only row with no uploaded bytes).
+   *
+   * Phase 30.1 (ISSUE 4): historical (isActive=false) versions are now
+   * downloadable too — soft-delete never removes the stored bytes, so an
+   * old version's fileUrl remains valid in Supabase Storage for as long as
+   * the row exists. The History panel exposes Download for every version,
+   * not just the current one. Only a row that no longer exists (hard-deleted
+   * via deleteVersion(), or was never assigned a fileUrl) returns null.
    */
   async getDownloadInfo(id: number): Promise<{ fileUrl: string; filename: string; mimeType: string } | null> {
     const doc = await this.repository.findById(id);
-    if (!doc || !doc.isActive || !doc.fileUrl) return null;
+    if (!doc || !doc.fileUrl) return null;
     return {
       fileUrl: doc.fileUrl,
       filename: doc.originalFilename ?? `document-${doc.id}`,

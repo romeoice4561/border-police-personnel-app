@@ -362,7 +362,7 @@ describe("Download info", () => {
     assert.equal(info, null);
   });
 
-  test("getDownloadInfo returns null for soft-deleted document", async () => {
+  test("getDownloadInfo remains available for a soft-deleted (historical) document (Phase 30.1 ISSUE 4)", async () => {
     const { service } = setup();
     const doc = await service.upload({
       officerPk: OFFICER_PK, officerId: OFFICER_ID,
@@ -371,7 +371,20 @@ describe("Download info", () => {
     });
     await service.softDelete(doc.id);
     const info = await service.getDownloadInfo(doc.id);
-    assert.equal(info, null, "inactive doc must not be downloadable");
+    assert.ok(info, "soft-deleted (inactive) doc must remain downloadable — bytes are never removed");
+  });
+
+  test("getDownloadInfo returns null after hardDeleteInactive physically removes the row", async () => {
+    const { service } = setup();
+    const doc = await service.upload({
+      officerPk: OFFICER_PK, officerId: OFFICER_ID,
+      documentType: "GP7", title: "ก.พ.7",
+      bytes: pdfBytes(), mimeType: "application/pdf",
+    });
+    await service.softDelete(doc.id);
+    await service.deleteVersion(doc.id); // hard-deletes since already inactive
+    const info = await service.getDownloadInfo(doc.id);
+    assert.equal(info, null, "physically deleted row must not be downloadable");
   });
 
   test("getDownloadInfo returns null when fileUrl is null", async () => {

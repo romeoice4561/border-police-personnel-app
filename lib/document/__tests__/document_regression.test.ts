@@ -337,12 +337,14 @@ describe("Shared container — upload and download use same storage path", () =>
     const deleted = await service.softDelete(uploaded.id);
     assert.ok(deleted, "delete must work on the same service used for upload");
     assert.equal(deleted.isActive, false);
-    // Download after delete must return null (document is inactive)
+    // Phase 30.1 (ISSUE 4): soft-deleted (inactive) documents remain
+    // downloadable — the stored bytes are never removed, and the History
+    // panel must be able to download old versions.
     const infoAfterDelete = await service.getDownloadInfo(uploaded.id);
-    assert.equal(infoAfterDelete, null, "download of an inactive document must return null");
+    assert.ok(infoAfterDelete, "soft-deleted document must remain downloadable (bytes are never removed)");
   });
 
-  test("replace (re-upload) updates fileUrl; getDownloadInfo returns the new version's URL", async () => {
+  test("replace (re-upload) updates fileUrl; both versions remain downloadable", async () => {
     const db = new FakeDb();
     const working = new WorkingStorage();
     const repo = new DocumentRepository(db as unknown as DatabaseClient);
@@ -364,8 +366,10 @@ describe("Shared container — upload and download use same storage path", () =>
     const infoV1 = await service.getDownloadInfo(v1.id);
     const infoV2 = await service.getDownloadInfo(v2.id);
 
-    // v1 is now inactive — getDownloadInfo must return null
-    assert.equal(infoV1, null, "v1 is inactive after replace; download must return null");
+    // Phase 30.1 (ISSUE 4): v1 is inactive after replace but its file is
+    // still in storage — History panel Download must work for old versions too.
+    assert.ok(infoV1, "v1 (inactive/historical) must remain downloadable");
+    assert.equal(infoV1.filename, "passport_v1.pdf");
     assert.ok(infoV2, "v2 (active) must be downloadable");
     assert.equal(infoV2.filename, "passport_v2.pdf");
   });
