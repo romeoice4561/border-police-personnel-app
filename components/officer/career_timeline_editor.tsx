@@ -28,6 +28,7 @@ import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
+import { POSITION_LEVELS } from "@/lib/commander_query/position_level";
 import { TIMELINE_SOURCE_OPTIONS, TIMELINE_VERIFIED_OPTIONS } from "@/lib/officer_profile/timeline_status_options";
 import { MONTH_OPTIONS, YEAR_BE_OPTIONS, formatThaiDate } from "@/lib/officer_profile/thai_date";
 import {
@@ -40,6 +41,15 @@ import { OrgHierarchyPicker } from "@/components/officer/org_hierarchy_picker";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 const VERIFIED_SELECT_OPTIONS = TIMELINE_VERIFIED_OPTIONS.map((v) => ({ value: v, label: v }));
+
+// Phase 41 Part 1: the structured Position Level (ระดับตำแหน่ง) — a true
+// closed set (the canonical BPP levels), so a <Select> is correct here (unlike
+// the free-text Position combobox beside it). "Unknown" is a real, selectable
+// value (an officer whose level isn't yet classified), shown as "— ไม่ระบุ —".
+const POSITION_LEVEL_SELECT_OPTIONS = POSITION_LEVELS.map((level) => ({
+  value: level,
+  label: level === "Unknown" ? "— ไม่ระบุ / Unknown —" : level,
+}));
 
 // Phase 26B Part 5 Part D/H: the NEW closed 4-value verification status —
 // additive alongside the existing free-text "สถานะ" (verified) select above.
@@ -157,7 +167,12 @@ export function CareerTimelineEditor({ rows, onChange, organizationEngine }: Car
                 <p className="text-xs text-muted">แสดงผล: {formatThaiDate(row)}</p>
               ) : null}
 
-              {/* Phase 26D Part 2 order: Date (above) -> Rank -> Position -> Organization -> Unit Name -> Verification (end). */}
+              {/* Phase 26D Part 2 order: Date (above) -> Rank -> Position ->
+                  [Phase 41 Part 1] Position Level -> Data Source ->
+                  Organization -> Unit Name -> Verification (end). Position
+                  Level sits immediately after Position and before Data
+                  Source, as the structured counterpart to the free-text
+                  Position beside it. */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 <LabeledField label="ยศ">
                   <Combobox
@@ -179,7 +194,16 @@ export function CareerTimelineEditor({ rows, onChange, organizationEngine }: Car
                   />
                 </LabeledField>
 
-                <LabeledField label="ที่มาของข้อมูล" className="lg:col-span-2">
+                <LabeledField label="ระดับตำแหน่ง / Position Level" className="lg:col-span-2">
+                  <Select
+                    options={POSITION_LEVEL_SELECT_OPTIONS}
+                    value={row.positionLevel}
+                    onChange={(e) => updateRow(row.key, { positionLevel: e.target.value })}
+                    aria-label="ระดับตำแหน่ง"
+                  />
+                </LabeledField>
+
+                <LabeledField label="ที่มาของข้อมูล" className="lg:col-span-6">
                   <Combobox
                     value={row.source}
                     onChange={(value) => updateRow(row.key, { source: value })}

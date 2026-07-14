@@ -29,6 +29,7 @@ import { sortTimelineByYear } from "@/lib/ui/officer_summary";
 import { formatThaiDate } from "@/lib/officer_profile/thai_date";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
+import { normalizePositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -38,6 +39,8 @@ export interface CareerTimelineRow {
   date: string;
   rank: string | null;
   position: string;
+  /** Phase 41 Part 1: structured Position Level (canonical string; "Unknown" when unclassified). */
+  positionLevel: string;
   unit: string | null;
   source: string | null;
   verified: string;
@@ -71,6 +74,7 @@ function toCareerTimelineRow(entry: Timeline, organizationEngine: OrganizationEn
     date: entry.yearBE != null || entry.isPresent ? formatThaiDate(entry) : entry.year,
     rank: entry.rank,
     position: entry.position,
+    positionLevel: normalizePositionLevel(entry.positionLevel),
     unit: entry.unit,
     source: entry.source,
     verified: entry.verified,
@@ -91,7 +95,8 @@ const VERIFIED_STATUS = "ยืนยันแล้ว";
 /** Phase 26B Part 6 Part F: Position, then Company/Battalion/Division/Headquarters, stacked most-senior-line-first — the spec's own worked example laid out as rows, not a slash-joined string. */
 function OrganizationStack({ row }: { row: CareerTimelineRow }) {
   const lines = [row.position, row.company, row.battalion, row.borderPatrolDivision, row.headquarters].filter(Boolean);
-  if (lines.length === 0) return <span className="text-muted">—</span>;
+  const showLevel = row.positionLevel !== UNKNOWN_POSITION_LEVEL;
+  if (lines.length === 0 && !showLevel) return <span className="text-muted">—</span>;
   return (
     <div className="space-y-0.5">
       {lines.map((line, i) => (
@@ -99,6 +104,13 @@ function OrganizationStack({ row }: { row: CareerTimelineRow }) {
           {line}
         </p>
       ))}
+      {/* Phase 41 Part 1: the structured Position Level, shown as a subtle
+          badge distinct from the free-text position line above it. */}
+      {showLevel ? (
+        <p className="pt-0.5">
+          <Badge tone="accent">{row.positionLevel}</Badge>
+        </p>
+      ) : null}
     </div>
   );
 }

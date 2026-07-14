@@ -330,6 +330,8 @@ export interface OfficerProfileSaveRequest {
     yearValue: number | null;
     rank: string | null;
     position: string;
+    /** Phase 41 Part 1: structured Position Level — additive alongside the free-text `position` above (never merged). */
+    positionLevel?: string | null;
     unit: string | null;
     source: string | null;
     verified: string;

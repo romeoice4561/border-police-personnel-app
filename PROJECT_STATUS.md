@@ -4,7 +4,7 @@
 
 **Current Phase**
 
-Phase 28C — Career Intelligence Live Simulation
+Phase 41 — Commander Search Enhancement & Career Position Level
 
 ---
 
@@ -15,11 +15,13 @@ b18c46c
 feat(officers): Phase 28C - Career Intelligence Live Simulation (draft evaluation)
 ```
 
+(Phase 41 commit hash recorded on commit.)
+
 ---
 
 # Current Architecture Version
 
-v1.28
+v1.41
 
 ---
 
@@ -48,9 +50,23 @@ v1.28
 ## Career
 
 - ✅ Timeline
+- ✅ Career Position Level (structured, authoritative)
 - ✅ Salary History
 - ✅ Salary Evaluation
 - ✅ Draft Simulation
+
+---
+
+## Commander
+
+- ✅ Commander Intelligence Engine
+- ✅ Commander Query Center
+- ✅ Personnel Query
+- ✅ Promotion Eligibility Search (config-driven policy engine)
+- ✅ Eligibility Summary Cards (drill-down)
+- ✅ Search Presets
+- ✅ Reset All / Clear Filters
+- ✅ i18n Foundation (TH/EN dictionaries; toggle placeholder — Thai default)
 
 ---
 
@@ -88,7 +104,7 @@ Stable
 
 # Current Test Count
 
-946 / 946 Passing
+1089 / 1089 Passing
 
 ---
 

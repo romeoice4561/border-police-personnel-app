@@ -184,6 +184,21 @@ model Timeline {
   source     String?
   verified   String  @default("ยังไม่ตรวจ")
 
+  // Phase 41 Part 1: structured Position Level (ระดับตำแหน่ง), additive
+  // alongside the free-text `position` above (never merged/altered). This is
+  // the AUTHORITATIVE, system-wide source of truth for an officer's position
+  // level — Commander Search, Dashboard, Statistics, Charts, Timeline &
+  // Promotion Intelligence all read this structured value, and after Phase 41
+  // nothing derives level from `position` TEXT at runtime again. Stored as
+  // one of the closed BPP-scoped strings in lib/commander_query/position_level
+  // .ts (POSITION_LEVELS: Unknown / รองสารวัตร / สารวัตร / รองผู้กำกับการ / …
+  // / รองผู้บัญชาการ) — a plain string (not a DB enum) so higher command
+  // levels can be appended later without a schema migration. Nullable: a
+  // pre-Phase-41 row that hasn't been migrated/edited yet is NULL and is
+  // treated as "Unknown" by readers; the one-time backfill migration maps
+  // known `position` titles into a level and sets the rest to 'Unknown'.
+  positionLevel String?
+
   // Phase 26B Part 3: structured date model, additive alongside the legacy
   // `year` free-text column above (never altered/dropped — every pre-26B row
   // and every Phase 25 import keeps working unchanged). `day`/`month` are
@@ -246,6 +261,7 @@ model Timeline {
   @@index([battalionId])
   @@index([companyId])
   @@index([verificationStatus])
+  @@index([positionLevel])
 }
 
 /// Phase 23A: one education record for an officer (year, institution, degree,

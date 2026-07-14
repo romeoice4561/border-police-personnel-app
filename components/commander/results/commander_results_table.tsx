@@ -4,8 +4,18 @@ import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { CommanderSortField } from "@/components/commander/query/types";
 import { PriorityBadge, PromotionStatusBadge, RetirementStatusBadge } from "@/components/intelligence/intelligence_badge";
 import { OfficerPhoto } from "@/components/officer/officer_photo";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
+import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import { cn } from "@/lib/ui/cn";
+
+const ELIGIBILITY_META: Record<EligibilityStatus, { tone: NonNullable<BadgeProps["tone"]>; labelTh: string }> = {
+  eligible_now: { tone: "good", labelTh: "ครบแล้ว" },
+  overdue: { tone: "critical", labelTh: "เกินกำหนด" },
+  eligible_soon: { tone: "warning", labelTh: "ใกล้ครบ" },
+  not_eligible: { tone: "neutral", labelTh: "ยังไม่ครบ" },
+};
 
 const COLUMNS: Array<{ key: CommanderSortField; label: string; align?: "right" }> = [
   { key: "rank", label: "Rank" },
@@ -46,18 +56,19 @@ export function CommanderResultsTable({
           <p className="text-sm text-muted">No officers match the current query.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[1180px] text-left text-sm">
+            <table className="min-w-330 text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                  <th className="px-3 py-3 font-medium">Portrait</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Portrait</th>
                   {COLUMNS.map((column) => {
                     const active = sortBy === column.key;
                     return (
-                      <th key={column.key} className={cn("px-3 py-3 font-medium", column.align === "right" && "text-right")}>
+                      <th scope="col" key={column.key} className={cn("px-3 py-3 font-medium", column.align === "right" && "text-right")}>
                         <button
                           type="button"
                           className={cn("inline-flex items-center gap-1 hover:text-foreground", active && "text-foreground", column.align === "right" && "flex-row-reverse")}
                           onClick={() => onSort(column.key)}
+                          aria-label={`Sort by ${column.label}`}
                         >
                           {column.label}
                           {active ? sortDirection === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" /> : null}
@@ -65,6 +76,7 @@ export function CommanderResultsTable({
                       </th>
                     );
                   })}
+                  <th scope="col" className="px-3 py-3 font-medium">Next Level</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,7 +98,7 @@ export function CommanderResultsTable({
                       </Link>
                     </td>
                     <td className="px-3 py-3 text-muted">{officer.currentPosition || "—"}</td>
-                    <td className="px-3 py-3 text-muted">{officer.positionLevel || "—"}</td>
+                    <td className="px-3 py-3 text-muted">{officer.positionLevel && officer.positionLevel !== UNKNOWN_POSITION_LEVEL ? officer.positionLevel : "—"}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.yearsInRank)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.yearsInPosition)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.governmentServiceYears)}</td>
@@ -94,6 +106,18 @@ export function CommanderResultsTable({
                     <td className="px-3 py-3"><PromotionStatusBadge status={officer.promotionStatus} /></td>
                     <td className="px-3 py-3"><RetirementStatusBadge status={officer.retirementStatus} /></td>
                     <td className="px-3 py-3"><PriorityBadge priority={officer.priority} /></td>
+                    <td className="px-3 py-3">
+                      {officer.nextLevelEligibility ? (
+                        <span className="flex flex-col gap-0.5">
+                          <span className="text-xs text-muted">{officer.nextLevelEligibility.targetLevel}</span>
+                          <Badge tone={ELIGIBILITY_META[officer.nextLevelEligibility.status].tone}>
+                            {ELIGIBILITY_META[officer.nextLevelEligibility.status].labelTh}
+                          </Badge>
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

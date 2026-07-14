@@ -1,9 +1,17 @@
 import type { CommanderQueryOptions, NumericOperator } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters, NumericFilter } from "@/components/commander/query/types";
+import { PromotionEligibilityFilter } from "@/components/commander/filters/promotion_eligibility_filter";
+import { COMMANDER_LABELS } from "@/lib/i18n/labels";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 const controlClass = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+
+/** Bilingual "ไทย / English" for a label key (both languages visible this phase). */
+function bi(key: keyof typeof COMMANDER_LABELS): string {
+  const l = COMMANDER_LABELS[key];
+  return `${l.th} / ${l.en}`;
+}
 
 const NUMERIC_OPERATORS: Array<{ value: NumericOperator; label: string }> = [
   { value: "exactly", label: "Exactly" },
@@ -47,16 +55,29 @@ function NumericFilterControl({
   );
 }
 
+export type QueryMode = "personnel" | "promotion";
+
 export function CommanderQueryBuilder({
   options,
   value,
+  mode,
+  onModeChange,
   onChange,
-  onClear,
+  onApply,
+  onClearFilters,
+  onResetAll,
 }: {
   options: CommanderQueryOptions;
   value: CommanderQueryFilters;
+  mode: QueryMode;
+  onModeChange: (mode: QueryMode) => void;
   onChange: (next: CommanderQueryFilters) => void;
-  onClear: () => void;
+  /** Apply/confirm the current filters. Filtering is live, so this scrolls the results into view (useful on stacked mobile layouts). */
+  onApply: () => void;
+  /** Clear the filter VALUES (keep mode). */
+  onClearFilters: () => void;
+  /** Reset EVERYTHING to defaults (filters, drilldown, preset, sort). */
+  onResetAll: () => void;
 }) {
   const battalions = options.battalions.filter((item) => value.regionId == null || item.regionId === value.regionId);
   const companies = options.companies.filter((item) => value.battalionId == null || item.battalionId === value.battalionId);
@@ -67,11 +88,75 @@ export function CommanderQueryBuilder({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle>Personnel Query</CardTitle>
-        <Button type="button" variant="ghost" size="sm" onClick={onClear}>Clear</Button>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>{mode === "promotion" ? bi("promotionEligibilitySearch") : bi("personnelQuery")}</CardTitle>
+        </div>
+        {/* Search mode switch (Part 2). */}
+        <div role="tablist" aria-label="โหมดค้นหา / Search mode" className="inline-flex overflow-hidden rounded-lg border border-border text-xs font-medium">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "personnel"}
+            onClick={() => onModeChange("personnel")}
+            className={mode === "personnel" ? "bg-accent px-3 py-1.5 text-white" : "px-3 py-1.5 text-muted hover:text-foreground"}
+          >
+            {bi("personnelQuery")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "promotion"}
+            onClick={() => onModeChange("promotion")}
+            className={mode === "promotion" ? "bg-accent px-3 py-1.5 text-white" : "px-3 py-1.5 text-muted hover:text-foreground"}
+          >
+            {bi("promotionEligibilitySearch")}
+          </button>
+        </div>
       </CardHeader>
       <CardBody className="space-y-4">
+        {mode === "promotion" ? (
+          <PromotionEligibilityFilter options={options} value={value} onChange={onChange} />
+        ) : (
+          <PersonnelFilters
+            options={options}
+            value={value}
+            set={set}
+            onChange={onChange}
+            battalions={battalions}
+            companies={companies}
+          />
+        )}
+
+        {/* Actions (Part 6): Apply / Reset All / Clear Filters. */}
+        <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+          <Button type="button" size="sm" onClick={onApply}>{bi("apply")}</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClearFilters}>{bi("clearFilters")}</Button>
+          <Button type="button" variant="outline" size="sm" onClick={onResetAll}>{bi("resetAll")}</Button>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+/** The original Personnel Query fields, extracted so the builder can swap between them and the Promotion Eligibility panel by mode. */
+function PersonnelFilters({
+  options,
+  value,
+  set,
+  onChange,
+  battalions,
+  companies,
+}: {
+  options: CommanderQueryOptions;
+  value: CommanderQueryFilters;
+  set: <K extends keyof CommanderQueryFilters>(key: K, next: CommanderQueryFilters[K]) => void;
+  onChange: (next: CommanderQueryFilters) => void;
+  battalions: CommanderQueryOptions["battalions"];
+  companies: CommanderQueryOptions["companies"];
+}) {
+  return (
+    <div className="space-y-4">
         <label className="space-y-1 text-xs font-medium text-muted">
           Rank
           <select className={controlClass} value={value.rank ?? ""} onChange={(e) => set("rank", e.target.value || undefined)}>
@@ -127,6 +212,7 @@ export function CommanderQueryBuilder({
 
         <NumericFilterControl label="Years in Rank" value={value.yearsInRank} onChange={(next) => set("yearsInRank", next)} />
         <NumericFilterControl label="Years in Position" value={value.yearsInPosition} onChange={(next) => set("yearsInPosition", next)} />
+        <NumericFilterControl label={bi("yearsInPositionLevel")} value={value.yearsInPositionLevel} onChange={(next) => set("yearsInPositionLevel", next)} />
         <NumericFilterControl label="Age" value={value.age} onChange={(next) => set("age", next)} />
         <NumericFilterControl label="Government Service Years" value={value.governmentServiceYears} onChange={(next) => set("governmentServiceYears", next)} />
 
@@ -163,7 +249,6 @@ export function CommanderQueryBuilder({
             placeholder="0-100"
           />
         </label>
-      </CardBody>
-    </Card>
+    </div>
   );
 }

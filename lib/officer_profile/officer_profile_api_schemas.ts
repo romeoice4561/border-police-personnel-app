@@ -26,6 +26,7 @@ import { z } from "zod";
 import { isValidDay, isValidMonth, isValidYearBE, toEffectiveDate } from "@/lib/officer_profile/thai_date";
 import { isValidTimelineVerificationStatus } from "@/lib/officer_profile/verification_options";
 import { SALARY_STEP_OPTIONS } from "@/lib/officer_profile/salary_step_options";
+import { isPositionLevel } from "@/lib/commander_query/position_level";
 
 /** Reasonable upper bound so a field can't be used to store megabytes, without rejecting real Thai text. */
 const MAX_FIELD = 500;
@@ -113,6 +114,20 @@ export const timelineRowSchema = z
     rank: z.string().trim().max(MAX_FIELD).nullable(),
     position: z.string().trim().min(1).max(MAX_FIELD),
     unit: z.string().trim().max(MAX_FIELD).nullable().transform((v) => (v && v.length > 0 ? v : null)),
+    // Phase 41 Part 1: structured Position Level — optional/nullable for
+    // backward compatibility (a caller that predates this field, e.g. the
+    // import path, simply omits it and the row keeps its existing/Unknown
+    // level). When present it must be one of the canonical POSITION_LEVELS
+    // strings; a blank or absent value normalizes to "Unknown" so the
+    // authoritative column is never left null by an edit that went through
+    // the workspace. Never re-derived from `position` text here.
+    positionLevel: z
+      .string()
+      .trim()
+      .nullable()
+      .optional()
+      .refine((v) => v == null || v === "" || isPositionLevel(v), { message: "Invalid position level" })
+      .transform((v) => (v && v.length > 0 ? v : null)),
     source: z.string().trim().max(MAX_FIELD).nullable().transform((v) => (v && v.length > 0 ? v : null)),
     verified: z.string().trim().min(1).max(MAX_FIELD),
     // Phase 26B Part 3: structured date fields, all optional/nullable — a

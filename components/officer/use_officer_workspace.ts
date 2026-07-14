@@ -21,6 +21,7 @@ import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hoo
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
 import { formatThaiDate, currentYearBE } from "@/lib/officer_profile/thai_date";
 import { sortHistory } from "@/lib/officer_profile/career_salary_engine";
+import { normalizePositionLevel, mapPositionTextToLevel } from "@/lib/commander_query/position_level";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 export interface ProfileDraft {
@@ -106,6 +107,8 @@ export interface TimelineDraftRow {
   year: string;
   rank: string;
   position: string;
+  /** Phase 41 Part 1: structured Position Level (one of the canonical POSITION_LEVELS strings; "Unknown" when unclassified). Stored separately from the free-text `position` above — never merged. */
+  positionLevel: string;
   /** Legacy free-text unit, preserved for backward compatibility and as a fallback display when the structured org fields below are unset. */
   unit: string;
   source: string;
@@ -209,6 +212,11 @@ function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: Org
         year: t.year,
         rank: t.rank ?? "",
         position: t.position,
+        // Phase 41 Part 1: prefer the stored structured level; only if a row
+        // genuinely has no stored level yet (should not happen after the
+        // backfill migration, but defensive) fall back to mapping the
+        // free-text position — never blank.
+        positionLevel: t.positionLevel != null ? normalizePositionLevel(t.positionLevel) : mapPositionTextToLevel(t.position),
         unit: t.unit ?? "",
         source: t.source ?? "",
         verified: t.verified,
@@ -373,6 +381,11 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
           // is a visible placeholder the user can fill in on the next edit,
           // never a guess at real data.
           position: row.position.trim() || "-",
+          // Phase 41 Part 1: the structured level is persisted verbatim from
+          // the user's explicit choice — never re-derived from the position
+          // text on save. A blank falls back to "Unknown" (never null) so the
+          // authoritative column always holds a canonical value.
+          positionLevel: normalizePositionLevel(row.positionLevel),
           unit: unit.trim() || null,
           source: row.source.trim() || null,
           verified: row.verified || "ยังไม่ตรวจ",
@@ -455,6 +468,10 @@ export function emptyTimelineRow(): TimelineDraftRow {
     year: "",
     rank: "",
     position: "",
+    // Phase 41 Part 1: a brand-new row has no position yet, so its level is
+    // Unknown until the user picks one (or types a position — the editor does
+    // NOT auto-map on the fly; the user explicitly chooses the structured level).
+    positionLevel: "Unknown",
     unit: "",
     source: "",
     verified: "ยังไม่ตรวจ",

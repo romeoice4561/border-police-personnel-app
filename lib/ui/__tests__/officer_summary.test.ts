@@ -18,6 +18,7 @@ function timelineRow(ov: Partial<Timeline> & { id: number; officerId: number; se
   return {
     yearValue: null,
     rank: null,
+    positionLevel: null,
     unit: null,
     source: null,
     verified: "ยังไม่ตรวจ",

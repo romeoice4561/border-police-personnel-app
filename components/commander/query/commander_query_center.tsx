@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters, CommanderSortField, DrilldownFilter, NumericFilter } from "@/components/commander/query/types";
-import { CommanderQueryBuilder } from "@/components/commander/filters/commander_query_builder";
+import { CommanderQueryBuilder, type QueryMode } from "@/components/commander/filters/commander_query_builder";
+import { CommanderSearchPresets } from "@/components/commander/filters/commander_search_presets";
 import { CommanderQuerySummary } from "@/components/commander/summary/commander_query_summary";
+import { CommanderEligibilityCards } from "@/components/commander/summary/commander_eligibility_cards";
 import { CommanderQueryCharts } from "@/components/commander/charts/commander_query_charts";
 import { CommanderTimelineCharts } from "@/components/commander/charts/commander_timeline_charts";
 import { CommanderResultsTable } from "@/components/commander/results/commander_results_table";
+import type { CommanderPreset } from "@/lib/commander_query/presets";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -37,9 +40,21 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.flagCode && !row.flagCodes.includes(filters.flagCode)) return false;
   if (filters.priority && row.priority !== filters.priority) return false;
   if (filters.minProfileCompleteness != null && (row.profileCompletenessPercent ?? 0) < filters.minProfileCompleteness) return false;
+  // Phase 41 Part 2: promotion-eligibility search. `fromRank`/`fromPositionLevel`
+  // constrain the CURRENT rank/level; `toPositionLevel`/`eligibilityStatus`
+  // constrain the officer's precomputed next-level eligibility.
+  if (filters.fromRank && row.rank !== filters.fromRank) return false;
+  if (filters.fromPositionLevel && row.positionLevel !== filters.fromPositionLevel) return false;
+  if (filters.toPositionLevel && row.nextLevelEligibility?.targetLevel !== filters.toPositionLevel) return false;
+  if (filters.eligibilityStatus && row.nextLevelEligibility?.status !== filters.eligibilityStatus) return false;
+  // Phase 41 Part 5: preset boolean toggles.
+  if (filters.eligibleTwoStepOnly && !row.eligibleTwoStep) return false;
+  if (filters.mustSkipStepOnly && !row.mustSkipStep) return false;
+  if (filters.missingGp7Only && row.hasGp7) return false;
   return (
     matchesNumber(row.yearsInRank, filters.yearsInRank) &&
     matchesNumber(row.yearsInPosition, filters.yearsInPosition) &&
+    matchesNumber(row.yearsInPositionLevel, filters.yearsInPositionLevel) &&
     matchesNumber(row.ageYears, filters.age) &&
     matchesNumber(row.governmentServiceYears, filters.governmentServiceYears)
   );
@@ -57,26 +72,80 @@ function sortRows(rows: CommanderQueryOfficer[], sortBy: CommanderSortField, dir
   });
 }
 
+const DEFAULT_SORT: CommanderSortField = "priority";
+const DEFAULT_SORT_DIRECTION: "asc" | "desc" = "desc";
+
 export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDataset }) {
   const [filters, setFilters] = useState<CommanderQueryFilters>({});
+  const [mode, setMode] = useState<QueryMode>("personnel");
+  const [activePresetId, setActivePresetId] = useState<string | undefined>(undefined);
+  const [activeCardLevel, setActiveCardLevel] = useState<string | undefined>(undefined);
   const [drilldown, setDrilldown] = useState<DrilldownFilter | null>(null);
-  const [sortBy, setSortBy] = useState<CommanderSortField>("priority");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortBy, setSortBy] = useState<CommanderSortField>(DEFAULT_SORT);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(DEFAULT_SORT_DIRECTION);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const matches = dataset.officers.filter((row) => applyFilters(row, filters, drilldown));
     return sortRows(matches, sortBy, sortDirection);
   }, [dataset.officers, drilldown, filters, sortBy, sortDirection]);
 
-  function clearAll() {
+  /** When the user hand-edits filters, any active preset/card selection no longer describes the state. */
+  function handleFilterChange(next: CommanderQueryFilters) {
+    setFilters(next);
+    setActivePresetId(undefined);
+    setActiveCardLevel(undefined);
+  }
+
+  /** Clear the filter VALUES only (keep the current mode). Part 6. */
+  function clearFilters() {
     setFilters({});
     setDrilldown(null);
+    setActivePresetId(undefined);
+    setActiveCardLevel(undefined);
+  }
+
+  /** Reset EVERYTHING to defaults. Part 6. */
+  function resetAll() {
+    setFilters({});
+    setDrilldown(null);
+    setActivePresetId(undefined);
+    setActiveCardLevel(undefined);
+    setMode("personnel");
+    setSortBy(DEFAULT_SORT);
+    setSortDirection(DEFAULT_SORT_DIRECTION);
+  }
+
+  function applyPreset(preset: CommanderPreset) {
+    setFilters(preset.filters);
+    setDrilldown(null);
+    setActivePresetId(preset.id);
+    setActiveCardLevel(undefined);
+    // A "ready for level" preset naturally belongs to the promotion view.
+    if (preset.filters.toPositionLevel) setMode("promotion");
+  }
+
+  function applyEligibilityCard(cardFilters: CommanderQueryFilters) {
+    setFilters(cardFilters);
+    setDrilldown(null);
+    setActivePresetId(undefined);
+    setActiveCardLevel(cardFilters.toPositionLevel);
+    setMode("promotion");
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
+    <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="space-y-4">
-        <CommanderQueryBuilder options={dataset.options} value={filters} onChange={setFilters} onClear={clearAll} />
+        <CommanderQueryBuilder
+          options={dataset.options}
+          value={filters}
+          mode={mode}
+          onModeChange={setMode}
+          onChange={handleFilterChange}
+          onApply={() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onClearFilters={clearFilters}
+          onResetAll={resetAll}
+        />
         <Card>
           <CardBody className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Export</p>
@@ -90,7 +159,9 @@ export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDatas
         </Card>
       </aside>
 
-      <section className="space-y-5">
+      <section ref={resultsRef} className="min-w-0 space-y-5">
+        <CommanderSearchPresets activePresetId={activePresetId} onApply={applyPreset} />
+        <CommanderEligibilityCards officers={filtered} activeLevel={activeCardLevel} onSelect={(f) => applyEligibilityCard(f)} />
         {drilldown ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
             <span className="text-foreground">Drill-down: {drilldown.label}</span>

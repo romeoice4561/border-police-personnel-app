@@ -22,6 +22,13 @@ export interface TimelineRowInput {
   unit: string | null;
   /** Phase 23A: per-row rank + provenance/verification — optional so existing import callers are unaffected (DB defaults apply). */
   rank?: string | null;
+  /**
+   * Phase 41 Part 1: structured Position Level — additive alongside the
+   * free-text `position` above (never merged). Optional so existing import
+   * callers that don't set it leave the column null (readers treat null as
+   * Unknown). The Officer Profile workspace always sends a canonical value.
+   */
+  positionLevel?: string | null;
   source?: string | null;
   verified?: string;
   /**

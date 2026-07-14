@@ -101,14 +101,49 @@ Implemented
 
 ---
 
-# Current Stable Version
-
-Phase 28C
+# Phase 41
 
 Commit
 
 ```
-b18c46c
+(recorded on commit)
+```
+
+Summary
+
+Commander Search Enhancement & Career Position Level
+
+Implemented
+
+- Career Position Level (structured `Timeline.positionLevel`, authoritative;
+  no longer inferred from position text at runtime)
+- Position Level dropdown in Career Timeline editor (after Position)
+- Backfill migration (known titles → level, unmapped → Unknown)
+- Configurable, policy-driven promotion-eligibility engine
+  (eligible now / soon / overdue / not eligible + missing requirements)
+- Commander Search: Promotion Eligibility mode (rank→rank, level→level,
+  eligibility-duration filters)
+- Commander eligibility summary cards with drill-down
+- One-click search presets
+- Apply / Reset All / Clear Filters
+- i18n foundation (centralized TH/EN dictionaries; TH|EN toggle placeholder —
+  Thai remains default, runtime switching deferred)
+- Responsive Commander Search layout + accessibility pass
+
+Tests
+
+- 1089 / 1089 passing
+
+---
+
+# Current Stable Version
+
+Phase 41
+
+Commit
+
+```
+(recorded on commit)
 ```
 
 ---
