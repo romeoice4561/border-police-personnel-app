@@ -61,6 +61,7 @@ function container() {
           day: null,
           month: null,
           yearBE: null,
+          appointmentCycle: null,
           isPresent: false,
           effectiveDate: null,
           headquartersId: null,

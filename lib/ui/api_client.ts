@@ -339,6 +339,7 @@ export interface OfficerProfileSaveRequest {
     day: number | null;
     month: number | null;
     yearBE: number | null;
+    appointmentCycle?: number | null;
     isPresent: boolean;
     /** Phase 26B Part C: structured org hierarchy — additive alongside `unit` above. */
     headquartersId: number | null;

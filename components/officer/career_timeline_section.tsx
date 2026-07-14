@@ -53,6 +53,7 @@ export interface CareerTimelineRow {
   verifiedDate: string | null;
   verificationRemark: string | null;
   isPresent: boolean;
+  appointmentCycle: number | null;
 }
 
 /**
@@ -87,6 +88,7 @@ function toCareerTimelineRow(entry: Timeline, organizationEngine: OrganizationEn
     verifiedDate: entry.verifiedDate ? new Date(entry.verifiedDate).toISOString().slice(0, 10) : null,
     verificationRemark: entry.verificationRemark ?? null,
     isPresent: entry.isPresent,
+    appointmentCycle: entry.appointmentCycle ?? null,
   };
 }
 
@@ -155,6 +157,7 @@ function TimelineCard({ row }: { row: CareerTimelineRow }) {
         {row.isPresent ? <Badge tone="good">ปัจจุบัน / Current</Badge> : null}
       </div>
       {row.rank ? <p className="text-sm text-muted">{row.rank}</p> : null}
+      {row.appointmentCycle ? <p className="text-xs text-muted">รอบแต่งตั้ง {row.appointmentCycle}</p> : null}
       <OrganizationStack row={row} />
       {row.source ? (
         <p className="text-sm text-muted">
@@ -222,6 +225,7 @@ export function CareerTimelineSection({ timeline, organizationEngine }: { timeli
                           {row.date || "—"}
                           {row.isPresent ? <Badge tone="good">ปัจจุบัน</Badge> : null}
                         </span>
+                        {row.appointmentCycle ? <span className="mt-1 block text-xs text-muted">รอบ {row.appointmentCycle}</span> : null}
                       </td>
                       <td className="px-5 py-3 text-muted">{row.rank || "—"}</td>
                       <td className="px-5 py-3">

@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { evaluatePromotionCycle } from "@/lib/promotion_cycle";
+
+test("appointment cycle 2564 becomes eligible in cycle 2568 and overdue year 2 in 2569", () => {
+  const result = evaluatePromotionCycle({
+    appointmentCycle: 2564,
+    currentCycle: 2569,
+    policy: { requiredCycles: 4 },
+  });
+
+  assert.equal(result.appointmentCycle, 2564);
+  assert.equal(result.completedPromotionCycles, 5);
+  assert.equal(result.eligibleCycle, 2568);
+  assert.equal(result.eligibleSince, 2568);
+  assert.equal(result.overdueCycles, 2);
+  assert.equal(result.yearsAfterEligibility, 1);
+});

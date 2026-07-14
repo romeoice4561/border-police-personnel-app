@@ -7,6 +7,7 @@ import { toEffectiveDate } from "@/lib/officer_profile/thai_date";
 import { buildOfficerProfileIntelligence, loadCommanderOfficerProfiles } from "@/lib/server/commander_intelligence_service";
 import { normalizePositionLevel, mapPositionTextToLevel, POSITION_LEVELS, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { evaluateNextLevelEligibility, type EligibilityOfficer } from "@/lib/promotion/eligibility_policy";
+import type { PromotionCycleResult } from "@/lib/promotion_cycle";
 import { countTwoStep, evaluateTwoStepEligibility, EligibilityStatus as SalaryEligibilityStatus } from "@/lib/officer_profile/career_salary_engine";
 import type { CommanderEligibilitySummary, CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
@@ -72,6 +73,16 @@ function positionLevelStartedAt(officer: OfficerWithRelations, level: string): D
   return startedAtForMatchingTimeline(officer.timeline, (row) => normalizePositionLevel(row.positionLevel) === level);
 }
 
+function appointmentCycleForPositionLevel(officer: OfficerWithRelations, level: string): number | null {
+  if (level === UNKNOWN_POSITION_LEVEL) return null;
+  const matches = officer.timeline
+    .filter((row) => normalizePositionLevel(row.positionLevel) === level)
+    .map((row) => ({ row, date: toEffectiveDate(row) }))
+    .sort((a, b) => (a.date?.getTime() ?? Infinity) - (b.date?.getTime() ?? Infinity));
+  const first = matches[0]?.row;
+  return first?.appointmentCycle ?? first?.yearBE ?? null;
+}
+
 /**
  * Phase 41 Part 2–4: computes the officer's next-level promotion eligibility
  * once, here in the read model, via the shared configurable engine
@@ -97,6 +108,7 @@ function computeNextLevelEligibility(
     trainingCodes: officer.training.map((t) => t.course).filter((c): c is string => Boolean(c)),
     documentCodes: officer.documents.filter((d) => d.isActive !== false).map((d) => d.documentType),
     twoStepCount: countTwoStep(officer.salaryHistory),
+    appointmentCycle: appointmentCycleForPositionLevel(officer, positionLevel),
   };
   const result = evaluateNextLevelEligibility(eligibilityInput, asOf);
   if (!result) return null;
@@ -106,7 +118,20 @@ function computeNextLevelEligibility(
     eligibleNow: result.eligibleNow,
     monthsUntilEligible: result.monthsUntilEligible,
     overdueYears: result.overdueYears,
+    appointmentCycle: result.promotionCycle?.appointmentCycle ?? null,
+    eligibleCycle: result.promotionCycle?.eligibleCycle ?? null,
+    overdueCycles: result.promotionCycle?.overdueCycles ?? 0,
+    promotionCycleBucket: promotionCycleBucket(result.promotionCycle),
   };
+}
+
+function promotionCycleBucket(cycle: PromotionCycleResult | null): CommanderEligibilitySummary["promotionCycleBucket"] {
+  if (!cycle || cycle.overdueCycles <= 0) return "not_eligible";
+  if (cycle.overdueCycles === 1) return "eligible_this_cycle";
+  if (cycle.overdueCycles === 2) return "eligible_year_2";
+  if (cycle.overdueCycles === 3) return "eligible_year_3";
+  if (cycle.overdueCycles === 4) return "eligible_year_4";
+  return "eligible_more_than_5";
 }
 
 function monthsFromDuration(duration: DurationYMD | null): number | null {
@@ -133,6 +158,7 @@ function toQueryOfficer(
 
   const yearsInRank = yearsSince(rankStartedAt, asOf);
   const yearsInPositionLevel = yearsSince(positionLevelStart, asOf);
+  const appointmentCycle = appointmentCycleForPositionLevel(officer, positionLevel);
   const governmentServiceYears = yearsFromDuration(calculateGovernmentServiceDuration(serviceStart, asOf));
   const retirementRemainingMonths = monthsFromDuration(retirement?.remaining ?? null);
   const twoStepEvaluation = evaluateTwoStepEligibility(officer.salaryHistory, asOf);
@@ -162,6 +188,7 @@ function toQueryOfficer(
     yearsInRank,
     yearsInPosition: yearsSince(positionStartedAt, asOf),
     yearsInPositionLevel,
+    appointmentCycle,
     governmentServiceYears,
     ageYears: yearsFromDuration(calculateAge(officer.dateOfBirth ?? null, asOf)),
     retirementYear: retirement?.retirementDate.getUTCFullYear() ?? null,
@@ -178,6 +205,9 @@ function toQueryOfficer(
     eligibleTwoStep: twoStepEvaluation.status === SalaryEligibilityStatus.Eligible,
     mustSkipStep: twoStepEvaluation.status === SalaryEligibilityStatus.NotEligible,
     nextLevelEligibility,
+    eligibleCycle: nextLevelEligibility?.eligibleCycle ?? null,
+    overdueCycles: nextLevelEligibility?.overdueCycles ?? 0,
+    promotionCycleBucket: nextLevelEligibility?.promotionCycleBucket ?? "not_eligible",
     thumbnailUrl: officer.thumbnailUrl,
     driveFileId: officer.driveFileId,
     webViewUrl: officer.webViewUrl,

@@ -12,12 +12,12 @@
  * Pure — no I/O, no React.
  */
 
-import { yearGregorianToBE } from "@/lib/officer_profile/thai_date";
-
-const RETIREMENT_AGE = 60;
+import { calculateAge, calculateRetirement } from "@/lib/personnel_calendar";
+import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
 
 export interface RetirementInfo {
   retirementYearBE: number;
+  retirementDateThai: string;
   /** Years remaining until retirement, floored at 0 (never negative for an already-retired officer). */
   yearsRemaining: number;
 }
@@ -28,11 +28,13 @@ export interface RetirementInfo {
  */
 export function calculateRetirementYearBE(dateOfBirth: Date | null, today: Date = new Date()): RetirementInfo | null {
   if (!dateOfBirth) return null;
-  const dob = new Date(dateOfBirth);
-  const retirementYearCE = dob.getUTCFullYear() + RETIREMENT_AGE;
-  const retirementYearBE = yearGregorianToBE(retirementYearCE);
-  const yearsRemaining = Math.max(0, retirementYearCE - today.getUTCFullYear());
-  return { retirementYearBE, yearsRemaining };
+  const retirement = calculateRetirement(dateOfBirth, today);
+  if (!retirement) return null;
+  return {
+    retirementYearBE: retirement.retirementFiscalYear + 543,
+    retirementDateThai: formatThaiPersonnelDate(retirement.retirementDate),
+    yearsRemaining: retirement.remaining.years,
+  };
 }
 
 /** BMI = weight(kg) / height(m)^2, rounded to 1 decimal. Returns null when either input is unset (never guessed). */
@@ -49,11 +51,5 @@ export function calculateBmi(weightKg: number | null, heightCm: number | null): 
  */
 export function calculateCurrentAge(dateOfBirth: Date | null, today: Date = new Date()): number | null {
   if (!dateOfBirth) return null;
-  const dob = new Date(dateOfBirth);
-  let age = today.getUTCFullYear() - dob.getUTCFullYear();
-  const monthDiff = today.getUTCMonth() - dob.getUTCMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < dob.getUTCDate())) {
-    age -= 1;
-  }
-  return Math.max(0, age);
+  return calculateAge(dateOfBirth, today)?.years ?? null;
 }

@@ -131,13 +131,14 @@ test("trainingRowSchema requires course; blank year/organization/notes normalize
 
 test("timelineRowSchema accepts a row with structured day/month/yearBE and derives effectiveDate server-side", () => {
   const base = { sequence: 0, year: "1 มิถุนายน 2560", yearValue: 2560, rank: null, position: "x", unit: null, source: null, verified: "ยังไม่ตรวจ" };
-  const result = timelineRowSchema.safeParse({ ...base, day: 1, month: 6, yearBE: 2560 });
+  const result = timelineRowSchema.safeParse({ ...base, day: 1, month: 6, yearBE: 2560, appointmentCycle: 2560 });
   assert.equal(result.success, true);
   if (result.success) {
     assert.ok(result.data.effectiveDate);
     assert.equal(result.data.effectiveDate!.getUTCFullYear(), 2017);
     assert.equal(result.data.effectiveDate!.getUTCMonth(), 5);
     assert.equal(result.data.effectiveDate!.getUTCDate(), 1);
+    assert.equal(result.data.appointmentCycle, 2560);
   }
 });
 
@@ -302,6 +303,14 @@ test("officerProfilePatchSchema accepts Part G Personal Information fields", () 
     assert.equal(result.data.profile?.bloodGroup, "O");
     assert.equal(result.data.profile?.children, 2);
     assert.ok(result.data.profile?.dateOfBirth instanceof Date);
+  }
+});
+
+test("officerProfilePatchSchema accepts Buddhist-Era date input", () => {
+  const result = officerProfileSaveSchema.safeParse({ profile: { dateOfBirth: "11/08/2528" } });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.profile?.dateOfBirth?.toISOString().slice(0, 10), "1985-08-11");
   }
 });
 

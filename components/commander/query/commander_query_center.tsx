@@ -47,6 +47,10 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.fromPositionLevel && row.positionLevel !== filters.fromPositionLevel) return false;
   if (filters.toPositionLevel && row.nextLevelEligibility?.targetLevel !== filters.toPositionLevel) return false;
   if (filters.eligibilityStatus && row.nextLevelEligibility?.status !== filters.eligibilityStatus) return false;
+  if (filters.promotionCycleBucket) {
+    const expected = filters.promotionCycleBucket === "eligible_year_1" ? "eligible_this_cycle" : filters.promotionCycleBucket;
+    if (row.promotionCycleBucket !== expected) return false;
+  }
   // Phase 41 Part 5: preset boolean toggles.
   if (filters.eligibleTwoStepOnly && !row.eligibleTwoStep) return false;
   if (filters.mustSkipStepOnly && !row.mustSkipStep) return false;

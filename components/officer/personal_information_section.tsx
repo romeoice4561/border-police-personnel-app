@@ -16,8 +16,8 @@ import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { BilingualLabel } from "@/components/ui/bilingual_label";
 import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
-import { yearGregorianToBE, THAI_MONTHS } from "@/lib/officer_profile/thai_date";
 import { calculateBmi, calculateRetirementYearBE, calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
+import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
 
 function Field({ labelKey, value }: { labelKey: keyof typeof FIELD_LABELS; value: string | number | null | undefined }) {
   const display = value === null || value === undefined || value === "" ? "—" : value;
@@ -41,16 +41,6 @@ function Group({ titleTh, titleEn, children }: { titleTh: string; titleEn: strin
   );
 }
 
-/** "1 มกราคม 2560" formatted from a persisted Gregorian Date, in Buddhist Era — consistent with the rest of the workspace's date display convention. */
-function formatDateOfBirth(date: Date | null): string | null {
-  if (!date) return null;
-  const d = new Date(date);
-  const day = d.getUTCDate();
-  const month = d.getUTCMonth() + 1;
-  const yearBE = yearGregorianToBE(d.getUTCFullYear());
-  return `${day} ${THAI_MONTHS[month]} ${yearBE}`;
-}
-
 export function PersonalInformationSection({ officer }: { officer: OfficerWithRelations }) {
   const bmi = calculateBmi(officer.weightKg ?? null, officer.heightCm ?? null);
   const retirement = calculateRetirementYearBE(officer.dateOfBirth ?? null);
@@ -66,7 +56,7 @@ export function PersonalInformationSection({ officer }: { officer: OfficerWithRe
         </Group>
 
         <Group titleTh="ข้อมูลส่วนตัว" titleEn="Personal">
-          <Field labelKey="dateOfBirth" value={formatDateOfBirth(officer.dateOfBirth ?? null)} />
+          <Field labelKey="dateOfBirth" value={formatThaiPersonnelDate(officer.dateOfBirth ?? null)} />
           <Field labelKey="currentAge" value={currentAge !== null ? `${currentAge} ปี` : null} />
           <Field labelKey="nickname" value={officer.nickname} />
           <Field labelKey="bloodGroup" value={officer.bloodGroup} />
@@ -100,7 +90,7 @@ export function PersonalInformationSection({ officer }: { officer: OfficerWithRe
         </Group>
 
         <Group titleTh="เกษียณอายุราชการ" titleEn="Retirement">
-          <Field labelKey="retirementYear" value={retirement ? retirement.retirementYearBE : null} />
+          <Field labelKey="retirementYear" value={retirement ? retirement.retirementDateThai : null} />
           <Field labelKey="retirementCountdown" value={retirement ? `${retirement.yearsRemaining} ปี` : null} />
         </Group>
       </div>

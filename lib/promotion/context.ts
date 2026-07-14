@@ -11,6 +11,7 @@ import {
   calculateRetirement,
   type DurationYMD,
 } from "@/lib/personnel_calendar";
+import type { PromotionCycleResult } from "@/lib/promotion_cycle";
 
 export interface PromotionTrainingRecord {
   code: string;
@@ -45,6 +46,7 @@ export interface PromotionEvaluationContext {
   timeInCurrentRank?: DurationYMD | null;
   retirementDate?: Date | null;
   remainingUntilRetirement?: DurationYMD | null;
+  promotionCycle?: PromotionCycleResult | null;
   trainingRecords?: readonly PromotionTrainingRecord[];
   educationRecords?: readonly PromotionEducationRecord[];
   awardRecords?: readonly PromotionAwardRecord[];

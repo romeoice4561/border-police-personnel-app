@@ -34,6 +34,15 @@ const ELIGIBILITY_STATUSES: Array<{ value: EligibilityStatus; key: keyof typeof 
   { value: "not_eligible", key: "notEligible" },
 ];
 
+const PROMOTION_CYCLE_BUCKETS: Array<{ value: NonNullable<CommanderQueryFilters["promotionCycleBucket"]>; label: string }> = [
+  { value: "eligible_this_cycle", label: "Eligible this cycle" },
+  { value: "eligible_year_1", label: "Eligible Year 1" },
+  { value: "eligible_year_2", label: "Eligible Year 2" },
+  { value: "eligible_year_3", label: "Eligible Year 3" },
+  { value: "eligible_year_4", label: "Eligible Year 4" },
+  { value: "eligible_more_than_5", label: "Eligible more than 5 years" },
+];
+
 /** Bilingual "ไทย / English" for a label key (both languages visible this phase — the toggle is a placeholder). */
 function bi(key: keyof typeof COMMANDER_LABELS): string {
   const l = COMMANDER_LABELS[key];
@@ -112,6 +121,20 @@ export function PromotionEligibilityFilter({
           <option value="">{bi("anyStatus")}</option>
           {ELIGIBILITY_STATUSES.map((status) => (
             <option key={status.value} value={status.value}>{bi(status.key)}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="space-y-1 text-xs font-medium text-muted">
+        Promotion Cycle
+        <select
+          className={controlClass}
+          value={value.promotionCycleBucket ?? ""}
+          onChange={(e) => set("promotionCycleBucket", (e.target.value || undefined) as CommanderQueryFilters["promotionCycleBucket"])}
+        >
+          <option value="">Any cycle</option>
+          {PROMOTION_CYCLE_BUCKETS.map((bucket) => (
+            <option key={bucket.value} value={bucket.value}>{bucket.label}</option>
           ))}
         </select>
       </label>

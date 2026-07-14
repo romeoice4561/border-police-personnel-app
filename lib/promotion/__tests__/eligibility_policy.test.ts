@@ -56,6 +56,25 @@ test("overdue: eligible and over the minimum level tenure by ≥ 1 year", () => 
   assert.equal(result.overdueYears, 3); // 7 - 4
 });
 
+test("appointment cycle drives police promotion eligibility independently from years in rank", () => {
+  const result = evaluateLevelEligibility(
+    officer({
+      positionLevel: "รองผู้กำกับการ",
+      yearsInPositionLevel: null,
+      yearsInRank: 5,
+      appointmentCycle: 2564,
+    }),
+    "ผู้กำกับการ",
+    ASOF
+  );
+
+  assert.equal(result.promotionCycle?.appointmentCycle, 2564);
+  assert.equal(result.promotionCycle?.eligibleCycle, 2568);
+  assert.equal(result.promotionCycle?.overdueCycles, 2);
+  assert.equal(result.status, "overdue");
+  assert.equal(result.overdueYears, 2);
+});
+
 test("eligible_soon: within the 12-month horizon of meeting level tenure", () => {
   // 3.5 years in level, needs 4 → 6 months short → soon.
   const result = evaluateLevelEligibility(officer({ yearsInPositionLevel: 3.5, yearsInRank: 5 }), "สารวัตร", ASOF);

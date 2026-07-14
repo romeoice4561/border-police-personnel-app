@@ -49,6 +49,7 @@ import {
   normalizePositionLevel,
   type PositionLevel,
 } from "@/lib/commander_query/position_level";
+import { currentPromotionCycle, evaluatePromotionCycle, type PromotionCycleResult } from "@/lib/promotion_cycle";
 
 /**
  * A promotion policy for advancing INTO `targetLevel`. Every requirement is
@@ -93,6 +94,7 @@ export interface EligibilityOfficer {
   trainingCodes: readonly string[];
   documentCodes: readonly string[];
   twoStepCount: number;
+  appointmentCycle?: number | null;
 }
 
 export type EligibilityStatus =
@@ -110,6 +112,7 @@ export interface LevelEligibilityResult {
   monthsUntilEligible: number | null;
   /** Whole years the officer has been eligible but not advanced (0 unless status is overdue). */
   overdueYears: number;
+  promotionCycle: PromotionCycleResult | null;
   missingRequirements: PromotionRequirement[];
   recommendedActions: PromotionNextStep[];
   score: number;
@@ -212,6 +215,7 @@ export function evaluateLevelEligibility(
       eligibleNow: false,
       monthsUntilEligible: null,
       overdueYears: 0,
+      promotionCycle: null,
       missingRequirements: [],
       recommendedActions: [],
       score: 0,
@@ -236,7 +240,7 @@ export function evaluateWithPolicy(
   const normalizedTarget = policy.targetLevel as PositionLevel;
   const currentLevel = normalizePositionLevel(officer.positionLevel);
 
-  const base: Omit<LevelEligibilityResult, "status" | "eligibleNow" | "monthsUntilEligible" | "overdueYears"> = {
+  const base: Omit<LevelEligibilityResult, "status" | "eligibleNow" | "monthsUntilEligible" | "overdueYears" | "promotionCycle"> = {
     targetLevel: normalizedTarget,
     missingRequirements: [],
     recommendedActions: [],
@@ -263,6 +267,7 @@ export function evaluateWithPolicy(
       eligibleNow: false,
       monthsUntilEligible: null,
       overdueYears: 0,
+      promotionCycle: null,
     };
   }
 
@@ -289,6 +294,14 @@ export function evaluateWithPolicy(
     extensions: { targetLevel: normalizedTarget },
   };
   const engineResult = rules.length > 0 ? evaluatePromotionEligibility(context, rules) : null;
+  const cycle =
+    policy.minYearsInPositionLevel != null
+      ? evaluatePromotionCycle({
+          appointmentCycle: officer.appointmentCycle,
+          currentCycle: currentPromotionCycle(asOf),
+          policy: { requiredCycles: policy.minYearsInPositionLevel },
+        })
+      : null;
 
   // Tenure requirements (checked directly against the numeric fields so we can
   // also compute the temporal projection). Each contributes a missing
@@ -296,7 +309,10 @@ export function evaluateWithPolicy(
   const missing: PromotionRequirement[] = engineResult ? [...engineResult.missingRequirements] : [];
   const actions: PromotionNextStep[] = engineResult ? [...engineResult.suggestedNextSteps] : [];
 
-  const levelShortfall = monthsShortfall(officer.yearsInPositionLevel, policy.minYearsInPositionLevel);
+  const levelShortfall =
+    cycle?.eligibleCycle != null
+      ? Math.max(0, (cycle.eligibleCycle - currentPromotionCycle(asOf)) * 12)
+      : monthsShortfall(officer.yearsInPositionLevel, policy.minYearsInPositionLevel);
   const rankShortfall = monthsShortfall(officer.yearsInRank, policy.minYearsInRank);
   const serviceShortfallYears =
     policy.minGovernmentServiceYears != null && officer.governmentServiceYears != null
@@ -304,12 +320,14 @@ export function evaluateWithPolicy(
       : 0;
 
   let tenureBlocked = false;
-  if (policy.minYearsInPositionLevel != null && (officer.yearsInPositionLevel == null || levelShortfall == null || levelShortfall > 0)) {
+  if (policy.minYearsInPositionLevel != null && (levelShortfall == null || levelShortfall > 0)) {
     tenureBlocked = true;
     missing.push({
       code: "MIN_YEARS_IN_LEVEL",
       label: `ดำรงระดับตำแหน่งปัจจุบันครบ ${policy.minYearsInPositionLevel} ปี`,
-      detail: officer.yearsInPositionLevel == null ? "ไม่มีข้อมูล" : `ปัจจุบัน ${officer.yearsInPositionLevel} ปี`,
+      detail: cycle?.appointmentCycle != null
+        ? `รอบแต่งตั้ง ${cycle.appointmentCycle}, ครบเกณฑ์รอบ ${cycle.eligibleCycle}`
+        : officer.yearsInPositionLevel == null ? "ไม่มีข้อมูล" : `ปัจจุบัน ${officer.yearsInPositionLevel} ปี`,
     });
     actions.push({ code: "WAIT_LEVEL_TENURE", label: "รอให้ครบระยะเวลาการดำรงระดับตำแหน่ง" });
   }
@@ -354,13 +372,15 @@ export function evaluateWithPolicy(
   // Overdue: eligible now AND has held the current level beyond the required
   // minimum by ≥ 1 full year (they've been promotable but not advanced).
   const overdueYears =
-    eligibleNow && policy.minYearsInPositionLevel != null && officer.yearsInPositionLevel != null
+    cycle && cycle.overdueCycles > 0
+      ? cycle.overdueCycles
+      : eligibleNow && policy.minYearsInPositionLevel != null && officer.yearsInPositionLevel != null
       ? Math.max(0, Math.floor(officer.yearsInPositionLevel - policy.minYearsInPositionLevel))
       : 0;
 
   let status: EligibilityStatus;
   if (eligibleNow) {
-    status = overdueYears >= 1 ? "overdue" : "eligible_now";
+    status = cycle?.overdueCycles === 1 || overdueYears < 1 ? "eligible_now" : "overdue";
   } else if (monthsUntilEligible != null && monthsUntilEligible <= ELIGIBLE_SOON_HORIZON_MONTHS) {
     status = "eligible_soon";
   } else {
@@ -373,6 +393,7 @@ export function evaluateWithPolicy(
     eligibleNow,
     monthsUntilEligible,
     overdueYears,
+    promotionCycle: cycle,
     missingRequirements: missing,
     recommendedActions: actions,
     score: engineResult?.score ?? 0,

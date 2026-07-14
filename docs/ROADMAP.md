@@ -46,3 +46,4 @@ Completed
 ✅ Phase 38 – Personnel Query Center (Commander Search)
 ✅ Phase 39 – Salary Step Intelligence Engine
 ✅ Phase 40 – Timeline Intelligence Engine
+✅ Phase 42A – Thai Calendar, Promotion Cycle & Data Entry UX Hotfix

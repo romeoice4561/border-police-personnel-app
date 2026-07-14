@@ -25,6 +25,7 @@ function timelineRow(ov: Partial<Timeline> & { id: number; officerId: number; se
     day: null,
     month: null,
     yearBE: null,
+    appointmentCycle: null,
     isPresent: false,
     effectiveDate: null,
     headquartersId: null,

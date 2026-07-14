@@ -140,12 +140,24 @@ export function CareerTimelineEditor({ rows, onChange, organizationEngine }: Car
                   <Select
                     options={YEAR_BE_SELECT_OPTIONS}
                     value={row.yearBE != null ? String(row.yearBE) : ""}
-                    onChange={(e) => updateRow(row.key, { yearBE: e.target.value ? Number(e.target.value) : null })}
+                    onChange={(e) => {
+                      const yearBE = e.target.value ? Number(e.target.value) : null;
+                      updateRow(row.key, { yearBE, appointmentCycle: row.appointmentCycle ?? yearBE });
+                    }}
                     aria-label="ปี (พ.ศ.)"
                   />
                 </LabeledField>
 
-                <LabeledField label="สถานะปัจจุบัน" className="lg:col-span-4">
+                <LabeledField label="รอบแต่งตั้ง / Appointment Cycle" className="lg:col-span-2">
+                  <Select
+                    options={YEAR_BE_SELECT_OPTIONS}
+                    value={row.appointmentCycle != null ? String(row.appointmentCycle) : ""}
+                    onChange={(e) => updateRow(row.key, { appointmentCycle: e.target.value ? Number(e.target.value) : null })}
+                    aria-label="รอบแต่งตั้ง"
+                  />
+                </LabeledField>
+
+                <LabeledField label="สถานะปัจจุบัน" className="lg:col-span-2">
                   <label className="flex h-9.5 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground">
                     <input
                       type="checkbox"

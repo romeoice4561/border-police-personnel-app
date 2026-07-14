@@ -214,6 +214,11 @@ model Timeline {
   day           Int?
   month         Int?
   yearBE        Int?
+  // Phase 42A hotfix: Thai Police promotion eligibility follows the
+  // appointment cycle (B.E.) rather than raw calendar duration. Nullable so
+  // existing rows remain valid; the workspace defaults it from yearBE when a
+  // human edits/saves a row.
+  appointmentCycle Int?
   isPresent     Boolean   @default(false)
   effectiveDate DateTime? @db.Date
 
@@ -256,6 +261,7 @@ model Timeline {
   @@index([unit])
   @@index([effectiveDate])
   @@index([yearBE])
+  @@index([appointmentCycle])
   @@index([headquartersId])
   @@index([regionId])
   @@index([battalionId])

@@ -40,6 +40,7 @@ export interface TimelineRowInput {
   day?: number | null;
   month?: number | null;
   yearBE?: number | null;
+  appointmentCycle?: number | null;
   isPresent?: boolean;
   effectiveDate?: Date | null;
   /**

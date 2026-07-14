@@ -20,6 +20,7 @@ import type { CareerTimelineRow } from "@/components/officer/career_timeline_sec
 import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hooks";
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
 import { formatThaiDate, currentYearBE } from "@/lib/officer_profile/thai_date";
+import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { sortHistory } from "@/lib/officer_profile/career_salary_engine";
 import { normalizePositionLevel, mapPositionTextToLevel } from "@/lib/commander_query/position_level";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
@@ -117,6 +118,7 @@ export interface TimelineDraftRow {
   day: number | null;
   month: number | null;
   yearBE: number | null;
+  appointmentCycle: number | null;
   isPresent: boolean;
   /** Phase 26B Part C/D: structured org hierarchy — the editor's primary input; `unit` above is kept in sync from these. */
   headquartersId: number | null;
@@ -172,7 +174,7 @@ function toProfileDraft(officer: OfficerWithRelations, organizationEngine: Organ
     companyId: officer.companyId ?? null,
     companyText: orgLabels.company ?? "",
     nickname: officer.nickname ?? "",
-    dateOfBirth: toDateInputValue(officer.dateOfBirth),
+    dateOfBirth: formatThaiPersonnelDate(officer.dateOfBirth),
     bloodGroup: officer.bloodGroup ?? "",
     rh: officer.rh ?? "",
     maritalStatus: officer.maritalStatus ?? "",
@@ -223,6 +225,7 @@ function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: Org
         day: t.day ?? null,
         month: t.month ?? null,
         yearBE: t.yearBE ?? null,
+        appointmentCycle: t.appointmentCycle ?? t.yearBE ?? null,
         isPresent: t.isPresent ?? false,
         headquartersId: t.headquartersId ?? null,
         headquartersText: orgLabels.headquarters ?? "",
@@ -318,7 +321,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
         battalionId: profile.battalionId,
         companyId: profile.companyId,
         nickname: profile.nickname.trim() || null,
-        dateOfBirth: profile.dateOfBirth.trim() || null,
+        dateOfBirth: toGregorianDateInputValue(profile.dateOfBirth),
         bloodGroup: profile.bloodGroup.trim() || null,
         rh: profile.rh.trim() || null,
         maritalStatus: profile.maritalStatus.trim() || null,
@@ -392,6 +395,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
           day: row.day,
           month: row.month,
           yearBE: row.yearBE,
+          appointmentCycle: row.appointmentCycle ?? row.yearBE,
           isPresent: row.isPresent,
           headquartersId: row.headquartersId,
           regionId: row.regionId,
@@ -478,6 +482,7 @@ export function emptyTimelineRow(): TimelineDraftRow {
     day: null,
     month: null,
     yearBE: null,
+    appointmentCycle: null,
     isPresent: false,
     headquartersId: null,
     headquartersText: "",

@@ -46,6 +46,7 @@ export interface CommanderQueryFilters {
   toPositionLevel?: string;
   /** Restrict to officers whose next-level eligibility has this status (eligible_now / eligible_soon / overdue / not_eligible). */
   eligibilityStatus?: EligibilityStatus;
+  promotionCycleBucket?: CommanderQueryOfficer["promotionCycleBucket"];
   // ── Phase 41 Part 5: boolean preset toggles (reuse precomputed signals) ──
   /** Only officers eligible for a two-step salary result this year. */
   eligibleTwoStepOnly?: boolean;

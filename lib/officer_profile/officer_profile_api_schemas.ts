@@ -24,9 +24,12 @@
 
 import { z } from "zod";
 import { isValidDay, isValidMonth, isValidYearBE, toEffectiveDate } from "@/lib/officer_profile/thai_date";
+import { parseThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
 import { isValidTimelineVerificationStatus } from "@/lib/officer_profile/verification_options";
 import { SALARY_STEP_OPTIONS } from "@/lib/officer_profile/salary_step_options";
 import { isPositionLevel } from "@/lib/commander_query/position_level";
+import { RELIGION_OPTIONS } from "@/lib/officer_profile/religion_options";
+import { EDUCATION_LEVEL_OPTIONS } from "@/lib/officer_profile/education_level_options";
 
 /** Reasonable upper bound so a field can't be used to store megabytes, without rejecting real Thai text. */
 const MAX_FIELD = 500;
@@ -39,6 +42,24 @@ const optionalText = z
   .nullable()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : null));
+
+const thaiPersonnelDate = z
+  .union([z.string(), z.date(), z.null()])
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined) return undefined;
+    if (v == null || v === "") return null;
+    const parsed = parseThaiPersonnelDate(v);
+    if (!parsed) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid Buddhist-Era date. Use DD/MM/YYYY (พ.ศ.)." });
+      return z.NEVER;
+    }
+    return parsed;
+  });
+
+function optionalAllowed(values: readonly string[]) {
+  return optionalText.refine((v) => v == null || values.includes(v), { message: "Invalid option" });
+}
 
 /**
  * PATCH body: officer profile fields (all optional — only supplied keys are
@@ -74,7 +95,7 @@ export const officerProfilePatchSchema = z.object({
   companyId: z.coerce.number().int().positive().nullable().optional(),
   nickname: optionalText,
   // Phase 26B Part 5 Part G: Personal Information.
-  dateOfBirth: z.coerce.date().nullable().optional(),
+  dateOfBirth: thaiPersonnelDate,
   bloodGroup: optionalText,
   rh: optionalText,
   maritalStatus: optionalText,
@@ -90,8 +111,8 @@ export const officerProfilePatchSchema = z.object({
   emergencyPhone: optionalText,
   addressSummary: optionalText,
   currentProvince: optionalText,
-  religion: optionalText,
-  educationLevel: optionalText,
+  religion: optionalAllowed(RELIGION_OPTIONS),
+  educationLevel: optionalAllowed(EDUCATION_LEVEL_OPTIONS),
   weightKg: z.coerce.number().positive().nullable().optional(),
   heightCm: z.coerce.number().positive().nullable().optional(),
   uniformShoeSize: optionalText,
@@ -138,6 +159,7 @@ export const timelineRowSchema = z
     day: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidDay(v), { message: "Invalid day" }),
     month: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidMonth(v), { message: "Invalid month" }),
     yearBE: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidYearBE(v), { message: "Invalid Buddhist-Era year" }),
+    appointmentCycle: z.coerce.number().int().nullable().optional().refine((v) => v == null || isValidYearBE(v), { message: "Invalid appointment cycle" }),
     isPresent: z.boolean().optional(),
     // Phase 26B Part C: structured org hierarchy ids — all optional/nullable,
     // same "omit and it stays unset" convention as day/month/yearBE above.

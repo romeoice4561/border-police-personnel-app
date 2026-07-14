@@ -19,6 +19,10 @@ export interface CommanderEligibilitySummary {
   eligibleNow: boolean;
   monthsUntilEligible: number | null;
   overdueYears: number;
+  appointmentCycle: number | null;
+  eligibleCycle: number | null;
+  overdueCycles: number;
+  promotionCycleBucket: "not_eligible" | "eligible_this_cycle" | "eligible_year_1" | "eligible_year_2" | "eligible_year_3" | "eligible_year_4" | "eligible_more_than_5";
 }
 
 export interface CommanderQueryOfficer {
@@ -56,6 +60,10 @@ export interface CommanderQueryOfficer {
   mustSkipStep: boolean;
   /** Phase 41 Part 2–4: precomputed next-level promotion eligibility (null when not applicable — Unknown level / top of scope / no policy). */
   nextLevelEligibility: CommanderEligibilitySummary | null;
+  appointmentCycle: number | null;
+  eligibleCycle: number | null;
+  overdueCycles: number;
+  promotionCycleBucket: CommanderEligibilitySummary["promotionCycleBucket"];
   thumbnailUrl: string | null;
   driveFileId: string | null;
   webViewUrl: string | null;

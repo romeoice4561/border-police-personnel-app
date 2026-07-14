@@ -1,5 +1,21 @@
 # Changelog
 
+## Phase 42A - Thai Calendar, Promotion Cycle & Data Entry UX Hotfix
+
+### Added
+- Buddhist Era personnel date parsing/display helpers for `DD/MM/YYYY` input.
+- Promotion Cycle Engine for appointment-cycle eligibility.
+- `Timeline.appointmentCycle` persistence and Commander Search cycle fields.
+
+### Changed
+- Officer birth date entry now uses Thai BE text input instead of native AD date input.
+- Officer profile age/retirement display uses the Personnel Calendar fiscal-year retirement calculation.
+- Commander Search promotion filters and summary cards include eligible-cycle buckets.
+- Religion and education level fields are closed dropdowns with server validation.
+
+### Verified
+- TypeScript, ESLint, unit tests, and production build pass.
+
 ## v0.1.0 — Initial Bootstrap
 
 - Scaffolded enterprise folder structure (components, lib, database, docs,

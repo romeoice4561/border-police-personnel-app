@@ -1,5 +1,23 @@
 # Project Status
 
+## Phase 42A — Thai Calendar, Police Promotion Cycle & Data Entry UX Hotfix
+
+**Status:** ✅ Complete
+
+## Completed
+- ✅ Personnel date entry accepts/display Buddhist Era `DD/MM/YYYY`.
+- ✅ Birth date parsing converts BE input to Gregorian storage only at the boundary.
+- ✅ Age and fiscal-year retirement calculations use the Personnel Calendar engine.
+- ✅ Promotion cycle eligibility is calculated from appointment cycle, separately from Years in Rank.
+- ✅ Commander Search exposes eligible-cycle filters and summary cards.
+- ✅ Timeline rows persist `appointmentCycle`.
+- ✅ Religion and education level are closed dropdowns.
+
+## Verification
+- ✅ `11/08/2528` parses to `1985-08-11`.
+- ✅ Birth `11 Aug 2528` retires on `30/09/2588`.
+- ✅ Appointment cycle `2564`, current cycle `2569` is eligible since `2568` and overdue year `2`.
+
 **Project:** Border Patrol Personnel Intelligence System (BPPIS)
 **Version:** v0.1.0
 **Current Phase:** Phase 1 — Foundation
