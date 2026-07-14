@@ -11,11 +11,9 @@ Phase 41 — Commander Search Enhancement & Career Position Level
 ## Latest Stable Commit
 
 ```
-b18c46c
-feat(officers): Phase 28C - Career Intelligence Live Simulation (draft evaluation)
+bcb452a
+feat(commander): Phase 41 - Commander Search Enhancement & Career Position Level
 ```
-
-(Phase 41 commit hash recorded on commit.)
 
 ---
 

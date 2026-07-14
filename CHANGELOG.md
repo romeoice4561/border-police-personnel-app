@@ -106,7 +106,7 @@ Implemented
 Commit
 
 ```
-(recorded on commit)
+bcb452a
 ```
 
 Summary
@@ -143,7 +143,7 @@ Phase 41
 Commit
 
 ```
-(recorded on commit)
+bcb452a
 ```
 
 ---
