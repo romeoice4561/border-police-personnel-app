@@ -74,3 +74,18 @@
 ### Notes
 - No UI, media UI, database schema, OCR, AI, storage, or payroll behavior changed.
 - Regulations are intentionally not hardcoded and can be configured later.
+
+## Phase 40 - Timeline Intelligence Engine
+
+### Added
+- Pure Timeline Intelligence Engine under `lib/timeline/`.
+- Unified `TimelineEvent` model with event type, date, title, description, category, severity, source, officer, metadata, future, and past fields.
+- Timeline builder for career, promotion, salary-step, training, award, document, portrait, retirement, manual, and future events.
+- Timeline sorting, duplicate prevention, filtering, summary, and engine facade.
+- `OfficerWithRelations` adapter service for existing profile data.
+- Unit tests for mixed event ordering, future/past flags, filtering, summaries, sorting, and duplicate prevention.
+- `docs/TIMELINE_ENGINE.md`.
+
+### Notes
+- No UI, media UI, database schema, OCR, AI, or storage behavior changed.
+- Future dashboard, officer profile, commander calendar, and AI assistant surfaces should consume this engine for timeline data.

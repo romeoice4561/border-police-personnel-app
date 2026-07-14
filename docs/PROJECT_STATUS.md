@@ -120,3 +120,25 @@ Phase 30.2 is complete with no business logic or database changes.
 ## Notes
 - No UI, media UI, database schema, OCR, AI, storage, or payroll behavior changed.
 - Regulations remain external configuration for future phases.
+
+# Phase 40 — Timeline Intelligence Engine
+
+**Status:** ✅ Complete
+
+## Objectives
+- Create a unified Personnel Timeline Engine.
+- Normalize important personnel events into one reusable event model.
+- Support future events, filters, summaries, deterministic sorting, and duplicate prevention.
+- Reuse existing Personnel Calendar, Promotion, Salary Step, and Commander Intelligence foundations.
+
+## Completed
+- ✅ Added pure `lib/timeline/` engine module.
+- ✅ Added timeline event domain, event categories, sources, and severities.
+- ✅ Added event builder for career, promotion, salary, training, awards, documents, portraits, retirement, manual, and future events.
+- ✅ Added filters, sorting, dedupe, summary, and engine facade.
+- ✅ Added `OfficerWithRelations` adapter service.
+- ✅ Added unit tests and `docs/TIMELINE_ENGINE.md`.
+
+## Notes
+- No UI, media UI, database schema, OCR, AI, or storage behavior changed.
+- Future dashboard, commander, calendar, and AI surfaces should consume this engine instead of assembling timelines independently.
