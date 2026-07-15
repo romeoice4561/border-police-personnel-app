@@ -12,7 +12,9 @@ import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck,
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
+import { UserMenu } from "@/components/auth/user_menu";
 import { useT } from "@/components/i18n/language_provider";
+import { LOGIN_ROUTE } from "@/lib/auth/auth_config";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const NAV: Array<{ href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard }> = [
@@ -56,6 +58,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { t } = useT();
 
+  // Phase 46: the login route has NO app chrome (no sidebar/nav) — render its
+  // content bare. This is the only change to the shell; every other route is
+  // unaffected and behaves exactly as before.
+  if (pathname === LOGIN_ROUTE || pathname.startsWith(`${LOGIN_ROUTE}/`)) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Sidebar (desktop) */}
@@ -86,6 +95,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-10 hidden border-b border-border bg-surface md:flex">
           <div className="ml-auto flex items-center gap-3 px-6 py-3 lg:px-8">
             <LanguageToggle />
+            {/* Phase 46: header user menu — renders only when signed in. */}
+            <UserMenu />
           </div>
         </header>
 
@@ -96,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="text-sm font-semibold">{t("nav.brand")}</span>
             <span className="ml-auto flex items-center gap-2">
               <LanguageToggle />
+              <UserMenu />
               <EnvironmentBadge />
             </span>
           </div>

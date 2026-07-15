@@ -467,6 +467,50 @@ export const DICTIONARY = {
   "document.filterPending": tr("รอตรวจสอบ", "Pending"),
   "document.filterMissing": tr("ยังไม่มีเอกสาร", "Missing"),
   "document.filterLabel": tr("กรองเอกสาร", "Filter documents"),
+
+  // ── auth.* — Phase 46 login screen ──
+  "auth.systemNameShort": tr("BPPIS", "BPPIS"),
+  // Phase 46A: title parts (each styled distinctly — see requirement 3).
+  "auth.orgName": tr("Border Patrol Police", "Border Patrol Police"),
+  "auth.systemNameFull": tr("Personnel Intelligence System", "Personnel Intelligence System"),
+  "auth.systemNameAbbrev": tr("(BPPIS)", "(BPPIS)"),
+  // Two-line Thai subtitle.
+  "auth.systemSubtitleLine1": tr("ระบบสารสนเทศกำลังพล", "Border Patrol Police"),
+  "auth.systemSubtitleLine2": tr("ตำรวจตระเวนชายแดน", "Personnel Intelligence System"),
+  "auth.signInTitle": tr("เข้าสู่ระบบ", "Sign in"),
+  "auth.signInSubtitle": tr("กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ", "Please sign in to continue"),
+  "auth.username": tr("ชื่อผู้ใช้", "Username"),
+  // Multi-line non-email placeholder (examples).
+  "auth.usernamePlaceholder": tr("เช่น admin หรือเลขบัตรประชาชน", "e.g. admin or national ID number"),
+  "auth.password": tr("รหัสผ่าน", "Password"),
+  "auth.passwordPlaceholder": tr("กรอกรหัสผ่าน", "Enter your password"),
+  "auth.showPassword": tr("แสดงรหัสผ่าน", "Show password"),
+  "auth.hidePassword": tr("ซ่อนรหัสผ่าน", "Hide password"),
+  "auth.rememberMe": tr("จดจำการเข้าสู่ระบบ", "Remember me"),
+  // Phase 46A: Forgot Password replaced by a disabled "Contact Administrator".
+  "auth.contactAdministrator": tr("ติดต่อผู้ดูแลระบบ", "Contact Administrator"),
+  "auth.login": tr("เข้าสู่ระบบ", "Log in"),
+  "auth.loggingIn": tr("กำลังเข้าสู่ระบบ…", "Signing in…"),
+  "auth.errorInvalidCredentials": tr("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "Invalid username or password."),
+  "auth.errorAccountDisabled": tr("บัญชีนี้ถูกระงับการใช้งาน", "This account has been disabled."),
+  "auth.errorUnknown": tr("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", "Something went wrong. Please try again."),
+  // Phase 46A: demo accounts card (dev-only).
+  "auth.demoAccounts": tr("บัญชีทดลอง", "Demo Accounts"),
+  "auth.demoAdmin": tr("ผู้ดูแลระบบ", "Admin"),
+  "auth.demoCommander": tr("ผู้บังคับบัญชา", "Commander"),
+  // Phase 46A: footer.
+  "auth.versionLabel": tr("เวอร์ชัน 1.0", "Version 1.0"),
+  "auth.buildLabel": tr("Build 2026.07 • Phase 46", "Build 2026.07 • Phase 46"),
+  "auth.authorizedOnly": tr("ระบบนี้สำหรับเจ้าหน้าที่ที่ได้รับอนุญาตเท่านั้น", "For authorized personnel only."),
+  "auth.unauthorizedProhibited": tr("ห้ามเข้าถึงโดยไม่ได้รับอนุญาต", "Unauthorized access is prohibited."),
+  "auth.systemArchitect": tr("พัฒนาและดูแลระบบ", "Developed & Maintained by"),
+  "auth.phoneLabel": tr("โทรศัพท์", "Phone"),
+  // User menu (Phase 46 foundation)
+  "auth.logout": tr("ออกจากระบบ", "Log out"),
+  "auth.userMenu": tr("เมนูผู้ใช้", "User menu"),
+  "auth.roleAdmin": tr("ผู้ดูแลระบบ", "Administrator"),
+  "auth.roleCommander": tr("ผู้บังคับบัญชา", "Commander"),
+  "auth.roleOfficer": tr("กำลังพล", "Officer"),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

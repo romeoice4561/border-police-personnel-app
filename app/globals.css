@@ -77,3 +77,15 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Phase 46: login card entrance (fade + scale). Additive; no theme change. */
+@keyframes fadeScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
