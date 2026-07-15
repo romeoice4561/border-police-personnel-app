@@ -2,10 +2,10 @@ import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { DrilldownFilter } from "@/components/commander/query/types";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
-function decadeBucket(value: number | null): string {
+function cycleBucket(value: number | null): string {
   if (value == null) return "Unknown";
-  const start = Math.floor(value / 5) * 5;
-  return `${start}-${start + 4} yrs`;
+  if (value >= 5) return "5+ cycles";
+  return `${value} cycle${value === 1 ? "" : "s"}`;
 }
 
 function countBy<T extends string | number | null>(officers: CommanderQueryOfficer[], getValue: (officer: CommanderQueryOfficer) => T) {
@@ -67,12 +67,12 @@ export function CommanderTimelineCharts({
   officers: CommanderQueryOfficer[];
   onDrilldown: (next: DrilldownFilter) => void;
 }) {
-  const promotionRows = countBy(officers, (officer) => decadeBucket(officer.yearsInRank));
+  const promotionRows = countBy(officers, (officer) => cycleBucket(officer.completedPromotionCycles));
   const retirementRows = countBy(officers, (officer) => officer.retirementYear);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Timeline title="Promotion Timeline" rows={promotionRows} />
+      <Timeline title="Promotion Cycle Distribution" rows={promotionRows} />
       <Timeline
         title="Retirement Timeline"
         rows={retirementRows}

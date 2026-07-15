@@ -28,6 +28,7 @@ import { ProfileHeader } from "@/components/officer/profile_header";
 import { ProfileEditor, PersonalInformationEditor } from "@/components/officer/profile_editor";
 import { BasicInformationSection } from "@/components/officer/basic_information_section";
 import { CareerSection } from "@/components/officer/career_section";
+import { PromotionCycleSection } from "@/components/officer/promotion_cycle_section";
 import { CurrentOrganizationSection } from "@/components/officer/current_organization_section";
 import { ContactSection } from "@/components/officer/contact_section";
 import { PersonalInformationSection } from "@/components/officer/personal_information_section";
@@ -139,6 +140,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intel
                 <BasicInformationSection officer={officer} />
                 <CareerSection officer={officer} />
               </div>
+              <PromotionCycleSection officer={officer} />
               <CurrentOrganizationSection officer={officer} organizationEngine={organizationEngine} />
               <ContactSection officer={officer} />
               <PersonalInformationSection officer={officer} />

@@ -210,11 +210,9 @@ function PersonnelFilters({
           </label>
         </div>
 
-        <NumericFilterControl label="Years in Rank" value={value.yearsInRank} onChange={(next) => set("yearsInRank", next)} />
-        <NumericFilterControl label="Years in Position" value={value.yearsInPosition} onChange={(next) => set("yearsInPosition", next)} />
-        <NumericFilterControl label={bi("yearsInPositionLevel")} value={value.yearsInPositionLevel} onChange={(next) => set("yearsInPositionLevel", next)} />
+        <NumericFilterControl label={bi("completedPromotionCycles")} value={value.completedPromotionCycles} onChange={(next) => set("completedPromotionCycles", next)} />
+        <NumericFilterControl label={bi("appointmentCycle")} value={value.appointmentCycle} onChange={(next) => set("appointmentCycle", next)} />
         <NumericFilterControl label="Age" value={value.age} onChange={(next) => set("age", next)} />
-        <NumericFilterControl label="Government Service Years" value={value.governmentServiceYears} onChange={(next) => set("governmentServiceYears", next)} />
 
         <label className="space-y-1 text-xs font-medium text-muted">
           Intelligence Flag

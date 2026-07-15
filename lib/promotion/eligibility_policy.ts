@@ -310,9 +310,13 @@ export function evaluateWithPolicy(
   const actions: PromotionNextStep[] = engineResult ? [...engineResult.suggestedNextSteps] : [];
 
   const levelShortfall =
-    cycle?.eligibleCycle != null
-      ? Math.max(0, (cycle.eligibleCycle - currentPromotionCycle(asOf)) * 12)
-      : monthsShortfall(officer.yearsInPositionLevel, policy.minYearsInPositionLevel);
+    policy.minYearsInPositionLevel != null
+      ? cycle?.appointmentCycle == null
+        ? null
+        : cycle.eligibleNow
+          ? 0
+          : Math.max(0, ((cycle.eligibleCycle ?? currentPromotionCycle(asOf)) - currentPromotionCycle(asOf)) * 12)
+      : 0;
   const rankShortfall = monthsShortfall(officer.yearsInRank, policy.minYearsInRank);
   const serviceShortfallYears =
     policy.minGovernmentServiceYears != null && officer.governmentServiceYears != null
@@ -320,16 +324,24 @@ export function evaluateWithPolicy(
       : 0;
 
   let tenureBlocked = false;
-  if (policy.minYearsInPositionLevel != null && (levelShortfall == null || levelShortfall > 0)) {
-    tenureBlocked = true;
-    missing.push({
-      code: "MIN_YEARS_IN_LEVEL",
-      label: `ดำรงระดับตำแหน่งปัจจุบันครบ ${policy.minYearsInPositionLevel} ปี`,
-      detail: cycle?.appointmentCycle != null
-        ? `รอบแต่งตั้ง ${cycle.appointmentCycle}, ครบเกณฑ์รอบ ${cycle.eligibleCycle}`
-        : officer.yearsInPositionLevel == null ? "ไม่มีข้อมูล" : `ปัจจุบัน ${officer.yearsInPositionLevel} ปี`,
-    });
-    actions.push({ code: "WAIT_LEVEL_TENURE", label: "รอให้ครบระยะเวลาการดำรงระดับตำแหน่ง" });
+  if (policy.minYearsInPositionLevel != null) {
+    if (cycle?.appointmentCycle == null) {
+      tenureBlocked = true;
+      missing.push({
+        code: "MISSING_APPOINTMENT_CYCLE",
+        label: "ต้องมีรอบแต่งตั้ง (วาระ) ใน Career Timeline",
+        detail: "ไม่มีข้อมูล",
+      });
+      actions.push({ code: "ADD_APPOINTMENT_CYCLE", label: "เพิ่มรอบแต่งตั้งใน Career Timeline" });
+    } else if (!cycle.eligibleNow) {
+      tenureBlocked = true;
+      missing.push({
+        code: "MIN_CYCLES_IN_LEVEL",
+        label: `ดำรงระดับตำแหน่งปัจจุบันครบ ${policy.minYearsInPositionLevel} วาระ`,
+        detail: `รอบแต่งตั้ง ${cycle.appointmentCycle}, ครบเกณฑ์วาระ ${cycle.eligibleCycle}`,
+      });
+      actions.push({ code: "WAIT_LEVEL_CYCLES", label: "รอให้ครบวาระการดำรงระดับตำแหน่ง" });
+    }
   }
   if (policy.minYearsInRank != null && (officer.yearsInRank == null || rankShortfall == null || rankShortfall > 0)) {
     tenureBlocked = true;
@@ -371,16 +383,11 @@ export function evaluateWithPolicy(
 
   // Overdue: eligible now AND has held the current level beyond the required
   // minimum by ≥ 1 full year (they've been promotable but not advanced).
-  const overdueYears =
-    cycle && cycle.overdueCycles > 0
-      ? cycle.overdueCycles
-      : eligibleNow && policy.minYearsInPositionLevel != null && officer.yearsInPositionLevel != null
-      ? Math.max(0, Math.floor(officer.yearsInPositionLevel - policy.minYearsInPositionLevel))
-      : 0;
+  const overdueYears = cycle && cycle.overdueCycles > 0 ? cycle.overdueCycles : 0;
 
   let status: EligibilityStatus;
   if (eligibleNow) {
-    status = cycle?.overdueCycles === 1 || overdueYears < 1 ? "eligible_now" : "overdue";
+    status = cycle && cycle.overdueCycles > 1 ? "overdue" : "eligible_now";
   } else if (monthsUntilEligible != null && monthsUntilEligible <= ELIGIBLE_SOON_HORIZON_MONTHS) {
     status = "eligible_soon";
   } else {

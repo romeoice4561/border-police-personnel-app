@@ -46,6 +46,7 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.fromRank && row.rank !== filters.fromRank) return false;
   if (filters.fromPositionLevel && row.positionLevel !== filters.fromPositionLevel) return false;
   if (filters.toPositionLevel && row.nextLevelEligibility?.targetLevel !== filters.toPositionLevel) return false;
+  if (filters.readyForPromotion && row.nextLevelEligibility?.eligibleNow !== true) return false;
   if (filters.eligibilityStatus && row.nextLevelEligibility?.status !== filters.eligibilityStatus) return false;
   if (filters.promotionCycleBucket) {
     const expected = filters.promotionCycleBucket === "eligible_year_1" ? "eligible_this_cycle" : filters.promotionCycleBucket;
@@ -56,6 +57,8 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.mustSkipStepOnly && !row.mustSkipStep) return false;
   if (filters.missingGp7Only && row.hasGp7) return false;
   return (
+    matchesNumber(row.completedPromotionCycles, filters.completedPromotionCycles) &&
+    matchesNumber(row.appointmentCycle, filters.appointmentCycle) &&
     matchesNumber(row.yearsInRank, filters.yearsInRank) &&
     matchesNumber(row.yearsInPosition, filters.yearsInPosition) &&
     matchesNumber(row.yearsInPositionLevel, filters.yearsInPositionLevel) &&

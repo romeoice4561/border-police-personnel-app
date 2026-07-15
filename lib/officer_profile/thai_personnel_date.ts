@@ -2,7 +2,7 @@ import { utcDate } from "@/lib/personnel_calendar";
 import { isValidDay, isValidMonth, isValidYearBE, yearBEToGregorian, yearGregorianToBE } from "@/lib/officer_profile/thai_date";
 
 const THAI_DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;
 
 export function parseThaiPersonnelDate(value: string | Date | null | undefined): Date | null {
   if (value == null || value === "") return null;
@@ -46,4 +46,10 @@ export function formatThaiPersonnelDate(value: Date | string | null | undefined)
 export function toGregorianDateInputValue(value: string | Date | null | undefined): string | null {
   const date = parseThaiPersonnelDate(value);
   return date ? date.toISOString().slice(0, 10) : null;
+}
+
+/** Normalizes any supported personnel date to DD/MM/YYYY (พ.ศ.) for API payloads. */
+export function normalizeThaiPersonnelDateForSave(value: string | Date | null | undefined): string | null {
+  const formatted = formatThaiPersonnelDate(value);
+  return formatted || null;
 }

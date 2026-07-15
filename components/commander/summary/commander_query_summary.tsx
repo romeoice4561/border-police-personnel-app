@@ -73,10 +73,20 @@ export function CommanderQuerySummary({
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <SummaryTile label="Found Officers" value={officers.length.toLocaleString()} icon={<Search className="h-4 w-4" />} />
-        <SummaryTile label="Average Years" value={fmt(average(officers.map((o) => o.yearsInRank)))} hint="in current rank" icon={<CalendarClock className="h-4 w-4" />} />
+        <SummaryTile
+          label="Avg Completed Cycles"
+          value={fmt(average(officers.map((o) => o.completedPromotionCycles)))}
+          hint="appointment cycles at current level"
+          icon={<CalendarClock className="h-4 w-4" />}
+        />
         <SummaryTile label="Oldest" value={oldest ? fmt(oldest.ageYears) : "—"} hint={oldest?.displayName} icon={<UserRound className="h-4 w-4" />} />
         <SummaryTile label="Youngest" value={youngest ? fmt(youngest.ageYears) : "—"} hint={youngest?.displayName} icon={<UserRound className="h-4 w-4" />} />
-        <SummaryTile label="Avg Service" value={fmt(average(officers.map((o) => o.governmentServiceYears)))} hint="government service" icon={<Users className="h-4 w-4" />} />
+        <SummaryTile
+          label="Avg Appointment Cycle"
+          value={fmt(average(officers.map((o) => o.appointmentCycle)))}
+          hint="current position level"
+          icon={<Users className="h-4 w-4" />}
+        />
         <SummaryTile
           label="Avg Age"
           value={fmt(average(officers.map((o) => o.ageYears)))}

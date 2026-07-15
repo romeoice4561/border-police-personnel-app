@@ -18,13 +18,14 @@ function officer(ov: Partial<EligibilityOfficer> = {}): EligibilityOfficer {
   return {
     currentRank: "ร.ต.อ.",
     positionLevel: "รองสารวัตร",
-    yearsInPositionLevel: 5,
+    yearsInPositionLevel: null,
     yearsInRank: 5,
     governmentServiceYears: 12,
     retirementRemainingMonths: 240,
     trainingCodes: [],
     documentCodes: [],
     twoStepCount: 0,
+    appointmentCycle: 2565,
     ...ov,
   };
 }
@@ -40,27 +41,26 @@ test("PROMOTION_TARGET_LEVELS lists the configured targets, lowest → highest, 
   ]);
 });
 
-test("eligible_now: a รองสารวัตร who meets level+rank tenure is eligible for สารวัตร", () => {
-  const result = evaluateLevelEligibility(officer({ yearsInPositionLevel: 4, yearsInRank: 4 }), "สารวัตร", ASOF);
+test("eligible_now: appointment cycle meets required cycles for next level", () => {
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2565, yearsInRank: 4 }), "สารวัตร", ASOF);
   assert.equal(result.status, "eligible_now");
   assert.equal(result.eligibleNow, true);
   assert.equal(result.monthsUntilEligible, 0);
-  assert.equal(result.overdueYears, 0);
+  assert.equal(result.overdueYears, 1);
   assert.deepEqual(result.missingRequirements, []);
 });
 
-test("overdue: eligible and over the minimum level tenure by ≥ 1 year", () => {
-  const result = evaluateLevelEligibility(officer({ yearsInPositionLevel: 7, yearsInRank: 7 }), "สารวัตร", ASOF);
+test("overdue: eligible and past the first eligible cycle", () => {
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2564, yearsInRank: 7 }), "สารวัตร", ASOF);
   assert.equal(result.status, "overdue");
   assert.equal(result.eligibleNow, true);
-  assert.equal(result.overdueYears, 3); // 7 - 4
+  assert.equal(result.overdueYears, 2);
 });
 
 test("appointment cycle drives police promotion eligibility independently from years in rank", () => {
   const result = evaluateLevelEligibility(
     officer({
       positionLevel: "รองผู้กำกับการ",
-      yearsInPositionLevel: null,
       yearsInRank: 5,
       appointmentCycle: 2564,
     }),
@@ -71,24 +71,24 @@ test("appointment cycle drives police promotion eligibility independently from y
   assert.equal(result.promotionCycle?.appointmentCycle, 2564);
   assert.equal(result.promotionCycle?.eligibleCycle, 2568);
   assert.equal(result.promotionCycle?.overdueCycles, 2);
+  assert.equal(result.promotionCycle?.eligibleNow, true);
   assert.equal(result.status, "overdue");
   assert.equal(result.overdueYears, 2);
 });
 
-test("eligible_soon: within the 12-month horizon of meeting level tenure", () => {
-  // 3.5 years in level, needs 4 → 6 months short → soon.
-  const result = evaluateLevelEligibility(officer({ yearsInPositionLevel: 3.5, yearsInRank: 5 }), "สารวัตร", ASOF);
+test("eligible_soon: one appointment cycle short of eligibility", () => {
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2566, yearsInRank: 5 }), "สารวัตร", ASOF);
   assert.equal(result.status, "eligible_soon");
   assert.equal(result.eligibleNow, false);
-  assert.equal(result.monthsUntilEligible, 6);
+  assert.equal(result.monthsUntilEligible, 12);
 });
 
-test("not_eligible: far short of tenure", () => {
-  const result = evaluateLevelEligibility(officer({ yearsInPositionLevel: 1, yearsInRank: 1 }), "สารวัตร", ASOF);
+test("not_eligible: far short of required cycles", () => {
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2568, yearsInRank: 1 }), "สารวัตร", ASOF);
   assert.equal(result.status, "not_eligible");
   assert.equal(result.eligibleNow, false);
-  assert.equal(result.monthsUntilEligible, 36); // 3 years short = 36 months (level), rank also 36
-  assert.ok(result.missingRequirements.some((r) => r.code === "MIN_YEARS_IN_LEVEL"));
+  assert.equal(result.monthsUntilEligible, 36);
+  assert.ok(result.missingRequirements.some((r) => r.code === "MIN_CYCLES_IN_LEVEL"));
   assert.ok(result.missingRequirements.some((r) => r.code === "MIN_YEARS_IN_RANK"));
 });
 
@@ -103,15 +103,15 @@ test("Unknown current level is never auto-eligible for anything", () => {
   assert.equal(result.status, "not_eligible");
 });
 
-test("missing tenure data (null) blocks eligibility with an 'unknowable' projection", () => {
-  const result = evaluateLevelEligibility(officer({ yearsInPositionLevel: null }), "สารวัตร", ASOF);
+test("missing appointment cycle blocks eligibility", () => {
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: null }), "สารวัตร", ASOF);
   assert.equal(result.eligibleNow, false);
   assert.equal(result.monthsUntilEligible, null);
-  assert.ok(result.missingRequirements.some((r) => r.code === "MIN_YEARS_IN_LEVEL"));
+  assert.ok(result.missingRequirements.some((r) => r.code === "MISSING_APPOINTMENT_CYCLE"));
 });
 
 test("evaluateNextLevelEligibility targets the level immediately above the officer's current one", () => {
-  const result = evaluateNextLevelEligibility(officer({ positionLevel: "สารวัตร", yearsInPositionLevel: 4, yearsInRank: 4 }), ASOF);
+  const result = evaluateNextLevelEligibility(officer({ positionLevel: "สารวัตร", appointmentCycle: 2565, yearsInRank: 4 }), ASOF);
   assert.ok(result);
   assert.equal(result.targetLevel, "รองผู้กำกับการ");
   assert.equal(result.status, "eligible_now");
@@ -131,13 +131,12 @@ test("a custom policy with a required training code is enforced purely from conf
     minYearsInRank: 4,
     requiredTrainingCodes: ["SWAT"],
   };
-  // Officer meets tenure but lacks the training → blocked by the engine rule.
-  const withoutTraining = evaluateLevelEligibilityWithPolicy(officer({ yearsInPositionLevel: 4, yearsInRank: 4 }), custom);
+  const withoutTraining = evaluateLevelEligibilityWithPolicy(officer({ appointmentCycle: 2565, yearsInRank: 4 }), custom);
   assert.equal(withoutTraining.eligibleNow, false);
   assert.ok(withoutTraining.missingRequirements.some((r) => r.code === "REQUIRED_TRAINING" || r.label.includes("training") || r.detail === "SWAT" || r.code.includes("TRAINING")));
 
   const withTraining = evaluateLevelEligibilityWithPolicy(
-    officer({ yearsInPositionLevel: 4, yearsInRank: 4, trainingCodes: ["SWAT"] }),
+    officer({ appointmentCycle: 2565, yearsInRank: 4, trainingCodes: ["SWAT"] }),
     custom
   );
   assert.equal(withTraining.eligibleNow, true);
@@ -150,11 +149,11 @@ test("a custom salary-step requirement (minTwoStepCount) is enforced from config
     minYearsInRank: 4,
     minTwoStepCount: 2,
   };
-  const short = evaluateLevelEligibilityWithPolicy(officer({ yearsInPositionLevel: 4, yearsInRank: 4, twoStepCount: 1 }), custom);
+  const short = evaluateLevelEligibilityWithPolicy(officer({ appointmentCycle: 2565, yearsInRank: 4, twoStepCount: 1 }), custom);
   assert.equal(short.eligibleNow, false);
   assert.ok(short.missingRequirements.some((r) => r.code === "MIN_TWO_STEP"));
 
-  const ok = evaluateLevelEligibilityWithPolicy(officer({ yearsInPositionLevel: 4, yearsInRank: 4, twoStepCount: 2 }), custom);
+  const ok = evaluateLevelEligibilityWithPolicy(officer({ appointmentCycle: 2565, yearsInRank: 4, twoStepCount: 2 }), custom);
   assert.equal(ok.eligibleNow, true);
 });
 

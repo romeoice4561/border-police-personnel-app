@@ -21,7 +21,7 @@ import { Card, CardBody } from "@/components/ui/card";
 function eligibleCountForLevel(officers: readonly CommanderQueryOfficer[], level: string): number {
   return officers.reduce((count, officer) => {
     const e = officer.nextLevelEligibility;
-    if (e && e.targetLevel === level && (e.status === "eligible_now" || e.status === "overdue")) return count + 1;
+    if (e && e.targetLevel === level && e.eligibleNow) return count + 1;
     return count;
   }, 0);
 }
@@ -51,7 +51,7 @@ export function CommanderEligibilityCards({
               aria-pressed={isActive}
               onClick={() =>
                 onSelect(
-                  { toPositionLevel: level, eligibilityStatus: "eligible_now" },
+                  { toPositionLevel: level, readyForPromotion: true },
                   `ครบขึ้น ${level}`
                 )
               }

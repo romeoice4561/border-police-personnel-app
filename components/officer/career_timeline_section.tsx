@@ -27,6 +27,7 @@ import { ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Timeline } from "@/lib/database/query_types";
 import { sortTimelineByYear } from "@/lib/ui/officer_summary";
 import { formatThaiDate } from "@/lib/officer_profile/thai_date";
+import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { normalizePositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
@@ -85,7 +86,7 @@ function toCareerTimelineRow(entry: Timeline, organizationEngine: OrganizationEn
     company: labels.company,
     verificationStatus: entry.verificationStatus ?? null,
     verifiedBy: entry.verifiedBy ?? null,
-    verifiedDate: entry.verifiedDate ? new Date(entry.verifiedDate).toISOString().slice(0, 10) : null,
+    verifiedDate: entry.verifiedDate ? formatThaiPersonnelDate(entry.verifiedDate) : null,
     verificationRemark: entry.verificationRemark ?? null,
     isPresent: entry.isPresent,
     appointmentCycle: entry.appointmentCycle ?? null,

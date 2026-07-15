@@ -23,17 +23,20 @@ export function evaluatePromotionCycle(input: PromotionCycleInput): PromotionCyc
       overdueCycles: 0,
       yearsAfterEligibility: null,
       eligibleSince: null,
+      eligibleNow: false,
     };
   }
 
   const eligibleCycle = appointmentCycle + input.policy.requiredCycles;
-  const yearsAfterEligibility = currentCycle >= eligibleCycle ? currentCycle - eligibleCycle : null;
+  const eligibleNow = currentCycle >= eligibleCycle;
+  const yearsAfterEligibility = eligibleNow ? currentCycle - eligibleCycle : null;
   return {
     appointmentCycle,
     completedPromotionCycles: Math.max(0, currentCycle - appointmentCycle),
     eligibleCycle,
-    overdueCycles: currentCycle >= eligibleCycle ? currentCycle - eligibleCycle + 1 : 0,
+    overdueCycles: eligibleNow ? currentCycle - eligibleCycle + 1 : 0,
     yearsAfterEligibility,
-    eligibleSince: currentCycle >= eligibleCycle ? eligibleCycle : null,
+    eligibleSince: eligibleNow ? eligibleCycle : null,
+    eligibleNow,
   };
 }

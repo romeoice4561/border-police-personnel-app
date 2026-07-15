@@ -181,7 +181,7 @@ export const timelineRowSchema = z
       .refine((v) => v == null || v === "" || isValidTimelineVerificationStatus(v), { message: "Invalid verification status" })
       .transform((v) => (v && v.length > 0 ? v : null)),
     verifiedBy: z.string().trim().max(MAX_FIELD).nullable().optional().transform((v) => (v && v.length > 0 ? v : null)),
-    verifiedDate: z.coerce.date().nullable().optional(),
+    verifiedDate: thaiPersonnelDate,
     verificationRemark: z.string().trim().max(MAX_FIELD).nullable().optional().transform((v) => (v && v.length > 0 ? v : null)),
   })
   .transform((row) => ({

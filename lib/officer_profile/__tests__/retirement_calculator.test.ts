@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { calculateRetirementYearBE, calculateBmi } from "@/lib/officer_profile/retirement_calculator";
+import { calculateRetirementYearBE, calculateBmi, calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
+
+test("calculateCurrentAge accepts ISO date strings serialized across the Server -> Client boundary", () => {
+  const age = calculateCurrentAge("1985-08-11T00:00:00.000Z", new Date(Date.UTC(2026, 7, 14)));
+  assert.equal(age, 41);
+});
 
 test("calculateRetirementYearBE returns retirement year (B.E.) = birth year + 60, converted to B.E.", () => {
   const dob = new Date(Date.UTC(1990, 0, 1));

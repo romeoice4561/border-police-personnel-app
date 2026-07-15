@@ -16,4 +16,6 @@ export interface PromotionCycleResult {
   overdueCycles: number;
   yearsAfterEligibility: number | null;
   eligibleSince: number | null;
+  /** True when current cycle has reached or passed the eligible cycle. */
+  eligibleNow: boolean;
 }

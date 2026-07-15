@@ -41,6 +41,7 @@ import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_optio
 import { NATIONALITY_OPTIONS } from "@/lib/officer_profile/nationality_options";
 import { RELIGION_OPTIONS } from "@/lib/officer_profile/religion_options";
 import { EDUCATION_LEVEL_OPTIONS } from "@/lib/officer_profile/education_level_options";
+import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { OrgHierarchyPicker, type OrgHierarchyValue } from "@/components/officer/org_hierarchy_picker";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import type { ProfileDraft } from "@/components/officer/use_officer_workspace";
@@ -227,14 +228,13 @@ export function PersonalInformationEditor({ profile, onChange }: { profile: Prof
       </CardHeader>
       <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <BilingualField labelKey="dateOfBirth" htmlFor="edit-dateOfBirth">
-          <input
+          <ThaiDatePicker
             id="edit-dateOfBirth"
-            type="text"
-            inputMode="numeric"
-            className={inputCls}
-            placeholder="DD/MM/YYYY (พ.ศ.) เช่น 11/08/2528"
             value={profile.dateOfBirth}
-            onChange={(e) => set("dateOfBirth", e.target.value)}
+            onChange={(value) => set("dateOfBirth", value)}
+            rejectFuture
+            placeholder="เลือกวันเกิด (พ.ศ.)"
+            aria-label="วันเกิด"
           />
         </BilingualField>
         <BilingualField labelKey="bloodGroup" htmlFor="edit-bloodGroup">

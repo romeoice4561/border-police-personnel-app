@@ -14,13 +14,13 @@
  */
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { CareerTimelineRow } from "@/components/officer/career_timeline_section";
 import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hooks";
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
 import { formatThaiDate, currentYearBE } from "@/lib/officer_profile/thai_date";
-import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiPersonnelDate, normalizeThaiPersonnelDateForSave, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { sortHistory } from "@/lib/officer_profile/career_salary_engine";
 import { normalizePositionLevel, mapPositionTextToLevel } from "@/lib/commander_query/position_level";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
@@ -142,12 +142,6 @@ function newKey(): string {
   return `draft-${nextKey++}`;
 }
 
-/** Formats a persisted Date as "YYYY-MM-DD" for an HTML date input, or "" when unset. */
-function toDateInputValue(date: Date | null | undefined): string {
-  if (!date) return "";
-  return new Date(date).toISOString().slice(0, 10);
-}
-
 function toProfileDraft(officer: OfficerWithRelations, organizationEngine: OrganizationEngine): ProfileDraft {
   const orgLabels = organizationEngine.resolveLabels({
     headquartersId: officer.headquartersId ?? null,
@@ -200,7 +194,7 @@ function toProfileDraft(officer: OfficerWithRelations, organizationEngine: Organ
 }
 
 function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: OrganizationEngine): TimelineDraftRow[] {
-  return [...officer.timeline]
+  return [...(officer.timeline ?? [])]
     .sort((a, b) => a.sequence - b.sequence)
     .map((t) => {
       const orgLabels = organizationEngine.resolveLabels({
@@ -237,14 +231,14 @@ function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: Org
         companyText: orgLabels.company ?? "",
         verificationStatus: t.verificationStatus ?? "",
         verifiedBy: t.verifiedBy ?? "",
-        verifiedDate: toDateInputValue(t.verifiedDate),
+        verifiedDate: formatThaiPersonnelDate(t.verifiedDate),
         verificationRemark: t.verificationRemark ?? "",
       };
     });
 }
 
 function toEducationDrafts(officer: OfficerWithRelations): EducationDraftRow[] {
-  return officer.education.map((e) => ({
+  return (officer.education ?? []).map((e) => ({
     key: newKey(),
     year: e.year ?? "",
     institution: e.institution,
@@ -254,7 +248,7 @@ function toEducationDrafts(officer: OfficerWithRelations): EducationDraftRow[] {
 }
 
 function toTrainingDrafts(officer: OfficerWithRelations): TrainingDraftRow[] {
-  return officer.training.map((t) => ({
+  return (officer.training ?? []).map((t) => ({
     key: newKey(),
     year: t.year ?? "",
     course: t.course,
@@ -265,7 +259,7 @@ function toTrainingDrafts(officer: OfficerWithRelations): TrainingDraftRow[] {
 
 /** Phase 28A: newest year first (sortHistory's order — "Current Year first, then ย้อนหลัง"). */
 function toSalaryHistoryDrafts(officer: OfficerWithRelations): SalaryHistoryDraftRow[] {
-  return sortHistory(officer.salaryHistory).map((s) => ({
+  return sortHistory(officer.salaryHistory ?? []).map((s) => ({
     key: newKey(),
     yearBE: String(s.yearBE),
     salaryStep: String(s.salaryStep),
@@ -283,13 +277,18 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
 
   const mutation = useSaveOfficerProfile();
 
+  useEffect(() => {
+    setEditing(false);
+    mutation.reset();
+  }, [officer.officerId]);
+
   const startEditing = useCallback(() => {
+    setEditing(true);
     setProfile(toProfileDraft(officer, organizationEngine));
     setTimeline(toTimelineDrafts(officer, organizationEngine));
     setEducation(toEducationDrafts(officer));
     setTraining(toTrainingDrafts(officer));
     setSalaryHistory(toSalaryHistoryDrafts(officer));
-    setEditing(true);
   }, [officer, organizationEngine]);
 
   const cancel = useCallback(() => {
@@ -403,7 +402,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
           companyId: row.companyId,
           verificationStatus: row.verificationStatus || null,
           verifiedBy: row.verifiedBy.trim() || null,
-          verifiedDate: row.verifiedDate.trim() || null,
+          verifiedDate: normalizeThaiPersonnelDateForSave(row.verifiedDate),
           verificationRemark: row.verificationRemark.trim() || null,
         };
         }),

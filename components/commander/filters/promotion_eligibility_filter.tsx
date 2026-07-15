@@ -62,7 +62,7 @@ export function PromotionEligibilityFilter({
     onChange({ ...value, [key]: next });
   }
 
-  const duration = value.yearsInPositionLevel;
+  const duration = value.completedPromotionCycles ?? value.yearsInPositionLevel;
 
   return (
     <div className="space-y-4">
@@ -142,7 +142,7 @@ export function PromotionEligibilityFilter({
       {/* Duration filter: Completed {0..5+} × operator */}
       <fieldset className="space-y-1">
         <legend className="text-xs font-medium text-muted">
-          {bi("completed")} — {bi("yearsInPositionLevel")}
+          {bi("completed")} — วาระ / Cycles
         </legend>
         <div className="grid grid-cols-[1fr_110px] gap-2">
           <select
@@ -150,7 +150,7 @@ export function PromotionEligibilityFilter({
             aria-label={bi("operatorAtLeast")}
             value={duration?.operator ?? "at_least"}
             onChange={(e) =>
-              set("yearsInPositionLevel", { operator: e.target.value as NumericOperator, value: duration?.value ?? 0 } satisfies NumericFilter)
+              set("completedPromotionCycles", { operator: e.target.value as NumericOperator, value: duration?.value ?? 0 } satisfies NumericFilter)
             }
           >
             {DURATION_OPERATORS.map((op) => (
@@ -163,15 +163,15 @@ export function PromotionEligibilityFilter({
             value={duration ? String(duration.value) : ""}
             onChange={(e) =>
               set(
-                "yearsInPositionLevel",
+                "completedPromotionCycles",
                 e.target.value === "" ? undefined : { operator: duration?.operator ?? "at_least", value: Number(e.target.value) }
               )
             }
           >
             <option value="">—</option>
-            {DURATION_OPTIONS.map((years) => (
-              <option key={years} value={years}>
-                {years === 5 ? "5+" : years} {years === 1 ? "ปี / year" : "ปี / years"}
+            {DURATION_OPTIONS.map((cycles) => (
+              <option key={cycles} value={cycles}>
+                {cycles === 5 ? "5+" : cycles} วาระ
               </option>
             ))}
           </select>

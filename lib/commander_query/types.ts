@@ -22,6 +22,7 @@ export interface CommanderEligibilitySummary {
   appointmentCycle: number | null;
   eligibleCycle: number | null;
   overdueCycles: number;
+  completedPromotionCycles: number | null;
   promotionCycleBucket: "not_eligible" | "eligible_this_cycle" | "eligible_year_1" | "eligible_year_2" | "eligible_year_3" | "eligible_year_4" | "eligible_more_than_5";
 }
 
@@ -40,8 +41,10 @@ export interface CommanderQueryOfficer {
   companyLabel: string;
   yearsInRank: number | null;
   yearsInPosition: number | null;
-  /** Phase 41 Part 3: years the officer has held their CURRENT structured position level (from the earliest timeline row at that level). Null when the level is Unknown or undated. */
+  /** Phase 41 Part 3: years the officer has held their CURRENT structured position level (from the earliest timeline row at that level). Null when the level is Unknown or undated. Kept for non-promotion filters; promotion uses completedPromotionCycles. */
   yearsInPositionLevel: number | null;
+  /** Phase 42B: completed appointment cycles at the current position level (from PromotionCycleEngine). */
+  completedPromotionCycles: number | null;
   governmentServiceYears: number | null;
   ageYears: number | null;
   retirementYear: number | null;

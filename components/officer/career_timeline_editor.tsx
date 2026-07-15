@@ -26,6 +26,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
+import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
 import { POSITION_LEVELS } from "@/lib/commander_query/position_level";
@@ -300,11 +301,10 @@ export function CareerTimelineEditor({ rows, onChange, organizationEngine }: Car
                 </LabeledField>
 
                 <LabeledField label="วันที่ตรวจสอบ / Verified Date">
-                  <input
-                    type="date"
-                    className="h-9.5 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  <ThaiDatePicker
                     value={row.verifiedDate}
-                    onChange={(e) => updateRow(row.key, { verifiedDate: e.target.value })}
+                    onChange={(value) => updateRow(row.key, { verifiedDate: value })}
+                    placeholder="เลือกวันที่ (พ.ศ.)"
                     aria-label="วันที่ตรวจสอบ"
                   />
                 </LabeledField>

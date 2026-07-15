@@ -13,7 +13,12 @@
  */
 
 import { calculateAge, calculateRetirement } from "@/lib/personnel_calendar";
-import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiPersonnelDate, parseThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
+
+/** Normalizes persisted dates after the Server -> Client boundary (RSC serializes Date as ISO strings). */
+function personnelDateInput(value: Date | string | null | undefined): Date | null {
+  return parseThaiPersonnelDate(value);
+}
 
 export interface RetirementInfo {
   retirementYearBE: number;
@@ -26,9 +31,10 @@ export interface RetirementInfo {
  * Retirement Year (B.E.) + Countdown, derived from Date of Birth alone.
  * Returns null when dateOfBirth is unset — never guessed.
  */
-export function calculateRetirementYearBE(dateOfBirth: Date | null, today: Date = new Date()): RetirementInfo | null {
-  if (!dateOfBirth) return null;
-  const retirement = calculateRetirement(dateOfBirth, today);
+export function calculateRetirementYearBE(dateOfBirth: Date | string | null, today: Date = new Date()): RetirementInfo | null {
+  const dob = personnelDateInput(dateOfBirth);
+  if (!dob) return null;
+  const retirement = calculateRetirement(dob, today);
   if (!retirement) return null;
   return {
     retirementYearBE: retirement.retirementFiscalYear + 543,
@@ -49,7 +55,8 @@ export function calculateBmi(weightKg: number | null, heightCm: number | null): 
  * accounting for whether this year's birthday has occurred yet (not just a
  * plain year subtraction). Returns null when dateOfBirth is unset.
  */
-export function calculateCurrentAge(dateOfBirth: Date | null, today: Date = new Date()): number | null {
-  if (!dateOfBirth) return null;
-  return calculateAge(dateOfBirth, today)?.years ?? null;
+export function calculateCurrentAge(dateOfBirth: Date | string | null, today: Date = new Date()): number | null {
+  const dob = personnelDateInput(dateOfBirth);
+  if (!dob) return null;
+  return calculateAge(dob, today)?.years ?? null;
 }

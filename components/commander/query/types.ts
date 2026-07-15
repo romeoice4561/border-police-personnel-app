@@ -7,9 +7,10 @@ export type CommanderSortField =
   | "displayName"
   | "currentPosition"
   | "positionLevel"
-  | "yearsInRank"
-  | "yearsInPosition"
-  | "governmentServiceYears"
+  | "appointmentCycle"
+  | "completedPromotionCycles"
+  | "eligibleCycle"
+  | "overdueCycles"
   | "ageYears"
   | "promotionStatus"
   | "retirementStatus"
@@ -29,7 +30,11 @@ export interface CommanderQueryFilters {
   companyId?: number;
   yearsInRank?: NumericFilter;
   yearsInPosition?: NumericFilter;
-  /** Phase 41 Part 3: filter on years held at the current structured position level (Completed 0–5+ × operator). */
+  /** Phase 42B: filter on completed appointment cycles (PromotionCycleEngine). */
+  completedPromotionCycles?: NumericFilter;
+  /** Phase 42B: filter on appointment cycle at current position level. */
+  appointmentCycle?: NumericFilter;
+  /** Legacy decimal-year filter — hidden from primary UI. */
   yearsInPositionLevel?: NumericFilter;
   age?: NumericFilter;
   governmentServiceYears?: NumericFilter;
@@ -46,6 +51,8 @@ export interface CommanderQueryFilters {
   toPositionLevel?: string;
   /** Restrict to officers whose next-level eligibility has this status (eligible_now / eligible_soon / overdue / not_eligible). */
   eligibilityStatus?: EligibilityStatus;
+  /** Phase 42B: true when the officer is ready for promotion (eligible this cycle or overdue). Matches summary card counts. */
+  readyForPromotion?: boolean;
   promotionCycleBucket?: CommanderQueryOfficer["promotionCycleBucket"];
   // ── Phase 41 Part 5: boolean preset toggles (reuse precomputed signals) ──
   /** Only officers eligible for a two-step salary result this year. */

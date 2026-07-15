@@ -8,6 +8,12 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
+import {
+  formatAppointmentCycle,
+  formatCompletedCyclesCount,
+  formatEligibleOverdueYears,
+  formatEligibleSinceCycle,
+} from "@/lib/promotion_cycle/display";
 import { cn } from "@/lib/ui/cn";
 
 const ELIGIBILITY_META: Record<EligibilityStatus, { tone: NonNullable<BadgeProps["tone"]>; labelTh: string }> = {
@@ -22,17 +28,22 @@ const COLUMNS: Array<{ key: CommanderSortField; label: string; align?: "right" }
   { key: "displayName", label: "Name" },
   { key: "currentPosition", label: "Current Position" },
   { key: "positionLevel", label: "Position Level" },
-  { key: "yearsInRank", label: "Rank Years", align: "right" },
-  { key: "yearsInPosition", label: "Position Years", align: "right" },
-  { key: "governmentServiceYears", label: "Service", align: "right" },
+  { key: "appointmentCycle", label: "Appointment Cycle", align: "right" },
+  { key: "completedPromotionCycles", label: "Completed Cycles", align: "right" },
+  { key: "eligibleCycle", label: "Eligible Since", align: "right" },
+  { key: "overdueCycles", label: "Eligible Overdue", align: "right" },
   { key: "ageYears", label: "Age", align: "right" },
   { key: "promotionStatus", label: "Promotion" },
   { key: "retirementStatus", label: "Retirement" },
   { key: "priority", label: "Priority" },
 ];
 
-function fmt(value: number | null): string {
+function fmtAge(value: number | null): string {
   return value == null ? "—" : value.toFixed(1);
+}
+
+function fmtCell(value: string | null): string {
+  return value ?? "—";
 }
 
 export function CommanderResultsTable({
@@ -76,7 +87,7 @@ export function CommanderResultsTable({
                       </th>
                     );
                   })}
-                  <th scope="col" className="px-3 py-3 font-medium">Next Level</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Target Level</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,10 +110,11 @@ export function CommanderResultsTable({
                     </td>
                     <td className="px-3 py-3 text-muted">{officer.currentPosition || "—"}</td>
                     <td className="px-3 py-3 text-muted">{officer.positionLevel && officer.positionLevel !== UNKNOWN_POSITION_LEVEL ? officer.positionLevel : "—"}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.yearsInRank)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.yearsInPosition)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.governmentServiceYears)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{fmt(officer.ageYears)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{fmtCell(formatAppointmentCycle(officer.appointmentCycle))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{fmtCell(formatCompletedCyclesCount(officer.completedPromotionCycles))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{fmtCell(formatEligibleSinceCycle(officer.eligibleCycle))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{fmtCell(formatEligibleOverdueYears(officer.overdueCycles))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{fmtAge(officer.ageYears)}</td>
                     <td className="px-3 py-3"><PromotionStatusBadge status={officer.promotionStatus} /></td>
                     <td className="px-3 py-3"><RetirementStatusBadge status={officer.retirementStatus} /></td>
                     <td className="px-3 py-3"><PriorityBadge priority={officer.priority} /></td>

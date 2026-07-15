@@ -7,7 +7,7 @@ import { toEffectiveDate } from "@/lib/officer_profile/thai_date";
 import { buildOfficerProfileIntelligence, loadCommanderOfficerProfiles } from "@/lib/server/commander_intelligence_service";
 import { normalizePositionLevel, mapPositionTextToLevel, POSITION_LEVELS, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { evaluateNextLevelEligibility, type EligibilityOfficer } from "@/lib/promotion/eligibility_policy";
-import type { PromotionCycleResult } from "@/lib/promotion_cycle";
+import { promotionCycleBucket } from "@/lib/promotion_cycle/intelligence";
 import { countTwoStep, evaluateTwoStepEligibility, EligibilityStatus as SalaryEligibilityStatus } from "@/lib/officer_profile/career_salary_engine";
 import type { CommanderEligibilitySummary, CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
@@ -121,17 +121,9 @@ function computeNextLevelEligibility(
     appointmentCycle: result.promotionCycle?.appointmentCycle ?? null,
     eligibleCycle: result.promotionCycle?.eligibleCycle ?? null,
     overdueCycles: result.promotionCycle?.overdueCycles ?? 0,
+    completedPromotionCycles: result.promotionCycle?.completedPromotionCycles ?? null,
     promotionCycleBucket: promotionCycleBucket(result.promotionCycle),
   };
-}
-
-function promotionCycleBucket(cycle: PromotionCycleResult | null): CommanderEligibilitySummary["promotionCycleBucket"] {
-  if (!cycle || cycle.overdueCycles <= 0) return "not_eligible";
-  if (cycle.overdueCycles === 1) return "eligible_this_cycle";
-  if (cycle.overdueCycles === 2) return "eligible_year_2";
-  if (cycle.overdueCycles === 3) return "eligible_year_3";
-  if (cycle.overdueCycles === 4) return "eligible_year_4";
-  return "eligible_more_than_5";
 }
 
 function monthsFromDuration(duration: DurationYMD | null): number | null {
@@ -188,6 +180,7 @@ function toQueryOfficer(
     yearsInRank,
     yearsInPosition: yearsSince(positionStartedAt, asOf),
     yearsInPositionLevel,
+    completedPromotionCycles: nextLevelEligibility?.completedPromotionCycles ?? null,
     appointmentCycle,
     governmentServiceYears,
     ageYears: yearsFromDuration(calculateAge(officer.dateOfBirth ?? null, asOf)),
