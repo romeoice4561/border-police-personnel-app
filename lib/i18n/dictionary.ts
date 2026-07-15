@@ -418,6 +418,43 @@ export const DICTIONARY = {
   "capability.deploymentReady": tr("พร้อมปฏิบัติภารกิจ", "Deployment Ready"),
   "capability.officersWithSkills": tr("กำลังพลที่มีทักษะบันทึกไว้", "Officers with recorded skills"),
   "capability.peopleUnit": tr("นาย", "officers"),
+
+  // ── timeline.* — Phase 45 Timeline Workspace UX ──
+  "timeline.title": tr("ประวัติการรับราชการ", "Career Timeline"),
+  "timeline.addRow": tr("เพิ่มแถว", "Add Entry"),
+  "timeline.empty": tr("ยังไม่มีข้อมูลประวัติการรับราชการ — กด \"เพิ่มแถว\" เพื่อเริ่มกรอก", "No career-history entries yet — press \"Add Entry\" to start."),
+  "timeline.entry": tr("รายการที่", "Timeline"),
+  "timeline.currentPosition": tr("ตำแหน่งปัจจุบัน", "Current Position"),
+  "timeline.noDate": tr("ยังไม่ระบุวันที่", "No date"),
+  "timeline.noPosition": tr("ยังไม่ระบุตำแหน่ง", "No position"),
+  "timeline.noUnit": tr("ยังไม่ระบุหน่วย", "No unit"),
+  "timeline.expand": tr("ขยาย", "Expand"),
+  "timeline.collapse": tr("ย่อ", "Collapse"),
+  "timeline.moveUp": tr("เลื่อนขึ้น", "Move up"),
+  "timeline.moveDown": tr("เลื่อนลง", "Move down"),
+  "timeline.delete": tr("ลบรายการนี้", "Delete this entry"),
+
+  // Per-card + section status
+  "timeline.statusDraft": tr("ร่าง", "Draft"),
+  "timeline.statusSaving": tr("กำลังบันทึก", "Saving"),
+  "timeline.statusSaved": tr("บันทึกแล้ว", "Saved"),
+  "timeline.statusError": tr("ผิดพลาด", "Error"),
+  "timeline.unsavedChanges": tr("มีการแก้ไขที่ยังไม่บันทึก", "Unsaved changes"),
+
+  // Verification (single control — Part 6)
+  "timeline.verification": tr("การตรวจสอบ", "Verification"),
+  "timeline.verificationStatus": tr("สถานะการตรวจสอบ", "Verification Status"),
+  "timeline.notVerified": tr("ยังไม่ตรวจสอบ", "Not verified"),
+  "timeline.verifiedBy": tr("ผู้ตรวจสอบ", "Verified By"),
+  "timeline.verifiedDate": tr("วันที่ตรวจสอบ", "Verified Date"),
+  "timeline.verificationRemark": tr("หมายเหตุการตรวจสอบ", "Verification Remark"),
+
+  // Validation warnings (Part 8/9) — advisory
+  "timeline.warningsTitle": tr("ข้อควรตรวจสอบ (ไม่บล็อกการบันทึก)", "Please review (does not block saving)"),
+  "timeline.warnMultipleCurrent": tr("มีตำแหน่งปัจจุบันมากกว่าหนึ่งรายการ", "More than one entry is marked as the current position."),
+  "timeline.warnYearOrder": tr("ลำดับปีอาจไม่เรียงกัน", "The years may be out of order."),
+  "timeline.warnOverlapping": tr("มีรายการที่ปีซ้ำกัน", "Some entries share the same year."),
+  "timeline.warnMissingFields": tr("บางรายการยังไม่ได้กรอกปีหรือตำแหน่ง", "Some entries are missing a year or a position."),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

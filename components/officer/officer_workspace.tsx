@@ -188,7 +188,13 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intel
           widest, most information-dense section on the page — and now
           immediately follows Salary History above. */}
       {editing ? (
-        <CareerTimelineEditor rows={workspace.timeline} onChange={workspace.setTimeline} organizationEngine={organizationEngine} />
+        <CareerTimelineEditor
+          rows={workspace.timeline}
+          onChange={workspace.setTimeline}
+          organizationEngine={organizationEngine}
+          isSaving={isSaving}
+          saveError={saveError}
+        />
       ) : (
         <CareerTimelineSection timeline={officer.timeline} organizationEngine={organizationEngine} />
       )}
