@@ -141,7 +141,7 @@ Tests
 Commit
 
 ```
-(recorded on commit)
+a17c4a7
 ```
 
 Summary
@@ -187,7 +187,7 @@ Phase 43
 Commit
 
 ```
-(recorded on commit)
+a17c4a7
 ```
 
 ---
