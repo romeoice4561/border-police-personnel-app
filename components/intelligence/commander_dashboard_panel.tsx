@@ -6,19 +6,21 @@ import { CommanderSummaryCards } from "@/components/intelligence/commander_summa
 import { FlagBadge, PriorityBadge, PromotionStatusBadge, RetirementStatusBadge } from "@/components/intelligence/intelligence_badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CommanderDashboard, OfficerFlagCode, OfficerPriority } from "@/lib/intelligence";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { cn } from "@/lib/ui/cn";
 
 type FilterKey = "ALL" | OfficerFlagCode | `PRIORITY_${Uppercase<OfficerPriority>}`;
 
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: "ALL", label: "All" },
-  { key: "PROMOTION_READY", label: "Promotion Ready" },
-  { key: "RETIRING_SOON", label: "Retiring Soon" },
-  { key: "DOCUMENTS_MISSING", label: "Missing Documents" },
-  { key: "MISSING_OFFICIAL_PORTRAIT", label: "Missing Portrait" },
-  { key: "NEEDS_TRAINING", label: "Needs Training" },
-  { key: "PRIORITY_HIGH", label: "High Priority" },
-  { key: "PRIORITY_CRITICAL", label: "Critical" },
+const FILTERS: Array<{ key: FilterKey; labelKey: TranslationKey }> = [
+  { key: "ALL", labelKey: "dashboard.filterAll" },
+  { key: "PROMOTION_READY", labelKey: "dashboard.filterPromotionReady" },
+  { key: "RETIRING_SOON", labelKey: "dashboard.filterRetiringSoon" },
+  { key: "DOCUMENTS_MISSING", labelKey: "dashboard.filterDocumentsMissing" },
+  { key: "MISSING_OFFICIAL_PORTRAIT", labelKey: "dashboard.filterMissingPortrait" },
+  { key: "NEEDS_TRAINING", labelKey: "dashboard.filterNeedsTraining" },
+  { key: "PRIORITY_HIGH", labelKey: "dashboard.filterHighPriority" },
+  { key: "PRIORITY_CRITICAL", labelKey: "dashboard.filterCritical" },
 ];
 
 function matchesFilter(card: CommanderDashboard["officers"][number], filter: FilterKey): boolean {
@@ -28,6 +30,7 @@ function matchesFilter(card: CommanderDashboard["officers"][number], filter: Fil
 }
 
 export function CommanderDashboardPanel({ dashboard }: { dashboard: CommanderDashboard }) {
+  const { t } = useT();
   const [filter, setFilter] = useState<FilterKey>("ALL");
   const filtered = useMemo(
     () => dashboard.officers.filter((card) => matchesFilter(card, filter)),
@@ -38,12 +41,13 @@ export function CommanderDashboardPanel({ dashboard }: { dashboard: CommanderDas
     <div className="space-y-5">
       <CommanderSummaryCards summary={dashboard.summary} />
 
-      <section className="space-y-3" aria-label="Commander intelligence filters">
+      <section className="space-y-3" aria-label={t("dashboard.filtersAria")}>
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((item) => (
             <button
               key={item.key}
               type="button"
+              aria-pressed={filter === item.key}
               onClick={() => setFilter(item.key)}
               className={cn(
                 "rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
@@ -52,22 +56,22 @@ export function CommanderDashboardPanel({ dashboard }: { dashboard: CommanderDas
                   : "border-border bg-surface text-foreground hover:bg-neutral-bg"
               )}
             >
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </div>
       </section>
 
-      <section className="space-y-3" aria-label="Officer intelligence list">
+      <section className="space-y-3" aria-label={t("dashboard.officerListAria")}>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-foreground">Officer Intelligence</h2>
-          <p className="text-sm text-muted">{filtered.length.toLocaleString()} officers</p>
+          <h2 className="text-base font-semibold text-foreground">{t("dashboard.officerIntelligence")}</h2>
+          <p className="text-sm text-muted">{filtered.length.toLocaleString()} {t("dashboard.officersCount")}</p>
         </div>
 
         {filtered.length === 0 ? (
           <Card>
             <CardBody>
-              <p className="text-sm text-muted">No officers match this intelligence filter.</p>
+              <p className="text-sm text-muted">{t("dashboard.noOfficersMatch")}</p>
             </CardBody>
           </Card>
         ) : (

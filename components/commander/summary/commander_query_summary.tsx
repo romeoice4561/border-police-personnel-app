@@ -1,6 +1,10 @@
+"use client";
+
 import { CalendarClock, Search, UserRound, Users } from "lucide-react";
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { DrilldownFilter } from "@/components/commander/query/types";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { Card, CardBody } from "@/components/ui/card";
 
 function average(values: Array<number | null>): number | null {
@@ -54,52 +58,53 @@ export function CommanderQuerySummary({
 }) {
   const oldest = [...officers].sort((a, b) => ((b.ageYears ?? -1) - (a.ageYears ?? -1)))[0];
   const youngest = [...officers].sort((a, b) => ((a.ageYears ?? Number.MAX_VALUE) - (b.ageYears ?? Number.MAX_VALUE)))[0];
+  const { t } = useT();
   const commonRank = Object.entries(
     officers.reduce<Record<string, number>>((acc, officer) => {
       acc[officer.rank] = (acc[officer.rank] ?? 0) + 1;
       return acc;
     }, {})
   ).sort((a, b) => b[1] - a[1])[0];
-  const cycleBuckets = [
-    ["Eligible This Cycle", "eligible_this_cycle"],
-    ["Eligible Year 1", "eligible_year_1"],
-    ["Eligible Year 2", "eligible_year_2"],
-    ["Eligible Year 3", "eligible_year_3"],
-    ["Eligible Year 4", "eligible_year_4"],
-    ["Eligible 5+ Years", "eligible_more_than_5"],
-  ] as const;
+  const cycleBuckets: Array<{ labelKey: TranslationKey; bucket: string }> = [
+    { labelKey: "commander.eligibleThisCycleShort", bucket: "eligible_this_cycle" },
+    { labelKey: "commander.eligibleYear1", bucket: "eligible_year_1" },
+    { labelKey: "commander.eligibleYear2", bucket: "eligible_year_2" },
+    { labelKey: "commander.eligibleYear3", bucket: "eligible_year_3" },
+    { labelKey: "commander.eligibleYear4", bucket: "eligible_year_4" },
+    { labelKey: "commander.eligible5PlusYears", bucket: "eligible_more_than_5" },
+  ];
 
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <SummaryTile label="Found Officers" value={officers.length.toLocaleString()} icon={<Search className="h-4 w-4" />} />
+        <SummaryTile label={t("commander.foundOfficers")} value={officers.length.toLocaleString()} icon={<Search className="h-4 w-4" />} />
         <SummaryTile
-          label="Avg Completed Cycles"
+          label={t("commander.avgCompletedCycles")}
           value={fmt(average(officers.map((o) => o.completedPromotionCycles)))}
-          hint="appointment cycles at current level"
+          hint={t("commander.avgCompletedCyclesHint")}
           icon={<CalendarClock className="h-4 w-4" />}
         />
-        <SummaryTile label="Oldest" value={oldest ? fmt(oldest.ageYears) : "—"} hint={oldest?.displayName} icon={<UserRound className="h-4 w-4" />} />
-        <SummaryTile label="Youngest" value={youngest ? fmt(youngest.ageYears) : "—"} hint={youngest?.displayName} icon={<UserRound className="h-4 w-4" />} />
+        <SummaryTile label={t("commander.oldest")} value={oldest ? fmt(oldest.ageYears) : "—"} hint={oldest?.displayName} icon={<UserRound className="h-4 w-4" />} />
+        <SummaryTile label={t("commander.youngest")} value={youngest ? fmt(youngest.ageYears) : "—"} hint={youngest?.displayName} icon={<UserRound className="h-4 w-4" />} />
         <SummaryTile
-          label="Avg Appointment Cycle"
+          label={t("commander.avgAppointmentCycle")}
           value={fmt(average(officers.map((o) => o.appointmentCycle)))}
-          hint="current position level"
+          hint={t("commander.currentPositionLevelHint")}
           icon={<Users className="h-4 w-4" />}
         />
         <SummaryTile
-          label="Avg Age"
+          label={t("commander.avgAge")}
           value={fmt(average(officers.map((o) => o.ageYears)))}
-          hint={commonRank ? `Top rank: ${commonRank[0]}` : undefined}
+          hint={commonRank ? `${t("commander.topRank")}: ${commonRank[0]}` : undefined}
           icon={<Users className="h-4 w-4" />}
-          onClick={commonRank ? () => onDrilldown({ field: "rank", value: commonRank[0], label: `Rank: ${commonRank[0]}` }) : undefined}
+          onClick={commonRank ? () => onDrilldown({ field: "rank", value: commonRank[0], label: `${t("commander.rank")}: ${commonRank[0]}` }) : undefined}
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {cycleBuckets.map(([label, bucket]) => (
+        {cycleBuckets.map(({ labelKey, bucket }) => (
           <SummaryTile
             key={bucket}
-            label={label}
+            label={t(labelKey)}
             value={officers.filter((officer) => officer.promotionCycleBucket === (bucket === "eligible_year_1" ? "eligible_this_cycle" : bucket)).length.toLocaleString()}
             icon={<CalendarClock className="h-4 w-4" />}
           />

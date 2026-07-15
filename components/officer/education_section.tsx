@@ -7,17 +7,21 @@
  * counterpart is EducationEditor, shown instead when the workspace is in
  * edit mode.
  */
+"use client";
+
 import { GraduationCap } from "lucide-react";
 import type { Education } from "@/lib/database/query_types";
 import { EditableSectionCard, SectionEmptyState } from "@/components/officer/editable_section_card";
+import { useT } from "@/components/i18n/language_provider";
 
 export function EducationSection({ education }: { education: Education[] }) {
+  const { t } = useT();
   return (
-    <EditableSectionCard title="Education">
+    <EditableSectionCard title={t("officer.education")}>
       {education.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-2">
           <GraduationCap className="h-8 w-8 text-muted" aria-hidden="true" />
-          <SectionEmptyState message="No education records yet." />
+          <SectionEmptyState message={t("officer.noEducation")} />
         </div>
       ) : (
         <ul className="space-y-3">

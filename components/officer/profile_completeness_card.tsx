@@ -6,19 +6,24 @@
  * with no backing data source yet (Contact, Education, Training, Awards,
  * Documents, GP7) always render unchecked — this card never invents progress.
  */
+"use client";
+
 import { Check, Square } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { computeProfileCompleteness } from "@/lib/ui/profile_completeness";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { cn } from "@/lib/ui/cn";
 
 export function ProfileCompletenessCard({ officer }: { officer: OfficerWithRelations }) {
+  const { t } = useT();
   const { percent, items } = computeProfileCompleteness(officer);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile Completeness</CardTitle>
+        <CardTitle>{t("officer.completeness")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-4">
         <div>
@@ -30,7 +35,7 @@ export function ProfileCompletenessCard({ officer }: { officer: OfficerWithRelat
             aria-valuenow={percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Profile completeness"
+            aria-label={t("officer.completenessAria")}
             className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-bg"
           >
             <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${percent}%` }} />
@@ -45,7 +50,7 @@ export function ProfileCompletenessCard({ officer }: { officer: OfficerWithRelat
               ) : (
                 <Square className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
               )}
-              <span className={cn(item.complete ? "text-foreground" : "text-muted")}>{item.label}</span>
+              <span className={cn(item.complete ? "text-foreground" : "text-muted")}>{t(`officer.completeness.${item.id}` as TranslationKey)}</span>
             </li>
           ))}
         </ul>

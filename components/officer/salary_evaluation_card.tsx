@@ -12,53 +12,39 @@
  * AI layer/Commander View use is what the officer profile shows. Never
  * changes while the user edits — only after Save (see SalarySimulationCard).
  */
+"use client";
+
 import { CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { EligibilityStatus, type EvaluationResult } from "@/lib/officer_profile/career_salary_engine";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
+import { formatLocalizedYearBE } from "@/lib/i18n/format_date";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 
 const STATUS_META: Record<
   EligibilityStatus,
-  { icon: typeof CheckCircle2; iconClass: string; tone: NonNullable<BadgeProps["tone"]>; labelTh: string; labelEn: string }
+  { icon: typeof CheckCircle2; iconClass: string; tone: NonNullable<BadgeProps["tone"]>; labelKey: TranslationKey }
 > = {
-  [EligibilityStatus.Eligible]: {
-    icon: CheckCircle2,
-    iconClass: "text-good",
-    tone: "good",
-    labelTh: "มีสิทธิ์ 2 ขั้น",
-    labelEn: "Eligible",
-  },
-  [EligibilityStatus.NotEligible]: {
-    icon: XCircle,
-    iconClass: "text-critical",
-    tone: "critical",
-    labelTh: "ไม่มีสิทธิ์ 2 ขั้น",
-    labelEn: "Not Eligible",
-  },
-  [EligibilityStatus.Unknown]: {
-    icon: HelpCircle,
-    iconClass: "text-warning",
-    tone: "warning",
-    labelTh: "ไม่สามารถระบุได้",
-    labelEn: "Unknown",
-  },
+  [EligibilityStatus.Eligible]: { icon: CheckCircle2, iconClass: "text-good", tone: "good", labelKey: "officer.twoStepEligible" },
+  [EligibilityStatus.NotEligible]: { icon: XCircle, iconClass: "text-critical", tone: "critical", labelKey: "officer.twoStepNotEligible" },
+  [EligibilityStatus.Unknown]: { icon: HelpCircle, iconClass: "text-warning", tone: "warning", labelKey: "officer.twoStepUnknown" },
 };
 
 export function SalaryEvaluationCard({ result }: { result: EvaluationResult }) {
+  const { t, language } = useT();
   const meta = STATUS_META[result.status];
   const Icon = meta.icon;
 
   return (
     <Card className="border-2 border-accent">
       <CardHeader>
-        <CardTitle>สิทธิ์ปัจจุบัน พ.ศ. {result.yearBE} / Current Eligibility</CardTitle>
+        <CardTitle>{t("officer.currentEligibility")} {formatLocalizedYearBE(result.yearBE, language)}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-3">
         <div className="flex items-center gap-2">
           <Icon className={`h-5 w-5 shrink-0 ${meta.iconClass}`} aria-hidden="true" />
-          <Badge tone={meta.tone}>
-            {meta.labelTh} / {meta.labelEn}
-          </Badge>
+          <Badge tone={meta.tone}>{t(meta.labelKey)}</Badge>
         </div>
         <p className="text-sm text-muted">{result.reason}</p>
       </CardBody>

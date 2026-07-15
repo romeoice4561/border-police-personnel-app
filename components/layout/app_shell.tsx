@@ -11,22 +11,26 @@ import type { ReactNode } from "react";
 import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
+import { LanguageToggle } from "@/components/ui/language_toggle";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/commander-search", label: "Personnel Query", icon: SlidersHorizontal },
-  { href: "/officers", label: "Officers", icon: Users },
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/statistics", label: "Statistics", icon: BarChart3 },
-  { href: "/review", label: "Review", icon: ClipboardCheck },
-  { href: "/gallery", label: "คลังรูปภาพ", icon: Images },
-  { href: "/admin/portraits", label: "Portrait Cleanup", icon: UserCheck },
+const NAV: Array<{ href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard }> = [
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal },
+  { href: "/officers", labelKey: "nav.officers", icon: Users },
+  { href: "/search", labelKey: "nav.search", icon: Search },
+  { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3 },
+  { href: "/review", labelKey: "nav.review", icon: ClipboardCheck },
+  { href: "/gallery", labelKey: "nav.gallery", icon: Images },
+  { href: "/admin/portraits", labelKey: "nav.portraitCleanup", icon: UserCheck },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const { t } = useT();
   return (
     <>
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {NAV.map(({ href, labelKey, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
@@ -40,7 +44,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             )}
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
-            {label}
+            {t(labelKey)}
           </Link>
         );
       })}
@@ -50,6 +54,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { t } = useT();
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -58,14 +63,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2 px-5 py-5">
           <ShieldCheck className="h-6 w-6 text-accent" aria-hidden="true" />
           <span className="text-sm font-semibold leading-tight">
-            Border Patrol
-            <span className="block text-xs font-normal text-muted">Personnel Intelligence</span>
+            {t("nav.brand")}
+            <span className="block text-xs font-normal text-muted">{t("nav.brandSub")}</span>
           </span>
         </div>
         <nav className="flex flex-col gap-1 px-3">
           <NavLinks pathname={pathname} />
         </nav>
-        <div className="mt-auto px-5 py-4">
+        <div className="mt-auto space-y-3 px-5 py-4">
+          <LanguageToggle />
           <EnvironmentBadge />
         </div>
       </aside>
@@ -74,8 +80,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-10 border-b border-border bg-surface md:hidden">
         <div className="flex items-center gap-2 px-4 py-3">
           <ShieldCheck className="h-5 w-5 text-accent" aria-hidden="true" />
-          <span className="text-sm font-semibold">Border Patrol Personnel</span>
-          <span className="ml-auto">
+          <span className="text-sm font-semibold">{t("nav.brand")}</span>
+          <span className="ml-auto flex items-center gap-2">
+            <LanguageToggle />
             <EnvironmentBadge />
           </span>
         </div>

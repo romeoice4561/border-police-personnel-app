@@ -136,14 +136,58 @@ Tests
 
 ---
 
-# Current Stable Version
-
-Phase 41
+# Phase 43
 
 Commit
 
 ```
-bcb452a
+(recorded on commit)
+```
+
+Summary
+
+Global Internationalization (TH/EN Foundation)
+
+Implemented
+
+- Global Language Provider (React context), persisted to localStorage
+  ("bpp.language"), hydration-safe via useSyncExternalStore, restored across
+  sessions, cross-tab synced — one provider app-wide, no duplicate state
+- Central namespaced translation dictionary (lib/i18n/dictionary.ts) with a
+  pure translate(key, lang) usable by React, and by future Report Builder /
+  PDF / Print templates and AI-summary rendering (framework-free)
+- Language-agnostic architecture: Language is an open union; adding zh/ms is a
+  dictionary column + no structural change
+- Single global TH | EN switch moved into the app shell (keyboard + ARIA
+  radiogroup, focus states, active indication); per-page Commander switch
+  removed
+- Existing bilingual seams (formatBilingual, BilingualLabel, FIELD_LABELS) made
+  language-aware so they render the active language only
+- Locale-aware dates: Thai Buddhist Era (พ.ศ.) / English Gregorian (A.D.)
+- Fully translated: Navigation, Commander Search (filters, presets, cards,
+  charts, table, badges, buttons), Officer Detail/Workspace (sections, fields,
+  buttons, empty states), Dashboard (KPIs, filters, panel), and shared
+  components (loading/error/empty states, pagination)
+- No new hardcoded user-visible strings — all new text via the dictionary
+- Secondary pages (Gallery, Statistics, Review, Portrait Cleanup, Admin) get
+  the working global switch now; full translation deferred to a later phase
+- No database / business-logic / promotion / retirement / intelligence / AI
+  engine changes (presentation only)
+
+Tests
+
+- 1113 / 1113 passing
+
+---
+
+# Current Stable Version
+
+Phase 43
+
+Commit
+
+```
+(recorded on commit)
 ```
 
 ---

@@ -25,12 +25,17 @@ export function bilingual(th: string, en: string): BilingualText {
 }
 
 /**
- * Formats a bilingual pair as "ไทย / English" (this phase's default display
- * mode — both languages always visible, per Part K). A future language
- * switcher changes ONLY this function (or the component that calls it) to
- * show a single language instead of rewriting every call site.
+ * Formats a bilingual pair.
+ *
+ * Phase 43: when called with a `language` ("th" | "en") it returns only that
+ * language's string — the runtime-switch behavior. Called with no language it
+ * preserves the original "ไทย / English" dual rendering (backward compatible
+ * for any caller/test that hasn't been migrated to the provider). React
+ * components should prefer the `useBilingualText()` hook, which binds the
+ * active language automatically.
  */
-export function formatBilingual(text: BilingualText): string {
+export function formatBilingual(text: BilingualText, language?: "th" | "en"): string {
+  if (language) return text[language] ?? text.th;
   return `${text.th} / ${text.en}`;
 }
 

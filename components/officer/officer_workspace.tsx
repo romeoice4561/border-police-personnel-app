@@ -49,6 +49,7 @@ import { ProfileCompletenessCard } from "@/components/officer/profile_completene
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
 import { OfficerIntelligenceCard } from "@/components/intelligence/officer_intelligence_card";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/language_provider";
 import { organizationEngineFromTree } from "@/lib/organization/organization_engine";
 import type { OrgTree } from "@/lib/organization/org_tree";
 
@@ -74,6 +75,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intel
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
   const { editing, startEditing, cancel, save, isSaving, saveError } = workspace;
+  const { t } = useT();
 
   // Incremented after Upload / Replace / Delete / history "Set as Current" so
   // PhotoGallery's useEffect re-fetches portrait history without a page reload.
@@ -103,14 +105,14 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intel
 
       {editing ? (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium text-foreground">โหมดแก้ไขข้อมูล — แก้ไขได้ทุกส่วน แล้วกด &quot;บันทึก&quot; เพื่อบันทึกพร้อมกันทั้งหมด</p>
+          <p className="text-sm font-medium text-foreground">{t("officer.editModeBanner")}</p>
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={isSaving}>
-              ยกเลิก
+              {t("common.cancel")}
             </Button>
             <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-              บันทึก
+              {t("common.save")}
             </Button>
           </div>
         </div>
@@ -119,7 +121,7 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intel
       {saveError ? (
         <div className="flex items-center gap-2 rounded-xl border border-serious/40 bg-serious/5 px-4 py-3 text-sm text-serious" role="alert">
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-          บันทึกไม่สำเร็จ: {saveError.message}
+          {t("officer.saveFailed")}: {saveError.message}
         </div>
       ) : null}
 

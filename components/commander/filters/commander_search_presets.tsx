@@ -9,6 +9,7 @@
 "use client";
 
 import { COMMANDER_PRESETS, type CommanderPreset } from "@/lib/commander_query/presets";
+import { useT } from "@/components/i18n/language_provider";
 
 export function CommanderSearchPresets({
   activePresetId,
@@ -17,9 +18,15 @@ export function CommanderSearchPresets({
   activePresetId?: string;
   onApply: (preset: CommanderPreset) => void;
 }) {
+  const { t } = useT();
+  const presetLabel = (preset: CommanderPreset): string => {
+    if (preset.readyLevel) return `${t("commander.presetReadyPrefix")} ${preset.readyLevel}`;
+    if (preset.labelKey) return t(preset.labelKey);
+    return preset.labelTh;
+  };
   return (
-    <section aria-label="ชุดค้นหาสำเร็จรูป / Search presets" className="space-y-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">ชุดค้นหาสำเร็จรูป / Presets</h3>
+    <section aria-label={t("commander.presets")} className="space-y-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{t("commander.presets")}</h3>
       <div className="flex flex-wrap gap-2">
         {COMMANDER_PRESETS.map((preset) => {
           const isActive = activePresetId === preset.id;
@@ -35,7 +42,7 @@ export function CommanderSearchPresets({
                   : "border-border bg-surface text-foreground hover:border-accent hover:text-accent"
               }`}
             >
-              {preset.labelTh}
+              {presetLabel(preset)}
             </button>
           );
         })}

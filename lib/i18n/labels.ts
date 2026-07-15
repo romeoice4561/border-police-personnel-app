@@ -77,13 +77,13 @@ export const COMMANDER_LABELS = {
 
 export type CommanderLabelKey = keyof typeof COMMANDER_LABELS;
 
-/** The supported UI languages (foundation only — runtime switching lands in a later phase). */
-export type Language = "th" | "en";
+// Phase 43: the canonical Language type now lives in the central dictionary
+// (language-agnostic, app-wide). Re-exported here so existing importers of
+// `Language`/`DEFAULT_LANGUAGE` from this module keep working unchanged.
+export { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n/dictionary";
+import { DEFAULT_LANGUAGE as CANONICAL_DEFAULT_LANGUAGE, type Language as CanonicalLanguage } from "@/lib/i18n/dictionary";
 
-/** The DEFAULT language for this phase. Thai is and remains the default; the TH|EN toggle is a placeholder. */
-export const DEFAULT_LANGUAGE: Language = "th";
-
-/** Resolves a label to a single language. The one rendering rule a future runtime switcher would flip. */
-export function label(key: CommanderLabelKey, language: Language = DEFAULT_LANGUAGE): string {
+/** Resolves a Commander label to a single language. */
+export function label(key: CommanderLabelKey, language: CanonicalLanguage = CANONICAL_DEFAULT_LANGUAGE): string {
   return COMMANDER_LABELS[key][language];
 }

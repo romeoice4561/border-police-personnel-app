@@ -1,5 +1,8 @@
+"use client";
+
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { DrilldownFilter } from "@/components/commander/query/types";
+import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
 function cycleBucket(value: number | null): string {
@@ -67,16 +70,17 @@ export function CommanderTimelineCharts({
   officers: CommanderQueryOfficer[];
   onDrilldown: (next: DrilldownFilter) => void;
 }) {
+  const { t } = useT();
   const promotionRows = countBy(officers, (officer) => cycleBucket(officer.completedPromotionCycles));
   const retirementRows = countBy(officers, (officer) => officer.retirementYear);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Timeline title="Promotion Cycle Distribution" rows={promotionRows} />
+      <Timeline title={t("commander.promotionCycleDistribution")} rows={promotionRows} />
       <Timeline
-        title="Retirement Timeline"
+        title={t("commander.retirementTimeline")}
         rows={retirementRows}
-        onClick={(row) => onDrilldown({ field: "retirementYear", value: row.raw, label: `Retirement Year: ${row.label}` })}
+        onClick={(row) => onDrilldown({ field: "retirementYear", value: row.raw, label: `${t("commander.retirementYear")}: ${row.label}` })}
       />
     </div>
   );

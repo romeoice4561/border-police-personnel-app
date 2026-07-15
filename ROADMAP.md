@@ -11,6 +11,12 @@ per-phase change detail.
 - **Phase 28A** — Salary History Foundation
 - **Phase 28B** — Two-Step Eligibility Engine
 - **Phase 28C** — Career Intelligence Live Simulation
+- **Phase 43** — Global Internationalization (TH/EN Foundation)
+  - App-wide language provider (localStorage-persisted, hydration-safe,
+    language-agnostic), single global TH|EN switch in the app shell, central
+    namespaced dictionary with a pure `translate()` reusable by future
+    Report/PDF/Print and AI-summary rendering, and locale-aware dates
+    (Buddhist Era / Gregorian). Primary workflows fully translated.
 - **Phase 41** — Commander Search Enhancement & Career Position Level
   - Structured `Timeline.positionLevel` as the authoritative, system-wide
     position-level source (never inferred from position text at runtime).
@@ -37,7 +43,11 @@ per-phase change detail.
 
 ### Commander Analytics (future)
 
-- Runtime language switching (build on the Phase 41 i18n foundation).
+- Translate the deferred secondary pages (Gallery, Statistics, Review,
+  Portrait Cleanup, Admin) — the runtime switch already works there; only
+  their strings remain to be moved into the dictionary.
+- Additional languages (e.g. Chinese, Malay) — add a column per dictionary
+  entry; the provider/toggle/formatters need no structural change.
 - Per-level promotion policy administration UI (edit `PROMOTION_POLICIES`
   from the app rather than in code).
 - Position-level statistics dashboards & charts.

@@ -16,17 +16,21 @@
  * future field, the same "prepare, don't invent the column yet" pattern
  * used by AchievementsSection's FutureAchievement/ACHIEVEMENT_CATEGORY_OPTIONS.
  */
+"use client";
+
 import { BookOpen } from "lucide-react";
 import type { Training } from "@/lib/database/query_types";
 import { EditableSectionCard, SectionEmptyState } from "@/components/officer/editable_section_card";
+import { useT } from "@/components/i18n/language_provider";
 
 export function TrainingSection({ training }: { training: Training[] }) {
+  const { t } = useT();
   return (
-    <EditableSectionCard title="Training">
+    <EditableSectionCard title={t("officer.training")}>
       {training.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-2">
           <BookOpen className="h-8 w-8 text-muted" aria-hidden="true" />
-          <SectionEmptyState message="No training courses yet." />
+          <SectionEmptyState message={t("officer.noTraining")} />
         </div>
       ) : (
         <ul className="space-y-3">

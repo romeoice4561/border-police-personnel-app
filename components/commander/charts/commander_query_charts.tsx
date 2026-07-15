@@ -1,5 +1,8 @@
+"use client";
+
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { DrilldownFilter } from "@/components/commander/query/types";
+import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Slice {
@@ -87,6 +90,7 @@ export function CommanderQueryCharts({
   officers: CommanderQueryOfficer[];
   onDrilldown: (next: DrilldownFilter) => void;
 }) {
+  const { t } = useT();
   const promotion = distribution(officers, (officer) => officer.promotionStatus).map((row, index) => ({
     label: row.label,
     value: row.value,
@@ -100,15 +104,15 @@ export function CommanderQueryCharts({
     <div className="grid gap-4 xl:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Result Distribution</CardTitle>
+          <CardTitle>{t("commander.resultDistribution")}</CardTitle>
         </CardHeader>
         <CardBody>
           <PieChart slices={promotion} />
         </CardBody>
       </Card>
-      <BarChart title="Rank Distribution" rows={rankRows} onClick={(row) => onDrilldown({ field: "rank", value: row.raw, label: `Rank: ${row.label}` })} />
-      <BarChart title="Position Level Distribution" rows={positionRows} onClick={(row) => onDrilldown({ field: "positionLevel", value: row.raw, label: `Position Level: ${row.label}` })} />
-      <BarChart title="Company Distribution" rows={companyRows} onClick={(row) => onDrilldown({ field: "companyLabel", value: row.raw, label: `Company: ${row.label}` })} />
+      <BarChart title={t("commander.rankDistribution")} rows={rankRows} onClick={(row) => onDrilldown({ field: "rank", value: row.raw, label: `${t("commander.rank")}: ${row.label}` })} />
+      <BarChart title={t("commander.positionLevelDistribution")} rows={positionRows} onClick={(row) => onDrilldown({ field: "positionLevel", value: row.raw, label: `${t("commander.positionLevel")}: ${row.label}` })} />
+      <BarChart title={t("commander.companyDistribution")} rows={companyRows} onClick={(row) => onDrilldown({ field: "companyLabel", value: row.raw, label: `${t("commander.company")}: ${row.label}` })} />
     </div>
   );
 }

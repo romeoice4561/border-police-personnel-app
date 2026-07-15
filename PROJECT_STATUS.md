@@ -4,26 +4,35 @@
 
 **Current Phase**
 
-Phase 41 — Commander Search Enhancement & Career Position Level
+Phase 43 — Global Internationalization (TH/EN Foundation)
 
 ---
 
 ## Latest Stable Commit
 
 ```
-bcb452a
-feat(commander): Phase 41 - Commander Search Enhancement & Career Position Level
+(Phase 43 commit hash recorded on commit.)
 ```
 
 ---
 
 # Current Architecture Version
 
-v1.41
+v1.43
 
 ---
 
 # Completed Modules
+
+## Internationalization (Phase 43)
+
+- ✅ Global Language Provider (localStorage-persisted, hydration-safe)
+- ✅ Central namespaced dictionary (`lib/i18n/dictionary.ts`) + pure `translate()`
+- ✅ Language-agnostic design (add zh/ms without architecture changes)
+- ✅ Single global TH | EN switch in the app shell (no per-page switches)
+- ✅ Locale-aware dates (TH Buddhist Era พ.ศ. / EN Gregorian A.D.)
+- ✅ Translated: Navigation, Commander Search, Officer Detail/Workspace, Dashboard, shared components
+- ⏳ Deferred to later phase: Gallery, Statistics, Review, Portrait Cleanup, Admin; runtime switching already works app-wide
 
 ## Organization
 
@@ -102,7 +111,7 @@ Stable
 
 # Current Test Count
 
-1089 / 1089 Passing
+1113 / 1113 Passing
 
 ---
 

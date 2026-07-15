@@ -6,10 +6,13 @@
  * editable-ready section (separate from BasicInformationSection so each
  * future edit action targets a focused set of fields).
  */
+"use client";
+
 import { Info } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useT } from "@/components/i18n/language_provider";
 import {
   calculateYearsInRank,
   calculateYearsInPosition,
@@ -31,6 +34,7 @@ function Field({ label, value, suffix }: { label: string; value: string | number
 }
 
 export function CareerSection({ officer }: { officer: OfficerWithRelations }) {
+  const { t } = useT();
   // Phase 26B Part 5 Part B: "Career Years (Calculated)" is ALWAYS current
   // Buddhist year minus the earliest timeline entry's Buddhist year (a plain
   // integer subtraction — see career_calculator.ts's
@@ -45,24 +49,24 @@ export function CareerSection({ officer }: { officer: OfficerWithRelations }) {
   const hasMismatch = calculatedCareerYears > 0 && officer.careerYears !== calculatedCareerYears;
 
   return (
-    <EditableSectionCard title="Career">
+    <EditableSectionCard title={t("officer.career")}>
       <dl className="grid grid-cols-2 gap-4">
-        <Field label="Position" value={officer.currentPosition} />
-        <Field label="Unit" value={officer.currentUnit} />
-        <Field label="Career years (imported)" value={officer.careerYears} />
+        <Field label={t("officer.position")} value={officer.currentPosition} />
+        <Field label={t("officer.unit")} value={officer.currentUnit} />
+        <Field label={t("officer.careerYearsImported")} value={officer.careerYears} />
         <Field
-          label="Career years (calculated)"
-          value={calculatedCareerYears > 0 ? `${calculatedCareerYears} ปี` : "—"}
+          label={t("officer.careerYearsCalculated")}
+          value={calculatedCareerYears > 0 ? `${calculatedCareerYears} ${t("officer.yearsSuffix")}` : "—"}
           suffix={
             hasMismatch ? (
-              <Tooltip label="Imported value differs from calculated value.">
+              <Tooltip label={t("officer.importedMismatch")}>
                 <Info className="h-3.5 w-3.5 shrink-0 text-serious" aria-hidden="true" />
               </Tooltip>
             ) : null
           }
         />
-        <Field label="Years in current rank" value={yearsInRank > 0 ? `${yearsInRank} ปี` : "—"} />
-        <Field label="Years in current position" value={yearsInPosition > 0 ? `${yearsInPosition} ปี` : "—"} />
+        <Field label={t("officer.yearsInCurrentRank")} value={yearsInRank > 0 ? `${yearsInRank} ${t("officer.yearsSuffix")}` : "—"} />
+        <Field label={t("officer.yearsInCurrentPosition")} value={yearsInPosition > 0 ? `${yearsInPosition} ${t("officer.yearsSuffix")}` : "—"} />
       </dl>
     </EditableSectionCard>
   );

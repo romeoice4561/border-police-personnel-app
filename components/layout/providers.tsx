@@ -7,6 +7,7 @@
 
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { LanguageProvider } from "@/components/i18n/language_provider";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -22,5 +23,11 @@ export function Providers({ children }: { children: ReactNode }) {
       })
   );
 
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  // Phase 43: LanguageProvider wraps the whole app so every page/component
+  // shares one language state (single source, single toggle).
+  return (
+    <QueryClientProvider client={client}>
+      <LanguageProvider>{children}</LanguageProvider>
+    </QueryClientProvider>
+  );
 }

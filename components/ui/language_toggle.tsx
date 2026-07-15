@@ -1,48 +1,50 @@
 /**
- * LanguageToggle — TH | EN switch PLACEHOLDER (Phase 41 Part 7).
+ * LanguageToggle — the single, app-wide TH | EN switch (Phase 43).
  *
- * i18n foundation only: Thai is the default and remains active. This control
- * is a visual placeholder that shows the intended TH | EN switch (top-right of
- * Commander Search) but does NOT change the UI language yet — runtime language
- * switching is a later phase. TH is shown as the selected segment; EN is
- * present but disabled, so the architecture and affordance exist without
- * pretending to do something it doesn't. Accessible: a labelled group of
- * buttons with aria-pressed / aria-disabled reflecting the true state.
+ * Functional (no longer a placeholder): reads and sets the active language via
+ * the global LanguageProvider, so it works identically wherever it's mounted.
+ * It lives in the shared AppShell (Part 6 — one switch for the whole app), so
+ * there is never more than one language switch on screen.
+ *
+ * Accessibility (Part 10): a labelled radiogroup of real buttons; the active
+ * language is `aria-checked`, every option is keyboard-focusable with a visible
+ * focus ring, and the active option is clearly indicated (filled) — not by
+ * color alone (it's also the checked radio).
  */
 "use client";
 
-import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n/labels";
+import { LANGUAGES, type Language } from "@/lib/i18n/dictionary";
+import { useLanguage } from "@/components/i18n/language_provider";
+import { cn } from "@/lib/ui/cn";
 
-const LANGUAGES: Array<{ code: Language; label: string }> = [
-  { code: "th", label: "TH" },
-  { code: "en", label: "EN" },
-];
+const OPTION_LABEL: Record<Language, string> = { th: "TH", en: "EN" };
+const OPTION_TITLE: Record<Language, string> = { th: "ภาษาไทย", en: "English" };
 
 export function LanguageToggle() {
-  const active = DEFAULT_LANGUAGE;
+  const { language, setLanguage } = useLanguage();
+
   return (
     <div
-      role="group"
-      aria-label="เลือกภาษา / Language (placeholder — Thai only for now)"
+      role="radiogroup"
+      aria-label="เลือกภาษา / Language"
       className="inline-flex items-center overflow-hidden rounded-lg border border-border text-xs font-medium"
     >
-      {LANGUAGES.map((lang) => {
-        const isActive = lang.code === active;
+      {LANGUAGES.map((code) => {
+        const isActive = code === language;
         return (
           <button
-            key={lang.code}
+            key={code}
             type="button"
-            aria-pressed={isActive}
-            aria-disabled={!isActive}
-            disabled={!isActive}
-            title={isActive ? "ภาษาไทย (ค่าเริ่มต้น)" : "English — coming soon"}
-            className={
-              isActive
-                ? "bg-accent px-2.5 py-1 text-white"
-                : "cursor-not-allowed px-2.5 py-1 text-muted"
-            }
+            role="radio"
+            aria-checked={isActive}
+            title={OPTION_TITLE[code]}
+            onClick={() => setLanguage(code)}
+            className={cn(
+              "px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+              isActive ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
+            )}
           >
-            {lang.label}
+            {OPTION_LABEL[code]}
           </button>
         );
       })}

@@ -11,6 +11,7 @@ import { CommanderQueryCharts } from "@/components/commander/charts/commander_qu
 import { CommanderTimelineCharts } from "@/components/commander/charts/commander_timeline_charts";
 import { CommanderResultsTable } from "@/components/commander/results/commander_results_table";
 import type { CommanderPreset } from "@/lib/commander_query/presets";
+import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -83,6 +84,7 @@ const DEFAULT_SORT: CommanderSortField = "priority";
 const DEFAULT_SORT_DIRECTION: "asc" | "desc" = "desc";
 
 export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDataset }) {
+  const { t } = useT();
   const [filters, setFilters] = useState<CommanderQueryFilters>({});
   const [mode, setMode] = useState<QueryMode>("personnel");
   const [activePresetId, setActivePresetId] = useState<string | undefined>(undefined);
@@ -155,13 +157,13 @@ export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDatas
         />
         <Card>
           <CardBody className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Export</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("common.export")}</p>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" disabled>Excel</Button>
               <Button type="button" variant="outline" size="sm" disabled>PDF</Button>
               <Button type="button" variant="outline" size="sm" disabled>CSV</Button>
             </div>
-            <p className="text-xs text-muted">Export architecture placeholder. Data is already prepared for future file writers.</p>
+            <p className="text-xs text-muted">{t("commander.exportPlaceholder")}</p>
           </CardBody>
         </Card>
       </aside>
@@ -171,8 +173,8 @@ export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDatas
         <CommanderEligibilityCards officers={filtered} activeLevel={activeCardLevel} onSelect={(f) => applyEligibilityCard(f)} />
         {drilldown ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
-            <span className="text-foreground">Drill-down: {drilldown.label}</span>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDrilldown(null)}>Clear drill-down</Button>
+            <span className="text-foreground">{t("commander.drilldown")}: {drilldown.label}</span>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDrilldown(null)}>{t("commander.clearDrilldown")}</Button>
           </div>
         ) : null}
         <CommanderQuerySummary officers={filtered} onDrilldown={setDrilldown} />

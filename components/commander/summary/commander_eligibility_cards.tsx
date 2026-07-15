@@ -16,6 +16,7 @@
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters } from "@/components/commander/query/types";
 import { PROMOTION_TARGET_LEVELS } from "@/lib/promotion/eligibility_policy";
+import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody } from "@/components/ui/card";
 
 function eligibleCountForLevel(officers: readonly CommanderQueryOfficer[], level: string): number {
@@ -35,10 +36,11 @@ export function CommanderEligibilityCards({
   activeLevel?: string;
   onSelect: (filters: CommanderQueryFilters, label: string) => void;
 }) {
+  const { t } = useT();
   return (
-    <section aria-label="ครบขึ้นระดับตำแหน่ง / Ready for promotion by level">
+    <section aria-label={t("commander.readyForPromotion")}>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-        ครบขึ้นระดับตำแหน่ง / Ready for promotion
+        {t("commander.readyForPromotion")}
       </h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {PROMOTION_TARGET_LEVELS.map((level) => {
@@ -52,14 +54,14 @@ export function CommanderEligibilityCards({
               onClick={() =>
                 onSelect(
                   { toPositionLevel: level, readyForPromotion: true },
-                  `ครบขึ้น ${level}`
+                  `${t("commander.readyPrefix")} ${level}`
                 )
               }
               className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-xl"
             >
               <Card className={`h-full transition-colors ${isActive ? "border-accent bg-accent/5" : "hover:border-accent"}`}>
                 <CardBody className="space-y-1">
-                  <p className="text-xs font-medium text-muted">ครบขึ้น</p>
+                  <p className="text-xs font-medium text-muted">{t("commander.readyPrefix")}</p>
                   <p className="wrap-break-word text-sm font-semibold text-foreground">{level}</p>
                   <p className="text-2xl font-semibold tabular-nums text-foreground">{count.toLocaleString()}</p>
                 </CardBody>

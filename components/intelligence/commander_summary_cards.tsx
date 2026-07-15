@@ -1,6 +1,9 @@
+"use client";
+
 import { AlertTriangle, Award, FileWarning, GraduationCap, IdCard, ImageOff, ShieldCheck, Users } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import type { CommanderDashboardSummary } from "@/lib/intelligence";
+import { useT } from "@/components/i18n/language_provider";
 
 function SummaryTile({ label, value, icon, hint }: { label: string; value: number; icon: React.ReactNode; hint?: string }) {
   return (
@@ -18,17 +21,18 @@ function SummaryTile({ label, value, icon, hint }: { label: string; value: numbe
 }
 
 export function CommanderSummaryCards({ summary }: { summary: CommanderDashboardSummary }) {
+  const { t } = useT();
   const iconClass = "h-4 w-4";
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <SummaryTile label="Total Officers" value={summary.totalOfficers} icon={<Users className={iconClass} />} />
-      <SummaryTile label="Promotion Ready" value={summary.promotionReady} icon={<Award className={iconClass} />} />
-      <SummaryTile label="Near Promotion" value={summary.nearPromotion} icon={<ShieldCheck className={iconClass} />} />
-      <SummaryTile label="Retiring Soon" value={summary.retiringSoon} icon={<AlertTriangle className={iconClass} />} />
-      <SummaryTile label="Missing Docs" value={summary.missingDocuments} icon={<FileWarning className={iconClass} />} />
-      <SummaryTile label="Missing GP7" value={summary.missingGp7} icon={<IdCard className={iconClass} />} />
-      <SummaryTile label="Missing Portrait" value={summary.missingPortrait} icon={<ImageOff className={iconClass} />} />
-      <SummaryTile label="Missing Training" value={summary.missingTraining} icon={<GraduationCap className={iconClass} />} />
+      <SummaryTile label={t("dashboard.totalOfficersKpi")} value={summary.totalOfficers} icon={<Users className={iconClass} />} />
+      <SummaryTile label={t("dashboard.promotionReady")} value={summary.promotionReady} icon={<Award className={iconClass} />} />
+      <SummaryTile label={t("dashboard.nearPromotion")} value={summary.nearPromotion} icon={<ShieldCheck className={iconClass} />} />
+      <SummaryTile label={t("dashboard.retiringSoon")} value={summary.retiringSoon} icon={<AlertTriangle className={iconClass} />} />
+      <SummaryTile label={t("dashboard.missingDocs")} value={summary.missingDocuments} icon={<FileWarning className={iconClass} />} />
+      <SummaryTile label={t("dashboard.missingGp7")} value={summary.missingGp7} icon={<IdCard className={iconClass} />} />
+      <SummaryTile label={t("dashboard.missingPortrait")} value={summary.missingPortrait} icon={<ImageOff className={iconClass} />} />
+      <SummaryTile label={t("dashboard.missingTraining")} value={summary.missingTraining} icon={<GraduationCap className={iconClass} />} />
     </div>
   );
 }

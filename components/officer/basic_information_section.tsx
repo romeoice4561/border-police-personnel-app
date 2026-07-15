@@ -5,9 +5,12 @@
  * an editable-ready section. A missing field renders an explicit "—" (never
  * invented) — same convention as the existing OfficerProfileCard.
  */
+"use client";
+
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
+import { useT } from "@/components/i18n/language_provider";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   const display = value === null || value === undefined || value === "" ? "—" : value;
@@ -20,13 +23,14 @@ function Field({ label, value }: { label: string; value: string | number | null 
 }
 
 export function BasicInformationSection({ officer }: { officer: OfficerWithRelations }) {
+  const { t } = useT();
   return (
-    <EditableSectionCard title="Basic Information">
+    <EditableSectionCard title={t("officer.basicInformation")}>
       <dl className="grid grid-cols-2 gap-4">
-        <Field label="Rank" value={officer.rank} />
-        <Field label="Full name" value={officerFullName(officer)} />
-        <Field label="Region" value={officer.region} />
-        <Field label="Officer ID" value={officer.officerId} />
+        <Field label={t("officer.rankField")} value={officer.rank} />
+        <Field label={t("officer.fullName")} value={officerFullName(officer)} />
+        <Field label={t("officer.regionField")} value={officer.region} />
+        <Field label={t("officer.officerId")} value={officer.officerId} />
       </dl>
     </EditableSectionCard>
   );

@@ -15,20 +15,20 @@ import { Pencil, ImageUp, FileUp, FolderCog, Trophy } from "lucide-react";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-
-const REASON = "Available in a future update";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 interface DisabledAction {
   id: string;
-  label: string;
+  labelKey: TranslationKey;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
 const DISABLED_ACTIONS: DisabledAction[] = [
-  { id: "uploadPortrait", label: "Upload Portrait", icon: ImageUp },
-  { id: "uploadGp7", label: "Upload GP7", icon: FileUp },
-  { id: "manageDocuments", label: "Manage Documents", icon: FolderCog },
-  { id: "manageAchievements", label: "Manage Achievements", icon: Trophy },
+  { id: "uploadPortrait", labelKey: "officer.uploadPortrait", icon: ImageUp },
+  { id: "uploadGp7", labelKey: "officer.uploadGp7", icon: FileUp },
+  { id: "manageDocuments", labelKey: "officer.manageDocuments", icon: FolderCog },
+  { id: "manageAchievements", labelKey: "officer.manageAchievements", icon: Trophy },
 ];
 
 export interface ProfileActionsCardProps {
@@ -37,10 +37,12 @@ export interface ProfileActionsCardProps {
 }
 
 export function ProfileActionsCard({ editing, onEditProfile }: ProfileActionsCardProps) {
+  const { t } = useT();
+  const reason = t("officer.availableFuture");
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Actions</CardTitle>
+        <CardTitle>{t("officer.actions")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-2">
         <Button
@@ -51,25 +53,28 @@ export function ProfileActionsCard({ editing, onEditProfile }: ProfileActionsCar
           onClick={onEditProfile}
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
-          แก้ไขข้อมูล
+          {t("officer.editProfile")}
         </Button>
 
-        {DISABLED_ACTIONS.map(({ id, label, icon: Icon }) => (
-          <Tooltip key={id} label={REASON} className="block w-full">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-start"
-              disabled
-              aria-label={`${label} (${REASON})`}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {label}
-              {/* Phase 23B bug #7: explicit Coming Soon so a disabled action never reads as a dead click. */}
-              <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-muted">Coming Soon</span>
-            </Button>
-          </Tooltip>
-        ))}
+        {DISABLED_ACTIONS.map(({ id, labelKey, icon: Icon }) => {
+          const label = t(labelKey);
+          return (
+            <Tooltip key={id} label={reason} className="block w-full">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                disabled
+                aria-label={`${label} (${reason})`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {label}
+                {/* Phase 23B bug #7: explicit Coming Soon so a disabled action never reads as a dead click. */}
+                <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-muted">{t("officer.comingSoon")}</span>
+              </Button>
+            </Tooltip>
+          );
+        })}
       </CardBody>
     </Card>
   );

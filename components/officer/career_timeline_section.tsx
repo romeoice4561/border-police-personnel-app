@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * CareerTimelineSection (Phase 21A — Editable Profile Foundation, Part 6;
  * Phase 23A — real rank/source/verified data; Phase 26B Part 5 Part F/H —
@@ -31,6 +33,7 @@ import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_da
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { normalizePositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
+import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -174,16 +177,17 @@ function TimelineCard({ row }: { row: CareerTimelineRow }) {
 }
 
 export function CareerTimelineSection({ timeline, organizationEngine }: { timeline: Timeline[]; organizationEngine: OrganizationEngine }) {
+  const { t } = useT();
   const rows = sortTimelineByYear(timeline).map((entry) => toCareerTimelineRow(entry, organizationEngine));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Career Timeline</CardTitle>
+        <CardTitle>{t("officer.careerTimeline")}</CardTitle>
       </CardHeader>
       <CardBody className="p-0">
         {rows.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted">No career-history entries on record.</p>
+          <p className="px-5 py-8 text-center text-sm text-muted">{t("officer.timelineEmpty")}</p>
         ) : (
           <>
             {/* Mobile: stacked cards, no horizontal scrolling. */}
@@ -211,11 +215,11 @@ export function CareerTimelineSection({ timeline, organizationEngine }: { timeli
                 </colgroup>
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                    <th scope="col" className="px-5 py-3 font-medium">Date</th>
-                    <th scope="col" className="px-5 py-3 font-medium">Rank</th>
-                    <th scope="col" className="px-5 py-3 font-medium">Position / Organization</th>
-                    <th scope="col" className="px-5 py-3 font-medium">Source</th>
-                    <th scope="col" className="px-5 py-3 font-medium">Verification</th>
+                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineDate")}</th>
+                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineRank")}</th>
+                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelinePositionOrg")}</th>
+                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineSource")}</th>
+                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineVerification")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -224,7 +228,7 @@ export function CareerTimelineSection({ timeline, organizationEngine }: { timeli
                       <td className="whitespace-nowrap px-5 py-3 tabular-nums">
                         <span className="flex items-center gap-2">
                           {row.date || "—"}
-                          {row.isPresent ? <Badge tone="good">ปัจจุบัน</Badge> : null}
+                          {row.isPresent ? <Badge tone="good">{t("officer.current")}</Badge> : null}
                         </span>
                         {row.appointmentCycle ? <span className="mt-1 block text-xs text-muted">รอบ {row.appointmentCycle}</span> : null}
                       </td>

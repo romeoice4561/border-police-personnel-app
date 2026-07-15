@@ -1,23 +1,20 @@
+"use client";
+
 import type { CommanderQueryOptions, NumericOperator } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters, NumericFilter } from "@/components/commander/query/types";
 import { PromotionEligibilityFilter } from "@/components/commander/filters/promotion_eligibility_filter";
-import { COMMANDER_LABELS } from "@/lib/i18n/labels";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 const controlClass = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
-/** Bilingual "ไทย / English" for a label key (both languages visible this phase). */
-function bi(key: keyof typeof COMMANDER_LABELS): string {
-  const l = COMMANDER_LABELS[key];
-  return `${l.th} / ${l.en}`;
-}
-
-const NUMERIC_OPERATORS: Array<{ value: NumericOperator; label: string }> = [
-  { value: "exactly", label: "Exactly" },
-  { value: "at_least", label: "At least" },
-  { value: "more_than", label: "More than" },
-  { value: "less_than", label: "Less than" },
+const NUMERIC_OPERATOR_KEYS: Array<{ value: NumericOperator; key: TranslationKey }> = [
+  { value: "exactly", key: "commander.operatorExactly" },
+  { value: "at_least", key: "commander.operatorAtLeast" },
+  { value: "more_than", key: "commander.operatorMoreThan" },
+  { value: "less_than", key: "commander.operatorLessThan" },
 ];
 
 function NumericFilterControl({
@@ -29,17 +26,19 @@ function NumericFilterControl({
   value: NumericFilter | undefined;
   onChange: (next: NumericFilter | undefined) => void;
 }) {
+  const { t } = useT();
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium text-muted">{label}</label>
       <div className="grid grid-cols-[1fr_80px] gap-2">
         <select
           className={controlClass}
+          aria-label={label}
           value={value?.operator ?? "at_least"}
           onChange={(e) => onChange({ operator: e.target.value as NumericOperator, value: value?.value ?? 0 })}
         >
-          {NUMERIC_OPERATORS.map((operator) => (
-            <option key={operator.value} value={operator.value}>{operator.label}</option>
+          {NUMERIC_OPERATOR_KEYS.map((operator) => (
+            <option key={operator.value} value={operator.value}>{t(operator.key)}</option>
           ))}
         </select>
         <input
@@ -47,7 +46,7 @@ function NumericFilterControl({
           type="number"
           min="0"
           value={value?.value ?? ""}
-          placeholder="Years"
+          placeholder={t("commander.yearsPlaceholder")}
           onChange={(e) => onChange(e.target.value === "" ? undefined : { operator: value?.operator ?? "at_least", value: Number(e.target.value) })}
         />
       </div>
@@ -79,6 +78,7 @@ export function CommanderQueryBuilder({
   /** Reset EVERYTHING to defaults (filters, drilldown, preset, sort). */
   onResetAll: () => void;
 }) {
+  const { t } = useT();
   const battalions = options.battalions.filter((item) => value.regionId == null || item.regionId === value.regionId);
   const companies = options.companies.filter((item) => value.battalionId == null || item.battalionId === value.battalionId);
 
@@ -90,10 +90,10 @@ export function CommanderQueryBuilder({
     <Card>
       <CardHeader className="space-y-3">
         <div className="flex flex-row items-center justify-between gap-3">
-          <CardTitle>{mode === "promotion" ? bi("promotionEligibilitySearch") : bi("personnelQuery")}</CardTitle>
+          <CardTitle>{mode === "promotion" ? t("commander.promotionEligibilitySearch") : t("commander.personnelQuery")}</CardTitle>
         </div>
         {/* Search mode switch (Part 2). */}
-        <div role="tablist" aria-label="โหมดค้นหา / Search mode" className="inline-flex overflow-hidden rounded-lg border border-border text-xs font-medium">
+        <div role="tablist" aria-label={t("commander.searchMode")} className="inline-flex overflow-hidden rounded-lg border border-border text-xs font-medium">
           <button
             type="button"
             role="tab"
@@ -101,7 +101,7 @@ export function CommanderQueryBuilder({
             onClick={() => onModeChange("personnel")}
             className={mode === "personnel" ? "bg-accent px-3 py-1.5 text-white" : "px-3 py-1.5 text-muted hover:text-foreground"}
           >
-            {bi("personnelQuery")}
+            {t("commander.personnelQuery")}
           </button>
           <button
             type="button"
@@ -110,7 +110,7 @@ export function CommanderQueryBuilder({
             onClick={() => onModeChange("promotion")}
             className={mode === "promotion" ? "bg-accent px-3 py-1.5 text-white" : "px-3 py-1.5 text-muted hover:text-foreground"}
           >
-            {bi("promotionEligibilitySearch")}
+            {t("commander.promotionEligibilitySearch")}
           </button>
         </div>
       </CardHeader>
@@ -130,9 +130,9 @@ export function CommanderQueryBuilder({
 
         {/* Actions (Part 6): Apply / Reset All / Clear Filters. */}
         <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-          <Button type="button" size="sm" onClick={onApply}>{bi("apply")}</Button>
-          <Button type="button" variant="ghost" size="sm" onClick={onClearFilters}>{bi("clearFilters")}</Button>
-          <Button type="button" variant="outline" size="sm" onClick={onResetAll}>{bi("resetAll")}</Button>
+          <Button type="button" size="sm" onClick={onApply}>{t("common.apply")}</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClearFilters}>{t("common.clearFilters")}</Button>
+          <Button type="button" variant="outline" size="sm" onClick={onResetAll}>{t("common.resetAll")}</Button>
         </div>
       </CardBody>
     </Card>
@@ -155,88 +155,89 @@ function PersonnelFilters({
   battalions: CommanderQueryOptions["battalions"];
   companies: CommanderQueryOptions["companies"];
 }) {
+  const { t } = useT();
   return (
     <div className="space-y-4">
         <label className="space-y-1 text-xs font-medium text-muted">
-          Rank
+          {t("commander.rank")}
           <select className={controlClass} value={value.rank ?? ""} onChange={(e) => set("rank", e.target.value || undefined)}>
-            <option value="">All ranks</option>
+            <option value="">{t("commander.allRanks")}</option>
             {options.ranks.map((rank) => <option key={rank} value={rank}>{rank}</option>)}
           </select>
         </label>
 
         <label className="space-y-1 text-xs font-medium text-muted">
-          Current Position
-          <input className={controlClass} value={value.currentPosition ?? ""} onChange={(e) => set("currentPosition", e.target.value || undefined)} placeholder="เช่น รองผู้กำกับ" />
+          {t("commander.currentPosition")}
+          <input className={controlClass} value={value.currentPosition ?? ""} onChange={(e) => set("currentPosition", e.target.value || undefined)} />
         </label>
 
         <label className="space-y-1 text-xs font-medium text-muted">
-          Position Level
+          {t("commander.positionLevel")}
           <select className={controlClass} value={value.positionLevel ?? ""} onChange={(e) => set("positionLevel", e.target.value || undefined)}>
-            <option value="">All position levels</option>
+            <option value="">{t("commander.allPositionLevels")}</option>
             {options.positionLevels.map((level) => <option key={level} value={level}>{level}</option>)}
           </select>
         </label>
 
         <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
           <label className="space-y-1 text-xs font-medium text-muted">
-            Region
+            {t("commander.region")}
             <select
               className={controlClass}
               value={value.regionId ?? ""}
               onChange={(e) => onChange({ ...value, regionId: e.target.value ? Number(e.target.value) : undefined, battalionId: undefined, companyId: undefined })}
             >
-              <option value="">All regions</option>
+              <option value="">{t("commander.allRegions")}</option>
               {options.regions.map((region) => <option key={region.id} value={region.id}>{region.label}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-medium text-muted">
-            Battalion
+            {t("commander.battalion")}
             <select
               className={controlClass}
               value={value.battalionId ?? ""}
               onChange={(e) => onChange({ ...value, battalionId: e.target.value ? Number(e.target.value) : undefined, companyId: undefined })}
             >
-              <option value="">All battalions</option>
+              <option value="">{t("commander.allBattalions")}</option>
               {battalions.map((battalion) => <option key={battalion.id} value={battalion.id}>{battalion.label}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-xs font-medium text-muted">
-            Company
+            {t("commander.company")}
             <select className={controlClass} value={value.companyId ?? ""} onChange={(e) => set("companyId", e.target.value ? Number(e.target.value) : undefined)}>
-              <option value="">All companies</option>
+              <option value="">{t("commander.allCompanies")}</option>
               {companies.map((company) => <option key={company.id} value={company.id}>{company.label}</option>)}
             </select>
           </label>
         </div>
 
-        <NumericFilterControl label={bi("completedPromotionCycles")} value={value.completedPromotionCycles} onChange={(next) => set("completedPromotionCycles", next)} />
-        <NumericFilterControl label={bi("appointmentCycle")} value={value.appointmentCycle} onChange={(next) => set("appointmentCycle", next)} />
-        <NumericFilterControl label="Age" value={value.age} onChange={(next) => set("age", next)} />
+        <NumericFilterControl label={t("commander.completedPromotionCycles")} value={value.completedPromotionCycles} onChange={(next) => set("completedPromotionCycles", next)} />
+        <NumericFilterControl label={t("commander.appointmentCycle")} value={value.appointmentCycle} onChange={(next) => set("appointmentCycle", next)} />
+        <NumericFilterControl label={t("commander.age")} value={value.age} onChange={(next) => set("age", next)} />
 
         <label className="space-y-1 text-xs font-medium text-muted">
-          Intelligence Flag
+          {t("commander.intelligenceFlag")}
           <select className={controlClass} value={value.flagCode ?? ""} onChange={(e) => set("flagCode", e.target.value as CommanderQueryFilters["flagCode"] || undefined)}>
-            <option value="">Any flag</option>
-            <option value="PROMOTION_READY">Promotion Ready</option>
-            <option value="RETIRING_SOON">Retiring Soon</option>
-            <option value="DOCUMENTS_MISSING">Missing Documents</option>
-            <option value="MISSING_OFFICIAL_PORTRAIT">Missing Portrait</option>
-            <option value="NEEDS_TRAINING">Missing Training</option>
-            <option value="PROFILE_INCOMPLETE">Profile Incomplete</option>
+            <option value="">{t("commander.anyFlag")}</option>
+            <option value="PROMOTION_READY">{t("commander.flagPromotionReady")}</option>
+            <option value="RETIRING_SOON">{t("commander.flagRetiringSoon")}</option>
+            <option value="DOCUMENTS_MISSING">{t("commander.flagDocumentsMissing")}</option>
+            <option value="MISSING_OFFICIAL_PORTRAIT">{t("commander.flagMissingPortrait")}</option>
+            <option value="NEEDS_TRAINING">{t("commander.flagNeedsTraining")}</option>
+            <option value="PROFILE_INCOMPLETE">{t("commander.flagProfileIncomplete")}</option>
           </select>
         </label>
 
         <label className="space-y-1 text-xs font-medium text-muted">
-          Priority
+          {t("commander.priority")}
           <select className={controlClass} value={value.priority ?? ""} onChange={(e) => set("priority", e.target.value as CommanderQueryFilters["priority"] || undefined)}>
-            <option value="">Any priority</option>
+            <option value="">{t("commander.anyPriority")}</option>
             {options.priorities.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
           </select>
         </label>
 
         <label className="space-y-1 text-xs font-medium text-muted">
-          Minimum Profile Completeness
+          {t("commander.minProfileCompleteness")}
           <input
             className={controlClass}
             type="number"

@@ -14,40 +14,35 @@ import type { CommanderQueryOptions, NumericOperator } from "@/lib/commander_que
 import type { CommanderQueryFilters, NumericFilter } from "@/components/commander/query/types";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import { RANKED_POSITION_LEVELS } from "@/lib/commander_query/position_level";
-import { COMMANDER_LABELS } from "@/lib/i18n/labels";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const controlClass =
   "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
 const DURATION_OPTIONS = [0, 1, 2, 3, 4, 5] as const; // 5 renders as "5+"
-const DURATION_OPERATORS: Array<{ value: NumericOperator; key: keyof typeof COMMANDER_LABELS }> = [
-  { value: "exactly", key: "operatorExactly" },
-  { value: "at_least", key: "operatorAtLeast" },
-  { value: "more_than", key: "operatorMoreThan" },
-  { value: "less_than", key: "operatorLessThan" },
+const DURATION_OPERATORS: Array<{ value: NumericOperator; key: TranslationKey }> = [
+  { value: "exactly", key: "commander.operatorExactly" },
+  { value: "at_least", key: "commander.operatorAtLeast" },
+  { value: "more_than", key: "commander.operatorMoreThan" },
+  { value: "less_than", key: "commander.operatorLessThan" },
 ];
 
-const ELIGIBILITY_STATUSES: Array<{ value: EligibilityStatus; key: keyof typeof COMMANDER_LABELS }> = [
-  { value: "eligible_now", key: "eligibleNow" },
-  { value: "eligible_soon", key: "eligibleSoon" },
-  { value: "overdue", key: "overdue" },
-  { value: "not_eligible", key: "notEligible" },
+const ELIGIBILITY_STATUSES: Array<{ value: EligibilityStatus; key: TranslationKey }> = [
+  { value: "eligible_now", key: "commander.eligibleNow" },
+  { value: "eligible_soon", key: "commander.eligibleSoon" },
+  { value: "overdue", key: "commander.overdue" },
+  { value: "not_eligible", key: "commander.notEligible" },
 ];
 
-const PROMOTION_CYCLE_BUCKETS: Array<{ value: NonNullable<CommanderQueryFilters["promotionCycleBucket"]>; label: string }> = [
-  { value: "eligible_this_cycle", label: "Eligible this cycle" },
-  { value: "eligible_year_1", label: "Eligible Year 1" },
-  { value: "eligible_year_2", label: "Eligible Year 2" },
-  { value: "eligible_year_3", label: "Eligible Year 3" },
-  { value: "eligible_year_4", label: "Eligible Year 4" },
-  { value: "eligible_more_than_5", label: "Eligible more than 5 years" },
+const PROMOTION_CYCLE_BUCKETS: Array<{ value: NonNullable<CommanderQueryFilters["promotionCycleBucket"]>; key: TranslationKey }> = [
+  { value: "eligible_this_cycle", key: "commander.eligibleThisCycle" },
+  { value: "eligible_year_1", key: "commander.eligibleYear1" },
+  { value: "eligible_year_2", key: "commander.eligibleYear2" },
+  { value: "eligible_year_3", key: "commander.eligibleYear3" },
+  { value: "eligible_year_4", key: "commander.eligibleYear4" },
+  { value: "eligible_more_than_5", key: "commander.eligibleMoreThan5" },
 ];
-
-/** Bilingual "ไทย / English" for a label key (both languages visible this phase — the toggle is a placeholder). */
-function bi(key: keyof typeof COMMANDER_LABELS): string {
-  const l = COMMANDER_LABELS[key];
-  return `${l.th} / ${l.en}`;
-}
 
 export function PromotionEligibilityFilter({
   options,
@@ -58,6 +53,7 @@ export function PromotionEligibilityFilter({
   value: CommanderQueryFilters;
   onChange: (next: CommanderQueryFilters) => void;
 }) {
+  const { t } = useT();
   function set<K extends keyof CommanderQueryFilters>(key: K, next: CommanderQueryFilters[K]) {
     onChange({ ...value, [key]: next });
   }
@@ -69,18 +65,18 @@ export function PromotionEligibilityFilter({
       {/* Current Rank → Target Rank */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-medium text-muted">
-          {bi("currentRank")}
+          {t("commander.currentRank")}
           <select className={controlClass} value={value.fromRank ?? ""} onChange={(e) => set("fromRank", e.target.value || undefined)}>
-            <option value="">{bi("allRanks")}</option>
+            <option value="">{t("commander.allRanks")}</option>
             {options.ranks.map((rank) => (
               <option key={rank} value={rank}>{rank}</option>
             ))}
           </select>
         </label>
         <label className="space-y-1 text-xs font-medium text-muted">
-          {bi("targetRank")}
+          {t("commander.targetRank")}
           <select className={controlClass} value={value.toRank ?? ""} onChange={(e) => set("toRank", e.target.value || undefined)}>
-            <option value="">{bi("allRanks")}</option>
+            <option value="">{t("commander.allRanks")}</option>
             {options.ranks.map((rank) => (
               <option key={rank} value={rank}>{rank}</option>
             ))}
@@ -91,18 +87,18 @@ export function PromotionEligibilityFilter({
       {/* Current Position Level → Target Position Level */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-medium text-muted">
-          {bi("currentPositionLevel")}
+          {t("commander.currentPositionLevel")}
           <select className={controlClass} value={value.fromPositionLevel ?? ""} onChange={(e) => set("fromPositionLevel", e.target.value || undefined)}>
-            <option value="">{bi("allPositionLevels")}</option>
+            <option value="">{t("commander.allPositionLevels")}</option>
             {RANKED_POSITION_LEVELS.map((level) => (
               <option key={level} value={level}>{level}</option>
             ))}
           </select>
         </label>
         <label className="space-y-1 text-xs font-medium text-muted">
-          {bi("targetPositionLevel")}
+          {t("commander.targetPositionLevel")}
           <select className={controlClass} value={value.toPositionLevel ?? ""} onChange={(e) => set("toPositionLevel", e.target.value || undefined)}>
-            <option value="">{bi("allPositionLevels")}</option>
+            <option value="">{t("commander.allPositionLevels")}</option>
             {RANKED_POSITION_LEVELS.map((level) => (
               <option key={level} value={level}>{level}</option>
             ))}
@@ -112,29 +108,29 @@ export function PromotionEligibilityFilter({
 
       {/* Eligibility status */}
       <label className="space-y-1 text-xs font-medium text-muted">
-        {bi("eligibilityStatus")}
+        {t("commander.eligibilityStatus")}
         <select
           className={controlClass}
           value={value.eligibilityStatus ?? ""}
           onChange={(e) => set("eligibilityStatus", (e.target.value || undefined) as EligibilityStatus | undefined)}
         >
-          <option value="">{bi("anyStatus")}</option>
+          <option value="">{t("commander.anyStatus")}</option>
           {ELIGIBILITY_STATUSES.map((status) => (
-            <option key={status.value} value={status.value}>{bi(status.key)}</option>
+            <option key={status.value} value={status.value}>{t(status.key)}</option>
           ))}
         </select>
       </label>
 
       <label className="space-y-1 text-xs font-medium text-muted">
-        Promotion Cycle
+        {t("commander.promotionCycle")}
         <select
           className={controlClass}
           value={value.promotionCycleBucket ?? ""}
           onChange={(e) => set("promotionCycleBucket", (e.target.value || undefined) as CommanderQueryFilters["promotionCycleBucket"])}
         >
-          <option value="">Any cycle</option>
+          <option value="">{t("commander.anyCycle")}</option>
           {PROMOTION_CYCLE_BUCKETS.map((bucket) => (
-            <option key={bucket.value} value={bucket.value}>{bucket.label}</option>
+            <option key={bucket.value} value={bucket.value}>{t(bucket.key)}</option>
           ))}
         </select>
       </label>
@@ -142,24 +138,24 @@ export function PromotionEligibilityFilter({
       {/* Duration filter: Completed {0..5+} × operator */}
       <fieldset className="space-y-1">
         <legend className="text-xs font-medium text-muted">
-          {bi("completed")} — วาระ / Cycles
+          {t("commander.completed")} — {t("commander.cycles")}
         </legend>
         <div className="grid grid-cols-[1fr_110px] gap-2">
           <select
             className={controlClass}
-            aria-label={bi("operatorAtLeast")}
+            aria-label={t("commander.operatorAtLeast")}
             value={duration?.operator ?? "at_least"}
             onChange={(e) =>
               set("completedPromotionCycles", { operator: e.target.value as NumericOperator, value: duration?.value ?? 0 } satisfies NumericFilter)
             }
           >
             {DURATION_OPERATORS.map((op) => (
-              <option key={op.value} value={op.value}>{bi(op.key)}</option>
+              <option key={op.value} value={op.value}>{t(op.key)}</option>
             ))}
           </select>
           <select
             className={controlClass}
-            aria-label={bi("completed")}
+            aria-label={t("commander.completed")}
             value={duration ? String(duration.value) : ""}
             onChange={(e) =>
               set(
@@ -171,7 +167,7 @@ export function PromotionEligibilityFilter({
             <option value="">—</option>
             {DURATION_OPTIONS.map((cycles) => (
               <option key={cycles} value={cycles}>
-                {cycles === 5 ? "5+" : cycles} วาระ
+                {cycles === 5 ? "5+" : cycles} {t("commander.cycles")}
               </option>
             ))}
           </select>

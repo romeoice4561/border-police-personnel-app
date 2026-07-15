@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
@@ -8,6 +10,8 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
+import { useT } from "@/components/i18n/language_provider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 import {
   formatAppointmentCycle,
   formatCompletedCyclesCount,
@@ -16,26 +20,26 @@ import {
 } from "@/lib/promotion_cycle/display";
 import { cn } from "@/lib/ui/cn";
 
-const ELIGIBILITY_META: Record<EligibilityStatus, { tone: NonNullable<BadgeProps["tone"]>; labelTh: string }> = {
-  eligible_now: { tone: "good", labelTh: "ครบแล้ว" },
-  overdue: { tone: "critical", labelTh: "เกินกำหนด" },
-  eligible_soon: { tone: "warning", labelTh: "ใกล้ครบ" },
-  not_eligible: { tone: "neutral", labelTh: "ยังไม่ครบ" },
+const ELIGIBILITY_META: Record<EligibilityStatus, { tone: NonNullable<BadgeProps["tone"]>; labelKey: TranslationKey }> = {
+  eligible_now: { tone: "good", labelKey: "commander.eligibleNow" },
+  overdue: { tone: "critical", labelKey: "commander.overdue" },
+  eligible_soon: { tone: "warning", labelKey: "commander.eligibleSoon" },
+  not_eligible: { tone: "neutral", labelKey: "commander.notEligible" },
 };
 
-const COLUMNS: Array<{ key: CommanderSortField; label: string; align?: "right" }> = [
-  { key: "rank", label: "Rank" },
-  { key: "displayName", label: "Name" },
-  { key: "currentPosition", label: "Current Position" },
-  { key: "positionLevel", label: "Position Level" },
-  { key: "appointmentCycle", label: "Appointment Cycle", align: "right" },
-  { key: "completedPromotionCycles", label: "Completed Cycles", align: "right" },
-  { key: "eligibleCycle", label: "Eligible Since", align: "right" },
-  { key: "overdueCycles", label: "Eligible Overdue", align: "right" },
-  { key: "ageYears", label: "Age", align: "right" },
-  { key: "promotionStatus", label: "Promotion" },
-  { key: "retirementStatus", label: "Retirement" },
-  { key: "priority", label: "Priority" },
+const COLUMNS: Array<{ key: CommanderSortField; labelKey: TranslationKey; align?: "right" }> = [
+  { key: "rank", labelKey: "commander.rank" },
+  { key: "displayName", labelKey: "commander.name" },
+  { key: "currentPosition", labelKey: "commander.currentPosition" },
+  { key: "positionLevel", labelKey: "commander.positionLevel" },
+  { key: "appointmentCycle", labelKey: "commander.appointmentCycle", align: "right" },
+  { key: "completedPromotionCycles", labelKey: "commander.completedCycles", align: "right" },
+  { key: "eligibleCycle", labelKey: "commander.eligibleSince", align: "right" },
+  { key: "overdueCycles", labelKey: "commander.eligibleOverdue", align: "right" },
+  { key: "ageYears", labelKey: "commander.age", align: "right" },
+  { key: "promotionStatus", labelKey: "commander.promotion", align: undefined },
+  { key: "retirementStatus", labelKey: "commander.retirement" },
+  { key: "priority", labelKey: "commander.priority" },
 ];
 
 function fmtAge(value: number | null): string {
@@ -57,37 +61,39 @@ export function CommanderResultsTable({
   sortDirection: "asc" | "desc";
   onSort: (field: CommanderSortField) => void;
 }) {
+  const { t } = useT();
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Results Table</CardTitle>
+        <CardTitle>{t("commander.resultsTable")}</CardTitle>
       </CardHeader>
       <CardBody>
         {officers.length === 0 ? (
-          <p className="text-sm text-muted">No officers match the current query.</p>
+          <p className="text-sm text-muted">{t("commander.noOfficersMatch")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-330 text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                  <th scope="col" className="px-3 py-3 font-medium">Portrait</th>
+                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.portrait")}</th>
                   {COLUMNS.map((column) => {
                     const active = sortBy === column.key;
+                    const columnLabel = t(column.labelKey);
                     return (
                       <th scope="col" key={column.key} className={cn("px-3 py-3 font-medium", column.align === "right" && "text-right")}>
                         <button
                           type="button"
                           className={cn("inline-flex items-center gap-1 hover:text-foreground", active && "text-foreground", column.align === "right" && "flex-row-reverse")}
                           onClick={() => onSort(column.key)}
-                          aria-label={`Sort by ${column.label}`}
+                          aria-label={`${t("commander.sortBy")} ${columnLabel}`}
                         >
-                          {column.label}
+                          {columnLabel}
                           {active ? sortDirection === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" /> : null}
                         </button>
                       </th>
                     );
                   })}
-                  <th scope="col" className="px-3 py-3 font-medium">Target Level</th>
+                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.targetLevel")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -123,7 +129,7 @@ export function CommanderResultsTable({
                         <span className="flex flex-col gap-0.5">
                           <span className="text-xs text-muted">{officer.nextLevelEligibility.targetLevel}</span>
                           <Badge tone={ELIGIBILITY_META[officer.nextLevelEligibility.status].tone}>
-                            {ELIGIBILITY_META[officer.nextLevelEligibility.status].labelTh}
+                            {t(ELIGIBILITY_META[officer.nextLevelEligibility.status].labelKey)}
                           </Badge>
                         </span>
                       ) : (
