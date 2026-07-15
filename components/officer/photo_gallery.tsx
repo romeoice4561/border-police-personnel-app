@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PhotoModal } from "@/components/officer/photo_modal";
 import { resolveViewerSource } from "@/lib/ui/officer_photo_source";
+import { downloadFile, toDownloadName } from "@/lib/ui/download_file";
 import { GalleryImage } from "@/components/ui/media/GalleryImage";
 
 interface GalleryEntry {
@@ -118,14 +119,8 @@ export function PhotoGallery({ officerId, name, officialPortraitId, refreshKey =
   const downloadPhoto = useCallback((entry: GalleryEntry) => {
     const source = resolveViewerSource(entry);
     if (!source.imageUrl) return;
-    const a = document.createElement("a");
-    a.href = source.imageUrl;
-    a.download = `${name.replace(/\s+/g, "_")}_${entry.id}.jpg`;
-    a.rel = "noreferrer";
-    a.target = "_blank";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // Phase 45A Part 3: fetch->blob download (real file + filename, no new tab).
+    void downloadFile(source.imageUrl, toDownloadName(name, { suffix: String(entry.id), ext: "jpg" }));
   }, [name]);
 
   async function deletePhoto(entry: GalleryEntry) {

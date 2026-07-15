@@ -70,30 +70,44 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex flex-col gap-1 px-3">
           <NavLinks pathname={pathname} />
         </nav>
-        <div className="mt-auto space-y-3 px-5 py-4">
-          <LanguageToggle />
+        {/* Phase 45A Part 1: the language switch moved to the global top
+            header (right column). The sidebar footer keeps only the
+            environment badge. */}
+        <div className="mt-auto px-5 py-4">
           <EnvironmentBadge />
         </div>
       </aside>
 
-      {/* Top bar (mobile/tablet) */}
-      <header className="sticky top-0 z-10 border-b border-border bg-surface md:hidden">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <ShieldCheck className="h-5 w-5 text-accent" aria-hidden="true" />
-          <span className="text-sm font-semibold">{t("nav.brand")}</span>
-          <span className="ml-auto flex items-center gap-2">
+      {/* Right column: global header + page content. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Global top header — the SINGLE language switch, top-right, on every
+            page (Phase 45A Part 1). Desktop only: on mobile the switch lives in
+            the mobile top bar below (also top-right). */}
+        <header className="sticky top-0 z-10 hidden border-b border-border bg-surface md:flex">
+          <div className="ml-auto flex items-center gap-3 px-6 py-3 lg:px-8">
             <LanguageToggle />
-            <EnvironmentBadge />
-          </span>
-        </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
-          <NavLinks pathname={pathname} />
-        </nav>
-      </header>
+          </div>
+        </header>
 
-      <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-6xl">{children}</div>
-      </main>
+        {/* Top bar (mobile/tablet) — brand + the language switch top-right + nav. */}
+        <header className="sticky top-0 z-10 border-b border-border bg-surface md:hidden">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <ShieldCheck className="h-5 w-5 text-accent" aria-hidden="true" />
+            <span className="text-sm font-semibold">{t("nav.brand")}</span>
+            <span className="ml-auto flex items-center gap-2">
+              <LanguageToggle />
+              <EnvironmentBadge />
+            </span>
+          </div>
+          <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
+            <NavLinks pathname={pathname} />
+          </nav>
+        </header>
+
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

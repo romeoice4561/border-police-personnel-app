@@ -53,8 +53,10 @@ import { getDocumentTypes, findDocumentType } from "@/lib/document/document_type
 import { ALLOWED_DOCUMENT_MIME, MAX_DOCUMENT_BYTES } from "@/lib/document/document_validation";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DocumentThumbnail } from "@/components/ui/media/DocumentThumbnail";
+import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
+import { DocumentFilterBar, type DocumentFilterValue } from "@/components/officer/document_filter_bar";
+import { documentStatus } from "@/lib/document/document_status";
 
 const ACCEPT = Object.keys(ALLOWED_DOCUMENT_MIME).join(",");
 
@@ -69,31 +71,6 @@ function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = d instanceof Date ? d : new Date(d);
   return date.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
-}
-
-function statusBadge(doc: OfficerDocument | null) {
-  if (!doc) {
-    return (
-      <Badge tone="default">
-        <Clock className="mr-1 h-3 w-3" aria-hidden="true" />
-        ยังไม่มี
-      </Badge>
-    );
-  }
-  if (doc.verifiedAt) {
-    return (
-      <Badge tone="good">
-        <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden="true" />
-        ตรวจแล้ว
-      </Badge>
-    );
-  }
-  return (
-    <Badge tone="default">
-      <Clock className="mr-1 h-3 w-3" aria-hidden="true" />
-      รอตรวจ
-    </Badge>
-  );
 }
 
 /** Triggers a browser download via a temporary anchor (works for any doc id — current or historical). */
@@ -544,7 +521,7 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
               <p className="text-sm font-medium text-foreground">{labelEn}</p>
               <p className="text-xs text-muted">{labelTh}</p>
             </div>
-            <div className="shrink-0 transition-all duration-300">{statusBadge(doc)}</div>
+            <div className="shrink-0 transition-all duration-300"><DocumentStatusBadge doc={doc} /></div>
           </div>
 
           {/* Document metadata */}
@@ -745,6 +722,7 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
 
 export function DocumentsSection({ officerId, documents }: DocumentsSectionProps) {
   const router = useRouter();
+  const [filter, setFilter] = useState<DocumentFilterValue>("all");
 
   const onRefresh = useCallback(() => {
     router.refresh();
@@ -780,29 +758,37 @@ export function DocumentsSection({ officerId, documents }: DocumentsSectionProps
   const uploadedCount = activeByType.size;
   const totalTypes = documentTypes.length + unknownTypeCodes.size;
 
+  // One flat list of rows (registry types then custom types), each with its
+  // active doc + status. Filtering (Part 8) is purely client-side over this.
+  const rows = [
+    ...documentTypes.map((typeDef) => ({ code: typeDef.code, doc: activeByType.get(typeDef.code) ?? null })),
+    ...[...unknownTypeCodes].map((code) => ({ code, doc: activeByType.get(code) ?? null })),
+  ];
+
+  const counts: Record<DocumentFilterValue, number> = {
+    all: rows.length,
+    verified: rows.filter((r) => documentStatus(r.doc) === "verified").length,
+    pending: rows.filter((r) => documentStatus(r.doc) === "pending").length,
+    missing: rows.filter((r) => documentStatus(r.doc) === "missing").length,
+  };
+
+  const visibleRows = filter === "all" ? rows : rows.filter((r) => documentStatus(r.doc) === filter);
+
   return (
     <EditableSectionCard
       title={`เอกสารประจำตัว / Officer Documents (${uploadedCount}/${totalTypes})`}
     >
+      <div className="mb-3">
+        <DocumentFilterBar value={filter} counts={counts} onChange={setFilter} />
+      </div>
       <ul className="space-y-3">
-        {documentTypes.map((typeDef) => (
+        {visibleRows.map((row) => (
           <DocumentRow
-            key={typeDef.code}
+            key={row.code}
             officerId={officerId}
-            typeCode={typeDef.code}
-            doc={activeByType.get(typeDef.code) ?? null}
-            allVersions={allVersionsByType.get(typeDef.code) ?? []}
-            onRefresh={onRefresh}
-          />
-        ))}
-
-        {[...unknownTypeCodes].map((code) => (
-          <DocumentRow
-            key={code}
-            officerId={officerId}
-            typeCode={code}
-            doc={activeByType.get(code) ?? null}
-            allVersions={allVersionsByType.get(code) ?? []}
+            typeCode={row.code}
+            doc={row.doc}
+            allVersions={allVersionsByType.get(row.code) ?? []}
             onRefresh={onRefresh}
           />
         ))}

@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, Download, ExternalLink } from "lucide-react";
+import { downloadFile, toDownloadName } from "@/lib/ui/download_file";
 import { PhotoViewer } from "@/components/officer/photo_viewer";
 import { resolveViewerSource, type OfficerPhotoInput } from "@/lib/ui/officer_photo_source";
 
@@ -120,14 +121,10 @@ export function PhotoModal({ open, onClose, photo, name, title, onPrev, onNext, 
 
   function download() {
     if (!source.imageUrl) return;
-    const a = document.createElement("a");
-    a.href = source.imageUrl;
-    a.download = `${name.replace(/\s+/g, "_")}.jpg`;
-    a.rel = "noreferrer";
-    a.target = "_blank";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // Phase 45A Part 3: fetch->blob download so the file actually downloads
+    // (with its name) instead of opening in a new tab. Preview/Open-Original
+    // links below still open in a tab — that's correct.
+    void downloadFile(source.imageUrl, toDownloadName(name, { ext: "jpg" }));
   }
 
   return createPortal(

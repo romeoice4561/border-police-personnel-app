@@ -95,18 +95,21 @@ export function TimelineCard({
   const bodyId = `timeline-body-${row.key}`;
   const summary = summarize(row, t);
 
-  // Part 4: alternating background (token colors — light + dark safe). Part 3:
-  // the current entry gets a stronger success accent border + tint.
+  // Part 4: alternating background (token colors — light + dark safe). Part 3/6:
+  // the current entry gets a STRONGER success accent — a thicker success border,
+  // a success tint, and a success ring so it clearly stands out from the rest.
   const altBg = index % 2 === 0 ? "bg-surface" : "bg-neutral-bg/40";
-  const cardTone = row.isPresent ? "border-good/60 bg-good-bg/30" : `border-border ${altBg}`;
+  const cardTone = row.isPresent
+    ? "border-good bg-good-bg/40 ring-1 ring-good/40"
+    : `border-border ${altBg}`;
 
   return (
     <div
       className={cn(
-        "rounded-xl border-2 p-4 transition-colors",
+        "rounded-xl border-2 p-4 transition-all sm:p-5",
         cardTone,
-        // Part 10: hover + focus-within highlight the whole card.
-        "hover:border-accent/60 focus-within:border-accent"
+        // Part 10: hover + focus-within highlight the whole card (subtle lift).
+        "hover:border-accent/60 hover:shadow-md focus-within:border-accent"
       )}
     >
       <TimelineHeader

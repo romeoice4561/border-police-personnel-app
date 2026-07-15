@@ -335,7 +335,7 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
             }
           />
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {assets.map((asset) => (
               <GalleryAssetCard
                 key={asset.assetId}
@@ -420,7 +420,7 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
 function GalleryGridSkeleton() {
   return (
     <div
-      className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
       aria-hidden="true"
       aria-label="กำลังโหลด..."
     >

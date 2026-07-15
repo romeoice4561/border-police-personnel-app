@@ -455,6 +455,18 @@ export const DICTIONARY = {
   "timeline.warnYearOrder": tr("ลำดับปีอาจไม่เรียงกัน", "The years may be out of order."),
   "timeline.warnOverlapping": tr("มีรายการที่ปีซ้ำกัน", "Some entries share the same year."),
   "timeline.warnMissingFields": tr("บางรายการยังไม่ได้กรอกปีหรือตำแหน่ง", "Some entries are missing a year or a position."),
+
+  // ── document.* — Phase 45A document status + filter ──
+  "document.statusVerified": tr("ตรวจสอบแล้ว", "Verified"),
+  "document.statusPending": tr("รอตรวจสอบ", "Pending Review"),
+  "document.statusMissing": tr("ยังไม่มีเอกสาร", "No Document"),
+  "document.statusExpired": tr("หมดอายุ", "Expired"),
+  "document.statusRejected": tr("ปฏิเสธ", "Rejected"),
+  "document.filterAll": tr("ทั้งหมด", "All"),
+  "document.filterVerified": tr("ตรวจสอบแล้ว", "Verified"),
+  "document.filterPending": tr("รอตรวจสอบ", "Pending"),
+  "document.filterMissing": tr("ยังไม่มีเอกสาร", "Missing"),
+  "document.filterLabel": tr("กรองเอกสาร", "Filter documents"),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

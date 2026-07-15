@@ -115,7 +115,7 @@ export function CareerTimelineEditor({ rows, onChange, organizationEngine, isSav
           {t("timeline.addRow")}
         </Button>
       </CardHeader>
-      <CardBody className="space-y-4">
+      <CardBody className="space-y-5">
         <TimelineValidationPanel warnings={warnings} />
 
         {rows.length === 0 ? (

@@ -59,7 +59,7 @@ export function GalleryAssetCard({ asset, onOpen, onEdit }: GalleryAssetCardProp
         </div>
 
         {/* Card metadata */}
-        <div className="flex flex-col gap-2 px-3 py-3">
+        <div className="flex flex-col gap-2 p-4">
           {/* Folder / display name */}
           <p
             className="line-clamp-2 text-left text-sm font-medium leading-snug text-foreground group-hover:text-accent"

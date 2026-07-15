@@ -6,10 +6,14 @@
  * Design System so any screen can render a document thumbnail with a single
  * import, with no duplicated rendering logic.
  *
- * Object-fit behaviour:
- *   Documents always use object-contain, centered in a fixed-size canvas.
- *   This preserves the original aspect ratio, avoids stretching, and keeps
- *   thumbnails visually similar to Google Drive document previews.
+ * Object-fit behaviour (Phase 45A refinement — token-driven):
+ *   ALWAYS object-contain so an official document is NEVER cropped. The canvas
+ *   ASPECT is chosen by document shape — landscape for ID-card-shaped types
+ *   (isLandscapeDocumentType: ID / officer card / license / passport / ป.4),
+ *   portrait for A4 types (house registration / GP7 / orders / certificates /
+ *   other) — to minimise letterboxing and maximise recognition. The thumbnail
+ *   is ~25% smaller than before; canvas sizes come from the shared
+ *   DOCUMENT_CANVAS tokens (no local magic numbers).
  *
  * Cross-fade animation (Phase 30.1 ISSUE 7):
  *   Replacing the image (new fileUrl on the same slot) cross-fades between
@@ -30,7 +34,7 @@
 
 import { useCallback, useState } from "react";
 import { FileText } from "lucide-react";
-import { DOCUMENT_THUMBNAIL_RENDER_WIDTH } from "@/lib/ui/media_tokens";
+import { DOCUMENT_THUMBNAIL_RENDER_WIDTH, DOCUMENT_CANVAS, isLandscapeDocumentType } from "@/lib/ui/media_tokens";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,9 +68,9 @@ export interface DocumentThumbnailProps {
   /** Document type code — determines object-fit strategy. */
   documentTypeCode: string;
   /**
-   * Canvas size variant:
-   * "md" — main card thumbnail → 80×80 px visual identifier
-   * "sm" — history row thumbnail → 64×64 px
+   * Canvas size variant (dimensions from DOCUMENT_CANVAS tokens):
+   * "md" — main card thumbnail: 112×72 (landscape) or 96×120 (portrait A4)
+   * "sm" — history row thumbnail: 56×56
    */
   size?: "md" | "sm";
   /** Accessible alt text for the image. Defaults to "Document". */
@@ -84,12 +88,18 @@ export interface DocumentThumbnailProps {
 export function DocumentThumbnail({
   fileUrl,
   mimeType,
+  documentTypeCode,
   size = "md",
   altText = "Document",
   onClick,
 }: DocumentThumbnailProps) {
   const thumbnailUrl = deriveDocumentThumbnailUrl(fileUrl, mimeType);
   const isPdf = mimeType === "application/pdf";
+  // Phase 45A refinement: choose a landscape (ID-card) or portrait (A4) canvas
+  // by document SHAPE only — the fit is ALWAYS object-contain so an official
+  // document is never cropped. Canvas sizes come from the shared DOCUMENT_CANVAS
+  // tokens (no local magic numbers).
+  const isLandscape = isLandscapeDocumentType(documentTypeCode);
 
   // Cross-fade state: `shown` is the currently-displayed (already-loaded)
   // image URL; `incoming` is a new URL loading in the background. Once it
@@ -123,9 +133,16 @@ export function DocumentThumbnail({
     }, 200);
   }, [thumbnailUrl]);
 
-  const sizeCls = size === "sm" ? "h-16 w-16 rounded-md" : "h-20 w-20 rounded-lg";
-  const iconCls = size === "sm" ? "h-6 w-6 text-muted" : "h-9 w-9 text-muted";
-  const imgPadCls = size === "sm" ? "p-1.5" : "p-2";
+  // Canvas dimensions + radius from tokens. History rows use the small square;
+  // main cards use the landscape (ID-card) or portrait (A4) canvas — both
+  // ~25% smaller than before and both object-contain.
+  const canvas = size === "sm" ? DOCUMENT_CANVAS.HISTORY : isLandscape ? DOCUMENT_CANVAS.LANDSCAPE : DOCUMENT_CANVAS.PORTRAIT;
+  const radiusCls = size === "sm" ? "rounded-md" : "rounded-lg";
+  const sizeCls = `${canvas.w} ${canvas.h} ${radiusCls}`;
+  const iconCls = size === "sm" ? "h-6 w-6 text-muted" : "h-7 w-7 text-muted";
+  const imgPadCls = size === "sm" ? "p-1.5" : "p-1.5";
+  // Phase 45A refinement: ALWAYS contain — official documents are never cropped.
+  const fitCls = "object-contain";
 
   const showShown = Boolean(shown && !shownError);
   const showIncoming = Boolean(incoming);
@@ -150,7 +167,7 @@ export function DocumentThumbnail({
           src={shown!}
           alt={altText}
           loading="lazy"
-          className={`absolute inset-0 h-full w-full object-contain object-center ${imgPadCls} opacity-100 transition-opacity duration-200`}
+          className={`absolute inset-0 h-full w-full ${fitCls} object-center ${imgPadCls} opacity-100 transition-opacity duration-200`}
           onError={() => setShownError(true)}
         />
       ) : null}
@@ -161,7 +178,7 @@ export function DocumentThumbnail({
           src={incoming!}
           alt={altText}
           loading="lazy"
-          className={`absolute inset-0 h-full w-full object-contain object-center ${imgPadCls} transition-opacity duration-200 ${incomingLoaded ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 h-full w-full ${fitCls} object-center ${imgPadCls} transition-opacity duration-200 ${incomingLoaded ? "opacity-100" : "opacity-0"}`}
           onLoad={commitIncoming}
           onError={() => setIncoming(null)}
         />
@@ -177,14 +194,17 @@ export function DocumentThumbnail({
     </>
   );
 
-  const className = `relative shrink-0 overflow-hidden ${sizeCls} bg-white shadow-sm ring-1 ring-border/60 transition-transform duration-200 hover:scale-[1.02]`;
+  // White canvas + subtle padding + small shadow + rounded corners (kept). The
+  // hover treatment (smooth zoom, stronger shadow, pointer cursor) is applied
+  // ONLY to the clickable Preview thumbnail — a static thumbnail never zooms.
+  const baseClassName = `relative shrink-0 overflow-hidden ${sizeCls} bg-white shadow-sm ring-1 ring-border/60`;
 
   if (onClick) {
     return (
       <button
         type="button"
         onClick={onClick}
-        className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+        className={`${baseClassName} cursor-pointer transition-all duration-300 ease-out hover:scale-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
         aria-label={`Preview ${altText}`}
       >
         {content}
@@ -193,7 +213,7 @@ export function DocumentThumbnail({
   }
 
   return (
-    <div className={className}>
+    <div className={baseClassName}>
       {content}
     </div>
   );

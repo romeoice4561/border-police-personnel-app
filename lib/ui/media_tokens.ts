@@ -89,22 +89,32 @@ export const SPACING = {
   XXXXL: 64, // gap-16, p-16
 } as const;
 
-// ── Document thumbnail canvas sizes (Part 6) ──────────────────────────────────
+// ── Document thumbnail canvas sizes (Part 6; Phase 45A refinement) ─────────────
 
 /**
- * Document types that are card-shaped (ID cards, driver licenses, passports).
- * These use object-cover so the face/photo fills the frame and stays legible.
+ * Document SHAPE classification — drives the thumbnail canvas ASPECT only.
+ * Every document thumbnail uses object-contain (Phase 45A refinement: official
+ * documents must NEVER be cropped), so this only decides whether the canvas is
+ * landscape (ID-card-shaped) or portrait (A4-shaped) to minimise letterboxing
+ * and maximise document recognition.
  *
- * All other types (GP7, appointment orders, certificates, registrations —
- * typically A4-portrait) use object-contain on a taller canvas so the full
- * page is visible with no cropping.
+ * Landscape types: physical cards + the passport photo page (all wider-than-
+ * tall). Everything else — house registration, GP7 (ก.พ.7), appointment
+ * orders, certificates, "other", and any unknown/custom type — is treated as
+ * portrait A4.
  */
-export const DOCUMENT_CARD_TYPES = new Set([
+export const DOCUMENT_LANDSCAPE_TYPES = new Set([
   "NATIONAL_ID",
   "OFFICER_CARD",
   "DRIVER_LICENSE",
   "PASSPORT",
+  "MILITARY_RECORD", // ป.4 — a card-shaped record
 ]);
+
+/** True when a document type is landscape (ID-card-shaped); false ⇒ portrait A4. */
+export function isLandscapeDocumentType(code: string): boolean {
+  return DOCUMENT_LANDSCAPE_TYPES.has(code);
+}
 
 /**
  * Width (in pixels) requested from the Supabase image-render endpoint for
@@ -113,15 +123,23 @@ export const DOCUMENT_CARD_TYPES = new Set([
  */
 export const DOCUMENT_THUMBNAIL_RENDER_WIDTH = 480;
 
-/** Canvas dimensions for each document thumbnail variant. */
+/**
+ * Canvas dimensions for each document thumbnail variant (Phase 45A refinement:
+ * ~25% smaller than the previous card sizes, and ALWAYS object-contain so the
+ * whole document shows with no cropping). The card DIMENSIONS are unchanged —
+ * only the thumbnail inside is smaller — so the type/badge column gets more
+ * breathing room while the document stays fully recognisable.
+ *
+ * Aspect ratios are chosen to match each shape so a contained image barely
+ * letterboxes:
+ *   • LANDSCAPE 112×72 (~3.5:2.25, close to the ID-1 card 1.585:1)
+ *   • PORTRAIT  96×120 (5:4-ish A4 crop that reads as a page without going tiny)
+ */
 export const DOCUMENT_CANVAS = {
-  /**
-   * Main card thumbnail — card-shaped types: landscape 144×96 (object-cover).
-   * A4-shaped types: portrait 112×144 (object-contain). Named "md" in the
-   * DocumentThumbnail component.
-   */
-  CARD_COVER: { w: "w-36", h: "h-24" },   // 144×96 px, landscape ID card
-  A4_CONTAIN: { w: "w-28", h: "h-36" },   // 112×144 px, portrait A4
+  /** Landscape (ID-card-shaped) main thumbnail — 112×72 px, object-contain. */
+  LANDSCAPE: { w: "w-28", h: "h-[4.5rem]" }, // 112×72 px
+  /** Portrait (A4-shaped) main thumbnail — 96×120 px, object-contain. */
+  PORTRAIT: { w: "w-24", h: "h-[7.5rem]" },  // 96×120 px
   /** History panel thumbnail — 56×56 px. Named "sm". */
-  HISTORY: { w: "w-14", h: "h-14" },      // 56×56 px
+  HISTORY: { w: "w-14", h: "h-14" },         // 56×56 px
 } as const;
