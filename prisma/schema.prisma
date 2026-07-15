@@ -146,6 +146,8 @@ model Officer {
   salaryHistory    SalaryHistory[]
   /// Phase 29A: Officer Document Vault — every document uploaded for this officer.
   documents        OfficerDocument[]
+  /// Phase 44: Personnel Capability Intelligence — this officer's skills/competencies.
+  skills           OfficerSkill[]
 
   @@index([rank])
   @@index([currentUnit])
@@ -1016,4 +1018,152 @@ model ImportLog {
 
   @@index([jobId])
   @@index([officerId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 44: Personnel Capability Intelligence (ทะเบียนความเชี่ยวชาญและศักยภาพ).
+//
+// Additive, non-destructive registry of officer skills / competencies /
+// certificates / languages / deployment readiness. Follows the LEGACY table
+// convention (Int PK, PascalCase) — NOT the V2 master_* UUID convention —
+// specifically because OfficerSkill FKs to the legacy Officer.id (Int), the
+// same key Timeline/Education/Training/SalaryHistory/OfficerDocument all use.
+//
+// Three master tables (SkillCategory / Skill / SkillLevel) hold the closed but
+// extensible catalog seeded by scripts/seed_skills.ts. OfficerSkill is the
+// per-officer join carrying level/experience/verification/deployment. The
+// certificate fields are kept INLINE on OfficerSkill for the current
+// single-certificate UI, AND a separate OfficerSkillCertificate child table
+// exists so a skill can carry MULTIPLE certificates in the future without a
+// schema migration (the UI simply starts populating it later).
+//
+// No existing table, column, or engine is touched.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// A top-level skill category (ด้านกฎหมายและงานสืบสวน, ภาษาต่างประเทศ, …).
+/// Bilingual by design (Thai primary, English secondary — Phase 43 UI guideline).
+model SkillCategory {
+  id        Int      @id @default(autoincrement())
+  /// Stable slug for idempotent seeding (e.g. "LEGAL", "LANGUAGE", "TECH"). Never shown to users.
+  code      String   @unique
+  nameTh    String
+  nameEn    String
+  /// Optional icon name (lucide) for the accordion header.
+  icon      String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills    Skill[]
+
+  @@index([sortOrder])
+  @@index([active])
+}
+
+/// One skill within a category (ภาษาอังกฤษ, การประยุกต์ใช้ AI, TCCC, …).
+model Skill {
+  id                 Int           @id @default(autoincrement())
+  /// Stable slug for idempotent seeding (e.g. "LANG_EN", "AI_APPLIED"). Never shown to users.
+  code               String        @unique
+  category           SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId         Int
+  nameTh             String
+  nameEn             String
+  /// Comma-joined free-text keywords to widen search (e.g. "อังกฤษ,english,ล่าม,interpreter"). Split on comma by the search layer.
+  searchableKeywords String        @default("")
+  /// Whether this skill typically carries a certificate (drives the UI's certificate fields; never blocks saving).
+  requiresCertificate Boolean      @default(false)
+  /// Whether this skill's certificate can expire (drives the expiry field + "expiring soon" dashboard).
+  hasExpiry          Boolean       @default(false)
+  sortOrder          Int           @default(0)
+  active             Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  officerSkills      OfficerSkill[]
+
+  @@index([categoryId])
+  @@index([active])
+  @@index([sortOrder])
+}
+
+/// A proficiency level (พื้นฐาน … ครูฝึก/วิทยากร). `rank` gives the order and
+/// enables "minimum level ≥ X" search without string comparison. 7 seeded levels.
+model SkillLevel {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  nameTh    String
+  nameEn    String
+  /// 1..7, lowest → highest. Higher = more proficient. Used by "minimum level" search and expert/instructor detection.
+  rank      Int      @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  officerSkills OfficerSkill[]
+
+  @@index([rank])
+}
+
+/// One skill held by one officer. Unique per (officer, skill) — the officer
+/// either has a skill (one row) or not. Replace-all on save (same convention as
+/// SalaryHistory/Education/Training). Certificate fields are inline for the
+/// current single-certificate UI; OfficerSkillCertificate holds the
+/// forward-compatible multi-certificate history.
+model OfficerSkill {
+  id                    Int         @id @default(autoincrement())
+  officer               Officer     @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId             Int
+  skill                 Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId               Int
+  /// Proficiency level (nullable — an officer may record a skill before assessing a level).
+  level                 SkillLevel? @relation(fields: [levelId], references: [id], onDelete: SetNull)
+  levelId               Int?
+  yearsExperience       Int?
+  /// Inline "primary certificate" fields (current UI). The multi-cert future lives in OfficerSkillCertificate.
+  certificateNumber     String?
+  issuingOrganization   String?
+  issueDate             DateTime?   @db.Date
+  expiryDate            DateTime?   @db.Date
+  /// Verification triad (same shape as Timeline's verification — a closed Bool + who/when).
+  verified              Boolean     @default(false)
+  verifiedBy            String?
+  verifiedDate          DateTime?   @db.Date
+  /// When true, Commander Search / AI can surface "has this skill AND is ready to deploy".
+  availableForDeployment Boolean    @default(false)
+  remarks               String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  certificates          OfficerSkillCertificate[]
+
+  @@unique([officerId, skillId])
+  @@index([officerId])
+  @@index([skillId])
+  @@index([levelId])
+  @@index([verified])
+  @@index([availableForDeployment])
+  @@index([expiryDate])
+}
+
+/// Phase 44 forward-compatibility: a single certificate belonging to an
+/// OfficerSkill. The current UI writes ONE certificate (the inline fields on
+/// OfficerSkill), but this child table lets a skill accumulate MANY
+/// certificates later with no schema change — future UI simply reads/writes
+/// rows here. Starts empty; nothing depends on it yet.
+model OfficerSkillCertificate {
+  id                  Int          @id @default(autoincrement())
+  officerSkill        OfficerSkill @relation(fields: [officerSkillId], references: [id], onDelete: Cascade)
+  officerSkillId      Int
+  certificateNumber   String?
+  issuingOrganization String?
+  issueDate           DateTime?    @db.Date
+  expiryDate          DateTime?    @db.Date
+  remarks             String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([officerSkillId])
+  @@index([expiryDate])
 }

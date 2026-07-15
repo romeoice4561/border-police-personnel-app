@@ -9,6 +9,8 @@ import { normalizePositionLevel, mapPositionTextToLevel, POSITION_LEVELS, UNKNOW
 import { evaluateNextLevelEligibility, type EligibilityOfficer } from "@/lib/promotion/eligibility_policy";
 import { promotionCycleBucket } from "@/lib/promotion_cycle/intelligence";
 import { countTwoStep, evaluateTwoStepEligibility, EligibilityStatus as SalaryEligibilityStatus } from "@/lib/officer_profile/career_salary_engine";
+import { toSkillSignals } from "@/lib/capability/skill_filter";
+import { getSkillCatalog } from "@/lib/server/officer_service";
 import type { CommanderEligibilitySummary, CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
 
@@ -197,6 +199,7 @@ function toQueryOfficer(
     hasDocuments: officer.documents.some((doc) => doc.isActive !== false),
     eligibleTwoStep: twoStepEvaluation.status === SalaryEligibilityStatus.Eligible,
     mustSkipStep: twoStepEvaluation.status === SalaryEligibilityStatus.NotEligible,
+    skillSignals: toSkillSignals(officer.skills ?? [], asOf),
     nextLevelEligibility,
     eligibleCycle: nextLevelEligibility?.eligibleCycle ?? null,
     overdueCycles: nextLevelEligibility?.overdueCycles ?? 0,
@@ -214,9 +217,10 @@ function uniqueSorted(values: Array<string | null | undefined>): string[] {
 
 export async function getCommanderQueryDataset(): Promise<CommanderQueryDataset> {
   const asOf = new Date();
-  const [officers, organizationEngine] = await Promise.all([
+  const [officers, organizationEngine, skillCatalog] = await Promise.all([
     loadCommanderOfficerProfiles(),
     loadOrganizationEngine(),
+    getSkillCatalog(),
   ]);
   const rows = officers.map((officer) => {
     const labels = organizationEngine.resolveLabels({
@@ -248,6 +252,7 @@ export async function getCommanderQueryDataset(): Promise<CommanderQueryDataset>
         label: company.nameTh,
       })),
       priorities: ["low", "medium", "high", "critical"],
+      skillCatalog,
     },
   };
 }

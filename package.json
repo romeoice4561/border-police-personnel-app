@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:import": "tsx scripts/run_database_import.ts",
     "db:seed:master": "tsx scripts/seed_master_data.ts",
+    "db:seed:skills": "tsx scripts/seed_skills.ts",
     "portraits:rebuild": "tsx scripts/rebuild_drive_portraits.ts",
     "verify:prod": "tsx scripts/verify_prod.ts",
     "postinstall": "prisma generate"

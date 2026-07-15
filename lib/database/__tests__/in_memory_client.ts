@@ -178,6 +178,15 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     return r.id === w.id;
   });
   private readonly officerDocuments = new Table((r, w) => r.id === w.id);
+  // Phase 44: skills master + per-officer skills.
+  private readonly skillCategories = new Table((r, w) => (w.code !== undefined ? r.code === w.code : r.id === w.id));
+  private readonly skills = new Table((r, w) => (w.code !== undefined ? r.code === w.code : r.id === w.id));
+  private readonly skillLevels = new Table((r, w) => (w.code !== undefined ? r.code === w.code : r.id === w.id));
+  private readonly officerSkills = new Table((r, w) => {
+    const c = composite(w, "officerId_skillId");
+    if (c) return r.officerId === c.officerId && r.skillId === c.skillId;
+    return r.id === w.id;
+  });
 
   /**
    * When set, any timeline.create for an officer whose row has this string
@@ -232,6 +241,18 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get officerDocument() {
     return delegate(this.officerDocuments) as unknown as DatabaseClient["officerDocument"];
   }
+  get skillCategory() {
+    return delegate(this.skillCategories) as unknown as DatabaseClient["skillCategory"];
+  }
+  get skill() {
+    return delegate(this.skills) as unknown as DatabaseClient["skill"];
+  }
+  get skillLevel() {
+    return delegate(this.skillLevels) as unknown as DatabaseClient["skillLevel"];
+  }
+  get officerSkill() {
+    return delegate(this.officerSkills) as unknown as DatabaseClient["officerSkill"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
@@ -244,6 +265,10 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       trainings: this.trainings.snapshot(),
       salaryHistories: this.salaryHistories.snapshot(),
       officerDocuments: this.officerDocuments.snapshot(),
+      skillCategories: this.skillCategories.snapshot(),
+      skills: this.skills.snapshot(),
+      skillLevels: this.skillLevels.snapshot(),
+      officerSkills: this.officerSkills.snapshot(),
     };
     try {
       return await fn(this);
@@ -256,6 +281,10 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.trainings.restore(snaps.trainings);
       this.salaryHistories.restore(snaps.salaryHistories);
       this.officerDocuments.restore(snaps.officerDocuments);
+      this.skillCategories.restore(snaps.skillCategories);
+      this.skills.restore(snaps.skills);
+      this.skillLevels.restore(snaps.skillLevels);
+      this.officerSkills.restore(snaps.officerSkills);
       throw error;
     }
   }

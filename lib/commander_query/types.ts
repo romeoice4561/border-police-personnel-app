@@ -1,5 +1,6 @@
 import type { OfficerFlag, OfficerFlagCode, OfficerPriority, PromotionStatus, RetirementStatus } from "@/lib/intelligence";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
+import type { OfficerSkillSignal, SkillCatalog } from "@/lib/capability/capability_types";
 
 export type NumericOperator = "exactly" | "at_least" | "more_than" | "less_than";
 
@@ -61,6 +62,8 @@ export interface CommanderQueryOfficer {
   /** Phase 41 Part 5: precomputed salary-step signals (reused from career_salary_engine) so the "ผู้มีสิทธิ์ 2 ขั้น" / "ผู้ต้องเว้นขั้น" presets can filter without a separate subsystem. */
   eligibleTwoStep: boolean;
   mustSkipStep: boolean;
+  /** Phase 44: precomputed skill signals for the capability filter (empty when the officer has no recorded skills). */
+  skillSignals: OfficerSkillSignal[];
   /** Phase 41 Part 2–4: precomputed next-level promotion eligibility (null when not applicable — Unknown level / top of scope / no policy). */
   nextLevelEligibility: CommanderEligibilitySummary | null;
   appointmentCycle: number | null;
@@ -79,6 +82,8 @@ export interface CommanderQueryOptions {
   battalions: Array<{ id: number; regionId: number | null; label: string }>;
   companies: Array<{ id: number; battalionId: number | null; label: string }>;
   priorities: OfficerPriority[];
+  /** Phase 44: the active skill catalog (categories + skills + levels) for the capability filter dropdowns. */
+  skillCatalog: SkillCatalog;
 }
 
 export interface CommanderQueryDataset {

@@ -23,6 +23,7 @@ import { TimelineRepository } from "@/lib/database/repositories/timeline_reposit
 import { EducationRepository } from "@/lib/database/repositories/education_repository";
 import { TrainingRepository } from "@/lib/database/repositories/training_repository";
 import { SalaryHistoryRepository } from "@/lib/database/repositories/salary_history_repository";
+import { OfficerSkillRepository } from "@/lib/database/repositories/officer_skill_repository";
 import { normalizeTimelinePositionUnit } from "@/lib/import/timeline_normalization";
 import {
   OfficerNotFoundError,
@@ -89,7 +90,13 @@ export class OfficerProfileService {
         salaryHistoryRowCount = await salaryHistoryRepo.saveSalaryHistory(existing.id, input.salaryHistory);
       }
 
-      return { officerId, profileUpdated, timelineRowCount, educationRowCount, trainingRowCount, salaryHistoryRowCount };
+      let skillRowCount: number | null = null;
+      if (input.skills) {
+        const officerSkillRepo = new OfficerSkillRepository(tx);
+        skillRowCount = await officerSkillRepo.replaceForOfficer(existing.id, input.skills);
+      }
+
+      return { officerId, profileUpdated, timelineRowCount, educationRowCount, trainingRowCount, salaryHistoryRowCount, skillRowCount };
     });
   }
 }

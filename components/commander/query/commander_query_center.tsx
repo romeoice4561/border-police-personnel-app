@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters, CommanderSortField, DrilldownFilter, NumericFilter } from "@/components/commander/query/types";
+import { matchesSkillFilter } from "@/lib/capability/skill_filter";
 import { CommanderQueryBuilder, type QueryMode } from "@/components/commander/filters/commander_query_builder";
 import { CommanderSearchPresets } from "@/components/commander/filters/commander_search_presets";
 import { CommanderQuerySummary } from "@/components/commander/summary/commander_query_summary";
@@ -57,6 +58,8 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.eligibleTwoStepOnly && !row.eligibleTwoStep) return false;
   if (filters.mustSkipStepOnly && !row.mustSkipStep) return false;
   if (filters.missingGp7Only && row.hasGp7) return false;
+  // Phase 44: capability filter — all present skill constraints must be met by the SAME recorded skill.
+  if (filters.skill && !matchesSkillFilter(row.skillSignals, filters.skill)) return false;
   return (
     matchesNumber(row.completedPromotionCycles, filters.completedPromotionCycles) &&
     matchesNumber(row.appointmentCycle, filters.appointmentCycle) &&

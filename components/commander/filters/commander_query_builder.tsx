@@ -3,6 +3,7 @@
 import type { CommanderQueryOptions, NumericOperator } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters, NumericFilter } from "@/components/commander/query/types";
 import { PromotionEligibilityFilter } from "@/components/commander/filters/promotion_eligibility_filter";
+import { SkillFilterControl } from "@/components/commander/filters/skill_filter";
 import { useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -248,6 +249,9 @@ function PersonnelFilters({
             placeholder="0-100"
           />
         </label>
+
+        {/* Phase 44: capability filter. */}
+        <SkillFilterControl catalog={options.skillCatalog} value={value.skill} onChange={(next) => set("skill", next)} />
     </div>
   );
 }

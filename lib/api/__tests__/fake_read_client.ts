@@ -205,6 +205,7 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
             training: training.get(found.id) ?? [],
             salaryHistory: salaryHistory.get(found.id) ?? [],
             documents: [],
+            skills: [],
           } as Officer;
         }
         return found;
@@ -279,6 +280,18 @@ export class FakeReadDatabaseClient implements ReadDatabaseClient {
   }
   get officerDocument() {
     return this.emptyDelegate() as unknown as ReadDatabaseClient["officerDocument"];
+  }
+  get skillCategory() {
+    return this.emptyDelegate() as unknown as ReadDatabaseClient["skillCategory"];
+  }
+  get skill() {
+    return this.emptyDelegate() as unknown as ReadDatabaseClient["skill"];
+  }
+  get skillLevel() {
+    return this.emptyDelegate() as unknown as ReadDatabaseClient["skillLevel"];
+  }
+  get officerSkill() {
+    return this.emptyDelegate() as unknown as ReadDatabaseClient["officerSkill"];
   }
 
   private emptyDelegate() {

@@ -180,14 +180,68 @@ Tests
 
 ---
 
-# Current Stable Version
-
-Phase 43
+# Phase 44
 
 Commit
 
 ```
-a17c4a7
+(recorded on commit)
+```
+
+Summary
+
+Personnel Capability Intelligence (Skills Registry)
+
+Implemented
+
+- Skill master tables: SkillCategory / Skill / SkillLevel (additive, legacy
+  Int-PK convention). Idempotent catalog seed — 11 categories, 7 proficiency
+  levels, 119 skills (npm run db:seed:skills)
+- OfficerSkill (per-officer join, replace-all on save, FK to Officer.id
+  onDelete Cascade) with level / experience / certificate / verification /
+  deployment-readiness / remarks
+- OfficerSkillCertificate — forward-compatible multi-certificate child table
+  (schema present, current UI still writes the single inline certificate)
+- Save flow: officerSkillRowSchema + OfficerProfileService.save (single
+  transaction, replace-all) + api_client + workspace draft
+- Officer Profile "ความเชี่ยวชาญและศักยภาพ / Professional Skills &
+  Competencies" accordion card (after Personal Information, before Salary
+  History): checkbox per skill revealing level / experience / certificate /
+  verification / deployment / remarks
+- Commander Search capability filter: category, skill, minimum level,
+  verified, has certificate, certificate expiring soon, expert, instructor,
+  deployment-ready, minimum experience (all constraints met by the SAME skill)
+- Dashboard capability analytics: skill coverage, deployment-ready, expiring
+  certificates, instructors, language speakers, AI/Drone experts,
+  medical/legal/IT/PR staff, top skills
+- Full i18n (capability.* dictionary keys); skill/category/level NAMES are the
+  DB's bilingual columns rendered in the active language
+- Structured for future AI queries (who speaks Chinese, who is a drone
+  operator, who has TCCC, who is an instructor, who has legal qualifications)
+- Additive architecture 100% — NO changes to Promotion / Retirement / Salary /
+  Commander Intelligence / Timeline engines or existing tables. Printable
+  Profile / AI Intelligence / Mission Planning / Team Builder left data-ready
+
+Database
+
+- Migration 20260720000000_personnel_capability: creates SkillCategory,
+  Skill, SkillLevel, OfficerSkill, OfficerSkillCertificate (+ indexes/FKs).
+  No existing table altered.
+
+Tests
+
+- 1130 / 1130 passing
+
+---
+
+# Current Stable Version
+
+Phase 44
+
+Commit
+
+```
+(recorded on commit)
 ```
 
 ---

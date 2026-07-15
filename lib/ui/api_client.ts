@@ -356,6 +356,21 @@ export interface OfficerProfileSaveRequest {
   training?: Array<{ year: string | null; course: string; organization: string | null; notes: string | null }>;
   /** Phase 28A: Career Intelligence Foundation — one salary-step result per Buddhist-Era year. */
   salaryHistory?: Array<{ yearBE: number; salaryStep: number; remarks: string | null }>;
+  /** Phase 44: Personnel Capability Intelligence — replace-all skill list. Dates are DD/MM/YYYY (พ.ศ.) strings or null. */
+  skills?: Array<{
+    skillId: number;
+    levelId: number | null;
+    yearsExperience: number | null;
+    certificateNumber: string | null;
+    issuingOrganization: string | null;
+    issueDate: string | null;
+    expiryDate: string | null;
+    verified: boolean;
+    verifiedBy: string | null;
+    verifiedDate: string | null;
+    availableForDeployment: boolean;
+    remarks: string | null;
+  }>;
 }
 
 export interface OfficerProfileSaveResponse {
@@ -365,6 +380,7 @@ export interface OfficerProfileSaveResponse {
   educationRowCount: number | null;
   trainingRowCount: number | null;
   salaryHistoryRowCount: number | null;
+  skillRowCount: number | null;
 }
 
 export const apiClient = {

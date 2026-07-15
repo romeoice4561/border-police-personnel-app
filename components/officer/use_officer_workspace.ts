@@ -267,6 +267,66 @@ function toSalaryHistoryDrafts(officer: OfficerWithRelations): SalaryHistoryDraf
   }));
 }
 
+/**
+ * Phase 44: one editable skill row. Keyed by the master `skillId` (a skill the
+ * officer has). Select/date-bound fields are strings ("" = unset) matching the
+ * rest of this file's draft convention; the save mapping parses them back.
+ * `checked` tracks whether the skill's checkbox is selected — only checked rows
+ * are sent on save.
+ */
+export interface SkillDraftRow {
+  skillId: number;
+  checked: boolean;
+  levelId: string;
+  yearsExperience: string;
+  certificateNumber: string;
+  issuingOrganization: string;
+  issueDate: string;
+  expiryDate: string;
+  verified: boolean;
+  verifiedBy: string;
+  verifiedDate: string;
+  availableForDeployment: boolean;
+  remarks: string;
+}
+
+function toSkillDrafts(officer: OfficerWithRelations): SkillDraftRow[] {
+  return (officer.skills ?? []).map((s) => ({
+    skillId: s.skillId,
+    checked: true,
+    levelId: s.levelId != null ? String(s.levelId) : "",
+    yearsExperience: s.yearsExperience != null ? String(s.yearsExperience) : "",
+    certificateNumber: s.certificateNumber ?? "",
+    issuingOrganization: s.issuingOrganization ?? "",
+    issueDate: formatThaiPersonnelDate(s.issueDate),
+    expiryDate: formatThaiPersonnelDate(s.expiryDate),
+    verified: s.verified,
+    verifiedBy: s.verifiedBy ?? "",
+    verifiedDate: formatThaiPersonnelDate(s.verifiedDate),
+    availableForDeployment: s.availableForDeployment,
+    remarks: s.remarks ?? "",
+  }));
+}
+
+/** A fresh, unchecked draft row for a skill the officer doesn't have yet (used by the editor when a checkbox is first toggled on). */
+export function emptySkillRow(skillId: number): SkillDraftRow {
+  return {
+    skillId,
+    checked: true,
+    levelId: "",
+    yearsExperience: "",
+    certificateNumber: "",
+    issuingOrganization: "",
+    issueDate: "",
+    expiryDate: "",
+    verified: false,
+    verifiedBy: "",
+    verifiedDate: "",
+    availableForDeployment: false,
+    remarks: "",
+  };
+}
+
 export function useOfficerWorkspace(officer: OfficerWithRelations, organizationEngine: OrganizationEngine) {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer, organizationEngine));
@@ -274,6 +334,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
   const [education, setEducation] = useState<EducationDraftRow[]>(() => toEducationDrafts(officer));
   const [training, setTraining] = useState<TrainingDraftRow[]>(() => toTrainingDrafts(officer));
   const [salaryHistory, setSalaryHistory] = useState<SalaryHistoryDraftRow[]>(() => toSalaryHistoryDrafts(officer));
+  const [skills, setSkills] = useState<SkillDraftRow[]>(() => toSkillDrafts(officer));
 
   const mutation = useSaveOfficerProfile();
 
@@ -289,6 +350,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
     setEducation(toEducationDrafts(officer));
     setTraining(toTrainingDrafts(officer));
     setSalaryHistory(toSalaryHistoryDrafts(officer));
+    setSkills(toSkillDrafts(officer));
   }, [officer, organizationEngine]);
 
   const cancel = useCallback(() => {
@@ -435,11 +497,31 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
           salaryStep: Number(row.salaryStep),
           remarks: row.remarks.trim() || null,
         })),
+      // Phase 44: only CHECKED skills are persisted (replace-all). A skill the
+      // user unchecked simply isn't in the list, so it's removed on save.
+      // Dates are sent as DD/MM/YYYY (พ.ศ.) strings the server parses; a blank
+      // string normalizes to null.
+      skills: skills
+        .filter((row) => row.checked)
+        .map((row) => ({
+          skillId: row.skillId,
+          levelId: row.levelId.trim() ? Number(row.levelId) : null,
+          yearsExperience: row.yearsExperience.trim() ? Number(row.yearsExperience) : null,
+          certificateNumber: row.certificateNumber.trim() || null,
+          issuingOrganization: row.issuingOrganization.trim() || null,
+          issueDate: normalizeThaiPersonnelDateForSave(row.issueDate),
+          expiryDate: normalizeThaiPersonnelDateForSave(row.expiryDate),
+          verified: row.verified,
+          verifiedBy: row.verifiedBy.trim() || null,
+          verifiedDate: normalizeThaiPersonnelDateForSave(row.verifiedDate),
+          availableForDeployment: row.availableForDeployment,
+          remarks: row.remarks.trim() || null,
+        })),
     };
 
     await mutation.mutateAsync({ officerId: officer.officerId, body });
     setEditing(false);
-  }, [profile, timeline, education, training, salaryHistory, officer.officerId, mutation]);
+  }, [profile, timeline, education, training, salaryHistory, skills, officer.officerId, mutation]);
 
   return {
     editing,
@@ -458,6 +540,8 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
     setTraining,
     salaryHistory,
     setSalaryHistory,
+    skills,
+    setSkills,
     newRowKey: newKey,
   };
 }

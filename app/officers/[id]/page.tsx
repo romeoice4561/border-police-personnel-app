@@ -17,7 +17,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getOfficerProfile } from "@/lib/server/officer_service";
+import { getOfficerProfile, getSkillCatalog } from "@/lib/server/officer_service";
 import { getKnownUnits } from "@/lib/server/unit_service";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
 import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
@@ -35,11 +35,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function OfficerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const officerId = decodeURIComponent(id);
-  const [officer, knownUnits, organizationEngine, portrait] = await Promise.all([
+  const [officer, knownUnits, organizationEngine, portrait, skillCatalog] = await Promise.all([
     getOfficerProfile(officerId),
     getKnownUnits(),
     loadOrganizationEngine(),
     resolveOfficerPortrait(officerId),
+    getSkillCatalog(),
   ]);
 
   if (!officer) {
@@ -66,6 +67,7 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
         orgTree={organizationEngine.getOrganizationTree()}
         portrait={portrait}
         intelligence={buildOfficerProfileIntelligence(officer)}
+        skillCatalog={skillCatalog}
       />
     </div>
   );

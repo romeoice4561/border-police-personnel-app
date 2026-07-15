@@ -1,6 +1,7 @@
 import type { CommanderQueryOfficer, NumericOperator } from "@/lib/commander_query/types";
 import type { OfficerFlagCode, OfficerPriority, PromotionStatus } from "@/lib/intelligence";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
+import type { SkillFilter } from "@/lib/capability/skill_filter";
 
 export type CommanderSortField =
   | "rank"
@@ -61,6 +62,8 @@ export interface CommanderQueryFilters {
   mustSkipStepOnly?: boolean;
   /** Only officers missing an active ก.พ.7 (GP7) document. */
   missingGp7Only?: boolean;
+  /** Phase 44: capability filter (category / skill / min level / verified / certificate / expiring / expert / instructor / deployment-ready / experience). */
+  skill?: SkillFilter;
 }
 
 export interface DrilldownFilter {

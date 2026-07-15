@@ -4,21 +4,21 @@
 
 **Current Phase**
 
-Phase 43 — Global Internationalization (TH/EN Foundation)
+Phase 44 — Personnel Capability Intelligence (Skills Registry)
 
 ---
 
 ## Latest Stable Commit
 
 ```
-a17c4a7
+(Phase 44 commit hash recorded on commit.)
 ```
 
 ---
 
 # Current Architecture Version
 
-v1.43
+v1.44
 
 ---
 
@@ -33,6 +33,16 @@ v1.43
 - ✅ Locale-aware dates (TH Buddhist Era พ.ศ. / EN Gregorian A.D.)
 - ✅ Translated: Navigation, Commander Search, Officer Detail/Workspace, Dashboard, shared components
 - ⏳ Deferred to later phase: Gallery, Statistics, Review, Portrait Cleanup, Admin; runtime switching already works app-wide
+
+## Personnel Capability Intelligence (Phase 44)
+
+- ✅ Skill master tables (SkillCategory / Skill / SkillLevel) — 11 categories, 7 levels, 119 skills, idempotent seed (`npm run db:seed:skills`)
+- ✅ OfficerSkill (per-officer, replace-all save) + OfficerSkillCertificate (forward-compatible multi-certificate table, unused by current UI)
+- ✅ Officer Profile "ความเชี่ยวชาญและศักยภาพ / Professional Skills & Competencies" accordion card (after Personal Info, before Salary History)
+- ✅ Commander Search capability filter (category / skill / min level / verified / certificate / expiring / expert / instructor / deployment-ready / experience)
+- ✅ Dashboard capability analytics (coverage, languages, AI/Drone experts, instructors, medical/legal/IT/PR staff, expiring certs, deployment-ready, top skills)
+- ✅ Fully i18n (capability.* keys); additive only — no engine/business-logic changes
+- ⏳ Data-ready (not built this phase): AI Intelligence, Printable Profile, Mission Planning, Team Builder
 
 ## Organization
 
@@ -111,7 +121,7 @@ Stable
 
 # Current Test Count
 
-1113 / 1113 Passing
+1130 / 1130 Passing
 
 ---
 

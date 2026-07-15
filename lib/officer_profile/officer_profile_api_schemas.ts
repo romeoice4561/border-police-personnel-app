@@ -239,6 +239,33 @@ export const salaryHistoryRowSchema = z.object({
   remarks: nullableText,
 });
 
+/**
+ * One Officer Skill row (Phase 44 — Personnel Capability Intelligence).
+ * `skillId` is the required identifying field (a real seeded Skill). `levelId`
+ * is optional (an officer may record a skill before assessing a level). The
+ * certificate/verification/deployment fields are all optional. Dates use the
+ * same Buddhist-Era personnel-date parsing as the rest of the workspace.
+ * Replace-all on save (service layer) — this schema validates a single row's
+ * shape; `@@unique([officerId, skillId])` guards cross-row uniqueness at the DB.
+ */
+/** Buddhist-Era personnel date normalized to `Date | null` (never undefined) — the replace-all skill write needs a concrete value per column. */
+const skillDate = thaiPersonnelDate.transform((v) => v ?? null);
+
+export const officerSkillRowSchema = z.object({
+  skillId: z.coerce.number().int().positive(),
+  levelId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+  yearsExperience: z.coerce.number().int().min(0).max(80).nullable().optional().transform((v) => (v == null ? null : v)),
+  certificateNumber: nullableText,
+  issuingOrganization: nullableText,
+  issueDate: skillDate,
+  expiryDate: skillDate,
+  verified: z.boolean().optional().transform((v) => v ?? false),
+  verifiedBy: nullableText,
+  verifiedDate: skillDate,
+  availableForDeployment: z.boolean().optional().transform((v) => v ?? false),
+  remarks: nullableText,
+});
+
 /** The full batched-save request body — every section optional. */
 export const officerProfileSaveSchema = z.object({
   profile: officerProfilePatchSchema.optional(),
@@ -246,6 +273,8 @@ export const officerProfileSaveSchema = z.object({
   education: z.array(educationRowSchema).optional(),
   training: z.array(trainingRowSchema).optional(),
   salaryHistory: z.array(salaryHistoryRowSchema).optional(),
+  /** Phase 44: Personnel Capability Intelligence — replace-all skill list. */
+  skills: z.array(officerSkillRowSchema).optional(),
 });
 
 export type OfficerProfileSaveBody = z.infer<typeof officerProfileSaveSchema>;

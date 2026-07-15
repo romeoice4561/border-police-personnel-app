@@ -41,6 +41,10 @@ export async function loadCommanderOfficerProfiles(): Promise<OfficerWithRelatio
       training: { orderBy: { id: "asc" } },
       salaryHistory: { orderBy: { yearBE: "desc" } },
       documents: { orderBy: { createdAt: "desc" } },
+      // Phase 44: skills with skill (+ category) and level resolved, so the
+      // commander read model and dashboard can derive skill signals. Additive
+      // include only — the intelligence computation itself is unchanged.
+      skills: { include: { skill: { include: { category: true } }, level: true }, orderBy: { id: "asc" } },
     },
   });
 }

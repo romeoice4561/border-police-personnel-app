@@ -11,6 +11,13 @@ per-phase change detail.
 - **Phase 28A** — Salary History Foundation
 - **Phase 28B** — Two-Step Eligibility Engine
 - **Phase 28C** — Career Intelligence Live Simulation
+- **Phase 44** — Personnel Capability Intelligence (Skills Registry)
+  - Skill master tables (11 categories / 7 levels / 119 skills, idempotent
+    seed), per-officer OfficerSkill (replace-all save) + forward-compatible
+    OfficerSkillCertificate, Officer Profile skills accordion, Commander
+    Search capability filter, and Dashboard capability analytics. Additive
+    only — no engine changes. AI Intelligence, Printable Profile, Mission
+    Planning and Team Builder are data-ready for future phases.
 - **Phase 43** — Global Internationalization (TH/EN Foundation)
   - App-wide language provider (localStorage-persisted, hydration-safe,
     language-agnostic), single global TH|EN switch in the app shell, central

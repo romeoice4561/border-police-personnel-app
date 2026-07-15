@@ -16,9 +16,9 @@
 // Phase 16B: model types come from the Prisma 7 generated client (source
 // tree), re-exported under their plain names (Officer, Timeline, …) — types
 // are identical to the former @prisma/client imports.
-import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument } from "@/lib/generated/prisma/client";
+import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill } from "@/lib/generated/prisma/client";
 
-export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument };
+export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
 export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
@@ -50,6 +50,11 @@ export interface DatabaseClient {
   salaryHistory: ModelDelegate<SalaryHistory, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /** Phase 29A: Officer Document Vault — generic document rows (one per upload, versioned). */
   officerDocument: ModelDelegate<OfficerDocument, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase 44: Personnel Capability Intelligence — skills master tables + per-officer skills (replace-all on save). */
+  skillCategory: ModelDelegate<SkillCategory, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  skill: ModelDelegate<Skill, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  skillLevel: ModelDelegate<SkillLevel, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  officerSkill: ModelDelegate<OfficerSkill, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's

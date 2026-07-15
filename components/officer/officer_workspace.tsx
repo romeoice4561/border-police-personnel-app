@@ -40,6 +40,9 @@ import { TrainingSection } from "@/components/officer/training_section";
 import { TrainingEditor } from "@/components/officer/training_editor";
 import { SalaryHistorySection } from "@/components/officer/salary_history_section";
 import { SalaryHistoryEditor } from "@/components/officer/salary_history_editor";
+import { SkillsSection } from "@/components/officer/skills_section";
+import { SkillsEditor } from "@/components/officer/skills_editor";
+import type { SkillCatalog } from "@/lib/capability/capability_types";
 import { AchievementsSection } from "@/components/officer/achievements_section";
 import { DocumentsSection } from "@/components/officer/documents_section";
 import { NotesSection } from "@/components/officer/notes_section";
@@ -68,9 +71,11 @@ export interface OfficerWorkspaceProps {
    * Server -> Client Component boundary (RSC only serializes plain data).
    */
   orgTree: OrgTree;
+  /** Phase 44: the active skill catalog (categories + skills + levels) for the skills accordion editor. */
+  skillCatalog: SkillCatalog;
 }
 
-export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intelligence }: OfficerWorkspaceProps) {
+export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, skillCatalog }: OfficerWorkspaceProps) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
@@ -156,6 +161,16 @@ export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intel
           <ProfileActionsCard editing={editing} onEditProfile={startEditing} />
         </div>
       </div>
+
+      {/* Phase 44: Personnel Capability Intelligence — "ความเชี่ยวชาญและ
+          ศักยภาพ / Professional Skills & Competencies". Placed AFTER Personal
+          Information and BEFORE Salary History so personal data and potential
+          are grouped together (spec placement). */}
+      {editing ? (
+        <SkillsEditor catalog={skillCatalog} rows={workspace.skills} onChange={workspace.setSkills} />
+      ) : (
+        <SkillsSection skills={officer.skills} />
+      )}
 
       {/* Phase 28A: Salary History — an independent, reusable Career
           Intelligence module (future 2-step eligibility/promotion

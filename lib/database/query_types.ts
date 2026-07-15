@@ -11,11 +11,17 @@
  * access goes through Prisma's typed delegate methods.
  */
 
-import type { Officer, Timeline, Unit, Phone, Education, Training, SalaryHistory, OfficerDocument } from "@/lib/database/database_types";
+import type { Officer, Timeline, Unit, Phone, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill } from "@/lib/database/database_types";
 
-export type { Officer, Timeline, Unit, Phone, Education, Training, SalaryHistory, OfficerDocument };
+export type { Officer, Timeline, Unit, Phone, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
 
-/** An officer with its related timeline, phones, education, training, salary history, and documents (for the full-profile endpoint). */
+/** Phase 44: an OfficerSkill row with its skill (+ that skill's category) and level resolved, as loaded for the officer profile. */
+export interface OfficerSkillWithRelations extends OfficerSkill {
+  skill: Skill & { category: SkillCategory };
+  level: SkillLevel | null;
+}
+
+/** An officer with its related timeline, phones, education, training, salary history, documents, and skills (for the full-profile endpoint). */
 export interface OfficerWithRelations extends Officer {
   timeline: Timeline[];
   phones: Phone[];
@@ -24,6 +30,8 @@ export interface OfficerWithRelations extends Officer {
   salaryHistory: SalaryHistory[];
   /** Phase 29A: Officer Document Vault — all document rows for this officer. */
   documents: OfficerDocument[];
+  /** Phase 44: Personnel Capability Intelligence — all skills for this officer (skill + category + level resolved). */
+  skills: OfficerSkillWithRelations[];
 }
 
 /** Generic read args mirroring the subset of Prisma's findMany options we use. */
@@ -73,6 +81,11 @@ export interface ReadDatabaseClient {
   salaryHistory: ReadDelegate<SalaryHistory>;
   /** Phase 29A: Officer Document Vault. */
   officerDocument: ReadDelegate<OfficerDocument>;
+  /** Phase 44: Personnel Capability Intelligence — skills master + per-officer skills (read). */
+  skillCategory: ReadDelegate<SkillCategory>;
+  skill: ReadDelegate<Skill>;
+  skillLevel: ReadDelegate<SkillLevel>;
+  officerSkill: ReadDelegate<OfficerSkill>;
 }
 
 /** Text match modes supported by search. */

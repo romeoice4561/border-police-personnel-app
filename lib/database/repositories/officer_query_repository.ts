@@ -271,6 +271,12 @@ export class OfficerQueryRepository {
         training: { orderBy: { id: "asc" } },
         salaryHistory: { orderBy: { yearBE: "desc" } },
         documents: { orderBy: { createdAt: "desc" } },
+        // Phase 44: skills with skill (+ category) and level resolved, ordered
+        // by category then skill sort for a stable accordion display.
+        skills: {
+          include: { skill: { include: { category: true } }, level: true },
+          orderBy: { id: "asc" },
+        },
       },
     });
     return (officer as OfficerWithRelations) ?? null;
