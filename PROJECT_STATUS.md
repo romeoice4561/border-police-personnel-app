@@ -11,7 +11,7 @@ Phase 44 — Personnel Capability Intelligence (Skills Registry)
 ## Latest Stable Commit
 
 ```
-(Phase 44 commit hash recorded on commit.)
+cbbd530
 ```
 
 ---

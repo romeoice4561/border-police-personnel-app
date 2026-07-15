@@ -185,7 +185,7 @@ Tests
 Commit
 
 ```
-(recorded on commit)
+cbbd530
 ```
 
 Summary
@@ -241,7 +241,7 @@ Phase 44
 Commit
 
 ```
-(recorded on commit)
+cbbd530
 ```
 
 ---
