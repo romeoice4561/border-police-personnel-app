@@ -21,11 +21,19 @@ export type Role = (typeof ROLES)[number];
 export const PERMISSIONS = [
   "dashboard.view",
   "commander.search",
+  /** Search across officers (the /search page). Granted to every role — officers may search too. */
+  "search.view",
+  /** See the officer directory + full officer profiles (every section). Admin/commander only. */
   "officers.view",
   "officers.edit",
+  /** See own profile in full (the /me route). Every role has this. */
   "officer.viewOwn",
   "statistics.view",
   "gallery.view",
+  /** Download confidential documents / access protected files from the gallery. Not granted to officers. */
+  "documents.download",
+  /** Profile / portrait management tooling (admin/portraits). Admin only. */
+  "profile.manage",
   "review.view",
   "documents.manage",
   "admin.manage",
@@ -34,18 +42,26 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 /** Default permission bundle per role. A user's effective permissions come from their `permissions` field, seeded from here. */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
+  // Administrator — full access (every permission).
   admin: [...PERMISSIONS],
+  // Commander — may view/search every officer, gallery, statistics, reports,
+  // and download documents; but NOT delete data, manage users, or configure
+  // the system (no admin.manage / profile.manage).
   commander: [
     "dashboard.view",
     "commander.search",
+    "search.view",
     "officers.view",
     "officers.edit",
     "statistics.view",
     "gallery.view",
+    "documents.download",
     "review.view",
     "documents.manage",
   ],
-  officer: ["officer.viewOwn"],
+  // Officer — own full profile, plus Search and Gallery (browse/preview only:
+  // no documents.download, no officers.view of others' private sections).
+  officer: ["officer.viewOwn", "search.view", "gallery.view"],
 };
 
 /** The default permissions a freshly-created user of `role` receives. */

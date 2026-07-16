@@ -2,14 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { ROLES, ROLE_PERMISSIONS, defaultPermissionsForRole, hasPermission, isRole } from "@/lib/auth/roles";
-import { homeRouteForRole, homeRouteForUser, AUTH_ENFORCED } from "@/lib/auth/auth_config";
+import {
+  homeRouteForRole,
+  homeRouteForUser,
+  AUTH_ENFORCED,
+  isPublicRoute,
+  requiredPermissionForRoute,
+  LOGIN_ROUTE,
+} from "@/lib/auth/auth_config";
 import { MockAuthBackend } from "@/lib/auth/mock_auth_backend";
 import type { AuthUser } from "@/lib/auth/types";
 
-// Phase 46 — Authentication foundation.
+// Phase 47 — Authentication enforcement + RBAC.
 
-test("the soft guard is OFF this phase (single enforcement switch)", () => {
-  assert.equal(AUTH_ENFORCED, false);
+test("authentication is ENFORCED this phase (single master switch is ON)", () => {
+  assert.equal(AUTH_ENFORCED, true);
 });
 
 test("roles are admin/commander/officer and isRole validates", () => {
@@ -28,6 +35,49 @@ test("admin has every permission; officer is least-privileged; permissions are r
   // Permission check is by capability, not role name — an arbitrary granted list works.
   assert.equal(hasPermission(["gallery.view"], "gallery.view"), true);
   assert.equal(hasPermission(undefined, "gallery.view"), false);
+});
+
+test("Phase 47 role capabilities: officer may search + gallery but not view others/download; commander cannot admin-manage or profile-manage", () => {
+  // Officer — Search + Gallery + own profile, nothing more.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "search.view"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "gallery.view"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "officers.view"), false); // no directory / others' full profile
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "documents.download"), false); // no confidential downloads
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "dashboard.view"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "statistics.view"), false);
+
+  // Commander — full read/search + document download, but no user mgmt / system config.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "officers.view"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "documents.download"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "search.view"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "admin.manage"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "profile.manage"), false);
+
+  // Admin — everything, including profile management.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "profile.manage"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "documents.download"), true);
+});
+
+test("route protection map: /login is public; each route maps to the right capability; officers-detail is auth-only", () => {
+  assert.equal(isPublicRoute(LOGIN_ROUTE), true);
+  assert.equal(isPublicRoute("/dashboard"), false);
+
+  assert.equal(requiredPermissionForRoute("/dashboard"), "dashboard.view");
+  assert.equal(requiredPermissionForRoute("/commander-search"), "commander.search");
+  assert.equal(requiredPermissionForRoute("/search"), "search.view");
+  assert.equal(requiredPermissionForRoute("/statistics"), "statistics.view");
+  assert.equal(requiredPermissionForRoute("/gallery"), "gallery.view");
+  assert.equal(requiredPermissionForRoute("/admin/portraits"), "profile.manage");
+
+  // Officer DIRECTORY (index) needs officers.view…
+  assert.equal(requiredPermissionForRoute("/officers"), "officers.view");
+  // …but an individual profile is auth-only (officers open colleagues from
+  // Search and get the restricted view — enforced in the profile component).
+  assert.equal(requiredPermissionForRoute("/officers/ภาค4%2F20"), null);
+  assert.equal(requiredPermissionForRoute("/officers/123"), null);
+
+  // /me is auth-only (every role sees its own profile).
+  assert.equal(requiredPermissionForRoute("/me"), null);
 });
 
 test("defaultPermissionsForRole returns a fresh copy (not the shared array)", () => {

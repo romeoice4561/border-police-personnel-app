@@ -12,15 +12,19 @@
  */
 
 import type { AuthUser } from "@/lib/auth/types";
-import type { Role } from "@/lib/auth/roles";
+import type { Role, Permission } from "@/lib/auth/roles";
 
 /**
- * MASTER SWITCH. `false` this phase → the guard is opt-in and existing pages
- * are NOT gated (the app behaves exactly as today). A future phase sets this to
- * `true` (and adds middleware) to enforce auth globally — the only change
- * needed to turn authentication on.
+ * MASTER SWITCH (Phase 47 — enforcement ON).
+ *
+ * `true` → authentication is enforced globally: every route except the public
+ * ones (LOGIN_ROUTE) requires a session. The server-side `proxy.ts` redirects
+ * requests with no session cookie to /login; the client `AuthGate` (in
+ * AppShell) enforces per-route permission access and prevents any flash of
+ * protected content. Flipping this back to `false` restores the soft-guard
+ * (opt-in) behavior with no other change.
  */
-export const AUTH_ENFORCED = false;
+export const AUTH_ENFORCED = true;
 
 /** Where unauthenticated users are sent when the guard is enforced. */
 export const LOGIN_ROUTE = "/login";
@@ -62,4 +66,67 @@ export function homeRouteForRole(role: Role): string {
 /** Home route for a specific user. Officers → /me (centralized); admin/commander → dashboard. */
 export function homeRouteForUser(user: Pick<AuthUser, "role" | "officerId">): string {
   return homeRouteForRole(user.role);
+}
+
+// ── Route protection (Phase 47) ────────────────────────────────────────────
+//
+// Authorization is by CAPABILITY, never role name. Each protected top-level
+// route declares the ONE permission a user must hold to open it; the client
+// AuthGate and the sidebar both read this single map, so page access and menu
+// visibility can never drift apart. A route absent from the map requires only
+// authentication (any signed-in user), not a specific capability.
+
+/**
+ * Publicly reachable routes (no session required). Everything else is gated
+ * once AUTH_ENFORCED is true.
+ */
+export const PUBLIC_ROUTES: readonly string[] = [LOGIN_ROUTE];
+
+/**
+ * Top-level route → required permission. Longest-prefix match wins (so
+ * `/admin/portraits/x` inherits `/admin/portraits`).
+ *
+ * `exact: true` gates ONLY the index route (and its trailing slash), not the
+ * subtree. `/officers` uses it: the officer DIRECTORY (index) needs
+ * `officers.view` (admin/commander), but an individual profile
+ * `/officers/[id]` is reachable by any authenticated user — an officer can open
+ * a colleague's profile from Search and see the restricted view (header +
+ * Capability Summary only; the profile page renders the restricted content
+ * itself, by capability). `/me` is intentionally unlisted (every role may see
+ * its own profile — officer.viewOwn is universal).
+ */
+export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Permission; exact?: boolean }> = [
+  { prefix: "/dashboard", permission: "dashboard.view" },
+  { prefix: "/commander-search", permission: "commander.search" },
+  { prefix: "/officers", permission: "officers.view", exact: true },
+  { prefix: "/search", permission: "search.view" },
+  { prefix: "/statistics", permission: "statistics.view" },
+  { prefix: "/review", permission: "review.view" },
+  { prefix: "/gallery", permission: "gallery.view" },
+  { prefix: "/admin/portraits", permission: "profile.manage" },
+];
+
+/** True when `pathname` is public (no auth required). */
+export function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+}
+
+/** True when `entry` matches `pathname` (respecting its `exact` flag). */
+function routeMatches(entry: { prefix: string; exact?: boolean }, pathname: string): boolean {
+  if (entry.exact) return pathname === entry.prefix || pathname === `${entry.prefix}/`;
+  return pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`);
+}
+
+/**
+ * The permission required to open `pathname`, or null when the route needs only
+ * authentication (no specific capability). Longest matching prefix wins.
+ */
+export function requiredPermissionForRoute(pathname: string): Permission | null {
+  let best: { prefix: string; permission: Permission } | null = null;
+  for (const entry of ROUTE_PERMISSIONS) {
+    if (routeMatches(entry, pathname)) {
+      if (!best || entry.prefix.length > best.prefix.length) best = entry;
+    }
+  }
+  return best?.permission ?? null;
 }

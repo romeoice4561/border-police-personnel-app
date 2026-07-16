@@ -99,6 +99,7 @@ export const DICTIONARY = {
   "nav.review": tr("ตรวจสอบ", "Review"),
   "nav.gallery": tr("คลังรูปภาพ", "Gallery"),
   "nav.portraitCleanup": tr("จัดการรูปโปรไฟล์", "Portrait Cleanup"),
+  "nav.myProfile": tr("โปรไฟล์ของฉัน", "My Profile"),
 
   // ── dashboard.* ──
   "dashboard.title": tr("แดชบอร์ด", "Dashboard"),
@@ -314,6 +315,7 @@ export const DICTIONARY = {
   "officer.career": tr("ประวัติการทำงาน", "Career"),
   "officer.position": tr("ตำแหน่ง", "Position"),
   "officer.unit": tr("หน่วยงาน", "Unit"),
+  "officer.notAssigned": tr("ยังไม่ได้ระบุ", "Not Assigned"),
   "officer.careerYearsImported": tr("อายุราชการ (นำเข้า)", "Career years (imported)"),
   "officer.careerYearsCalculated": tr("อายุราชการ (คำนวณ)", "Career years (calculated)"),
   "officer.yearsInCurrentRank": tr("อายุการดำรงยศปัจจุบัน", "Years in current rank"),
@@ -511,6 +513,11 @@ export const DICTIONARY = {
   "auth.roleAdmin": tr("ผู้ดูแลระบบ", "Administrator"),
   "auth.roleCommander": tr("ผู้บังคับบัญชา", "Commander"),
   "auth.roleOfficer": tr("กำลังพล", "Officer"),
+  // Phase 47 — restricted profile view (officer viewing a colleague)
+  "auth.restrictedProfileNotice": tr(
+    "คุณกำลังดูข้อมูลแบบจำกัดสิทธิ์ ข้อมูลส่วนบุคคลและประวัติเชิงลึกถูกซ่อนไว้",
+    "You are viewing a restricted profile. Personal and detailed records are hidden.",
+  ),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

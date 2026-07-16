@@ -8,31 +8,60 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck, SlidersHorizontal, UserCircle } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
 import { UserMenu } from "@/components/auth/user_menu";
+import { AuthGate } from "@/components/auth/auth_gate";
+import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
-import { LOGIN_ROUTE } from "@/lib/auth/auth_config";
+import { AUTH_ENFORCED, LOGIN_ROUTE } from "@/lib/auth/auth_config";
+import type { Permission } from "@/lib/auth/roles";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
-const NAV: Array<{ href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard }> = [
-  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal },
-  { href: "/officers", labelKey: "nav.officers", icon: Users },
-  { href: "/search", labelKey: "nav.search", icon: Search },
-  { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3 },
-  { href: "/review", labelKey: "nav.review", icon: ClipboardCheck },
-  { href: "/gallery", labelKey: "nav.gallery", icon: Images },
-  { href: "/admin/portraits", labelKey: "nav.portraitCleanup", icon: UserCheck },
+/**
+ * Sidebar items (Phase 47). Each declares the CAPABILITY required to see it —
+ * the menu is filtered by can(permission), never by role name. Officers, for
+ * example, hold only search.view + gallery.view (+ their own profile via the
+ * user menu / /me), so Dashboard/Officers/Statistics/Profile-management simply
+ * do not render for them.
+ */
+const NAV: Array<{ href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard; permission: Permission }> = [
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
+  { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal, permission: "commander.search" },
+  { href: "/officers", labelKey: "nav.officers", icon: Users, permission: "officers.view" },
+  { href: "/search", labelKey: "nav.search", icon: Search, permission: "search.view" },
+  { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3, permission: "statistics.view" },
+  { href: "/review", labelKey: "nav.review", icon: ClipboardCheck, permission: "review.view" },
+  { href: "/gallery", labelKey: "nav.gallery", icon: Images, permission: "gallery.view" },
+  { href: "/admin/portraits", labelKey: "nav.portraitCleanup", icon: UserCheck, permission: "profile.manage" },
 ];
+
+/**
+ * "My Profile" (/me) — shown only to a user who can see their OWN profile
+ * (officer.viewOwn) but is NOT an officer-directory viewer (officers.view).
+ * That capability combination identifies an officer without any role-name
+ * check, and keeps My Profile out of the admin/commander sidebars (they use
+ * the officer directory instead), matching the spec's per-role menus.
+ */
+const MY_PROFILE_ITEM: { href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard } = {
+  href: "/me",
+  labelKey: "nav.myProfile",
+  icon: UserCircle,
+};
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { t } = useT();
+  const { can } = useAuth();
+  // When enforcement is on, show only items the user is authorized for
+  // (hidden items are NOT rendered). When off, show everything (today's app).
+  const permitted = AUTH_ENFORCED ? NAV.filter((item) => can(item.permission)) : NAV;
+  const showMyProfile = AUTH_ENFORCED && can("officer.viewOwn") && !can("officers.view");
+  const items = showMyProfile ? [MY_PROFILE_ITEM, ...permitted] : permitted;
   return (
     <>
-      {NAV.map(({ href, labelKey, icon: Icon }) => {
+      {items.map(({ href, labelKey, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
@@ -116,8 +145,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </header>
 
+        {/* Phase 47: AuthGate enforces authentication + per-route permission
+            and renders nothing until authorized (no flash of protected
+            content). Pass-through when AUTH_ENFORCED is false. */}
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+          <div className="mx-auto w-full max-w-6xl">
+            <AuthGate>{children}</AuthGate>
+          </div>
         </main>
       </div>
     </div>

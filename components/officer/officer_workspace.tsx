@@ -51,8 +51,11 @@ import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
 import { OfficerIntelligenceCard } from "@/components/intelligence/officer_intelligence_card";
+import { OfficerRestrictedProfile } from "@/components/officer/officer_restricted_profile";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/components/i18n/language_provider";
+import { useAuth } from "@/components/auth/auth_provider";
+import { AUTH_ENFORCED } from "@/lib/auth/auth_config";
 import { organizationEngineFromTree } from "@/lib/organization/organization_engine";
 import type { OrgTree } from "@/lib/organization/org_tree";
 
@@ -75,7 +78,52 @@ export interface OfficerWorkspaceProps {
   skillCatalog: SkillCatalog;
 }
 
-export function OfficerWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, skillCatalog }: OfficerWorkspaceProps) {
+/**
+ * Phase 47 — profile visibility gate (hook-safe).
+ *
+ * The EXPORTED OfficerWorkspace is a thin wrapper that calls exactly one hook
+ * (useAuth) — always, unconditionally — then chooses ONE of two independent
+ * child components. Each child owns its own complete, unconditional set of
+ * hooks; because the choice happens at a component boundary (not by skipping a
+ * hook inside a single component), React's hook order can never differ between
+ * renders. This is the fix for "Rendered more hooks than during the previous
+ * render": the full workspace below no longer contains any auth-derived early
+ * return, so its hook list is identical on every render.
+ *
+ * RBAC is UNCHANGED: canViewFull is still officers.view OR own-profile (by
+ * capability, never role name), with the same AUTH_ENFORCED soft-guard bypass.
+ */
+export function OfficerWorkspace(props: OfficerWorkspaceProps) {
+  const { user, can } = useAuth();
+
+  const { officer } = props;
+  const isOwnProfile = user?.officerId != null && user.officerId === officer.officerId;
+  const canViewFull = !AUTH_ENFORCED || can("officers.view") || isOwnProfile;
+
+  // An officer viewing a COLLEAGUE → restricted view (identity + Capability
+  // Summary only). Admin/commander/self (or soft-guard off) → full workspace.
+  // Component-boundary switch: neither branch skips a hook.
+  if (!canViewFull) {
+    return (
+      <OfficerRestrictedProfile
+        officer={props.officer}
+        portrait={props.portrait}
+        intelligence={props.intelligence}
+        organizationEngine={organizationEngineFromTree(props.orgTree)}
+      />
+    );
+  }
+
+  return <OfficerFullWorkspace {...props} />;
+}
+
+/**
+ * The full editable Officer Profile Workspace (pre-Phase-47 behavior, unchanged).
+ * Rendered only when the viewer may see the full profile. Every hook here is
+ * called unconditionally at the top; there is no auth branch inside, so the
+ * hook order is stable across all renders.
+ */
+function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, skillCatalog }: OfficerWorkspaceProps) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
