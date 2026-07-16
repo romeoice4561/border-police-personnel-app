@@ -58,6 +58,36 @@ test("Phase 47 role capabilities: officer may search + gallery but not view othe
   assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "documents.download"), true);
 });
 
+test("Phase 47.1: commander is READ ONLY (no edit/delete/media/user-mgmt/AI-import); officer may edit only its OWN profile", () => {
+  // Commander — view/search/statistics/gallery/review/download only. NEVER edit or delete.
+  for (const readOnlyRole of [ROLE_PERMISSIONS.commander] as const) {
+    assert.equal(hasPermission(readOnlyRole, "officers.edit"), false);
+    assert.equal(hasPermission(readOnlyRole, "officers.delete"), false);
+    assert.equal(hasPermission(readOnlyRole, "media.manage"), false);
+    assert.equal(hasPermission(readOnlyRole, "users.manage"), false);
+    assert.equal(hasPermission(readOnlyRole, "ai.import"), false);
+    assert.equal(hasPermission(readOnlyRole, "profile.manage"), false);
+  }
+  // Commander still keeps its read/review/export capabilities.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "review.view"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "statistics.view"), true);
+
+  // Officer — officer.editOwn (ownership-scoped self-edit), never officers.edit (any officer).
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "officer.editOwn"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "officers.edit"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "officers.delete"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "media.manage"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "users.manage"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "ai.import"), false);
+
+  // Admin — the only role with unrestricted edit/delete/media/user-mgmt/AI-import.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "officers.edit"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "officers.delete"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "media.manage"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "users.manage"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "ai.import"), true);
+});
+
 test("route protection map: /login is public; each route maps to the right capability; officers-detail is auth-only", () => {
   assert.equal(isPublicRoute(LOGIN_ROUTE), true);
   assert.equal(isPublicRoute("/dashboard"), false);
@@ -119,6 +149,19 @@ test("mock backend authenticates BPP414/414 as commander (username case-insensit
     assert.equal(res.user.username, "bpp414");
     assert.equal(hasPermission(res.user.permissions, "commander.search"), true);
     assert.equal(hasPermission(res.user.permissions, "admin.manage"), false);
+  }
+});
+
+test("Phase 47.1: mock backend authenticates the seeded officer (national-ID username), NOT forced to change password, linked to a real officerId", async () => {
+  const res = await new MockAuthBackend().authenticate("1101700123456", "414");
+  assert.equal(res.ok, true);
+  if (res.ok) {
+    assert.equal(res.user.role, "officer");
+    assert.equal(res.user.mustChangePassword, false); // spec: officer is NOT forced to change password
+    assert.ok(res.user.officerId); // linked to a real officer record, for /me + ownership checks
+    assert.equal(hasPermission(res.user.permissions, "officer.viewOwn"), true);
+    assert.equal(hasPermission(res.user.permissions, "officer.editOwn"), true);
+    assert.equal(hasPermission(res.user.permissions, "officers.view"), false);
   }
 });
 

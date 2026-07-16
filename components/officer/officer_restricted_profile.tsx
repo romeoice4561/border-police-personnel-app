@@ -1,22 +1,24 @@
 /**
- * OfficerRestrictedProfile (Phase 47 — officer-viewing-a-colleague view).
+ * OfficerRestrictedProfile (Phase 47 — officer-viewing-a-colleague view;
+ * Phase 47.1 — visibility rules aligned with the final product spec).
  *
  * The LIMITED profile an Officer sees when opening another officer's profile
- * (reached from Search). Per spec, only the following are visible:
+ * (reached from Search). Per the Phase 47.1 spec, visible:
  *   • Profile Photo  • Rank  • Name  • Position  • Unit
- *   • Personnel Capability Summary (the AI intelligence card)
+ *   • Career Timeline  • Training summary  • Skills
+ *   • Personnel Capability Summary (AI Summary)
  *
  * Everything private is intentionally ABSENT here (not merely hidden with CSS):
- * career/promotion timeline, training, education, achievements, salary,
- * commander intelligence detail, documents, notes, national id, birth date,
- * phone, email — none are rendered, so nothing sensitive reaches the client for
- * this viewer. This is a READ-ONLY presentation component; it has no edit path
- * and performs no mutation.
+ * national ID, address, phone, family, salary, internal/sensitive documents,
+ * notes, and every other personal-information field — none are rendered, so
+ * nothing sensitive reaches the client for this viewer. This is a READ-ONLY
+ * presentation component; it has no edit path and performs no mutation.
  *
- * It reuses the existing read-only OfficerPhoto and OfficerIntelligenceCard
- * (Capability Summary) — no business logic is duplicated or modified. The
- * full-profile OfficerWorkspace is untouched and still used for admin /
- * commander / self.
+ * It reuses the existing read-only display components (OfficerPhoto,
+ * CareerTimelineSection, TrainingSection, SkillsSection,
+ * OfficerIntelligenceCard) exactly as the full workspace does — no business
+ * logic is duplicated or modified. The full-profile OfficerWorkspace is
+ * unaffected and still used for admin / commander / self.
  */
 "use client";
 
@@ -26,6 +28,9 @@ import type { OfficerIntelligenceCard as OfficerIntelligenceCardData } from "@/l
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerPhoto } from "@/components/officer/officer_photo";
+import { CareerTimelineSection } from "@/components/officer/career_timeline_section";
+import { TrainingSection } from "@/components/officer/training_section";
+import { SkillsSection } from "@/components/officer/skills_section";
 import { OfficerIntelligenceCard } from "@/components/intelligence/officer_intelligence_card";
 import { Briefcase, Building2, ShieldAlert } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
@@ -84,10 +89,18 @@ export function OfficerRestrictedProfile({ officer, portrait, intelligence, orga
         </div>
       </header>
 
-      {/* Personnel Capability Summary (AI) — the one detail section an officer may see. */}
+      {/* Phase 47.1 — Career Timeline, Training summary, and Skills are visible
+          to an officer viewing a colleague (professional record), reusing the
+          exact same read-only sections the full workspace renders. */}
+      <CareerTimelineSection timeline={officer.timeline} organizationEngine={organizationEngine} />
+      <TrainingSection training={officer.training} />
+      <SkillsSection skills={officer.skills} />
+
+      {/* Personnel Capability Summary (AI Summary). */}
       {intelligence ? <OfficerIntelligenceCard card={intelligence} /> : null}
 
-      {/* Restricted-view notice — explains that private sections are hidden. */}
+      {/* Restricted-view notice — explains that private sections (personal ID,
+          address, phone, family, salary, internal documents) are hidden. */}
       <p className="flex items-center gap-2 rounded-xl border border-border bg-neutral-bg/50 px-4 py-3 text-xs text-muted">
         <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
         {t("auth.restrictedProfileNotice")}

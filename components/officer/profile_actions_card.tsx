@@ -34,9 +34,17 @@ const DISABLED_ACTIONS: DisabledAction[] = [
 export interface ProfileActionsCardProps {
   editing: boolean;
   onEditProfile: () => void;
+  /**
+   * Phase 47.1 — whether the signed-in viewer holds edit capability for THIS
+   * officer (officers.edit for admin, or officer.editOwn + ownership for the
+   * officer viewing their own profile). A commander (view-only) never sees
+   * the Edit Profile control at all — not merely disabled, since a control
+   * the viewer can never use should not be shown as if it might work.
+   */
+  canEdit: boolean;
 }
 
-export function ProfileActionsCard({ editing, onEditProfile }: ProfileActionsCardProps) {
+export function ProfileActionsCard({ editing, onEditProfile, canEdit }: ProfileActionsCardProps) {
   const { t } = useT();
   const reason = t("officer.availableFuture");
   return (
@@ -45,16 +53,18 @@ export function ProfileActionsCard({ editing, onEditProfile }: ProfileActionsCar
         <CardTitle>{t("officer.actions")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start"
-          disabled={editing}
-          onClick={onEditProfile}
-        >
-          <Pencil className="h-4 w-4" aria-hidden="true" />
-          {t("officer.editProfile")}
-        </Button>
+        {canEdit ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-start"
+            disabled={editing}
+            onClick={onEditProfile}
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            {t("officer.editProfile")}
+          </Button>
+        ) : null}
 
         {DISABLED_ACTIONS.map(({ id, labelKey, icon: Icon }) => {
           const label = t(labelKey);

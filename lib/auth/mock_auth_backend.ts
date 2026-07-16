@@ -1,11 +1,13 @@
 /**
- * Mock AuthBackend (Phase 46 — Authentication Foundation).
+ * Mock AuthBackend (Phase 46 — Authentication Foundation;
+ * Phase 47.1 — officer test account seeded).
  *
  * An in-memory implementation of the AuthBackend contract for this phase — no
- * DB, no JWT, no server session. Seeded with the two test accounts from the
- * spec. Officer accounts are MODELLED (the shape below shows exactly how a
- * future officer user — username = national ID, mustChangePassword on first
- * login, linked officerId — will look) but none are seeded yet.
+ * DB, no JWT, no server session. Seeded with the three test accounts from the
+ * spec: admin, commander, and one officer (username = Thai national ID
+ * number, password 414, NOT forced to change password — per Phase 47.1).
+ * `officerId` links the officer account to a real Officer record so /me and
+ * the ownership-scoped `officer.editOwn` permission resolve correctly.
  *
  * Swapping to a real provider means implementing AuthBackend elsewhere and
  * returning it from getAuthBackend(); nothing else changes.
@@ -28,17 +30,17 @@ interface MockCredential {
 }
 
 /**
- * Seeded test accounts (spec):
- *   admin   / 414  → Administrator (admin)
- *   BPP414  / 414  → Commander (commander)
- * Officer accounts are NOT seeded yet — the commented shape documents the
- * future model (national-ID username, forced first-login password change).
+ * Seeded test accounts (Phase 47.1 spec):
+ *   admin          / 414  → Administrator (admin)
+ *   BPP414         / 414  → Commander (commander)
+ *   1101700123456  / 414  → Officer (officer) — username is the Thai national
+ *                            ID number; NOT forced to change password on first
+ *                            login (spec explicitly says no forced change).
  */
 const MOCK_CREDENTIALS: readonly MockCredential[] = [
   { username: "admin", password: "414", displayName: "Administrator", role: "admin", officerId: null, mustChangePassword: false, isActive: true },
   { username: "bpp414", password: "414", displayName: "Commander BPP414", role: "commander", officerId: null, mustChangePassword: false, isActive: true },
-  // Future officer example (NOT active this phase):
-  // { username: "1100701234567", password: "414", displayName: "…", role: "officer", officerId: "ภาค4/20", mustChangePassword: true, isActive: true },
+  { username: "1101700123456", password: "414", displayName: "Officer 1101700123456", role: "officer", officerId: "ภาค4/79", mustChangePassword: false, isActive: true },
 ];
 
 function toAuthUser(cred: MockCredential): AuthUser {

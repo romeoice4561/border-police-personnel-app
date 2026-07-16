@@ -90,8 +90,17 @@ export interface OfficerWorkspaceProps {
  * render": the full workspace below no longer contains any auth-derived early
  * return, so its hook list is identical on every render.
  *
- * RBAC is UNCHANGED: canViewFull is still officers.view OR own-profile (by
- * capability, never role name), with the same AUTH_ENFORCED soft-guard bypass.
+ * RBAC: canViewFull is officers.view OR own-profile (by capability, never role
+ * name), with the same AUTH_ENFORCED soft-guard bypass.
+ *
+ * Phase 47.1 — Edit access is a SEPARATE capability from view access, computed
+ * here (ownership + officer.editOwn is available only where `user` is in
+ * scope) and passed down as `canEdit`: officers.edit (admin, any officer) OR
+ * (officer.editOwn AND isOwnProfile). Commander has neither permission, so
+ * commander is view-only — matches "Commander is READ ONLY except review".
+ * This ownership-scoped-permission pattern (`<feature>.editOwn` + `isOwnRecord`)
+ * is the template for future self-service modules (documents, media, timeline,
+ * training, awards).
  */
 export function OfficerWorkspace(props: OfficerWorkspaceProps) {
   const { user, can } = useAuth();
@@ -99,6 +108,7 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
   const { officer } = props;
   const isOwnProfile = user?.officerId != null && user.officerId === officer.officerId;
   const canViewFull = !AUTH_ENFORCED || can("officers.view") || isOwnProfile;
+  const canEdit = !AUTH_ENFORCED || can("officers.edit") || (can("officer.editOwn") && isOwnProfile);
 
   // An officer viewing a COLLEAGUE → restricted view (identity + Capability
   // Summary only). Admin/commander/self (or soft-guard off) → full workspace.
@@ -114,16 +124,19 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
     );
   }
 
-  return <OfficerFullWorkspace {...props} />;
+  return <OfficerFullWorkspace {...props} canEdit={canEdit} />;
 }
 
 /**
- * The full editable Officer Profile Workspace (pre-Phase-47 behavior, unchanged).
- * Rendered only when the viewer may see the full profile. Every hook here is
- * called unconditionally at the top; there is no auth branch inside, so the
- * hook order is stable across all renders.
+ * The full editable Officer Profile Workspace. Rendered only when the viewer
+ * may see the full profile. Every hook here is called unconditionally at the
+ * top; there is no auth branch inside, so the hook order is stable across all
+ * renders. `canEdit` (computed by the wrapper above) gates whether Edit Mode
+ * can be entered at all — a commander viewing any profile, or an officer
+ * viewing a colleague's (already excluded by canViewFull, but defense in
+ * depth), never sees a working Edit control.
  */
-function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, skillCatalog }: OfficerWorkspaceProps) {
+function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, skillCatalog, canEdit }: OfficerWorkspaceProps & { canEdit: boolean }) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
@@ -206,7 +219,7 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         <div className="space-y-6">
           {intelligence ? <OfficerIntelligenceCard card={intelligence} /> : null}
           <ProfileCompletenessCard officer={officer} />
-          <ProfileActionsCard editing={editing} onEditProfile={startEditing} />
+          <ProfileActionsCard editing={editing} onEditProfile={startEditing} canEdit={canEdit} />
         </div>
       </div>
 
