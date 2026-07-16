@@ -12,13 +12,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, ChevronDown, UserRound } from "lucide-react";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import type { Role } from "@/lib/auth/roles";
-import { LOGIN_ROUTE } from "@/lib/auth/auth_config";
 import { cn } from "@/lib/ui/cn";
 
 const ROLE_LABEL_KEY: Record<Role, TranslationKey> = {
@@ -36,7 +34,6 @@ function initial(name: string): string {
 export function UserMenu() {
   const { user, logout } = useAuth();
   const { t } = useT();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -61,8 +58,9 @@ export function UserMenu() {
 
   function handleLogout() {
     setOpen(false);
+    // AuthGate is the single redirect owner for gated routes (declarative
+    // redirect after logout); do not navigate here — router.replace raced it.
     logout();
-    router.replace(LOGIN_ROUTE);
   }
 
   return (
