@@ -51,6 +51,68 @@
   }
 }
 
+/*
+ * Appearance system (Phase 48A — infrastructure only).
+ *
+ * `ThemeProvider` (components/theme/theme_provider.tsx) stamps the selected
+ * theme id as `data-theme` on <html> and persists it to localStorage, exactly
+ * like LanguageProvider does for language. FOUR themes are defined as valid,
+ * selectable values (lib/theme/theme_config.ts): navy-command,
+ * border-patrol-green, classic-white, midnight-black.
+ *
+ * Only `navy-command` (the default) has a token block below, and it is an
+ * EXACT alias of the existing :root / prefers-color-scheme values above — so
+ * selecting it (or leaving the default) produces ZERO visual change. The
+ * other three themes are selectable and persist correctly, but have no token
+ * block yet — the app falls back to the base :root tokens until a future
+ * phase defines their palettes (Border Patrol Green, Classic White, Midnight
+ * Black), at which point each gets its own `[data-theme="..."]` block here
+ * with no other code change required anywhere else in the app.
+ */
+[data-theme="navy-command"] {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --accent: #1d4ed8;
+  --accent-fg: #ffffff;
+
+  --good: #15803d;
+  --good-bg: #dcfce7;
+  --warning: #b45309;
+  --warning-bg: #fef3c7;
+  --serious: #c2410c;
+  --serious-bg: #ffedd5;
+  --critical: #b91c1c;
+  --critical-bg: #fee2e2;
+  --neutral: #475569;
+  --neutral-bg: #f1f5f9;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="navy-command"] {
+    --background: #0b1120;
+    --surface: #111827;
+    --border: #1f2937;
+    --foreground: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent-fg: #0b1120;
+
+    --good: #4ade80;
+    --good-bg: #052e16;
+    --warning: #fbbf24;
+    --warning-bg: #451a03;
+    --serious: #fb923c;
+    --serious-bg: #431407;
+    --critical: #f87171;
+    --critical-bg: #450a0a;
+    --neutral: #94a3b8;
+    --neutral-bg: #1e293b;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);

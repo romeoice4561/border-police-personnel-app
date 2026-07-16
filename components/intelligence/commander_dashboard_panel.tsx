@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CommanderSummaryCards } from "@/components/intelligence/commander_summary_cards";
 import { FlagBadge, PriorityBadge, PromotionStatusBadge, RetirementStatusBadge } from "@/components/intelligence/intelligence_badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CommanderDashboard, OfficerFlagCode, OfficerPriority } from "@/lib/intelligence";
@@ -39,8 +38,10 @@ export function CommanderDashboardPanel({ dashboard }: { dashboard: CommanderDas
 
   return (
     <div className="space-y-5">
-      <CommanderSummaryCards summary={dashboard.summary} />
-
+      {/* Phase 48A: the KPI row moved to the page level (DashboardKpiSection,
+          built on the shared KpiCard/KpiGrid) as part of the enterprise
+          workspace header/KPI composition — this panel now owns only the
+          filter + officer-intelligence-list body. */}
       <section className="space-y-3" aria-label={t("dashboard.filtersAria")}>
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((item) => (

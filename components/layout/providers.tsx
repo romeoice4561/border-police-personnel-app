@@ -9,6 +9,7 @@ import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LanguageProvider } from "@/components/i18n/language_provider";
 import { AuthProvider } from "@/components/auth/auth_provider";
+import { ThemeProvider } from "@/components/theme/theme_provider";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -29,11 +30,17 @@ export function Providers({ children }: { children: ReactNode }) {
   // Phase 46: AuthProvider (inside LanguageProvider so login UI is bilingual)
   // exposes the mock session app-wide. Additive — it gates nothing (soft guard;
   // AUTH_ENFORCED = false), so existing pages behave exactly as today.
+  // Phase 48A: ThemeProvider (appearance-system foundation) — persists the
+  // selected theme and stamps data-theme on <html>. Only navy-command (the
+  // default) has real tokens today and is an exact alias of the existing
+  // design tokens, so this is a no-op visually.
   return (
     <QueryClientProvider client={client}>
-      <LanguageProvider>
-        <AuthProvider>{children}</AuthProvider>
-      </LanguageProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

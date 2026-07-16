@@ -20,22 +20,45 @@ import { AUTH_ENFORCED, LOGIN_ROUTE } from "@/lib/auth/auth_config";
 import type { Permission } from "@/lib/auth/roles";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
+type NavItem = { href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard; permission: Permission };
+type NavGroup = { titleKey: TranslationKey | null; items: NavItem[] };
+
 /**
- * Sidebar items (Phase 47). Each declares the CAPABILITY required to see it —
- * the menu is filtered by can(permission), never by role name. Officers, for
- * example, hold only search.view + gallery.view (+ their own profile via the
- * user menu / /me), so Dashboard/Officers/Statistics/Profile-management simply
- * do not render for them.
+ * Sidebar items, grouped into an enterprise navigation structure (Phase 48A):
+ *   Dashboard / Personnel / Search Center / Analytics
+ *   Data Quality Center / Media Center
+ *   Administration
+ *
+ * Grouping is PRESENTATION ONLY — every item still declares the exact same
+ * CAPABILITY it did before (Phase 47), and is still filtered by
+ * can(permission), never by role name. No permission, no route, and no
+ * filtering rule changed in this phase; only how the items are visually
+ * organized in the sidebar. An empty group (every item filtered out) simply
+ * renders no header, so a Commander's sidebar has no dangling "Administration"
+ * heading with nothing under it.
  */
-const NAV: Array<{ href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard; permission: Permission }> = [
-  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
-  { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal, permission: "commander.search" },
-  { href: "/officers", labelKey: "nav.officers", icon: Users, permission: "officers.view" },
-  { href: "/search", labelKey: "nav.search", icon: Search, permission: "search.view" },
-  { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3, permission: "statistics.view" },
-  { href: "/review", labelKey: "nav.review", icon: ClipboardCheck, permission: "review.view" },
-  { href: "/gallery", labelKey: "nav.gallery", icon: Images, permission: "gallery.view" },
-  { href: "/admin/portraits", labelKey: "nav.portraitCleanup", icon: UserCheck, permission: "profile.manage" },
+const NAV_GROUPS: NavGroup[] = [
+  {
+    titleKey: null, // Ungrouped top tier — no header, matches the spec's flat top section.
+    items: [
+      { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
+      { href: "/officers", labelKey: "nav.officers", icon: Users, permission: "officers.view" },
+      { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal, permission: "commander.search" },
+      { href: "/search", labelKey: "nav.search", icon: Search, permission: "search.view" },
+      { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3, permission: "statistics.view" },
+    ],
+  },
+  {
+    titleKey: null, // Second flat tier (Data Quality Center / Media Center) — visually separated by spacing, not a labeled header, matching the spec's divider-only grouping.
+    items: [
+      { href: "/review", labelKey: "nav.review", icon: ClipboardCheck, permission: "review.view" },
+      { href: "/gallery", labelKey: "nav.gallery", icon: Images, permission: "gallery.view" },
+    ],
+  },
+  {
+    titleKey: "nav.groupAdministration",
+    items: [{ href: "/admin/portraits", labelKey: "nav.portraitCleanup", icon: UserCheck, permission: "profile.manage" }],
+  },
 ];
 
 /**
@@ -45,40 +68,82 @@ const NAV: Array<{ href: string; labelKey: TranslationKey; icon: typeof LayoutDa
  * check, and keeps My Profile out of the admin/commander sidebars (they use
  * the officer directory instead), matching the spec's per-role menus.
  */
-const MY_PROFILE_ITEM: { href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard } = {
+const MY_PROFILE_ITEM: NavItem = {
   href: "/me",
   labelKey: "nav.myProfile",
   icon: UserCircle,
+  // officer.viewOwn is exactly the capability that gates My Profile's
+  // visibility below (showMyProfile) — recorded here only so this item
+  // satisfies the shared NavItem shape; it is never separately can()-checked
+  // for this item (the showMyProfile rule already decided it belongs).
+  permission: "officer.viewOwn",
 };
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLink({ href, labelKey, icon: Icon, pathname, onNavigate }: NavItem & { pathname: string; onNavigate?: () => void }) {
   const { t } = useT();
+  const active = pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap",
+        active ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {t(labelKey)}
+    </Link>
+  );
+}
+
+/**
+ * Filters NAV_GROUPS down to what this user may see (RBAC unchanged — same
+ * can(permission) gate as before, applied per item) and drops any group left
+ * empty by that filtering, so a Commander never sees a bare "Administration"
+ * header with nothing under it. Prepends My Profile for an officer viewer
+ * (same officer.viewOwn && !officers.view capability rule as before).
+ */
+function useVisibleNavGroups(): NavGroup[] {
   const { can } = useAuth();
-  // When enforcement is on, show only items the user is authorized for
-  // (hidden items are NOT rendered). When off, show everything (today's app).
-  const permitted = AUTH_ENFORCED ? NAV.filter((item) => can(item.permission)) : NAV;
+  const permittedGroups = AUTH_ENFORCED
+    ? NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => can(item.permission)) })).filter((group) => group.items.length > 0)
+    : NAV_GROUPS;
   const showMyProfile = AUTH_ENFORCED && can("officer.viewOwn") && !can("officers.view");
-  const items = showMyProfile ? [MY_PROFILE_ITEM, ...permitted] : permitted;
+  if (!showMyProfile) return permittedGroups;
+  return [{ titleKey: null, items: [MY_PROFILE_ITEM] }, ...permittedGroups];
+}
+
+/** Desktop sidebar — grouped with optional section headers and dividers between groups. */
+function NavGroups({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const { t } = useT();
+  const groups = useVisibleNavGroups();
   return (
     <>
-      {items.map(({ href, labelKey, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap",
-              active ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
-            )}
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-            {t(labelKey)}
-          </Link>
-        );
-      })}
+      {groups.map((group, index) => (
+        <div key={group.titleKey ?? `group-${index}`} className={cn("flex flex-col gap-1", index > 0 && "mt-3 border-t border-border pt-3")}>
+          {group.titleKey ? (
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted/70">{t(group.titleKey)}</p>
+          ) : null}
+          {group.items.map((item) => (
+            <NavLink key={item.href} {...item} pathname={pathname} onNavigate={onNavigate} />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Mobile/tablet top-bar nav — flat horizontal-scroll strip (no group headers; grouping doesn't read well in a single scrolling row). */
+function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const groups = useVisibleNavGroups();
+  const items = groups.flatMap((group) => group.items);
+  return (
+    <>
+      {items.map((item) => (
+        <NavLink key={item.href} {...item} pathname={pathname} onNavigate={onNavigate} />
+      ))}
     </>
   );
 }
@@ -105,8 +170,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="block text-xs font-normal text-muted">{t("nav.brandSub")}</span>
           </span>
         </div>
-        <nav className="flex flex-col gap-1 px-3">
-          <NavLinks pathname={pathname} />
+        <nav className="flex flex-col px-3">
+          <NavGroups pathname={pathname} />
         </nav>
         {/* Phase 45A Part 1: the language switch moved to the global top
             header (right column). The sidebar footer keeps only the

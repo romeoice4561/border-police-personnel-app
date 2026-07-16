@@ -88,18 +88,23 @@ export const DICTIONARY = {
   "common.export": tr("ส่งออก", "Export"),
   "common.language": tr("ภาษา", "Language"),
 
-  // ── nav.* — AppShell navigation ──
-  "nav.brand": tr("ตำรวจตระเวนชายแดน", "Border Patrol"),
-  "nav.brandSub": tr("ระบบข่าวกรองกำลังพล", "Personnel Intelligence"),
+  // ── nav.* — AppShell navigation (Phase 48A: enterprise sidebar) ──
+  "nav.brand": tr("ตำรวจตระเวนชายแดน", "Border Patrol Police"),
+  "nav.brandSub": tr("ระบบข่าวกรองกำลังพล", "Personnel Intelligence System"),
   "nav.dashboard": tr("แดชบอร์ด", "Dashboard"),
-  "nav.commanderSearch": tr("ค้นหากำลังพล", "Personnel Query"),
-  "nav.officers": tr("กำลังพล", "Officers"),
+  "nav.commanderSearch": tr("ศูนย์ค้นหา", "Search Center"),
+  "nav.officers": tr("กำลังพล", "Personnel"),
   "nav.search": tr("ค้นหา", "Search"),
-  "nav.statistics": tr("สถิติ", "Statistics"),
-  "nav.review": tr("ตรวจสอบ", "Review"),
-  "nav.gallery": tr("คลังรูปภาพ", "Gallery"),
+  "nav.statistics": tr("การวิเคราะห์", "Analytics"),
+  "nav.review": tr("ศูนย์ตรวจสอบข้อมูล", "Data Quality Center"),
+  "nav.gallery": tr("ศูนย์สื่อ", "Media Center"),
   "nav.portraitCleanup": tr("จัดการรูปโปรไฟล์", "Portrait Cleanup"),
   "nav.myProfile": tr("โปรไฟล์ของฉัน", "My Profile"),
+  // Sidebar group headers (presentation only — grouping is visual, RBAC
+  // filtering is unchanged and still per-item via can(permission)).
+  "nav.groupAdministration": tr("การจัดการระบบ", "Administration"),
+  "nav.groupProfile": tr("โปรไฟล์", "Profile"),
+  "nav.groupAppearance": tr("รูปแบบการแสดงผล", "Appearance"),
 
   // ── dashboard.* ──
   "dashboard.title": tr("แดชบอร์ด", "Dashboard"),
@@ -114,6 +119,9 @@ export const DICTIONARY = {
     "ข้อมูลเชิงลึกด้านความพร้อม การเกษียณ โปรไฟล์ และการเลื่อนตำแหน่งสำหรับผู้บังคับบัญชา",
     "Actionable readiness, retirement, profile, and promotion intelligence for commanders."
   ),
+  // Phase 48A — Enterprise Workspace Foundation (Dashboard reference implementation)
+  "dashboard.breadcrumbHome": tr("หน้าหลัก", "Home"),
+  "dashboard.lastUpdated": tr("อัปเดตล่าสุด", "Last updated"),
   "dashboard.filtersAria": tr("ตัวกรองข่าวกรองผู้บังคับบัญชา", "Commander intelligence filters"),
   "dashboard.officerListAria": tr("รายการข่าวกรองกำลังพล", "Officer intelligence list"),
   "dashboard.officerIntelligence": tr("ข่าวกรองกำลังพล", "Officer Intelligence"),
