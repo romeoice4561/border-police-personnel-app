@@ -283,3 +283,145 @@ detail: `docs/THAI_DATE_AND_RETIREMENT_STANDARD.md` §6.1 and §12.
 
 See the Phase 40B deliverable report (delivered alongside this update) for
 the full audit findings, file list, and test results.
+
+---
+
+## Phase 41 — Promotion Intelligence Engine
+
+Phase 41 moves the Promotion Engine from "current promotion status" to
+"promotion intelligence" — an answer that explains WHY an officer is
+eligible/blocked, SINCE WHEN, and how urgently a commander should review
+them. `lib/intelligence/promotion/index.ts`'s `computePromotionSummary` is
+now the single source of truth every consumer (Commander Dashboard,
+Commander Search, Officer Profile, AI Commander, Reports) should read.
+
+### What existed before Phase 41 (audit finding)
+
+Three independent, not-fully-reconciled "status" systems existed:
+`PromotionStatus` (`eligible`/`near_eligible`/`not_eligible`/`unknown` —
+score-ratio based, `lib/intelligence/flags.ts`), `EligibilityStatus`
+(`eligible_now`/`eligible_soon`/`overdue`/`not_eligible` — tenure/temporal,
+`lib/promotion/eligibility_policy.ts`), and `PromotionCycleBucket`
+(7-value appointment-cycle bucket, `lib/promotion_cycle/`). They could
+disagree for the same officer since the first never consulted the other
+two. `lib/intelligence/promotion/index.ts`'s Phase 40A facade only ever
+wrapped the first — `monthsUntilEligible`/`overdueYears`/`targetLevel` were
+unconditionally `null`, because the facade never called
+`evaluateNextLevelEligibility` at all. No first-eligible-date tracking
+existed anywhere (confirmed by search — everything was computed as of
+`asOf`/now, never a historical lookback).
+
+### Business rules implemented
+
+- **Status model** (`PromotionEligibilityStatus`, deliberately named
+  distinctly from the pre-existing `PromotionStatus` in
+  `lib/intelligence/types.ts` — the two are NOT interchangeable):
+  `EligibleThisYear`, `AlreadyEligible`, `Waiting`, `MissingTraining`,
+  `MissingDocuments`, `RetirementRestricted`, `NotEligible`, `Unknown`.
+  Every value has Thai display text (`PROMOTION_STATUS_DISPLAY_TH`).
+- **First eligible date**: derived from
+  `lib/promotion_cycle/engine.ts`'s already-computed
+  `eligibleCycle = appointmentCycle + requiredCycles` (a Buddhist-Era
+  year), converted to a Gregorian date anchored to **1 January** of that
+  year — never a fabricated day/month, since `Timeline.appointmentCycle`
+  is a plain year integer with no finer granularity in the schema. This is
+  the FIRST historical date the officer crossed into eligibility, not
+  today and not merely "this year."
+- **Years/months/days eligible**: exact calendar duration
+  (`lib/intelligence/shared/exact_duration.ts`'s `computeExactDuration`,
+  from `eligibleDate` to `asOf`) — never a decimal approximation.
+- **Promotion cycles passed**: reuses
+  `promotionCycle.completedPromotionCycles` — an explicitly documented
+  **approximation** (one calendar year ≈ one appointment-cycle round; the
+  schema does not record actual historical promotion-board rounds). Never
+  presented as certain.
+- **Priority score (0-100)**: weighted sum of years-already-eligible (up
+  to 40 pts, capped at a 5-year wait), overdue years from the
+  appointment-cycle engine (up to 25 pts), retirement proximity (up to 20
+  pts, scaled over a 3-year horizon), minus a 10-point penalty each for a
+  missing-training or missing-documents blocker (an actionable blocker
+  should rank behind an equally-overdue but unblocked officer). `null`
+  (not zero) when status is `Unknown` — nothing to prioritize. Returned
+  alongside a human-readable `priorityReason` string. This is a starting
+  policy, not a regulation — documented as retunable without touching
+  callers.
+
+### Promotion Model
+
+`PromotionSummary` (`lib/intelligence/shared/types.ts`) — Phase 40A's
+5 fields (`status`, `eligibleNow`, `monthsUntilEligible`, `overdueYears`,
+`targetLevel`) are kept verbatim as `@deprecated`-annotated compatibility
+fields, now actually populated (previously always `null`/stubbed). Phase
+41 adds: `currentRank`, `currentPosition`, `targetRank`, `targetPosition`,
+`promotionStatus` (the new `PromotionEligibilityStatus`), `eligibleDate`,
+`eligibleFiscalYearBe`, `yearsEligible`/`monthsEligible`/`daysEligible`,
+`promotionCyclesPassed`, `displayEligibleSinceTh`, `displayStatusTh`,
+`priority`, `priorityReason`. No existing field was removed or renamed.
+
+`CommanderQueryOfficer.promotionIntelligence: PromotionSummary` — a new,
+additive field on the existing Commander read model
+(`lib/commander_query/types.ts`), populated in
+`lib/server/commander_query_service.ts`'s `toQueryOfficer`. The pre-existing
+`nextLevelEligibility`/`promotionStatus`/`promotionCycleBucket`/
+`eligibleCycle`/`overdueCycles` fields are all unchanged — this is the
+richer engine output sitting alongside them, not a replacement.
+
+### Known limitations (documented, not silently worked around)
+
+- **`RetirementRestricted` is reachable in the type system but not
+  producible from current data.** `lib/promotion/rules/
+  retirement_window.ts` is a `"warning"`-severity rule; only
+  `"blocking"`-severity rule failures populate
+  `LevelEligibilityResult.missingRequirements` (see
+  `lib/promotion/result.ts`'s `aggregatePromotionResults`), so a
+  retirement-window failure cannot currently be distinguished from a
+  generic `Waiting`/`NotEligible` outcome. No `PROMOTION_POLICIES` entry
+  configures `minRetirementRemainingMonths` today, so this gap has no
+  observable impact yet — flagged for whenever a policy does configure it.
+- **`MissingTraining`/`MissingDocuments` are correctly wired but
+  currently unreachable from default policy data** — no
+  `PROMOTION_POLICIES` entry configures `requiredTrainingCodes`/
+  `requiredDocumentCodes` today (confirmed by audit); the classification
+  logic is verified correct (tested against synthetic policies indirectly
+  via the `TRAINING_`/`DOCUMENT_` code-prefix check) but will not fire
+  against production data until a policy adds these requirements.
+- **`eligibleDate` precision is year-level, not day-level** — anchored to
+  1 January of the eligible Gregorian year because
+  `Timeline.appointmentCycle` carries no month/day. If finer-grained
+  appointment-date tracking is ever added to the schema, this facade
+  should be the first place updated.
+- **`promotionCyclesPassed` is an approximation**, not a count of actual
+  historical promotion-board rounds — see Business Rules above.
+- **No dedicated UI consumes `promotionIntelligence` yet** — wiring
+  Commander Search/Dashboard/Officer Profile to read from it (replacing
+  ad hoc reads of `nextLevelEligibility`/`promotionStatus` where
+  appropriate) is out of scope for Phase 41 (an Intelligence Engine
+  phase, not a UI phase) and is the natural Phase 42 follow-up.
+
+### Architecture Rule: Promotion Intelligence is the single source of truth
+
+**`PromotionSummary` (`lib/intelligence/promotion/index.ts`'s
+`computePromotionSummary`) is the single source of truth for promotion
+eligibility.** This is binding, not advisory:
+
+- Commander Dashboard, Commander Search, Officer Workspace, AI Commander,
+  Reports, and any future service that needs to answer "is this officer
+  eligible for promotion, and why" **must consume `PromotionSummary`**
+  instead of implementing an independent promotion calculation.
+- **New promotion calculation logic must not be introduced outside
+  `lib/intelligence/promotion`.** A page or service that needs a
+  promotion-related value it doesn't currently have should extend
+  `PromotionSummary` (additively, preserving compatibility fields — see
+  the Phase 40A/40B precedent throughout this document) rather than
+  deriving that value locally from `lib/promotion`/`lib/promotion_cycle`
+  directly.
+- This does not mean `lib/promotion`/`lib/promotion_cycle` are
+  off-limits — `computePromotionSummary` itself composes them, unchanged,
+  per the thin-facade design decision above. The rule is about where a
+  NEW consumer reaches: through the facade, never around it.
+- Existing direct callers of `lib/promotion/eligibility_policy.ts` /
+  `lib/promotion_cycle/` predating this rule (e.g.
+  `lib/server/commander_query_service.ts`'s `nextLevelEligibility`) are
+  not required to migrate immediately — see "No dedicated UI consumes
+  `promotionIntelligence` yet" above — but any NEW code should reach for
+  `PromotionSummary` first.

@@ -104,14 +104,114 @@ export interface ServiceSummary extends IntelligenceSummaryBase {
   displayServiceDurationTh: string | null;
 }
 
-/** Promotion Engine output — facade over lib/promotion (rule-based eligibility) + lib/promotion_cycle (appointment-cycle tracking). */
+/**
+ * Promotion Engine output — facade over lib/promotion/eligibility_policy.ts
+ * (rule-based, policy-driven level eligibility) + lib/promotion_cycle
+ * (Buddhist-Era appointment-cycle tracking). Phase 40A shipped `status`/
+ * `eligibleNow`/`monthsUntilEligible`/`overdueYears`/`targetLevel` but left
+ * the latter three unconditionally `null` (the facade never actually called
+ * the eligibility engine). Phase 41 wires the real computation and answers
+ * not just "is this officer eligible" but WHY, SINCE WHEN, and how far up
+ * the priority queue they should sit.
+ *
+ * `status`/`eligibleNow` are kept for backward compatibility — every caller
+ * reading the Phase 40A fields keeps working unchanged. `promotionStatus`
+ * is the new, richer status (see PromotionStatus below); prefer it plus
+ * `displayStatusTh` for anything new.
+ */
 export interface PromotionSummary extends IntelligenceSummaryBase {
+  /** @deprecated Phase 40A score-ratio status. Use promotionStatus for new code. */
   status: "eligible" | "near_eligible" | "not_eligible" | "unknown";
+  /** @deprecated Phase 40A field — true for both EligibleThisYear/AlreadyEligible-style outcomes. Use promotionStatus for the specific reason. */
   eligibleNow: boolean;
   monthsUntilEligible: number | null;
   overdueYears: number | null;
   targetLevel: string | null;
+
+  // --- Phase 41: Promotion Intelligence -----------------------------------
+
+  currentRank: string | null;
+  currentPosition: string | null;
+  /** Always exactly one position level above currentPosition's level — see lib/promotion/eligibility_policy.ts's level-adjacency rule. Duplicates targetLevel above (kept for naming-convention consistency with the Phase 41 spec); both always agree. */
+  targetRank: string | null;
+  targetPosition: string | null;
+
+  /** The expanded, WHY-explaining status — see PromotionEligibilityStatus. */
+  promotionStatus: PromotionEligibilityStatus;
+
+  /** ISO date (YYYY-MM-DD) the officer FIRST became eligible for their next level — the historical date, never "today"/"this year". Null when never eligible, or not computable (e.g. no appointmentCycle on record). */
+  eligibleDate: string | null;
+  /** Buddhist-Era fiscal year containing eligibleDate. */
+  eligibleFiscalYearBe: number | null;
+
+  /** Exact time elapsed since eligibleDate, as of asOf — years/months/days, never a decimal. Null when eligibleDate is null. */
+  yearsEligible: number | null;
+  monthsEligible: number | null;
+  daysEligible: number | null;
+
+  /**
+   * Estimated number of Thai police promotion (appointment-cycle) rounds the
+   * officer has passed through since becoming eligible — an APPROXIMATION
+   * (one calendar year ≈ one cycle; see lib/promotion_cycle's documented
+   * assumption), not a count of actual historical promotion-board rounds
+   * (which the schema does not record). Never fabricated as certainty —
+   * `available: false`/null when appointmentCycle is unknown.
+   */
+  promotionCyclesPassed: number | null;
+
+  /** "ครบคุณสมบัติครั้งแรกเมื่อ 11 สิงหาคม 2567" */
+  displayEligibleSinceTh: string | null;
+  /** Thai label for promotionStatus, e.g. "ครบคุณสมบัติปีนี้" — see PROMOTION_STATUS_DISPLAY_TH. */
+  displayStatusTh: string | null;
+
+  /** 0-100 commander-facing priority score — see lib/intelligence/promotion's computePromotionPriority. Higher = should be reviewed sooner. Null when promotionStatus is Unknown (nothing to prioritize). */
+  priority: number | null;
+  /**
+   * Human-readable (English) explanation of the priority score's main
+   * driver(s), e.g. "Overdue 2 years; retiring within 18 months". Null when
+   * priority is null. Named distinctly from the base `reason` field
+   * (IntelligenceSummaryBase.reason — a machine-readable "why unavailable"
+   * code, only ever set when `available` is false); this field is a
+   * human-readable priority explanation, present exactly when `priority`
+   * is non-null, regardless of `available`.
+   */
+  priorityReason: string | null;
 }
+
+/**
+ * The expanded Promotion Intelligence status (Phase 41) — replaces the
+ * ambiguous binary "Eligible"/"Not Eligible" with a status that explains
+ * WHY. Every value has a Thai display string (PROMOTION_STATUS_DISPLAY_TH
+ * in lib/intelligence/promotion/index.ts). Named distinctly from the
+ * pre-existing `PromotionStatus` in lib/intelligence/types.ts (the Phase
+ * 40A score-ratio status: eligible/near_eligible/not_eligible/unknown,
+ * still used by Dashboard badges) — the two are NOT interchangeable and
+ * intentionally kept separate rather than silently reusing the same name
+ * for a different meaning.
+ *
+ *  - EligibleThisYear    — became eligible within the current fiscal year.
+ *  - AlreadyEligible      — became eligible in a PRIOR fiscal year and is
+ *                          still waiting (the "overdue"/long-waiting case).
+ *  - Waiting              — not yet eligible, but on track (no missing
+ *                          non-tenure requirement) — just needs more tenure.
+ *  - MissingTraining      — blocked specifically by a required training gap.
+ *  - MissingDocuments     — blocked specifically by a required document gap.
+ *  - RetirementRestricted — blocked by the retirement-window policy rule
+ *                          (lib/promotion/rules/retirement_window.ts).
+ *  - NotEligible          — blocked for another reason (wrong current level
+ *                          adjacency, no configured policy, etc.) or simply
+ *                          not on track and no specific blocker above fits.
+ *  - Unknown              — not computable at all (e.g. no position level).
+ */
+export type PromotionEligibilityStatus =
+  | "EligibleThisYear"
+  | "AlreadyEligible"
+  | "Waiting"
+  | "MissingTraining"
+  | "MissingDocuments"
+  | "RetirementRestricted"
+  | "NotEligible"
+  | "Unknown";
 
 /** Salary Engine output — facade over lib/officer_profile/career_salary_engine.ts (two-step eligibility). */
 export interface SalarySummary extends IntelligenceSummaryBase {

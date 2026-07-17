@@ -15,6 +15,7 @@ import { loadOrganizationEngine } from "@/lib/organization/organization_engine_s
 import { firstServiceLikeDate, startedAtForMatchingTimeline } from "@/lib/intelligence/shared/timeline_dates";
 import { yearsFromDuration, yearsSince, monthsFromDuration } from "@/lib/intelligence/shared/duration";
 import { toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
+import { computePromotionSummary } from "@/lib/intelligence/promotion";
 
 function hasActiveDocument(officer: OfficerWithRelations, typeCode: string): boolean {
   return officer.documents.some((doc) => doc.documentType === typeCode && doc.isActive !== false);
@@ -62,21 +63,21 @@ function appointmentCycleForPositionLevel(officer: OfficerWithRelations, level: 
 }
 
 /**
- * Phase 41 Part 2–4: computes the officer's next-level promotion eligibility
- * once, here in the read model, via the shared configurable engine
- * (lib/promotion/eligibility_policy). Returns a compact summary the client can
- * filter/count on without re-running the engine. Null when not applicable.
+ * Phase 41: assembles the compact `EligibilityOfficer` shape the eligibility
+ * engine (lib/promotion/eligibility_policy) and the Promotion Intelligence
+ * facade (lib/intelligence/promotion) both consume — extracted so both
+ * `computeNextLevelEligibility` and the new `promotionIntelligence` field
+ * build it identically, once, rather than duplicating the same assembly.
  */
-function computeNextLevelEligibility(
+function buildEligibilityOfficer(
   officer: OfficerWithRelations,
   positionLevel: string,
   yearsInPositionLevel: number | null,
   yearsInRank: number | null,
   governmentServiceYears: number | null,
-  retirementRemainingMonths: number | null,
-  asOf: Date
-): CommanderEligibilitySummary | null {
-  const eligibilityInput: EligibilityOfficer = {
+  retirementRemainingMonths: number | null
+): EligibilityOfficer {
+  return {
     currentRank: officer.rank,
     positionLevel,
     yearsInPositionLevel,
@@ -88,6 +89,15 @@ function computeNextLevelEligibility(
     twoStepCount: countTwoStep(officer.salaryHistory),
     appointmentCycle: appointmentCycleForPositionLevel(officer, positionLevel),
   };
+}
+
+/**
+ * Phase 41 Part 2–4: computes the officer's next-level promotion eligibility
+ * once, here in the read model, via the shared configurable engine
+ * (lib/promotion/eligibility_policy). Returns a compact summary the client can
+ * filter/count on without re-running the engine. Null when not applicable.
+ */
+function computeNextLevelEligibility(eligibilityInput: EligibilityOfficer, asOf: Date): CommanderEligibilitySummary | null {
   const result = evaluateNextLevelEligibility(eligibilityInput, asOf);
   if (!result) return null;
   return {
@@ -127,15 +137,16 @@ function toQueryOfficer(
   const governmentServiceYears = yearsFromDuration(calculateGovernmentServiceDuration(serviceStart, asOf));
   const retirementRemainingMonths = monthsFromDuration(retirement?.remaining ?? null);
   const twoStepEvaluation = evaluateTwoStepEligibility(officer.salaryHistory, asOf);
-  const nextLevelEligibility = computeNextLevelEligibility(
+  const eligibilityOfficer = buildEligibilityOfficer(
     officer,
     positionLevel,
     yearsInPositionLevel,
     yearsInRank,
     governmentServiceYears,
-    retirementRemainingMonths,
-    asOf
+    retirementRemainingMonths
   );
+  const nextLevelEligibility = computeNextLevelEligibility(eligibilityOfficer, asOf);
+  const promotionIntelligence = computePromotionSummary(intelligence, eligibilityOfficer, asOf);
 
   return {
     officerId: officer.officerId,
@@ -173,6 +184,7 @@ function toQueryOfficer(
     mustSkipStep: twoStepEvaluation.status === SalaryEligibilityStatus.NotEligible,
     skillSignals: toSkillSignals(officer.skills ?? [], asOf),
     nextLevelEligibility,
+    promotionIntelligence,
     eligibleCycle: nextLevelEligibility?.eligibleCycle ?? null,
     overdueCycles: nextLevelEligibility?.overdueCycles ?? 0,
     promotionCycleBucket: nextLevelEligibility?.promotionCycleBucket ?? "not_eligible",

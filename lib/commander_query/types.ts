@@ -1,6 +1,7 @@
 import type { OfficerFlag, OfficerFlagCode, OfficerPriority, PromotionStatus, RetirementStatus } from "@/lib/intelligence";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import type { OfficerSkillSignal, SkillCatalog } from "@/lib/capability/capability_types";
+import type { PromotionSummary } from "@/lib/intelligence/shared/types";
 
 export type NumericOperator = "exactly" | "at_least" | "more_than" | "less_than";
 
@@ -69,6 +70,15 @@ export interface CommanderQueryOfficer {
   skillSignals: OfficerSkillSignal[];
   /** Phase 41 Part 2–4: precomputed next-level promotion eligibility (null when not applicable — Unknown level / top of scope / no policy). */
   nextLevelEligibility: CommanderEligibilitySummary | null;
+  /**
+   * Phase 41 (Promotion Intelligence Engine): the full WHY-explaining
+   * promotion summary — expanded status, first-eligible date, exact
+   * eligible duration, promotion-cycles-passed estimate, Thai display
+   * text, and 0-100 priority score. Additive alongside `nextLevelEligibility`
+   * above (unchanged) and `promotionStatus` (unchanged) — this is the
+   * richer engine output, not a replacement for either.
+   */
+  promotionIntelligence: PromotionSummary;
   appointmentCycle: number | null;
   eligibleCycle: number | null;
   overdueCycles: number;

@@ -85,29 +85,85 @@ Intelligence).
 
 ## Promotion Intelligence
 
-- **Purpose:** Whether an officer is promotion-ready now, and — for
-  next-level appointment-cycle tracking — how far from eligible.
+- **Purpose:** Not just "is this officer promotion-ready" but WHY —
+  expanded status, the first historical date they became eligible, exact
+  eligible duration, an approximate promotion-cycles-passed count, Thai
+  display text, and a 0-100 commander priority score.
 - **Master-data inputs:** `Officer.rank`, `Timeline[]` (for position-level
   history and appointment cycle), `Training[]`, `OfficerDocument[]`,
   `SalaryHistory[]` (two-step count), date of birth/retirement remaining.
-- **Calculated outputs (current):** `status`, `eligibleNow`. Left `null`
-  today: `monthsUntilEligible`, `overdueYears`, `targetLevel`.
-- **Calculated outputs (planned):** the three `null` fields above, once
-  folded in from `lib/promotion/eligibility_policy.ts`
-  (`evaluateNextLevelEligibility`).
-- **Dependencies:** `lib/promotion/` (rule-based scoring),
-  `lib/promotion_cycle/` (B.E. appointment-cycle overdue tracking, kept
-  intentionally distinct — see Architecture doc's Risks section),
-  `lib/commander_query/position_level.ts` (position-level classification —
-  currently Commander-Search-only).
-- **Future commander KPIs:** promotion-ready roster per unit, overdue
-  officers by cycle, projected promotion pipeline by rank.
-- **Planned implementation phase:** Phase 40A delivered the facade at
-  reduced scope (`lib/intelligence/promotion/`). Folding in
-  `monthsUntilEligible`/`overdueYears`/`targetLevel` — which requires
-  migrating position-level classification out of Commander Search first —
-  is planned for **Phase 47**, alongside Commander Search's own migration
-  onto this facade.
+- **Calculated outputs (delivered, Phase 41):** `promotionStatus`
+  (`PromotionEligibilityStatus`: `EligibleThisYear`/`AlreadyEligible`/
+  `Waiting`/`MissingTraining`/`MissingDocuments`/`RetirementRestricted`/
+  `NotEligible`/`Unknown`), `eligibleDate`, `eligibleFiscalYearBe`,
+  `yearsEligible`/`monthsEligible`/`daysEligible` (exact, never decimal),
+  `promotionCyclesPassed` (documented approximation), `displayEligibleSinceTh`,
+  `displayStatusTh`, `priority` (0-100), `priorityReason`. Phase 40A's
+  `status`/`eligibleNow`/`monthsUntilEligible`/`overdueYears`/`targetLevel`
+  are kept as compatibility fields, now actually populated (previously
+  always `null`).
+- **Dependencies:** `lib/promotion/eligibility_policy.ts`
+  (`evaluateNextLevelEligibility` — policy-driven tenure/rule eligibility
+  for the officer's next position level), `lib/promotion_cycle/`
+  (Buddhist-Era appointment-cycle bucketing, kept intentionally distinct —
+  see Architecture doc's Risks section), `lib/commander_query/
+  position_level.ts` (position-level classification),
+  `lib/intelligence/shared/{exact_duration,thai_date}.ts` (Phase 40B's
+  exact-duration/Buddhist-Era display primitives, reused not reimplemented).
+- **Future commander KPIs:** promotion-ready roster per unit (filterable by
+  `promotionStatus`), longest-waiting officers (sortable by
+  `yearsEligible`), overdue officers by cycle, officers blocked by
+  training/documents, officers who will retire before promotion, ranked
+  priority queue (sortable by `priority`) — all directly answerable from
+  `PromotionSummary` without additional computation.
+- **Known limitations:** `RetirementRestricted` is reachable in the type
+  system but not producible from today's policy data — the
+  retirement-window rule is `"warning"`-severity and never populates
+  `missingRequirements`, and no policy configures
+  `minRetirementRemainingMonths` yet. `MissingTraining`/`MissingDocuments`
+  classification is correct but currently unreachable from default policy
+  data (no policy configures `requiredTrainingCodes`/
+  `requiredDocumentCodes` yet). `eligibleDate` is year-precision only
+  (anchored to 1 January), since `Timeline.appointmentCycle` has no
+  month/day. See `docs/Personnel_Intelligence_Architecture.md`'s Phase 41
+  section for full detail.
+- **Planned implementation phase:** delivered (Phase 41) —
+  `lib/intelligence/promotion/`, wired into
+  `lib/server/commander_query_service.ts` as
+  `CommanderQueryOfficer.promotionIntelligence`. No page/component
+  consumes it yet (Phase 41 is an Intelligence Engine phase, not a UI
+  phase) — wiring Commander Search/Dashboard/Officer Profile onto it is
+  the natural **Phase 42** follow-up, alongside resolving the
+  training/documents/retirement policy-data gaps above if product wants
+  those statuses to actually fire.
+
+### Priority Score policy (conceptual)
+
+`PromotionSummary.priority` is a 0-100 score meant to answer "who should a
+commander look at first," summarized conceptually rather than as an
+implementation spec (the exact weights live in
+`lib/intelligence/promotion/index.ts` and are documented there):
+
+| Range | Meaning |
+|---|---|
+| **100** | Highest priority |
+| **80–99** | Eligible and waiting for multiple cycles |
+| **60–79** | Eligible |
+| **40–59** | Blocked by missing requirements |
+| **0–39** | Not yet eligible |
+
+**These ranges are guidance, not a fixed contract.** They describe the
+INTENT of the scoring — long-waiting and overdue officers should score
+high, officers blocked by a fixable gap (training/documents) should score
+lower than an equally-overdue but unblocked officer, and an officer who
+isn't eligible yet should score low — not an exact formula. The underlying
+weights are a starting policy, explicitly documented as retunable without
+touching any caller (every consumer reads the resulting `priority` number
+and `priorityReason` string, never the weights themselves). As promotion
+policy evolves — new requirement kinds, different urgency weighting,
+commander feedback on what "priority" should mean in practice — these
+ranges and the scoring behind them may change. A `priority` of `null`
+means "nothing to prioritize" (status `Unknown`), never a score of 0.
 
 ## Retirement Intelligence
 
@@ -247,7 +303,7 @@ Intelligence).
 
 ## Summary table
 
-Statuses reflect the actual codebase as of Phase 40B — not aspirational.
+Statuses reflect the actual codebase as of Phase 41 — not aspirational.
 "Foundation complete" means the facade + its currently-scoped calculations
 are done and tested; it does NOT mean every field a future phase might want
 is populated (see "Current scope" and "Next major step" for what's still
@@ -260,7 +316,7 @@ left `null`/unscoped.
 | Age | Foundation complete | Yes (`lib/intelligence/age/`) | Exact age, next-birthday tracking, Thai display (Phase 40A + 40B) | UI integration — `profile_header.tsx` still shows whole-year age (Phase 40C) |
 | Service | Foundation complete, with source limitations | Yes (`lib/intelligence/service/`) | Timeline-derived service-start (earliest dated row, no event-type field to refine further) + exact duration (Phase 40A + 40B); `yearsInPositionLevel` left `null` | Improve source classification if/when the schema gains an event-type field; UI integration — `profile_header.tsx` still shows whole-year career years (Phase 40C) |
 | Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B) | Commander dashboard integration (Phase 40C / 47) |
-| Promotion | Existing production logic wrapped, partial | Yes (`lib/intelligence/promotion/`), reduced scope | `status`/`eligibleNow` only; `monthsUntilEligible`/`overdueYears`/`targetLevel` left `null` | Full next-level eligibility, folded in from `lib/promotion/eligibility_policy.ts` (Phase 47) |
+| Promotion | Foundation complete, policy-data gaps | Yes (`lib/intelligence/promotion/`) | Full WHY-explaining status, first eligible date, exact eligible duration, priority score (Phase 41); `MissingTraining`/`MissingDocuments`/`RetirementRestricted` correctly wired but unreachable until a policy configures those requirements | UI integration — no page consumes `promotionIntelligence` yet (Phase 42); configure training/document/retirement-window policy data if product wants those statuses to fire |
 | Salary | Existing production logic wrapped, partial | Yes (`lib/intelligence/salary/`) | Real two-step ("2 ขั้น") eligibility only — the one deterministic rule that exists today | Broader salary-step forecasting once a second business rule exists to wrap (unscheduled) |
 | Training | Planned — no facade exists | No | No dedicated engine; training presence read directly (`officer.training.length > 0`) by callers such as `lib/intelligence/flags.ts` | Build Training Intelligence, gated on a prior product decision defining "required training" per rank/role (unscheduled) |
 | Document | Existing production logic wrapped, partial | Yes (`lib/intelligence/document/`) | Real active/verified/pending document counts + portrait signal only — no required-documents checklist exists in the schema | Migrate `lib/ui/profile_completeness.ts`'s checklist logic behind this facade, reusing it as-is (Phase 46) |
