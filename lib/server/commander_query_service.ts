@@ -16,9 +16,23 @@ import { firstServiceLikeDate, startedAtForMatchingTimeline } from "@/lib/intell
 import { yearsFromDuration, yearsSince, monthsFromDuration } from "@/lib/intelligence/shared/duration";
 import { toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
 import { computePromotionSummary } from "@/lib/intelligence/promotion";
+import { computeServiceSummary } from "@/lib/intelligence/service";
+import { computeAgeSummary } from "@/lib/intelligence/age";
 
 function hasActiveDocument(officer: OfficerWithRelations, typeCode: string): boolean {
   return officer.documents.some((doc) => doc.documentType === typeCode && doc.isActive !== false);
+}
+
+/**
+ * Commander Promotion UX refinement: "40 ปี, 11 เดือน" — years + months
+ * only (no days), matching the requested display precision for the
+ * Commander Search "อายุ" column. Pure text formatting of an ALREADY-
+ * COMPUTED AgeSummary.exactAge (lib/intelligence/age) — not a new age
+ * calculation. Never decimal, never a raw day count.
+ */
+function formatAgeYearsMonthsTh(exactAge: { years: number; months: number } | null): string | null {
+  if (!exactAge) return null;
+  return `${exactAge.years} ปี, ${exactAge.months} เดือน`;
 }
 
 /**
@@ -147,6 +161,17 @@ function toQueryOfficer(
   );
   const nextLevelEligibility = computeNextLevelEligibility(eligibilityOfficer, asOf);
   const promotionIntelligence = computePromotionSummary(intelligence, eligibilityOfficer, asOf);
+  // Phase 42 UI refinement: exact (never decimal) government-service duration
+  // for the Commander Dashboard's Promotion Priority list "อายุราชการ"
+  // column — Service Intelligence facade, unmodified, not previously
+  // consumed by this read model (governmentServiceYears above remains the
+  // Phase 40A decimal compatibility field).
+  const serviceSummary = computeServiceSummary(officer, asOf);
+  // Commander Promotion UX refinement: exact years+months age for the
+  // rebuilt Commander Search results table — Age Intelligence facade,
+  // unmodified (ageYears below remains the Phase 40A decimal compatibility
+  // field, unchanged).
+  const ageSummary = computeAgeSummary(officer.dateOfBirth ?? null, asOf);
 
   return {
     officerId: officer.officerId,
@@ -185,6 +210,10 @@ function toQueryOfficer(
     skillSignals: toSkillSignals(officer.skills ?? [], asOf),
     nextLevelEligibility,
     promotionIntelligence,
+    displayServiceDurationTh: serviceSummary.available ? serviceSummary.displayServiceDurationTh : null,
+    positionLevelStartYearBe: positionLevelStart ? toBuddhistEraYear(positionLevelStart.getUTCFullYear()) : null,
+    displayAgeYearsMonthsTh: ageSummary.available ? formatAgeYearsMonthsTh(ageSummary.exactAge) : null,
+    dateOfBirth: officer.dateOfBirth ?? null,
     eligibleCycle: nextLevelEligibility?.eligibleCycle ?? null,
     overdueCycles: nextLevelEligibility?.overdueCycles ?? 0,
     promotionCycleBucket: nextLevelEligibility?.promotionCycleBucket ?? "not_eligible",

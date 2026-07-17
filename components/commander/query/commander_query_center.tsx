@@ -39,6 +39,9 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.battalionId != null && row.battalionId !== filters.battalionId) return false;
   if (filters.companyId != null && row.companyId !== filters.companyId) return false;
   if (filters.promotionStatus && row.promotionStatus !== filters.promotionStatus) return false;
+  // Phase 42: richer Promotion Intelligence status (lib/intelligence/promotion),
+  // distinct from the legacy score-ratio `promotionStatus` filter above.
+  if (filters.promotionEligibilityStatus && row.promotionIntelligence.promotionStatus !== filters.promotionEligibilityStatus) return false;
   if (filters.flagCode && !row.flagCodes.includes(filters.flagCode)) return false;
   if (filters.priority && row.priority !== filters.priority) return false;
   if (filters.minProfileCompleteness != null && (row.profileCompletenessPercent ?? 0) < filters.minProfileCompleteness) return false;
@@ -60,6 +63,16 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.missingGp7Only && row.hasGp7) return false;
   // Phase 44: capability filter — all present skill constraints must be met by the SAME recorded skill.
   if (filters.skill && !matchesSkillFilter(row.skillSignals, filters.skill)) return false;
+  // Phase 42: Commander Dashboard retirement-awareness drill-down. Uses the
+  // already-computed `retirementYear` (Gregorian, internal — see its own
+  // doc comment) compared against the current Gregorian year; a cumulative
+  // "within N years" match, matching how the Dashboard counts these bands.
+  if (filters.retirementWithin) {
+    if (row.retirementYear == null) return false;
+    const horizonYears = filters.retirementWithin === "within-1-year" ? 1 : filters.retirementWithin === "within-3-years" ? 3 : 5;
+    const currentYear = new Date().getUTCFullYear();
+    if (row.retirementYear - currentYear > horizonYears) return false;
+  }
   return (
     matchesNumber(row.completedPromotionCycles, filters.completedPromotionCycles) &&
     matchesNumber(row.appointmentCycle, filters.appointmentCycle) &&
@@ -86,9 +99,16 @@ function sortRows(rows: CommanderQueryOfficer[], sortBy: CommanderSortField, dir
 const DEFAULT_SORT: CommanderSortField = "priority";
 const DEFAULT_SORT_DIRECTION: "asc" | "desc" = "desc";
 
-export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDataset }) {
+export function CommanderQueryCenter({
+  dataset,
+  initialFilters,
+}: {
+  dataset: CommanderQueryDataset;
+  /** Phase 42: seeds the filter state from a shareable URL (e.g. a Commander Dashboard drill-down link). Applied once on mount only — subsequent in-page filter changes are pure client state, matching the existing convention (no ongoing URL sync). */
+  initialFilters?: CommanderQueryFilters;
+}) {
   const { t } = useT();
-  const [filters, setFilters] = useState<CommanderQueryFilters>({});
+  const [filters, setFilters] = useState<CommanderQueryFilters>(initialFilters ?? {});
   const [mode, setMode] = useState<QueryMode>("personnel");
   const [activePresetId, setActivePresetId] = useState<string | undefined>(undefined);
   const [activeCardLevel, setActiveCardLevel] = useState<string | undefined>(undefined);
@@ -183,18 +203,7 @@ export function CommanderQueryCenter({ dataset }: { dataset: CommanderQueryDatas
         <CommanderQuerySummary officers={filtered} onDrilldown={setDrilldown} />
         <CommanderQueryCharts officers={filtered} onDrilldown={setDrilldown} />
         <CommanderTimelineCharts officers={filtered} onDrilldown={setDrilldown} />
-        <CommanderResultsTable
-          officers={filtered}
-          sortBy={sortBy}
-          sortDirection={sortDirection}
-          onSort={(field) => {
-            if (field === sortBy) setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-            else {
-              setSortBy(field);
-              setSortDirection("asc");
-            }
-          }}
-        />
+        <CommanderResultsTable officers={filtered} />
       </section>
     </div>
   );

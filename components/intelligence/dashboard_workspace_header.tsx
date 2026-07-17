@@ -31,7 +31,7 @@ function useNowLabel(language: Language): string {
   }, [language]);
 }
 
-export function DashboardWorkspaceHeader() {
+export function DashboardWorkspaceHeader({ displayFiscalYearTh }: { displayFiscalYearTh?: string }) {
   const { t, language } = useT();
   const lastUpdated = useNowLabel(language);
   return (
@@ -44,10 +44,17 @@ export function DashboardWorkspaceHeader() {
       ]}
       lastUpdatedLabel={`${t("dashboard.lastUpdated")}: ${lastUpdated}`}
       statusBadge={
-        <Badge tone="good" className="gap-1">
-          <Radio className="h-3 w-3" aria-hidden="true" />
-          {t("dashboard.liveStatus")}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {displayFiscalYearTh ? (
+            <Badge tone="accent" className="gap-1">
+              {displayFiscalYearTh}
+            </Badge>
+          ) : null}
+          <Badge tone="good" className="gap-1">
+            <Radio className="h-3 w-3" aria-hidden="true" />
+            {t("dashboard.liveStatus")}
+          </Badge>
+        </div>
       }
     />
   );

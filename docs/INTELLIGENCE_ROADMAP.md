@@ -130,12 +130,16 @@ Intelligence).
 - **Planned implementation phase:** delivered (Phase 41) —
   `lib/intelligence/promotion/`, wired into
   `lib/server/commander_query_service.ts` as
-  `CommanderQueryOfficer.promotionIntelligence`. No page/component
-  consumes it yet (Phase 41 is an Intelligence Engine phase, not a UI
-  phase) — wiring Commander Search/Dashboard/Officer Profile onto it is
-  the natural **Phase 42** follow-up, alongside resolving the
-  training/documents/retirement policy-data gaps above if product wants
-  those statuses to actually fire.
+  `CommanderQueryOfficer.promotionIntelligence`. **Phase 42 wired the
+  Commander Dashboard onto it** (Promotion Intelligence KPI cards, the
+  Promotion Priority list — see `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`);
+  Commander Search and Officer Profile still read the OLDER coarse
+  `promotionStatus`/`nextLevelEligibility` fields for their primary UI
+  (Commander Search gained a NEW `promotionEligibilityStatus` filter for
+  Dashboard drill-down links, but its cards/table were not redesigned onto
+  `PromotionSummary`). Migrating those two remaining consumers, and
+  resolving the training/documents/retirement policy-data gaps above if
+  product wants those statuses to actually fire, remain open follow-ups.
 
 ### Priority Score policy (conceptual)
 
@@ -250,6 +254,46 @@ means "nothing to prioritize" (status `Unknown`), never a score of 0.
   required-documents concept — it will reuse the existing completeness
   scoring, relocated, not redesigned.
 
+## Document & Expiry Intelligence (Phase 46 — planning only, not started)
+
+- **Purpose:** Tracks EXPIRING documents — National ID
+  (บัตรประจำตัวประชาชน), Driver License (ใบอนุญาตขับขี่), Insurance Policy
+  (ประกันภัยรถยนต์), Compulsory/Motor Insurance (พ.ร.บ. รถยนต์), Vehicle
+  Tax (ภาษีรถยนต์), Passport, and other expiring types — with a dynamic
+  countdown to expiry (never stored) and explicit Expiring Soon/Expired
+  statuses. A distinct concern from the existing Document Intelligence
+  engine above (which reports vault completeness/verification status, not
+  expiry dates). Requested during Phase 42 and refined during its UI
+  refinement pass; explicitly NOT implemented in either — see
+  `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`'s Phase 46 plan for the full
+  requirement list.
+- **Master-data inputs (planned):** a NEW document-expiry data model — not
+  the existing `OfficerDocument` table, which has no issue/expiry date
+  fields today. Requires a schema addition (issue date, expiry date, a
+  category code) — explicitly out of scope for Phase 42, not created.
+- **Calculated outputs (planned):** expiry status (normal / expiring soon
+  / urgent / expired — an explicit enum, not inferred ad hoc at the UI
+  layer, following the `PromotionEligibilityStatus`/`RetirementSummary`
+  precedent), a countdown to expiry. **The countdown must be calculated
+  dynamically at read time and never stored** — mirroring every other
+  duration in this codebase (retirement remaining, promotion eligible-
+  duration, age), so it can never drift from its source date.
+- **Dependencies (planned):** a NEW `lib/intelligence/document_expiry/`
+  (or similar) facade; configurable reminder thresholds as policy DATA
+  (following `PROMOTION_POLICIES`'s precedent in
+  `lib/promotion/eligibility_policy.ts` — tunable numbers in one table,
+  never scattered magic numbers); the existing
+  `components/ui/thai_date_picker.tsx` for issue/expiry date entry (reused,
+  not rebuilt).
+- **Future commander KPIs:** officer-level expiry cards (Officer Profile),
+  a commander-level summary with filtered drill-down (Commander Dashboard
+  — Phase 42 reserved a disabled placeholder line for this, see
+  `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`), and — explicitly future,
+  NOT Phase 46 engine/UI work — LINE/Telegram/in-app notification trigger
+  points.
+- **Planned implementation phase:** **Phase 46**. Nothing beyond this
+  planning entry and one disabled Action Center line exists yet.
+
 ## Commander Intelligence
 
 - **Purpose:** Aggregates every officer's per-engine summaries into
@@ -277,6 +321,19 @@ means "nothing to prioritize" (status `Unknown`), never a score of 0.
   individual officers read from `lib/intelligence/*`, the aggregation logic
   those two services already contain can be extracted into
   `lib/intelligence/commander/` without behavior change.
+- **Phase 42 partial, Dashboard-scoped delivery:** `lib/commander_dashboard/
+  {types,view_model}.ts`'s `composeCommanderDashboardViewModel` is a
+  Dashboard-SPECIFIC aggregation (promotion/birthday/retirement/action-
+  center view models), built on top of `PromotionSummary`/`AgeSummary`/
+  `RetirementSummary`. It is deliberately NOT the general-purpose
+  `lib/intelligence/commander/` facade this section plans for Phase 47 —
+  it composes Dashboard-shaped view models, not the reusable
+  `CommanderDashboard`/`CommanderDashboardSummary` aggregate every
+  Commander View page would share. Phase 47 should evaluate whether
+  `lib/commander_dashboard/`'s composition logic can be generalized into
+  the Phase 47 facade, or should remain a thin Dashboard-only layer on top
+  of it — a decision, not yet made. See
+  `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`.
 
 ## AI Commander Intelligence
 
@@ -303,7 +360,7 @@ means "nothing to prioritize" (status `Unknown`), never a score of 0.
 
 ## Summary table
 
-Statuses reflect the actual codebase as of Phase 41 — not aspirational.
+Statuses reflect the actual codebase as of Phase 42 — not aspirational.
 "Foundation complete" means the facade + its currently-scoped calculations
 are done and tested; it does NOT mean every field a future phase might want
 is populated (see "Current scope" and "Next major step" for what's still
@@ -313,12 +370,13 @@ left `null`/unscoped.
 
 | Intelligence Engine | Current status | Public facade | Current scope | Next major step |
 |---|---|---|---|---|
-| Age | Foundation complete | Yes (`lib/intelligence/age/`) | Exact age, next-birthday tracking, Thai display (Phase 40A + 40B) | UI integration — `profile_header.tsx` still shows whole-year age (Phase 40C) |
+| Age | Foundation complete | Yes (`lib/intelligence/age/`) | Exact age, next-birthday tracking, Thai display (Phase 40A + 40B); now feeds Commander Dashboard's Birthday Intelligence (Phase 42) | UI integration — `profile_header.tsx` still shows whole-year age (Phase 40C) |
 | Service | Foundation complete, with source limitations | Yes (`lib/intelligence/service/`) | Timeline-derived service-start (earliest dated row, no event-type field to refine further) + exact duration (Phase 40A + 40B); `yearsInPositionLevel` left `null` | Improve source classification if/when the schema gains an event-type field; UI integration — `profile_header.tsx` still shows whole-year career years (Phase 40C) |
-| Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B) | Commander dashboard integration (Phase 40C / 47) |
-| Promotion | Foundation complete, policy-data gaps | Yes (`lib/intelligence/promotion/`) | Full WHY-explaining status, first eligible date, exact eligible duration, priority score (Phase 41); `MissingTraining`/`MissingDocuments`/`RetirementRestricted` correctly wired but unreachable until a policy configures those requirements | UI integration — no page consumes `promotionIntelligence` yet (Phase 42); configure training/document/retirement-window policy data if product wants those statuses to fire |
+| Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B); now feeds Commander Dashboard's Retirement Awareness (Phase 42) | Full retirement analytics page still unbuilt — Phase 42 only added a dashboard awareness summary |
+| Promotion | Foundation complete, policy-data gaps | Yes (`lib/intelligence/promotion/`) | Full WHY-explaining status, first eligible date, exact eligible duration, priority score (Phase 41); now feeds Commander Dashboard's Promotion Intelligence KPIs + Priority list (Phase 42); `MissingTraining`/`MissingDocuments`/`RetirementRestricted` correctly wired but unreachable until a policy configures those requirements | Migrate Commander Search and Officer Profile off the older coarse `promotionStatus` onto `PromotionSummary`; configure training/document/retirement-window policy data if product wants those statuses to fire |
 | Salary | Existing production logic wrapped, partial | Yes (`lib/intelligence/salary/`) | Real two-step ("2 ขั้น") eligibility only — the one deterministic rule that exists today | Broader salary-step forecasting once a second business rule exists to wrap (unscheduled) |
 | Training | Planned — no facade exists | No | No dedicated engine; training presence read directly (`officer.training.length > 0`) by callers such as `lib/intelligence/flags.ts` | Build Training Intelligence, gated on a prior product decision defining "required training" per rank/role (unscheduled) |
 | Document | Existing production logic wrapped, partial | Yes (`lib/intelligence/document/`) | Real active/verified/pending document counts + portrait signal only — no required-documents checklist exists in the schema | Migrate `lib/ui/profile_completeness.ts`'s checklist logic behind this facade, reusing it as-is (Phase 46) |
-| Commander | Existing production engine, not yet a dedicated facade | Existing architecture (`CommanderDashboard`/`CommanderQueryDataset`), built directly in `commander_query_service.ts`/`commander_intelligence_service.ts` | Flags, priority, recommendations, aggregation — all computed ad hoc per service today | Extract into `lib/intelligence/commander/`, consuming the strengthened per-officer facades (Phase 47) |
+| Document & Expiry | Planned — no facade exists | No | Not implemented; Commander Dashboard reserves one disabled Action Center line as an integration point (Phase 42) | Full implementation — schema, engine, UI — in **Phase 46** |
+| Commander | Existing production engine, not yet a dedicated facade | Existing architecture (`CommanderDashboard`/`CommanderQueryDataset`); Phase 42 adds a Dashboard-SPECIFIC (not general-purpose) composition layer, `lib/commander_dashboard/` | Flags, priority, recommendations, aggregation — mostly computed ad hoc per service; Dashboard's promotion/birthday/retirement/action-center view models now composed via `lib/commander_dashboard/view_model.ts` | Extract a general-purpose `lib/intelligence/commander/`, consuming the strengthened per-officer facades, and decide whether `lib/commander_dashboard/` folds into it (Phase 47) |
 | AI Commander | Planned — no implementation | No | Not implemented in any form; `lib/intelligence/recommendations.ts`'s deterministic (non-AI) suggestions are the closest existing analogue | Build once Commander Intelligence (Phase 47) lands and an LLM-integration decision is made (unscheduled) |

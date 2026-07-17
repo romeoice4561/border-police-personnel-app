@@ -150,6 +150,72 @@ export const DICTIONARY = {
   "dashboard.missingPortrait": tr("ไม่มีรูปโปรไฟล์", "Missing Portrait"),
   "dashboard.missingTraining": tr("ขาดหลักสูตร", "Missing Training"),
 
+  // ── dashboard.* — Phase 42: Commander Dashboard Intelligence ──
+  "dashboard.fiscalYearLabel": tr("ปีงบประมาณปัจจุบัน", "Current Fiscal Year"),
+  "dashboard.actionCenterTitle": tr("ศูนย์ปฏิบัติการผู้บังคับบัญชา", "Commander Action Center"),
+  "dashboard.actionCenterEmpty": tr("ไม่มีรายการที่ต้องดำเนินการเร่งด่วนในขณะนี้", "No urgent items right now."),
+  "dashboard.promotionIntelligenceTitle": tr("ข่าวกรองการเลื่อนตำแหน่ง", "Promotion Intelligence"),
+  "dashboard.promotionEligibleThisYear": tr("ครบคุณสมบัติปีนี้", "Eligible This Year"),
+  "dashboard.promotionAlreadyEligible": tr("ครบคุณสมบัติสะสม", "Already Eligible"),
+  "dashboard.promotionWaiting": tr("รอดำเนินการ", "Waiting"),
+  "dashboard.promotionMissingTraining": tr("ขาดหลักสูตร", "Missing Training"),
+  "dashboard.promotionMissingDocuments": tr("ขาดเอกสาร", "Missing Documents"),
+  "dashboard.promotionRetirementRestricted": tr("ใกล้เกษียณก่อนเลื่อนตำแหน่ง", "Retirement Restricted"),
+  "dashboard.promotionUnknown": tr("ไม่สามารถวิเคราะห์ได้", "Not Yet Analyzable"),
+  "dashboard.promotionZeroHint": tr("ยังไม่ได้กำหนดนโยบาย", "Not yet configured by policy"),
+  "dashboard.priorityListTitle": tr("ผู้ควรได้รับการพิจารณาก่อน", "Priority Candidates"),
+  "dashboard.priorityListSubtitle": tr(
+    "ข้อมูลสนับสนุนการตัดสินใจ ไม่ใช่คำสั่งแต่งตั้งอัตโนมัติ",
+    "Decision-support information — not an automatic appointment decision."
+  ),
+  "dashboard.priorityColumnPhoto": tr("รูป", "Photo"),
+  "dashboard.priorityColumnName": tr("ยศ ชื่อ–สกุล", "Rank / Name"),
+  "dashboard.priorityColumnPosition": tr("ตำแหน่ง", "Position"),
+  "dashboard.priorityColumnUnit": tr("หน่วย", "Unit"),
+  "dashboard.priorityColumnStatus": tr("สถานะ", "Status"),
+  /** @deprecated Commander Promotion UX refinement dropped this column from the Dashboard table (superseded by "คุณสมบัติ"/"สถานะ"). Kept for backward compatibility. */
+  "dashboard.priorityColumnEligibleSince": tr("ครบครั้งแรก", "First Eligible"),
+  /** Phase 42 UI refinement (Task 4): replaces the verbose duration column — shows "ปีนี้เป็นปีที่ N" instead of "20 ปี 8 เดือน 15 วัน". */
+  "dashboard.priorityColumnEligibleDuration": tr("ปีนี้เป็นปีที่", "Eligibility Year"),
+  /** @deprecated Commander Promotion UX refinement replaces this column with "ดำรงตำแหน่งระดับนี้มา" (years at the current level, not a cycle count). Kept for backward compatibility. */
+  "dashboard.priorityColumnCycles": tr("รอบการแต่งตั้ง", "Appointment Cycle"),
+  /** @deprecated Phase 42 UI refinement (Task 6) removed this column from the table. Kept only so any other reader of the dictionary keeps working. */
+  "dashboard.priorityColumnScore": tr("คะแนนความสำคัญ", "Priority Score"),
+  /** @deprecated Phase 42 UI refinement (Task 6) removed this column from the table. Kept only so any other reader of the dictionary keeps working. */
+  "dashboard.priorityColumnReason": tr("เหตุผล", "Reason"),
+  /** Phase 42 UI refinement (Task 7): exact government-service duration, from Service Intelligence. */
+  "dashboard.priorityColumnServiceYears": tr("อายุราชการ", "Years of Service"),
+  /** Phase 42 UI refinement (Task 8): Buddhist-Era retirement fiscal year, from Retirement Intelligence. */
+  "dashboard.priorityColumnRetirementYear": tr("ปีเกษียณอายุราชการ", "Retirement Year"),
+  /** Commander Promotion UX refinement: answers "ครบขึ้นตำแหน่งอะไร" (which position the officer would advance into), e.g. "ครบขึ้น ผกก." — not a generic "Eligible" label. */
+  "dashboard.priorityColumnQualification": tr("คุณสมบัติ", "Qualification"),
+  /** Commander Promotion UX refinement: whole years held at the CURRENT position level — answers "อยู่ในระดับตำแหน่งนี้มาแล้วกี่ปี", never a cycle count. */
+  "dashboard.priorityColumnYearsAtLevel": tr("ดำรงตำแหน่งระดับนี้มา", "Time at Current Level"),
+  "dashboard.priorityColumnAction": tr("ดูประวัติ", "View History"),
+  "dashboard.priorityViewAll": tr("ดูทั้งหมด", "View All"),
+  "dashboard.priorityEmpty": tr("ไม่มีกำลังพลที่ต้องพิจารณาก่อนในขณะนี้", "No priority candidates right now."),
+  "dashboard.birthdayTitle": tr("วันเกิดกำลังพล", "Birthday Intelligence"),
+  "dashboard.birthdayToday": tr("เกิดวันนี้", "Birthdays Today"),
+  "dashboard.birthdayNextSevenDays": tr("เกิดภายใน 7 วัน", "Birthdays Within 7 Days"),
+  "dashboard.birthdayThisMonth": tr("เกิดเดือนนี้", "Birthdays This Month"),
+  "dashboard.birthdayEmpty": tr("ไม่มีวันเกิดในช่วงนี้", "No birthdays in this range."),
+  "dashboard.retirementTitle": tr("ข่าวกรองการเกษียณอายุ", "Retirement Awareness"),
+  "dashboard.retirementWithinOneYear": tr("เกษียณภายใน 1 ปี", "Retiring Within 1 Year"),
+  "dashboard.retirementWithinThreeYears": tr("เกษียณภายใน 3 ปี", "Retiring Within 3 Years"),
+  "dashboard.retirementWithinFiveYears": tr("เกษียณภายใน 5 ปี", "Retiring Within 5 Years"),
+  "dashboard.retirementColumnAge": tr("อายุปัจจุบัน", "Current Age"),
+  "dashboard.retirementColumnDate": tr("วันเกษียณ", "Retirement Date"),
+  "dashboard.retirementColumnYear": tr("ปีเกษียณ พ.ศ.", "Retirement Fiscal Year"),
+  "dashboard.retirementColumnRemaining": tr("ระยะเวลาคงเหลือ", "Time Remaining"),
+  "dashboard.retirementEmpty": tr("ไม่มีกำลังพลใกล้เกษียณในช่วงนี้", "No officers approaching retirement in this range."),
+  "dashboard.overviewTitle": tr("ภาพรวมกำลังพล", "Personnel Overview"),
+  "dashboard.dataUnavailable": tr("ข้อมูลไม่เพียงพอสำหรับวิเคราะห์", "Data Unavailable"),
+  "dashboard.dataUnavailableHint": tr("ไม่มีข้อมูลวันเกิดที่ใช้คำนวณได้", "No usable date-of-birth data."),
+  "dashboard.documentExpiryComingSoon": tr(
+    "เอกสารใกล้หมดอายุ — รอเชื่อมระบบ Document Intelligence",
+    "Document Expiry — pending Document Intelligence integration"
+  ),
+
   // ── commander.* — Commander Search ──
   "commander.title": tr("ศูนย์ค้นหากำลังพล", "Commander Search Center"),
   "commander.subtitle": tr(
@@ -191,9 +257,21 @@ export const DICTIONARY = {
   "commander.nextLevel": tr("ระดับถัดไป", "Next Level"),
   "commander.targetLevel": tr("ระดับเป้าหมาย", "Target Level"),
   "commander.sortBy": tr("เรียงตาม", "Sort by"),
+  /** @deprecated superseded by commander.firstEligibleYear in the Commander Promotion UX refinement's rebuilt results table. Kept for backward compatibility (not removed). */
   "commander.eligibleSince": tr("ครบตั้งแต่", "Eligible Since"),
+  /** @deprecated superseded by commander.overdueYears (Commander Promotion UX refinement redefines "เกินกำหนด" semantics — whole missed promotion opportunities, from PromotionSummary, not the old cycle-count field). Kept for backward compatibility. */
   "commander.eligibleOverdue": tr("เกินกำหนด", "Eligible Overdue"),
   "commander.completedCycles": tr("วาระที่ครบ", "Completed Cycles"),
+  // ── Commander Promotion UX refinement: rebuilt Commander Search results table ──
+  "commander.positionLevelStartYear": tr("ดำรงตำแหน่งนี้มาตั้งแต่ปี", "In Level Since"),
+  "commander.yearsInLevel": tr("จำนวนปีในระดับนี้", "Years in Level"),
+  /** "ปีที่ครบครั้งแรก" — the Buddhist-Era fiscal year the officer FIRST became eligible (PromotionSummary.eligibleFiscalYearBe). Distinct from the deprecated commander.eligibleSince (a cycle-count field). */
+  "commander.firstEligibleYear": tr("ปีที่ครบครั้งแรก", "First Eligible Year"),
+  /** "เกินกำหนด" — whole promotion opportunities already missed (PromotionSummary.overdueYears - 1, floored at 0; e.g. first eligible 2568, current fiscal year 2569 = 1 missed opportunity). Distinct from the deprecated commander.eligibleOverdue. */
+  "commander.overdueYears": tr("เกินกำหนด", "Overdue"),
+  /** "ปีนี้เป็นปีที่" — which numbered eligibility year this is (PromotionSummary.overdueYears, displayed as a bare number). */
+  "commander.eligibilityYear": tr("ปีนี้เป็นปีที่", "Eligibility Year"),
+  "commander.qualificationStatus": tr("สถานะ", "Status"),
   "commander.resultDistribution": tr("การกระจายผลลัพธ์", "Result Distribution"),
   "commander.rankDistribution": tr("การกระจายตามยศ", "Rank Distribution"),
   "commander.positionLevelDistribution": tr("การกระจายตามระดับตำแหน่ง", "Position Level Distribution"),

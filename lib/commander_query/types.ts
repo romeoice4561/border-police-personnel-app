@@ -79,6 +79,29 @@ export interface CommanderQueryOfficer {
    * richer engine output, not a replacement for either.
    */
   promotionIntelligence: PromotionSummary;
+  /**
+   * Phase 42 (Commander Dashboard Intelligence): the officer's date of
+   * birth, exposed so the Dashboard View Model can compute Age/Retirement
+   * Intelligence (`computeAgeSummary`/`computeRetirementSummary`) from this
+   * SAME already-loaded dataset instead of a second Prisma round-trip.
+   * Master data (Gregorian `Date`, per the ISO storage policy) — never
+   * rendered directly; always go through the Intelligence facades for
+   * display.
+   */
+  dateOfBirth: Date | null;
+  /** Phase 42 UI refinement: exact (never decimal) government-service duration, e.g. "16 ปี 1 เดือน 3 วัน" — Service Intelligence (lib/intelligence/service), unmodified. Null when unavailable (see ServiceSummary.available). */
+  displayServiceDurationTh: string | null;
+  /**
+   * Commander Promotion UX refinement: the Buddhist-Era year the officer
+   * started their CURRENT structured position level ("ดำรงตำแหน่งนี้มาตั้งแต่ปี")
+   * — derived from Timeline Intelligence (the earliest timeline row at the
+   * current level, already computed as `positionLevelStart` in
+   * lib/server/commander_query_service.ts), NOT the appointment-cycle
+   * value. Null when the level is Unknown or undated.
+   */
+  positionLevelStartYearBe: number | null;
+  /** Commander Promotion UX refinement: exact age as "40 ปี, 11 เดือน" (years + months, no days — matching the requested display precision) — from Age Intelligence (lib/intelligence/age), unmodified. Never decimal. Null when unavailable. */
+  displayAgeYearsMonthsTh: string | null;
   appointmentCycle: number | null;
   eligibleCycle: number | null;
   overdueCycles: number;

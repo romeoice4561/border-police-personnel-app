@@ -2,6 +2,7 @@ import type { CommanderQueryOfficer, NumericOperator } from "@/lib/commander_que
 import type { OfficerFlagCode, OfficerPriority, PromotionStatus } from "@/lib/intelligence";
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import type { SkillFilter } from "@/lib/capability/skill_filter";
+import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
 
 export type CommanderSortField =
   | "rank"
@@ -40,6 +41,8 @@ export interface CommanderQueryFilters {
   age?: NumericFilter;
   governmentServiceYears?: NumericFilter;
   promotionStatus?: PromotionStatus;
+  /** Phase 42: filters on the richer Promotion Intelligence status (lib/intelligence/promotion's PromotionEligibilityStatus) — distinct from the legacy `promotionStatus` score-ratio filter above; used by Commander Dashboard drill-down links (e.g. `?promotionStatus=AlreadyEligible` maps here, not to the legacy field). */
+  promotionEligibilityStatus?: PromotionEligibilityStatus;
   flagCode?: OfficerFlagCode;
   priority?: OfficerPriority;
   minProfileCompleteness?: number;
@@ -62,8 +65,10 @@ export interface CommanderQueryFilters {
   mustSkipStepOnly?: boolean;
   /** Only officers missing an active ก.พ.7 (GP7) document. */
   missingGp7Only?: boolean;
-  /** Phase 44: capability filter (category / skill / min level / verified / certificate / expiring / expert / instructor / deployment-ready / experience). */
+  /** Phase 44: capability filter (category / skill / min level / verified / certificate / deployment-ready / experience). */
   skill?: SkillFilter;
+  /** Phase 42: Commander Dashboard retirement-awareness drill-down — matches officers retiring within the given horizon (cumulative: "within-1-year" is a subset of "within-3-years"). */
+  retirementWithin?: "within-1-year" | "within-3-years" | "within-5-years";
 }
 
 export interface DrilldownFilter {

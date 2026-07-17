@@ -425,3 +425,65 @@ eligibility.** This is binding, not advisory:
   not required to migrate immediately — see "No dedicated UI consumes
   `promotionIntelligence` yet" above — but any NEW code should reach for
   `PromotionSummary` first.
+
+---
+
+## Phase 42 — Commander Dashboard Intelligence
+
+Phase 42 is the first consumer of `PromotionSummary` (Phase 41's single
+source of truth) plus `AgeSummary`/`RetirementSummary` (Phase 40B) on the
+Commander Dashboard — the exact "No dedicated UI consumes
+`promotionIntelligence` yet" gap flagged above. Full detail — data flow,
+KPI definitions, birthday/retirement rules, Action Center categories,
+drill-down convention, and the Phase 46 plan — lives in
+**`docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`**, the Dashboard-specific
+companion to this document.
+
+Summary of what changed:
+
+- **New pure composition layer**: `lib/commander_dashboard/{types,
+  view_model}.ts` — `composeCommanderDashboardViewModel()` turns a list of
+  officers (already carrying `PromotionSummary` fields) plus a
+  deterministic `asOf` into the full `CommanderDashboardViewModel`. No
+  I/O, no Prisma — calls `computeAgeSummary`/`computeRetirementSummary`
+  (`lib/intelligence/{age,retirement}`) and reads `PromotionSummary`
+  fields already computed upstream. Does not calculate promotion
+  eligibility, age, retirement, or fiscal-year logic itself.
+- **New server service**: `lib/server/commander_dashboard_service.ts`'s
+  `getCommanderDashboardViewModel()` — loads the SAME dataset Commander
+  Search already computes (`getCommanderQueryDataset()`), avoiding a
+  second Prisma round-trip and a second promotion-eligibility computation.
+- **`CommanderQueryOfficer` gains `dateOfBirth`** (additive) so the
+  Dashboard service can compute Age/Retirement Intelligence from the
+  already-loaded dataset.
+- **Five new Dashboard components** (`components/intelligence/
+  dashboard_{action_center,promotion_intelligence,promotion_priority,
+  birthday_intelligence,retirement_awareness}.tsx`) — pure rendering over
+  the already-computed view model; the Dashboard page composes them ahead
+  of the pre-existing personnel-count section (now visually secondary,
+  per the "generic totals must not dominate the page" rule) and the
+  unchanged capability-intelligence section.
+- **Minimal, additive drill-down plumbing** — Commander Search previously
+  had ZERO URL-query-string awareness (confirmed by audit: filters were
+  pure in-memory React state). Phase 42 adds `searchParams` reading on
+  `app/commander-search/page.tsx` (seeding filter state once on mount via
+  a new `initialFilters` prop) and two new `CommanderQueryFilters` fields
+  (`promotionEligibilityStatus`, `retirementWithin`) — not a parallel
+  filter system, and not an ongoing URL-sync feature (existing in-page
+  filter changes remain pure client state, unchanged).
+- **Document Expiry Intelligence is explicitly NOT implemented** — a
+  single disabled, inert Action Center line reserves the integration
+  point, using the same disabled/inert convention Commander Search's
+  export buttons already established; full requirements are documented as
+  the Phase 46 plan in `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md` and
+  `docs/INTELLIGENCE_ROADMAP.md`.
+
+### Known limitation carried forward
+
+No live browser verification was performed against a running,
+authenticated session in this phase (environment constraint, not a scope
+decision) — verification relied on `tsc --noEmit`, the full test suite,
+and a successful `next build` (which type-checks and statically compiles
+every route, including the Dashboard's Server Component data fetching).
+See `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`'s Known Limitations for
+this and the other Phase 42-specific gaps.
