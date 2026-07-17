@@ -10,8 +10,8 @@ import { createDatabaseClient } from "@/lib/database/database";
 import type { OfficerWithRelations, ReadDatabaseClient } from "@/lib/database/query_types";
 import { OfficerQueryRepository } from "@/lib/database/repositories/officer_query_repository";
 import { computeProfileCompleteness } from "@/lib/ui/profile_completeness";
-import { toEffectiveDate } from "@/lib/officer_profile/thai_date";
 import { officerFullName } from "@/lib/ui/officer_summary";
+import { firstServiceLikeDate } from "@/lib/intelligence/shared/timeline_dates";
 import { buildCommanderDashboard, buildOfficerIntelligenceCard, type CommanderDashboard, type OfficerIntelligenceCard, type OfficerIntelligenceInput } from "@/lib/intelligence";
 import { buildPromotionContext, createRequiredDocumentsRule, createRequiredTrainingRule } from "@/lib/promotion";
 import { calculateRetirement } from "@/lib/personnel_calendar";
@@ -47,14 +47,6 @@ export async function loadCommanderOfficerProfiles(): Promise<OfficerWithRelatio
       skills: { include: { skill: { include: { category: true } }, level: true }, orderBy: { id: "asc" } },
     },
   });
-}
-
-function firstServiceLikeDate(officer: OfficerWithRelations): Date | null {
-  const dates = officer.timeline
-    .map((row) => toEffectiveDate(row))
-    .filter((date): date is Date => date !== null)
-    .sort((a, b) => a.getTime() - b.getTime());
-  return dates[0] ?? null;
 }
 
 function toIntelligenceInput(officer: OfficerWithRelations): OfficerIntelligenceInput {

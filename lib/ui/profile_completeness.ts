@@ -10,6 +10,14 @@
  * they always render unchecked — never invented, never guessed.
  *
  * No I/O, no React, no globals.
+ *
+ * TECHNICAL DEBT (Phase 40A hardening pass): this file contains domain/
+ * calculation logic (a derived completeness score) but lives under
+ * `lib/ui/`, not `lib/intelligence/`. It should be migrated behind
+ * `lib/intelligence/document` during Phase 46, reusing this exact scoring
+ * logic without changing behavior — see docs/INTELLIGENCE_ROADMAP.md
+ * (Document Intelligence) and docs/Personnel_Intelligence_Architecture.md
+ * (Risks). Not moved in this pass.
  */
 
 import type { OfficerWithRelations } from "@/lib/database/query_types";

@@ -1,7 +1,6 @@
 import "server-only";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
-import type { Timeline } from "@/lib/database/database_types";
-import { calculateAge, calculateGovernmentServiceDuration, calculateRetirement, differenceYMD, type DurationYMD } from "@/lib/personnel_calendar";
+import { calculateAge, calculateGovernmentServiceDuration, calculateRetirement } from "@/lib/personnel_calendar";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { toEffectiveDate } from "@/lib/officer_profile/thai_date";
 import { buildOfficerProfileIntelligence, loadCommanderOfficerProfiles } from "@/lib/server/commander_intelligence_service";
@@ -13,32 +12,8 @@ import { toSkillSignals } from "@/lib/capability/skill_filter";
 import { getSkillCatalog } from "@/lib/server/officer_service";
 import type { CommanderEligibilitySummary, CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
-
-function yearsFromDuration(duration: DurationYMD | null): number | null {
-  if (!duration) return null;
-  return Number((duration.years + duration.months / 12 + duration.days / 365).toFixed(1));
-}
-
-function firstServiceLikeDate(officer: OfficerWithRelations): Date | null {
-  const dates = officer.timeline
-    .map((row) => toEffectiveDate(row))
-    .filter((date): date is Date => date !== null)
-    .sort((a, b) => a.getTime() - b.getTime());
-  return dates[0] ?? null;
-}
-
-function startedAtForMatchingTimeline(rows: Timeline[], predicate: (row: Timeline) => boolean): Date | null {
-  const matches = rows
-    .filter(predicate)
-    .map((row) => toEffectiveDate(row))
-    .filter((date): date is Date => date !== null)
-    .sort((a, b) => a.getTime() - b.getTime());
-  return matches[0] ?? null;
-}
-
-function yearsSince(date: Date | null, asOf: Date): number | null {
-  return yearsFromDuration(date ? differenceYMD(date, asOf) : null);
-}
+import { firstServiceLikeDate, startedAtForMatchingTimeline } from "@/lib/intelligence/shared/timeline_dates";
+import { yearsFromDuration, yearsSince, monthsFromDuration } from "@/lib/intelligence/shared/duration";
 
 function hasActiveDocument(officer: OfficerWithRelations, typeCode: string): boolean {
   return officer.documents.some((doc) => doc.documentType === typeCode && doc.isActive !== false);
@@ -126,11 +101,6 @@ function computeNextLevelEligibility(
     completedPromotionCycles: result.promotionCycle?.completedPromotionCycles ?? null,
     promotionCycleBucket: promotionCycleBucket(result.promotionCycle),
   };
-}
-
-function monthsFromDuration(duration: DurationYMD | null): number | null {
-  if (!duration) return null;
-  return duration.years * 12 + duration.months + (duration.days > 0 ? 1 : 0);
 }
 
 function toQueryOfficer(
