@@ -11,14 +11,20 @@ function cycleBucket(value: number | null): string {
   return `${value} cycle${value === 1 ? "" : "s"}`;
 }
 
-function countBy<T extends string | number | null>(officers: CommanderQueryOfficer[], getValue: (officer: CommanderQueryOfficer) => T) {
-  const counts = new Map<string, { raw: T; value: number }>();
+function countBy<T extends string | number | null>(
+  officers: CommanderQueryOfficer[],
+  getValue: (officer: CommanderQueryOfficer) => T,
+  getLabel: (officer: CommanderQueryOfficer) => string | number | null = getValue
+) {
+  const counts = new Map<string, { raw: T; label: string; value: number }>();
   for (const officer of officers) {
     const raw = getValue(officer);
-    const label = raw == null || raw === "" ? "Unknown" : String(raw);
-    counts.set(label, { raw, value: (counts.get(label)?.value ?? 0) + 1 });
+    const key = raw == null || raw === "" ? "Unknown" : String(raw);
+    const displayLabel = raw == null || raw === "" ? "Unknown" : String(getLabel(officer));
+    const existing = counts.get(key);
+    counts.set(key, { raw, label: displayLabel, value: (existing?.value ?? 0) + 1 });
   }
-  return [...counts.entries()].map(([label, row]) => ({ label, raw: row.raw, value: row.value })).sort((a, b) => a.label.localeCompare(b.label));
+  return [...counts.entries()].map(([, row]) => row).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function Timeline({
@@ -72,7 +78,11 @@ export function CommanderTimelineCharts({
 }) {
   const { t } = useT();
   const promotionRows = countBy(officers, (officer) => cycleBucket(officer.completedPromotionCycles));
-  const retirementRows = countBy(officers, (officer) => officer.retirementYear);
+  const retirementRows = countBy(
+    officers,
+    (officer) => officer.retirementYear,
+    (officer) => officer.retirementYearBe
+  );
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">

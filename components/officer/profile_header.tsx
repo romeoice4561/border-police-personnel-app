@@ -29,7 +29,8 @@ import { officerFullName, currentTimelineRow } from "@/lib/ui/officer_summary";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { calculateCareerYearsSimple } from "@/lib/officer_profile/career_calculator";
 import { calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
-import { currentYearBE, yearGregorianToBE, THAI_MONTHS } from "@/lib/officer_profile/thai_date";
+import { currentYearBE } from "@/lib/officer_profile/thai_date";
+import { formatFullThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { QualityBadge } from "@/components/common/quality_badge";
 import { PortraitManager } from "@/components/officer/portrait_manager";
@@ -94,16 +95,6 @@ function VerificationBadge({ officer }: { officer: OfficerWithRelations }) {
   );
 }
 
-/** "1 มกราคม 2560" formatted from a persisted Gregorian Date, in Buddhist Era. */
-function formatDateOfBirth(date: Date | null): string | null {
-  if (!date) return null;
-  const d = new Date(date);
-  const day = d.getUTCDate();
-  const month = d.getUTCMonth() + 1;
-  const yearBE = yearGregorianToBE(d.getUTCFullYear());
-  return `${day} ${THAI_MONTHS[month]} ${yearBE}`;
-}
-
 export function ProfileHeader({ officer, portrait, organizationEngine, onPortraitChanged }: ProfileHeaderProps) {
   const name = officerFullName(officer);
   const careerYears = calculateCareerYearsSimple(officer.timeline, currentYearBE());
@@ -159,7 +150,7 @@ export function ProfileHeader({ officer, portrait, organizationEngine, onPortrai
             <HeaderField icon={MessageCircle} label="LINE" value={officer.lineId} />
             <HeaderField icon={CalendarClock} label="Career Years" value={careerYears > 0 ? `${careerYears} ปี / years` : null} />
             <HeaderField icon={Cake} label="Current Age" value={currentAge !== null ? `${currentAge} ปี / years` : null} />
-            <HeaderField icon={Cake} label="Date of Birth" value={formatDateOfBirth(officer.dateOfBirth ?? null)} />
+            <HeaderField icon={Cake} label="Date of Birth" value={officer.dateOfBirth ? formatFullThaiDateTh(officer.dateOfBirth) : null} />
           </dl>
 
           {officer.phone ? (

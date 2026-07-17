@@ -16,8 +16,10 @@ import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { BilingualLabel } from "@/components/ui/bilingual_label";
 import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
-import { calculateBmi, calculateRetirementYearBE, calculateCurrentAge } from "@/lib/officer_profile/retirement_calculator";
+import { calculateBmi } from "@/lib/officer_profile/retirement_calculator";
 import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
+import { computeAgeSummary } from "@/lib/intelligence/age";
+import { computeRetirementSummary } from "@/lib/intelligence/retirement";
 
 function Field({ labelKey, value }: { labelKey: keyof typeof FIELD_LABELS; value: string | number | null | undefined }) {
   const display = value === null || value === undefined || value === "" ? "—" : value;
@@ -43,8 +45,8 @@ function Group({ titleTh, titleEn, children }: { titleTh: string; titleEn: strin
 
 export function PersonalInformationSection({ officer }: { officer: OfficerWithRelations }) {
   const bmi = calculateBmi(officer.weightKg ?? null, officer.heightCm ?? null);
-  const retirement = calculateRetirementYearBE(officer.dateOfBirth ?? null);
-  const currentAge = calculateCurrentAge(officer.dateOfBirth ?? null);
+  const retirement = computeRetirementSummary(officer.dateOfBirth ?? null);
+  const age = computeAgeSummary(officer.dateOfBirth ?? null);
 
   return (
     <EditableSectionCard title="ข้อมูลส่วนบุคคล / Personal Information">
@@ -57,7 +59,7 @@ export function PersonalInformationSection({ officer }: { officer: OfficerWithRe
 
         <Group titleTh="ข้อมูลส่วนตัว" titleEn="Personal">
           <Field labelKey="dateOfBirth" value={formatThaiPersonnelDate(officer.dateOfBirth ?? null)} />
-          <Field labelKey="currentAge" value={currentAge !== null ? `${currentAge} ปี` : null} />
+          <Field labelKey="currentAge" value={age.available ? age.displayAgeTh : null} />
           <Field labelKey="nickname" value={officer.nickname} />
           <Field labelKey="bloodGroup" value={officer.bloodGroup} />
           <Field labelKey="rh" value={officer.rh} />
@@ -90,8 +92,8 @@ export function PersonalInformationSection({ officer }: { officer: OfficerWithRe
         </Group>
 
         <Group titleTh="เกษียณอายุราชการ" titleEn="Retirement">
-          <Field labelKey="retirementYear" value={retirement ? retirement.retirementDateThai : null} />
-          <Field labelKey="retirementCountdown" value={retirement ? `${retirement.yearsRemaining} ปี` : null} />
+          <Field labelKey="retirementYear" value={retirement.available ? retirement.displayRetirementDateTh : null} />
+          <Field labelKey="retirementCountdown" value={retirement.available ? retirement.displayRemainingTh : null} />
         </Group>
       </div>
     </EditableSectionCard>

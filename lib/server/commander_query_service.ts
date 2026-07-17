@@ -14,6 +14,7 @@ import type { CommanderEligibilitySummary, CommanderQueryDataset, CommanderQuery
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
 import { firstServiceLikeDate, startedAtForMatchingTimeline } from "@/lib/intelligence/shared/timeline_dates";
 import { yearsFromDuration, yearsSince, monthsFromDuration } from "@/lib/intelligence/shared/duration";
+import { toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
 
 function hasActiveDocument(officer: OfficerWithRelations, typeCode: string): boolean {
   return officer.documents.some((doc) => doc.documentType === typeCode && doc.isActive !== false);
@@ -157,6 +158,7 @@ function toQueryOfficer(
     governmentServiceYears,
     ageYears: yearsFromDuration(calculateAge(officer.dateOfBirth ?? null, asOf)),
     retirementYear: retirement?.retirementDate.getUTCFullYear() ?? null,
+    retirementYearBe: retirement ? toBuddhistEraYear(retirement.retirementDate.getUTCFullYear()) : null,
     promotionStatus: intelligence.promotionStatus,
     retirementStatus: intelligence.retirementStatus,
     priority: intelligence.priority,

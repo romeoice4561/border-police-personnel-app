@@ -1,6 +1,7 @@
 # Personnel Intelligence Architecture
 
 **Phase 40A — Personnel Intelligence Platform Foundation**
+**(extended by Phase 40B — Data Standardization & Thai Government Date Foundation; see the Phase 40B section below and `docs/THAI_DATE_AND_RETIREMENT_STANDARD.md`)**
 
 ## Purpose
 
@@ -209,3 +210,76 @@ View code:
   and the full test suite (indirectly, via the refactored services still
   passing), but have no dedicated unit tests of their own yet. Recommended
   before Task 4's page migration begins.
+- **Multiple Thai date-formatter mechanisms still coexist** (`formatThaiDate`,
+  `formatThaiPersonnelDate`, `formatLocalizedDate`, inline
+  `toLocaleDateString("th-TH", ...)`, `Intl.DateTimeFormat` with
+  `-u-ca-buddhist`). Phase 40B fixed only the confirmed hardcoded `±543`
+  bypasses and one ungoverned call site in the files it touched — it did
+  not attempt broad consolidation, and none is required in Phase 40B. See
+  `docs/THAI_DATE_AND_RETIREMENT_STANDARD.md` §6.1/§12 for the canonical
+  formatter rule and full limitation detail.
+
+---
+
+## Phase 40B — Data Standardization & Thai Government Date Foundation
+
+Phase 40B strengthens the Age, Service, and Retirement Intelligence facades
+introduced above with exact-duration (no decimal-year approximation),
+Buddhist-Era display, and Thai fiscal-year support. Full detail — storage
+policy, timezone convention, the timeline-selection rule for service-start,
+the fiscal-year/retirement business rule, and migration guidance — lives in
+**`docs/THAI_DATE_AND_RETIREMENT_STANDARD.md`**, the canonical reference for
+all future date-handling.
+
+Summary of what changed:
+
+- **New shared date utilities** (`lib/intelligence/shared/`): `date_types.ts`
+  (`ExactDuration` type alias, `ExactDurationResult`, `UnavailableDateReason`),
+  `exact_duration.ts` (`computeExactDuration`, `formatExactDurationTh`,
+  `formatExactDurationCompactTh`), `thai_date.ts` (`toBuddhistEraYear`,
+  `formatFullThaiDateTh`, `formatShortThaiDateTh`, `formatBuddhistEraYearTh`,
+  `formatCompactBuddhistEraYearTh`), `fiscal_year.ts`
+  (`computeFiscalYearSummary`). All are thin wrappers over the pre-existing,
+  already-correct `lib/personnel_calendar/*` primitives — no date-math
+  primitive was reimplemented.
+- **`AgeSummary`/`ServiceSummary`/`RetirementSummary` extended**, not
+  replaced — every Phase 40A field (`ageYears`, `careerYears`,
+  `governmentServiceYears`, `remainingYears`, `retirementFiscalYear`) is kept
+  as a `@deprecated`-annotated compatibility field; the new exact-duration
+  and Thai-display fields are additive.
+- **`ServiceSummary` gains `serviceStartDate`/`sourceTimelineEntryId`** —
+  the schema has no `serviceStartDate` column (confirmed, not fabricated);
+  the timeline-selection rule (earliest dated Timeline row) is documented in
+  both `lib/intelligence/service/index.ts`'s doc comment and the standard
+  doc.
+- **Confirmed hardcoded `±543` bypasses fixed** (6 sites) — all now route
+  through `toBuddhistEraYear`/`yearGregorianToBE`/`yearBEToGregorian`.
+- **`CommanderQueryOfficer.retirementYear` Gregorian-leak fixed** — an
+  additive `retirementYearBe` field was added; `retirementTimeline` chart now
+  displays the Buddhist-Era value while the Gregorian `retirementYear` is
+  kept unchanged as the internal filter/drilldown-matching value (no filter
+  behavior changed).
+- **`personal_information_section.tsx`** now reads `computeAgeSummary`/
+  `computeRetirementSummary` instead of the separate
+  `calculateCurrentAge`/`calculateRetirementYearBE` entry points, replacing
+  a whole-number-years display with the exact-duration Thai display (the
+  "40.9 → 40 ปี 11 เดือน 6 วัน" pattern the phase targeted).
+
+### Canonical Thai formatter rule (standards, binding going forward)
+
+`lib/intelligence/shared/thai_date.ts` is the canonical, public Thai
+date-display layer for all new Intelligence Engine and Commander View code.
+All new user-facing Thai date and Buddhist Era formatting must use the
+canonical shared formatter exposed through this file; new Thai/Buddhist Era
+date-formatting logic must not be introduced in unrelated components,
+services, or feature folders. Existing parallel formatters
+(`formatThaiDate`, `formatThaiPersonnelDate`, `formatLocalizedDate`, inline
+`toLocaleDateString("th-TH", ...)`) are classified as **legacy compatibility
+formatters** — they may remain in place temporarily where already stable,
+must not be copied or extended, and will be consolidated incrementally in a
+future dedicated migration phase, preserving behavior exactly when that
+happens. No broad formatter consolidation is required in Phase 40B. Full
+detail: `docs/THAI_DATE_AND_RETIREMENT_STANDARD.md` §6.1 and §12.
+
+See the Phase 40B deliverable report (delivered alongside this update) for
+the full audit findings, file list, and test results.

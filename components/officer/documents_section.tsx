@@ -57,6 +57,7 @@ import { DocumentThumbnail } from "@/components/ui/media/DocumentThumbnail";
 import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
 import { DocumentFilterBar, type DocumentFilterValue } from "@/components/officer/document_filter_bar";
 import { documentStatus } from "@/lib/document/document_status";
+import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 
 const ACCEPT = Object.keys(ALLOWED_DOCUMENT_MIME).join(",");
 
@@ -70,7 +71,7 @@ export interface DocumentsSectionProps {
 function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = d instanceof Date ? d : new Date(d);
-  return date.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+  return formatShortThaiDateTh(date);
 }
 
 /** Triggers a browser download via a temporary anchor (works for any doc id — current or historical). */

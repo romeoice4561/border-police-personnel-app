@@ -15,39 +15,73 @@ Intelligence).
 
 ## Age Intelligence
 
-- **Purpose:** Current age, in years, from date of birth — the base signal
-  several other engines (retirement, eligibility rules) read.
+- **Purpose:** Exact current age (years/months/days, never a decimal), plus
+  next-birthday tracking — the base signal several other engines
+  (retirement, eligibility rules) read.
 - **Master-data inputs:** `Officer.dateOfBirth`.
-- **Calculated outputs:** `age: DurationYMD`, `ageYears: number`.
-- **Dependencies:** `lib/personnel_calendar` (`calculateAge`).
+- **Calculated outputs:** `exactAge: ExactDuration`, `displayAgeTh`,
+  `nextBirthdayDate`, `nextBirthdayAge`, `daysUntilNextBirthday`,
+  `displayNextBirthdayTh`. Compatibility fields `age`/`ageYears` kept from
+  Phase 40A (decimal `ageYears` is deprecated as a display value).
+- **Dependencies:** `lib/personnel_calendar` (`calculateAge`, `addYears`,
+  `differenceYMD`), `lib/intelligence/shared/{exact_duration,thai_date}.ts`.
 - **Future commander KPIs:** age-band distribution across a unit (e.g. "how
-  many officers are 55+").
-- **Planned implementation phase:** delivered (Phase 40A) —
-  `lib/intelligence/age/`. No further work planned; this engine is stable
-  and complete for its current scope.
+  many officers are 55+"), upcoming-birthday roster.
+- **Planned implementation phase:** delivered (Phase 40A foundation, Phase
+  40B strengthened with exact duration + next-birthday tracking + Thai
+  display). The facade itself needs no further work; see the UI-integration
+  follow-up below for a known consumer that has not yet adopted it.
+- **Known follow-up (not Promotion-related):**
+  `components/officer/profile_header.tsx` still displays age as a
+  whole-year summary (`calculateCurrentAge` + `${currentAge} ปี / years`),
+  not the `ExactDuration`-backed `displayAgeTh`. This is **not currently
+  incorrect** — a whole-year age is a valid, honest value — it simply
+  predates the Phase 40B facade and was intentionally left unchanged during
+  Phase 40B (see "no broad UI rewrite" scope constraint). Replace this
+  presentation with `computeAgeSummary(...).displayAgeTh` during **Phase
+  40C — Intelligence Facade UI Integration** (or whichever phase becomes
+  the next dedicated Commander/Officer UI integration phase, if 40C is
+  renumbered). Do not change behavior outside that phase.
 
 ## Service Intelligence
 
-- **Purpose:** Years of service, in-rank, and in-position — the tenure
-  signals commanders use to judge experience and eligibility.
+- **Purpose:** Exact years/months/days of service, in-rank, and in-position
+  — the tenure signals commanders use to judge experience and eligibility.
 - **Master-data inputs:** `Officer.rank`, `Officer.currentPosition`,
   `Officer.timeline[]` (the only factual source of service history — see
   `lib/intelligence/shared/master_data.ts`'s note on why there is no stored
-  `serviceStartDate` field).
-- **Calculated outputs:** `careerYears`, `yearsInRank`, `yearsInPosition`,
-  `yearsInPositionLevel`, `governmentServiceYears`.
+  `serviceStartDate` field, and `docs/THAI_DATE_AND_RETIREMENT_STANDARD.md`
+  §5 for the documented timeline-selection rule: earliest dated Timeline
+  row wins, no event-type field exists to special-case a "hire" row).
+- **Calculated outputs:** `exactServiceDuration: ExactDuration`,
+  `displayServiceDurationTh`, `serviceStartDate`, `sourceTimelineEntryId`
+  (Phase 40B); `yearsInRank`, `yearsInPosition`, `yearsInPositionLevel`.
+  Compatibility fields `careerYears`/`governmentServiceYears`/`serviceYears`
+  (decimal) kept from Phase 40A.
 - **Dependencies:** `lib/officer_profile/career_calculator.ts`,
   `lib/personnel_calendar` (`calculateGovernmentServiceDuration`),
   `lib/intelligence/shared/timeline_dates.ts` (`firstServiceLikeDate`,
-  `startedAtForMatchingTimeline`).
+  `startedAtForMatchingTimeline`),
+  `lib/intelligence/shared/exact_duration.ts`.
 - **Future commander KPIs:** average tenure per unit, officers overdue for
   a position change, "stuck in position" flags.
-- **Planned implementation phase:** delivered (Phase 40A) —
-  `lib/intelligence/service/`, with `yearsInPositionLevel` intentionally
-  left `null` (position-LEVEL classification is currently a Commander
-  Search-only concern — see Promotion Intelligence below). Folding
-  position-level classification into this engine is future work, not yet
-  scheduled to a phase.
+- **Planned implementation phase:** delivered (Phase 40A foundation, Phase
+  40B strengthened with exact duration + explicit service-start
+  traceability), with `yearsInPositionLevel` intentionally left `null`
+  (position-LEVEL classification is currently a Commander Search-only
+  concern — see Promotion Intelligence below). Folding position-level
+  classification into this engine is future work, not yet scheduled to a
+  phase.
+- **Known follow-up (not Promotion-related):**
+  `components/officer/profile_header.tsx` still displays Career Years as a
+  whole-year summary (`calculateCareerYearsSimple` + `${careerYears} ปี /
+  years`), not the `ExactDuration`-backed `displayServiceDurationTh`. Same
+  status as the Age Intelligence follow-up above: not currently incorrect,
+  intentionally left unchanged during Phase 40B, to be replaced with
+  `computeServiceSummary(...).displayServiceDurationTh` during **Phase
+  40C — Intelligence Facade UI Integration** (or the next dedicated
+  Commander/Officer UI integration phase). Do not change behavior outside
+  that phase.
 
 ## Promotion Intelligence
 
@@ -77,19 +111,29 @@ Intelligence).
 
 ## Retirement Intelligence
 
-- **Purpose:** Retirement date, fiscal year, and remaining time — the
-  primary "workforce planning" signal for commanders.
+- **Purpose:** Retirement date, Buddhist-Era fiscal year, and exact
+  remaining time — the primary "workforce planning" signal for commanders.
 - **Master-data inputs:** `Officer.dateOfBirth`.
-- **Calculated outputs:** `retirementAge`, `retirementFiscalYear`,
-  `retirementDate`, `remaining`, `remainingYears`, `isRetired`.
+- **Calculated outputs:** `retirementAge`, `retirementFiscalYearBe`,
+  `retirementDate`, `exactRemainingDuration`, `remainingDays`, `isRetired`,
+  `displayRetirementDateTh`, `displayRetirementYearTh`,
+  `displayRemainingTh` (Phase 40B). Compatibility fields
+  `retirementFiscalYear`/`remainingYears` (both deprecated for display) kept
+  from Phase 40A.
 - **Dependencies:** `lib/personnel_calendar/retirement.ts`
   (`calculateRetirement`, Thai government retirement age 60,
-  fiscal-year-end anchored).
+  fiscal-year-end anchored — already correctly implements the "born 1+
+  October retires in the following fiscal year" rule, verified and tested
+  at both the primitive and facade layers),
+  `lib/intelligence/shared/{exact_duration,thai_date}.ts`.
 - **Future commander KPIs:** retirement wave forecasting (how many retire
   per fiscal year), succession-planning alerts for critical positions.
-- **Planned implementation phase:** delivered (Phase 40A) —
-  `lib/intelligence/retirement/`. No further work planned; this engine is
-  stable and complete for its current scope.
+- **Planned implementation phase:** delivered (Phase 40A foundation, Phase
+  40B strengthened with exact remaining duration + Buddhist-Era display
+  text) — `lib/intelligence/retirement/`. No further work planned; this
+  engine is stable and complete for its current scope. See
+  `docs/THAI_DATE_AND_RETIREMENT_STANDARD.md` for the full business rule
+  and the 2 October edge-case test.
 
 ## Salary Intelligence
 
@@ -203,14 +247,22 @@ Intelligence).
 
 ## Summary table
 
-| Engine | Status | Phase |
-|---|---|---|
-| Age Intelligence | Delivered | 40A |
-| Service Intelligence | Delivered (position-level scope deferred) | 40A |
-| Promotion Intelligence | Delivered (reduced scope) | 40A now, next-level eligibility in 47 |
-| Retirement Intelligence | Delivered | 40A |
-| Salary Intelligence | Delivered (real-data scope) | 40A |
-| Document Intelligence | Delivered (real-data scope); checklist migration | 40A now, Phase 46 for profile_completeness migration |
-| Training Intelligence | Not started | Unscheduled — needs product scoping |
-| Commander Intelligence | Existing ad hoc logic, not yet a facade | Phase 47 |
-| AI Commander Intelligence | Not started | Unscheduled — gated on Phase 47 + LLM decision |
+Statuses reflect the actual codebase as of Phase 40B — not aspirational.
+"Foundation complete" means the facade + its currently-scoped calculations
+are done and tested; it does NOT mean every field a future phase might want
+is populated (see "Current scope" and "Next major step" for what's still
+missing). No engine below is marked complete on the strength of its facade
+existing alone — see each engine's own section above for the fields still
+left `null`/unscoped.
+
+| Intelligence Engine | Current status | Public facade | Current scope | Next major step |
+|---|---|---|---|---|
+| Age | Foundation complete | Yes (`lib/intelligence/age/`) | Exact age, next-birthday tracking, Thai display (Phase 40A + 40B) | UI integration — `profile_header.tsx` still shows whole-year age (Phase 40C) |
+| Service | Foundation complete, with source limitations | Yes (`lib/intelligence/service/`) | Timeline-derived service-start (earliest dated row, no event-type field to refine further) + exact duration (Phase 40A + 40B); `yearsInPositionLevel` left `null` | Improve source classification if/when the schema gains an event-type field; UI integration — `profile_header.tsx` still shows whole-year career years (Phase 40C) |
+| Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B) | Commander dashboard integration (Phase 40C / 47) |
+| Promotion | Existing production logic wrapped, partial | Yes (`lib/intelligence/promotion/`), reduced scope | `status`/`eligibleNow` only; `monthsUntilEligible`/`overdueYears`/`targetLevel` left `null` | Full next-level eligibility, folded in from `lib/promotion/eligibility_policy.ts` (Phase 47) |
+| Salary | Existing production logic wrapped, partial | Yes (`lib/intelligence/salary/`) | Real two-step ("2 ขั้น") eligibility only — the one deterministic rule that exists today | Broader salary-step forecasting once a second business rule exists to wrap (unscheduled) |
+| Training | Planned — no facade exists | No | No dedicated engine; training presence read directly (`officer.training.length > 0`) by callers such as `lib/intelligence/flags.ts` | Build Training Intelligence, gated on a prior product decision defining "required training" per rank/role (unscheduled) |
+| Document | Existing production logic wrapped, partial | Yes (`lib/intelligence/document/`) | Real active/verified/pending document counts + portrait signal only — no required-documents checklist exists in the schema | Migrate `lib/ui/profile_completeness.ts`'s checklist logic behind this facade, reusing it as-is (Phase 46) |
+| Commander | Existing production engine, not yet a dedicated facade | Existing architecture (`CommanderDashboard`/`CommanderQueryDataset`), built directly in `commander_query_service.ts`/`commander_intelligence_service.ts` | Flags, priority, recommendations, aggregation — all computed ad hoc per service today | Extract into `lib/intelligence/commander/`, consuming the strengthened per-officer facades (Phase 47) |
+| AI Commander | Planned — no implementation | No | Not implemented in any form; `lib/intelligence/recommendations.ts`'s deterministic (non-AI) suggestions are the closest existing analogue | Build once Commander Intelligence (Phase 47) lands and an LLM-integration decision is made (unscheduled) |

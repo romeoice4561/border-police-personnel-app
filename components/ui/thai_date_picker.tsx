@@ -91,7 +91,7 @@ export function ThaiDatePicker({
   const [open, setOpen] = useState(false);
   const [day, setDay] = useState(parsed?.getUTCDate() ?? 1);
   const [month, setMonth] = useState(parsed?.getUTCMonth() ? parsed.getUTCMonth() + 1 : today.getUTCMonth() + 1);
-  const [yearBE, setYearBE] = useState(parsed ? parsed.getUTCFullYear() + 543 : defaultYear);
+  const [yearBE, setYearBE] = useState(parsed ? yearGregorianToBE(parsed.getUTCFullYear()) : defaultYear);
   const [showYearGrid, setShowYearGrid] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,7 +99,7 @@ export function ThaiDatePicker({
     if (!parsed) return;
     setDay(parsed.getUTCDate());
     setMonth(parsed.getUTCMonth() + 1);
-    setYearBE(parsed.getUTCFullYear() + 543);
+    setYearBE(yearGregorianToBE(parsed.getUTCFullYear()));
   }, [parsed]);
 
   useEffect(() => {
@@ -289,7 +289,7 @@ export function ThaiDatePicker({
             ))}
             {Array.from({ length: monthDays }, (_, index) => {
               const optionDay = index + 1;
-              const selected = parsed && parsed.getUTCDate() === optionDay && parsed.getUTCMonth() + 1 === month && parsed.getUTCFullYear() + 543 === yearBE;
+              const selected = parsed && parsed.getUTCDate() === optionDay && parsed.getUTCMonth() + 1 === month && yearGregorianToBE(parsed.getUTCFullYear()) === yearBE;
               return (
                 <button
                   key={optionDay}

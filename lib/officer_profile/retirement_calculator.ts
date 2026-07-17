@@ -14,6 +14,7 @@
 
 import { calculateAge, calculateRetirement } from "@/lib/personnel_calendar";
 import { formatThaiPersonnelDate, parseThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
+import { toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
 
 /** Normalizes persisted dates after the Server -> Client boundary (RSC serializes Date as ISO strings). */
 function personnelDateInput(value: Date | string | null | undefined): Date | null {
@@ -37,7 +38,7 @@ export function calculateRetirementYearBE(dateOfBirth: Date | string | null, tod
   const retirement = calculateRetirement(dob, today);
   if (!retirement) return null;
   return {
-    retirementYearBE: retirement.retirementFiscalYear + 543,
+    retirementYearBE: toBuddhistEraYear(retirement.retirementFiscalYear),
     retirementDateThai: formatThaiPersonnelDate(retirement.retirementDate),
     yearsRemaining: retirement.remaining.years,
   };

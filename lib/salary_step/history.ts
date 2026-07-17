@@ -1,4 +1,5 @@
 import { currentFiscalYear } from "@/lib/personnel_calendar";
+import { yearBEToGregorian } from "@/lib/officer_profile/thai_date";
 import type { SalaryStepEvaluationContext, SalaryStepHistoryRecord, SalaryStepReviewCycle, BuildSalaryStepContextInput } from "@/lib/salary_step/types";
 
 const DEFAULT_CYCLE_ORDER: readonly SalaryStepReviewCycle[] = ["APRIL", "OCTOBER"];
@@ -31,7 +32,7 @@ export function adaptAnnualSalaryHistory(
   const reviewCycle = options.reviewCycle ?? "OCTOBER";
   const awardTypeForStep = options.awardTypeForStep ?? (() => "NORMAL");
   return rows.map((row) => ({
-    fiscalYear: row.yearBE - 543,
+    fiscalYear: yearBEToGregorian(row.yearBE),
     reviewCycle,
     stepsAwarded: row.salaryStep,
     awardType: awardTypeForStep(row.salaryStep),

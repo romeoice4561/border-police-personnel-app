@@ -14,6 +14,7 @@ import type { OfficerSkillWithRelations } from "@/lib/database/query_types";
 import { useT } from "@/components/i18n/language_provider";
 import { useLanguage } from "@/components/i18n/language_provider";
 import { formatLocalizedDate } from "@/lib/i18n/format_date";
+import { toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
 import { EditableSectionCard, SectionEmptyState } from "@/components/officer/editable_section_card";
 import { Badge } from "@/components/ui/badge";
 
@@ -69,7 +70,7 @@ export function SkillsSection({ skills }: { skills: OfficerSkillWithRelations[] 
                         <span>{t("capability.certificateNumber")}: {row.certificateNumber}</span>
                       ) : null}
                       {row.expiryDate ? (
-                        <span>{t("capability.expiryDate")}: {formatLocalizedDate({ yearBE: buddhistYear(row.expiryDate), month: row.expiryDate.getUTCMonth() + 1, day: row.expiryDate.getUTCDate() }, language)}</span>
+                        <span>{t("capability.expiryDate")}: {formatLocalizedDate({ yearBE: toBuddhistEraYear(row.expiryDate.getUTCFullYear()), month: row.expiryDate.getUTCMonth() + 1, day: row.expiryDate.getUTCDate() }, language)}</span>
                       ) : null}
                     </div>
                     {row.remarks ? <p className="mt-1 text-xs text-muted italic">{row.remarks}</p> : null}
@@ -82,9 +83,4 @@ export function SkillsSection({ skills }: { skills: OfficerSkillWithRelations[] 
       )}
     </EditableSectionCard>
   );
-}
-
-/** A stored DATE column is Gregorian; the localized formatter expects a Buddhist-Era year, so convert (BE = CE + 543). */
-function buddhistYear(date: Date): number {
-  return new Date(date).getUTCFullYear() + 543;
 }

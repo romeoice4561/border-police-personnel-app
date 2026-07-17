@@ -48,7 +48,10 @@ export interface CommanderQueryOfficer {
   completedPromotionCycles: number | null;
   governmentServiceYears: number | null;
   ageYears: number | null;
+  /** Gregorian-labeled fiscal year — internal/technical value, used for filtering and drilldown matching. Never render this directly; use retirementYearBe for display. */
   retirementYear: number | null;
+  /** Phase 40B: Buddhist-Era retirement fiscal year, e.g. 2588 — the value to render in charts/labels. */
+  retirementYearBe: number | null;
   promotionStatus: PromotionStatus;
   retirementStatus: RetirementStatus;
   priority: OfficerPriority;

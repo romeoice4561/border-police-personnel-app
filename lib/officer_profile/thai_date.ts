@@ -25,8 +25,8 @@ export const THAI_MONTHS: readonly string[] = [
   "ธันวาคม",
 ];
 
-/** Common Thai month abbreviations (with and without a trailing period), 1-indexed, for parsing legacy free-text dates. */
-const THAI_MONTH_ABBREVIATIONS: readonly string[] = [
+/** Common Thai month abbreviations (with and without a trailing period), 1-indexed, for parsing legacy free-text dates and for short-form display (e.g. "ส.ค."). */
+export const THAI_MONTH_ABBREVIATIONS: readonly string[] = [
   "",
   "ม.ค.",
   "ก.พ.",
