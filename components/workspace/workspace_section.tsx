@@ -12,6 +12,7 @@
  */
 import type { ReactNode } from "react";
 import { cn } from "@/lib/ui/cn";
+import { WORKSPACE_TYPOGRAPHY } from "@/components/workspace/workspace_typography";
 
 export interface WorkspaceSectionProps {
   /** Optional sub-header title for this block (e.g. "Recent Activity", "Unit Breakdown"). */
@@ -30,8 +31,8 @@ export function WorkspaceSection({ title, description, actions, children, classN
       {title || actions ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            {title ? <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">{title}</h2> : null}
-            {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
+            {title ? <h2 className={WORKSPACE_TYPOGRAPHY.sectionTitle}>{title}</h2> : null}
+            {description ? <p className={cn("mt-0.5", WORKSPACE_TYPOGRAPHY.sectionDescription)}>{description}</p> : null}
           </div>
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>

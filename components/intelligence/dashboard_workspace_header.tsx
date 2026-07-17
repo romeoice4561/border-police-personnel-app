@@ -11,7 +11,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { Radio } from "lucide-react";
 import { WorkspaceHeader } from "@/components/workspace/workspace_header";
+import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import type { Language } from "@/lib/i18n/dictionary";
 
@@ -41,6 +43,12 @@ export function DashboardWorkspaceHeader() {
         { label: t("dashboard.commanderDashboard") },
       ]}
       lastUpdatedLabel={`${t("dashboard.lastUpdated")}: ${lastUpdated}`}
+      statusBadge={
+        <Badge tone="good" className="gap-1">
+          <Radio className="h-3 w-3" aria-hidden="true" />
+          {t("dashboard.liveStatus")}
+        </Badge>
+      }
     />
   );
 }

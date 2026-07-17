@@ -1,55 +1,78 @@
 /**
- * AppShell (Phase 14 UI): responsive nav + content frame shared by every
- * dashboard page. Sidebar on desktop, top bar with horizontally-scrollable
- * nav on mobile/tablet. Active link is highlighted from the current pathname.
+ * AppShell (Phase 14 UI; Phase 48A enterprise sidebar; Phase 48A.1 enterprise
+ * sidebar/theme visual completion): responsive nav + content frame shared by
+ * every dashboard page. Collapsible enterprise sidebar on desktop, top bar
+ * with horizontally-scrollable nav on mobile/tablet. Active link is
+ * highlighted from the current pathname.
  */
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, ShieldCheck, Images, UserCheck, SlidersHorizontal, UserCircle } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { UserMenu } from "@/components/auth/user_menu";
+import { AppearanceSwitcher } from "@/components/theme/appearance_switcher";
+import { BppisLogo } from "@/components/auth/bppis_logo";
+import { SidebarBrand } from "@/components/layout/sidebar_brand";
 import { AuthGate } from "@/components/auth/auth_gate";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
+import { useStatistics } from "@/lib/ui/hooks";
 import { AUTH_ENFORCED, LOGIN_ROUTE } from "@/lib/auth/auth_config";
 import type { Permission } from "@/lib/auth/roles";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
+import { SIDEBAR_WIDTH_EXPANDED_CLASS, SIDEBAR_WIDTH_COLLAPSED_CLASS } from "@/lib/layout/sidebar_layout";
+import { useSidebarCollapsed } from "@/lib/layout/use_sidebar_collapsed";
 
-type NavItem = { href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard; permission: Permission };
+/**
+ * A sidebar item's optional live badge (Phase 48A.1 Part C). ONLY populated
+ * from data that already has a reliable, site-wide total via the existing
+ * query layer — never invented, never a per-page/partial count. Today that is
+ * exactly one item (Personnel → total officers, via the same useStatistics()
+ * TanStack Query hook the Statistics page already uses — shared cache, no
+ * duplicate fetch). Data Quality Center and Media Center are deliberately
+ * left WITHOUT a badge: Review's "needs attention" count is only computed
+ * over the current fetched page (not a true total) and Media Center has no
+ * verification-count data anywhere in the app — showing either would be a
+ * misleading number, which the spec explicitly rules out ("no badge is
+ * better than an incorrect badge"). Wire real totals for those in a future
+ * phase once a reliable aggregate exists.
+ */
+type NavItem = { href: string; labelKey: TranslationKey; icon: typeof LayoutDashboard; permission: Permission; badge?: "totalOfficers" };
 type NavGroup = { titleKey: TranslationKey | null; items: NavItem[] };
 
 /**
- * Sidebar items, grouped into an enterprise navigation structure (Phase 48A):
- *   Dashboard / Personnel / Search Center / Analytics
- *   Data Quality Center / Media Center
- *   Administration
+ * Sidebar items, grouped into an enterprise navigation structure:
+ *   Main: Dashboard / Personnel / Search Center / Analytics
+ *   Operations: Data Quality Center / Media Center
+ *   Administration: Profile Manager
  *
  * Grouping is PRESENTATION ONLY — every item still declares the exact same
  * CAPABILITY it did before (Phase 47), and is still filtered by
  * can(permission), never by role name. No permission, no route, and no
- * filtering rule changed in this phase; only how the items are visually
- * organized in the sidebar. An empty group (every item filtered out) simply
+ * filtering rule changed. An empty group (every item filtered out) simply
  * renders no header, so a Commander's sidebar has no dangling "Administration"
  * heading with nothing under it.
  */
 const NAV_GROUPS: NavGroup[] = [
   {
-    titleKey: null, // Ungrouped top tier — no header, matches the spec's flat top section.
+    titleKey: "nav.groupMain",
     items: [
       { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
-      { href: "/officers", labelKey: "nav.officers", icon: Users, permission: "officers.view" },
+      { href: "/officers", labelKey: "nav.officers", icon: Users, permission: "officers.view", badge: "totalOfficers" },
       { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal, permission: "commander.search" },
       { href: "/search", labelKey: "nav.search", icon: Search, permission: "search.view" },
       { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3, permission: "statistics.view" },
     ],
   },
   {
-    titleKey: null, // Second flat tier (Data Quality Center / Media Center) — visually separated by spacing, not a labeled header, matching the spec's divider-only grouping.
+    titleKey: "nav.groupOperations",
     items: [
       { href: "/review", labelKey: "nav.review", icon: ClipboardCheck, permission: "review.view" },
       { href: "/gallery", labelKey: "nav.gallery", icon: Images, permission: "gallery.view" },
@@ -79,8 +102,26 @@ const MY_PROFILE_ITEM: NavItem = {
   permission: "officer.viewOwn",
 };
 
-function NavLink({ href, labelKey, icon: Icon, pathname, onNavigate }: NavItem & { pathname: string; onNavigate?: () => void }) {
+/** Resolves a badge id to its live value. Returns null when the data isn't loaded yet or the item has no badge — a missing/loading badge renders nothing, never a stale or zero placeholder. */
+function useBadgeValue(badge: NavItem["badge"]): number | null {
+  const statistics = useStatistics();
+  if (!badge) return null;
+  if (badge === "totalOfficers") return statistics.data?.totalOfficers ?? null;
+  return null;
+}
+
+function NavBadge({ value }: { value: number }) {
+  return (
+    <Badge tone="accent" className="ml-auto shrink-0 tabular-nums">
+      {value.toLocaleString()}
+    </Badge>
+  );
+}
+
+/** Expanded-sidebar row: icon + label + optional badge, taller and more legible than the pre-48A.1 row. */
+function NavLink({ href, labelKey, icon: Icon, badge, pathname, onNavigate }: NavItem & { pathname: string; onNavigate?: () => void }) {
   const { t } = useT();
+  const badgeValue = useBadgeValue(badge);
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
@@ -88,13 +129,40 @@ function NavLink({ href, labelKey, icon: Icon, pathname, onNavigate }: NavItem &
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap",
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap",
         active ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
       )}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-      {t(labelKey)}
+      <Icon className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
+      {badgeValue != null ? <NavBadge value={badgeValue} /> : null}
     </Link>
+  );
+}
+
+/** Collapsed-sidebar row: icon only, wrapped in a Tooltip carrying the label (+ badge count, since a collapsed badge dot alone would lose the number). */
+function NavLinkCollapsed({ href, labelKey, icon: Icon, badge, pathname }: NavItem & { pathname: string }) {
+  const { t } = useT();
+  const badgeValue = useBadgeValue(badge);
+  const active = pathname === href || pathname.startsWith(`${href}/`);
+  const label = badgeValue != null ? `${t(labelKey)} (${badgeValue.toLocaleString()})` : t(labelKey);
+  return (
+    <Tooltip label={label} className="block w-full">
+      <Link
+        href={href}
+        aria-current={active ? "page" : undefined}
+        aria-label={label}
+        className={cn(
+          "relative flex items-center justify-center rounded-lg p-2.5 transition-colors",
+          active ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
+        )}
+      >
+        <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+        {badgeValue != null ? (
+          <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+        ) : null}
+      </Link>
+    </Tooltip>
   );
 }
 
@@ -115,16 +183,16 @@ function useVisibleNavGroups(): NavGroup[] {
   return [{ titleKey: null, items: [MY_PROFILE_ITEM] }, ...permittedGroups];
 }
 
-/** Desktop sidebar — grouped with optional section headers and dividers between groups. */
-function NavGroups({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+/** Desktop sidebar, EXPANDED — grouped with section headers and dividers between groups. */
+function NavGroupsExpanded({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { t } = useT();
   const groups = useVisibleNavGroups();
   return (
     <>
       {groups.map((group, index) => (
-        <div key={group.titleKey ?? `group-${index}`} className={cn("flex flex-col gap-1", index > 0 && "mt-3 border-t border-border pt-3")}>
+        <div key={group.titleKey ?? `group-${index}`} className={cn("flex flex-col gap-1", index > 0 && "mt-4 border-t border-border pt-4")}>
           {group.titleKey ? (
-            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted/70">{t(group.titleKey)}</p>
+            <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted/70">{t(group.titleKey)}</p>
           ) : null}
           {group.items.map((item) => (
             <NavLink key={item.href} {...item} pathname={pathname} onNavigate={onNavigate} />
@@ -135,8 +203,24 @@ function NavGroups({ pathname, onNavigate }: { pathname: string; onNavigate?: ()
   );
 }
 
+/** Desktop sidebar, COLLAPSED — icon rail, groups separated by a divider (no text headers — there's no room). */
+function NavGroupsCollapsed({ pathname }: { pathname: string }) {
+  const groups = useVisibleNavGroups();
+  return (
+    <>
+      {groups.map((group, index) => (
+        <div key={group.titleKey ?? `group-${index}`} className={cn("flex flex-col items-center gap-1", index > 0 && "mt-3 border-t border-border pt-3")}>
+          {group.items.map((item) => (
+            <NavLinkCollapsed key={item.href} {...item} pathname={pathname} />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** Mobile/tablet top-bar nav — flat horizontal-scroll strip (no group headers; grouping doesn't read well in a single scrolling row). */
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLinksMobile({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const groups = useVisibleNavGroups();
   const items = groups.flatMap((group) => group.items);
   return (
@@ -151,6 +235,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { t } = useT();
+  const [collapsed, setCollapsed] = useSidebarCollapsed();
 
   // Phase 46: the login route has NO app chrome (no sidebar/nav) — render its
   // content bare. This is the only change to the shell; every other route is
@@ -161,52 +246,73 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      {/* Sidebar (desktop) */}
-      <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-border md:bg-surface">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <ShieldCheck className="h-6 w-6 text-accent" aria-hidden="true" />
-          <span className="text-sm font-semibold leading-tight">
-            {t("nav.brand")}
-            <span className="block text-xs font-normal text-muted">{t("nav.brandSub")}</span>
-          </span>
+      {/* Sidebar (desktop) — width driven by the shared sidebar-layout tokens
+          (lib/layout/sidebar_layout.ts), collapsible, persisted locally. */}
+      <aside
+        className={cn(
+          "hidden md:flex md:flex-col md:border-r md:border-border md:bg-surface md:transition-[width] md:duration-200",
+          collapsed ? SIDEBAR_WIDTH_COLLAPSED_CLASS : SIDEBAR_WIDTH_EXPANDED_CLASS
+        )}
+      >
+        {/* Brand — official BPP logo + fixed org/system name lockup (expanded); logo only (collapsed). */}
+        <div className={cn("flex items-center gap-2.5 border-b border-border px-4 py-4", collapsed && "justify-center px-2")}>
+          <div className={collapsed ? "w-9" : "w-10 shrink-0"}>
+            <BppisLogo />
+          </div>
+          {!collapsed ? <SidebarBrand /> : null}
         </div>
-        <nav className="flex flex-col px-3">
-          <NavGroups pathname={pathname} />
+
+        <nav className={cn("flex flex-1 flex-col overflow-y-auto py-3", collapsed ? "items-center px-2" : "px-3")}>
+          {collapsed ? <NavGroupsCollapsed pathname={pathname} /> : <NavGroupsExpanded pathname={pathname} />}
         </nav>
-        {/* Phase 45A Part 1: the language switch moved to the global top
-            header (right column). The sidebar footer keeps only the
-            environment badge. */}
-        <div className="mt-auto px-5 py-4">
-          <EnvironmentBadge />
+
+        {/* Footer — collapse toggle + environment badge. */}
+        <div className={cn("mt-auto flex flex-col gap-2 border-t border-border px-3 py-3", collapsed && "items-center px-2")}>
+          <Tooltip label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")} className={collapsed ? "block" : "self-start"}>
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+              aria-pressed={collapsed}
+              className="flex items-center justify-center rounded-lg p-2 text-muted transition-colors hover:bg-neutral-bg hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {collapsed ? <PanelLeftOpen className="h-4.5 w-4.5" aria-hidden="true" /> : <PanelLeftClose className="h-4.5 w-4.5" aria-hidden="true" />}
+            </button>
+          </Tooltip>
+          {!collapsed ? <EnvironmentBadge /> : null}
         </div>
       </aside>
 
       {/* Right column: global header + page content. */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Global top header — the SINGLE language switch, top-right, on every
-            page (Phase 45A Part 1). Desktop only: on mobile the switch lives in
-            the mobile top bar below (also top-right). */}
+        {/* Global top header — language switch, appearance switch, user menu,
+            top-right, on every page. Desktop only: on mobile the same
+            controls live in the mobile top bar below. */}
         <header className="sticky top-0 z-10 hidden border-b border-border bg-surface md:flex">
           <div className="ml-auto flex items-center gap-3 px-6 py-3 lg:px-8">
             <LanguageToggle />
+            <AppearanceSwitcher />
             {/* Phase 46: header user menu — renders only when signed in. */}
             <UserMenu />
           </div>
         </header>
 
-        {/* Top bar (mobile/tablet) — brand + the language switch top-right + nav. */}
+        {/* Top bar (mobile/tablet) — compact official logo + the same header controls, top-right. */}
         <header className="sticky top-0 z-10 border-b border-border bg-surface md:hidden">
           <div className="flex items-center gap-2 px-4 py-3">
-            <ShieldCheck className="h-5 w-5 text-accent" aria-hidden="true" />
-            <span className="text-sm font-semibold">{t("nav.brand")}</span>
+            <div className="w-8 shrink-0">
+              <BppisLogo />
+            </div>
+            <SidebarBrand compact />
             <span className="ml-auto flex items-center gap-2">
               <LanguageToggle />
+              <AppearanceSwitcher />
               <UserMenu />
               <EnvironmentBadge />
             </span>
           </div>
           <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
-            <NavLinks pathname={pathname} />
+            <NavLinksMobile pathname={pathname} />
           </nav>
         </header>
 

@@ -53,7 +53,10 @@ export const config = {
   /**
    * Run on every navigable route, but never on Next internals, API routes, or
    * static assets (so CSS/JS/images/the login page's logo always load). Auth
-   * for API routes is out of scope this phase (no API change).
+   * for API routes is out of scope this phase (no API change). `manifest.json`
+   * (Phase 48A.2 — web app manifest referencing the branding icons) is a
+   * public static file every browser/PWA installer fetches unauthenticated by
+   * design — same category as favicon.ico, so it's excluded the same way.
    */
-  matcher: ["/((?!api|_next/static|_next/image|assets|favicon.ico).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|assets|favicon.ico|manifest.json).*)"],
 };

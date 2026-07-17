@@ -102,6 +102,8 @@ export const DICTIONARY = {
   "nav.myProfile": tr("โปรไฟล์ของฉัน", "My Profile"),
   // Sidebar group headers (presentation only — grouping is visual, RBAC
   // filtering is unchanged and still per-item via can(permission)).
+  "nav.groupMain": tr("หลัก", "Main"),
+  "nav.groupOperations": tr("ปฏิบัติการ", "Operations"),
   "nav.groupAdministration": tr("การจัดการระบบ", "Administration"),
   "nav.groupProfile": tr("โปรไฟล์", "Profile"),
   "nav.groupAppearance": tr("รูปแบบการแสดงผล", "Appearance"),
@@ -122,6 +124,10 @@ export const DICTIONARY = {
   // Phase 48A — Enterprise Workspace Foundation (Dashboard reference implementation)
   "dashboard.breadcrumbHome": tr("หน้าหลัก", "Home"),
   "dashboard.lastUpdated": tr("อัปเดตล่าสุด", "Last updated"),
+  // Phase 48A.1 — WorkspaceHeader statusBadge demonstration. "Live" reflects
+  // this page's actual rendering mode (force-dynamic — every load re-fetches
+  // current intelligence), not an invented/decorative status.
+  "dashboard.liveStatus": tr("สดทันที", "Live"),
   "dashboard.filtersAria": tr("ตัวกรองข่าวกรองผู้บังคับบัญชา", "Commander intelligence filters"),
   "dashboard.officerListAria": tr("รายการข่าวกรองกำลังพล", "Officer intelligence list"),
   "dashboard.officerIntelligence": tr("ข่าวกรองกำลังพล", "Officer Intelligence"),
@@ -526,6 +532,15 @@ export const DICTIONARY = {
     "คุณกำลังดูข้อมูลแบบจำกัดสิทธิ์ ข้อมูลส่วนบุคคลและประวัติเชิงลึกถูกซ่อนไว้",
     "You are viewing a restricted profile. Personal and detailed records are hidden.",
   ),
+
+  // ── appearance.* — Phase 48A.1: theme switcher ──
+  "appearance.switcher": tr("รูปแบบการแสดงผล", "Appearance"),
+  "appearance.selectTheme": tr("เลือกธีม", "Select theme"),
+  "appearance.currentTheme": tr("ธีมปัจจุบัน", "Current theme"),
+
+  // ── sidebar.* — Phase 48A.1: enterprise sidebar redesign ──
+  "sidebar.collapse": tr("ย่อเมนู", "Collapse sidebar"),
+  "sidebar.expand": tr("ขยายเมนู", "Expand sidebar"),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

@@ -1,26 +1,37 @@
 /**
- * KpiCard / KpiGrid (Phase 48A — Enterprise Workspace Foundation).
+ * KpiCard / KpiGrid (Phase 48A — Enterprise Workspace Foundation;
+ * Phase 48A.1 — badge/trend/footer slots + centralized typography).
  *
  * The single reusable "hero number + label + icon" tile, consolidating the
  * three near-duplicate implementations that had grown independently:
  *   - components/common/statistics_cards.tsx (StatTile)
  *   - components/intelligence/commander_summary_cards.tsx (SummaryTile)
  *   - components/commander/summary/commander_query_summary.tsx (SummaryTile)
- * All three shared the same shape (label/value/icon[/tone][/hint][/onClick])
- * on top of the same Card/CardBody primitive — this is that shape, exported
- * once. Existing call sites are UNCHANGED this phase (Phase 48A is
- * foundation-only; migrating those three to KpiCard is Phase 48B work), so
- * there is no behavior change to Statistics/Dashboard's existing tiles yet —
- * Dashboard's NEW WorkspaceHeader/KpiGrid composition uses this component as
- * its reference implementation.
+ * Existing call sites are UNCHANGED (Phase 48A.2+ work); Dashboard's
+ * KpiGrid/KpiCard composition is the reference implementation.
  *
- * Reuses the existing StatusTone vocabulary (good/warning/serious/critical/
- * neutral) from lib/ui/quality.ts — the same reserved status-color set every
- * other tile/badge in the app already uses.
+ * Phase 48A.1 extensibility (per the Phase 48A architecture audit — "adding
+ * badge/trend/sparkline requires editing KpiCard's internals"): three new
+ * OPTIONAL slots so a future badge, trend indicator, or sparkline/footer
+ * visual can be dropped in via a prop, with NO further redesign:
+ *   - `badge`   — small indicator next to the label (e.g. a status Badge)
+ *   - `trend`   — small indicator next to the value (e.g. a ↑/↓ delta)
+ *   - `footer`  — a full-width slot below the hint, sized for a future
+ *                 sparkline chart (a fixed height reservation, not a chart
+ *                 implementation — no charting library is introduced here)
+ * All three default to nothing rendered, so every existing simple usage
+ * (label/value/icon/tone/hint) is pixel-identical to before this phase.
+ *
+ * The clickable/non-clickable fork that existed before (two near-duplicate
+ * JSX branches sharing only the `body` variable) is now a single render
+ * path: `CardOrButton` picks the outer element ONCE, and everything inside
+ * — including the three new slots — is written exactly once, addressing the
+ * audit's second KpiCard finding directly.
  */
 import type { ReactNode } from "react";
 import { Card, CardBody } from "@/components/ui/card";
 import type { StatusTone } from "@/lib/ui/quality";
+import { WORKSPACE_TYPOGRAPHY } from "@/components/workspace/workspace_typography";
 import { cn } from "@/lib/ui/cn";
 
 const TONE_TEXT: Record<StatusTone, string> = {
@@ -38,38 +49,57 @@ export interface KpiCardProps {
   tone?: StatusTone;
   /** Short supporting line under the value (e.g. a band name, a delta, a unit count). */
   hint?: string;
+  /** Small indicator next to the label — e.g. a status Badge ("New", "Beta"). */
+  badge?: ReactNode;
+  /** Small indicator next to the value — e.g. a ↑/↓ trend delta. */
+  trend?: ReactNode;
+  /** Full-width slot below the hint, for a future sparkline or mini-chart. Reserves layout space only; no chart is rendered by this component. */
+  footer?: ReactNode;
   /** Optional drill-down action — renders the tile as a button when present. */
   onClick?: () => void;
   className?: string;
 }
 
-export function KpiCard({ label, value, icon, tone = "neutral", hint, onClick, className }: KpiCardProps) {
-  const body = (
-    <CardBody className="space-y-1">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
-        {icon ? (
-          <span className="text-muted" aria-hidden="true">
-            {icon}
-          </span>
-        ) : null}
-      </div>
-      <p className={cn("text-2xl font-semibold tabular-nums", TONE_TEXT[tone])}>{value}</p>
-      {hint ? <p className="text-xs text-muted">{hint}</p> : null}
-    </CardBody>
+/** Renders as a <button> when `onClick` is given, a plain <div> otherwise — the ONE place that forks on clickability; everything it wraps is identical either way. */
+function CardOrButton({ onClick, className, children }: { onClick?: () => void; className?: string; children: ReactNode }) {
+  if (!onClick) return <Card className={className}>{children}</Card>;
+  return (
+    <Card className={cn("text-left transition-colors hover:border-accent/40", className)}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+      >
+        {children}
+      </button>
+    </Card>
   );
+}
 
-  if (onClick) {
-    return (
-      <Card className={cn("text-left transition-colors hover:border-accent/40", className)}>
-        <button type="button" onClick={onClick} className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface rounded-xl">
-          {body}
-        </button>
-      </Card>
-    );
-  }
-
-  return <Card className={className}>{body}</Card>;
+export function KpiCard({ label, value, icon, tone = "neutral", hint, badge, trend, footer, onClick, className }: KpiCardProps) {
+  return (
+    <CardOrButton onClick={onClick} className={className}>
+      <CardBody className="space-y-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className={cn(WORKSPACE_TYPOGRAPHY.kpiLabel, "truncate")}>{label}</span>
+            {badge ?? null}
+          </span>
+          {icon ? (
+            <span className="shrink-0 text-muted" aria-hidden="true">
+              {icon}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-baseline gap-2">
+          <p className={cn(WORKSPACE_TYPOGRAPHY.kpiValue, TONE_TEXT[tone])}>{value}</p>
+          {trend ?? null}
+        </div>
+        {hint ? <p className={WORKSPACE_TYPOGRAPHY.kpiHint}>{hint}</p> : null}
+        {footer ? <div className="pt-1">{footer}</div> : null}
+      </CardBody>
+    </CardOrButton>
+  );
 }
 
 /**

@@ -17,9 +17,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { DEFAULT_THEME, isTheme, type Theme } from "@/lib/theme/theme_config";
-
-const STORAGE_KEY = "bpp.theme";
+import { DEFAULT_THEME, THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme/theme_config";
 
 interface ThemeContextValue {
   theme: Theme;
@@ -34,7 +32,7 @@ const listeners = new Set<() => void>();
 
 function readStoredTheme(): Theme {
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (isTheme(stored)) return stored;
   } catch {
     // localStorage unavailable — fall through to default.
@@ -46,7 +44,7 @@ function subscribe(onChange: () => void): () => void {
   listeners.add(onChange);
   // Cross-tab: another tab changing the theme updates this one too.
   const onStorage = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY) onChange();
+    if (e.key === THEME_STORAGE_KEY) onChange();
   };
   window.addEventListener("storage", onStorage);
   return () => {
@@ -57,7 +55,7 @@ function subscribe(onChange: () => void): () => void {
 
 function writeStoredTheme(next: Theme) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, next);
+    window.localStorage.setItem(THEME_STORAGE_KEY, next);
   } catch {
     // Ignore persistence failures — the in-memory choice still applies via listeners.
   }

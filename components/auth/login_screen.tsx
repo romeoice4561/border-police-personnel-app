@@ -90,7 +90,7 @@ export function LoginScreen() {
         {/* Brand — official logo (~136px, centered) + system title. */}
         <div className="flex flex-col items-center text-center">
           <div className="mb-3 w-34 max-w-[62%]">
-            <BppisLogo />
+            <BppisLogo priority />
           </div>
           {/* BPPIS = largest */}
           <p className="text-3xl font-extrabold tracking-wide text-foreground">{t("auth.systemNameShort")}</p>

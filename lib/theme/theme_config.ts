@@ -19,10 +19,19 @@ export type Theme = (typeof THEMES)[number];
 
 export const DEFAULT_THEME: Theme = "navy-command";
 
-/** Bilingual display label per theme, for a future appearance picker (Phase 48B+). */
+/**
+ * localStorage key holding the selected theme id. Shared by ThemeProvider
+ * (the React-side read/write) AND the blocking inline script in the root
+ * layout's <head> (app/layout.tsx) that sets `data-theme` before hydration —
+ * both MUST read the same key, so it lives here rather than being duplicated
+ * as a string literal in two files.
+ */
+export const THEME_STORAGE_KEY = "bpp.theme";
+
+/** Bilingual display label per theme, for the Appearance picker. */
 export const THEME_LABELS: Record<Theme, { th: string; en: string }> = {
   "navy-command": { th: "กองบัญชาการนาวี", en: "Navy Command" },
-  "border-patrol-green": { th: "ตำรวจตระเวนชายแดนเขียว", en: "Border Patrol Green" },
+  "border-patrol-green": { th: "ตำรวจตระเวนชายแดนสีเขียว", en: "Border Patrol Green" },
   "classic-white": { th: "คลาสสิกขาว", en: "Classic White" },
   "midnight-black": { th: "มิดไนท์แบล็ก", en: "Midnight Black" },
 };

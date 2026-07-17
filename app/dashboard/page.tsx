@@ -35,6 +35,10 @@ export default async function DashboardPage() {
 
       <DashboardKpiSection summary={dashboard.summary} />
 
+      {/* Phase 48A.1 Part E: WorkspaceSection (untitled — both panels already
+          render their own internal <h2>, so a wrapper title would duplicate
+          the heading) still gives consistent section spacing/alignment
+          around each panel. No data or business logic changed. */}
       <WorkspaceSection>
         <CommanderDashboardPanel dashboard={dashboard} />
       </WorkspaceSection>

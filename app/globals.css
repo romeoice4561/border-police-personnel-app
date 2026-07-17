@@ -52,22 +52,30 @@
 }
 
 /*
- * Appearance system (Phase 48A — infrastructure only).
+ * Appearance system (Phase 48A foundation; Phase 48A.1 — four real palettes).
  *
  * `ThemeProvider` (components/theme/theme_provider.tsx) stamps the selected
  * theme id as `data-theme` on <html> and persists it to localStorage, exactly
- * like LanguageProvider does for language. FOUR themes are defined as valid,
- * selectable values (lib/theme/theme_config.ts): navy-command,
- * border-patrol-green, classic-white, midnight-black.
+ * like LanguageProvider does for language. A tiny inline script in the root
+ * layout's <head> (app/layout.tsx) sets `data-theme` SYNCHRONOUSLY before
+ * React hydrates — reading the same localStorage key — so there is no
+ * hydration flash: the first painted frame already has the right theme.
  *
- * Only `navy-command` (the default) has a token block below, and it is an
- * EXACT alias of the existing :root / prefers-color-scheme values above — so
- * selecting it (or leaving the default) produces ZERO visual change. The
- * other three themes are selectable and persist correctly, but have no token
- * block yet — the app falls back to the base :root tokens until a future
- * phase defines their palettes (Border Patrol Green, Classic White, Midnight
- * Black), at which point each gets its own `[data-theme="..."]` block here
- * with no other code change required anywhere else in the app.
+ * Every block below defines the SAME token set (--background, --surface,
+ * --border, --foreground, --muted, --accent, --accent-fg, plus the reserved
+ * good/warning/serious/critical/neutral status pairs) — components only ever
+ * reference the semantic Tailwind classes generated from these (bg-surface,
+ * text-foreground, border-border, bg-accent, text-good, ...), never a raw
+ * color, so adding a 5th theme later is exactly one more `[data-theme="..."]`
+ * block here and NOTHING else in the app changes.
+ *
+ * `navy-command` (the default) is an EXACT alias of the app's original
+ * tokens — selecting it is a visual no-op versus pre-Phase-48A. Its dark
+ * variant still follows the OS `prefers-color-scheme` (the one theme that
+ * auto-switches); the other three are deliberately fixed-palette (a
+ * "Midnight Black" theme has no separate "even darker" dark-mode step to
+ * apply, and "Classic White" is meant to stay light even in a dark-OS
+ * session — that's the point of choosing it explicitly).
  */
 [data-theme="navy-command"] {
   --background: #f8fafc;
@@ -111,6 +119,87 @@
     --neutral: #94a3b8;
     --neutral-bg: #1e293b;
   }
+}
+
+/*
+ * Border Patrol Green — deep military green background, slightly lighter
+ * green surfaces, near-white text, muted gold accent (never bright yellow —
+ * #b8860b/darkgoldenrod family), restrained green-gray borders. Status
+ * colors are shifted brighter than the light theme's so they stay
+ * distinguishable against a dark green field (verified >= 4.5:1 against
+ * --background for foreground text and each status color).
+ */
+[data-theme="border-patrol-green"] {
+  --background: #10241a; /* deep military green */
+  --surface: #16301f; /* slightly lighter green */
+  --border: #2c4a37; /* restrained green-gray */
+  --foreground: #f3f7f4; /* near-white */
+  --muted: #a9c2b2; /* soft sage */
+  --accent: #c8a24a; /* muted gold, not bright yellow */
+  --accent-fg: #10241a;
+
+  --good: #6fcf8e;
+  --good-bg: #163826;
+  --warning: #e0b64d;
+  --warning-bg: #3a2f12;
+  --serious: #e39a5c;
+  --serious-bg: #3a2515;
+  --critical: #f0817a;
+  --critical-bg: #3a1614;
+  --neutral: #a9c2b2;
+  --neutral-bg: #1c3527;
+}
+
+/*
+ * Classic White — light neutral background, white cards, near-black text,
+ * gray borders, official blue accent (same blue family as navy-command's
+ * light mode, kept intentionally close since both are "official" palettes).
+ */
+[data-theme="classic-white"] {
+  --background: #f5f6f7; /* white/light neutral */
+  --surface: #ffffff; /* white cards */
+  --border: #d6dae0; /* gray */
+  --foreground: #111418; /* near-black */
+  --muted: #5b6470; /* gray ink */
+  --accent: #14509e; /* official blue */
+  --accent-fg: #ffffff;
+
+  --good: #157a3d;
+  --good-bg: #e3f6ea;
+  --warning: #a4610a;
+  --warning-bg: #fbedd7;
+  --serious: #b3480f;
+  --serious-bg: #fbe4d4;
+  --critical: #b0231f;
+  --critical-bg: #fbdedd;
+  --neutral: #5b6470;
+  --neutral-bg: #eceef1;
+}
+
+/*
+ * Midnight Black — near-black background, dark-gray surface, near-white
+ * text, restrained orange/gold accent (kept muted, not neon, to match the
+ * command-system tone of the other three themes).
+ */
+[data-theme="midnight-black"] {
+  --background: #0a0a0b; /* near-black */
+  --surface: #17181a; /* dark gray */
+  --border: #2c2d30; /* restrained dark border */
+  --foreground: #f2f2f3; /* near-white */
+  --muted: #9a9ca1; /* mid gray */
+  --accent: #d98a3d; /* restrained orange/gold */
+  --accent-fg: #0a0a0b;
+
+  --good: #5fce88;
+  --good-bg: #123321;
+  --warning: #e0b64d;
+  --warning-bg: #3a2f12;
+  --serious: #e3925a;
+  --serious-bg: #3a2415;
+  --critical: #ef7c76;
+  --critical-bg: #3a1614;
+  --neutral: #9a9ca1;
+  --neutral-bg: #212226;
 }
 
 @theme inline {
