@@ -18,12 +18,11 @@
  */
 import "server-only";
 import { getCommanderQueryDataset } from "@/lib/server/commander_query_service";
-import { resolveOfficerPortraitsBatch } from "@/lib/server/officer_portrait_service";
 import { composeCommanderDashboardViewModel, type DashboardSourceOfficer } from "@/lib/commander_dashboard/view_model";
 import type { CommanderDashboardViewModel } from "@/lib/commander_dashboard/types";
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 
-function toSourceOfficer(officer: CommanderQueryOfficer, officialPortraitUrl: string | null): DashboardSourceOfficer {
+function toSourceOfficer(officer: CommanderQueryOfficer): DashboardSourceOfficer {
   const promotion = officer.promotionIntelligence;
   return {
     officerId: officer.officerId,
@@ -32,7 +31,7 @@ function toSourceOfficer(officer: CommanderQueryOfficer, officialPortraitUrl: st
     currentPosition: officer.currentPosition,
     currentUnit: officer.currentUnit,
     thumbnailUrl: officer.thumbnailUrl,
-    officialPortraitUrl,
+    officialPortraitUrl: officer.officialPortraitUrl,
     dateOfBirth: officer.dateOfBirth,
     promotionStatus: promotion.promotionStatus,
     displayStatusTh: promotion.displayStatusTh ?? "",
@@ -62,9 +61,6 @@ function toSourceOfficer(officer: CommanderQueryOfficer, officialPortraitUrl: st
 export async function getCommanderDashboardViewModel(): Promise<CommanderDashboardViewModel> {
   const asOf = new Date();
   const dataset = await getCommanderQueryDataset();
-  const portraits = await resolveOfficerPortraitsBatch(dataset.officers.map((officer) => officer.officerId));
-  const sourceOfficers = dataset.officers.map((officer) =>
-    toSourceOfficer(officer, portraits.get(officer.officerId)?.thumbnailUrl ?? null)
-  );
+  const sourceOfficers = dataset.officers.map((officer) => toSourceOfficer(officer));
   return composeCommanderDashboardViewModel(sourceOfficers, asOf);
 }

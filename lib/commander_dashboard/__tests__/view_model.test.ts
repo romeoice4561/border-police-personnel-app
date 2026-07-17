@@ -148,6 +148,38 @@ test("birthday eight days away is excluded from the seven-day window", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Phase 43 Workstream C: Birthday Intelligence must render the canonically-
+// resolved Official Portrait, never the raw/deprecated thumbnailUrl field —
+// this was the exact bug found in the Phase 43 portrait audit
+// (lib/commander_dashboard/view_model.ts's toBirthdayViewModel).
+// ---------------------------------------------------------------------------
+test("Birthday Intelligence profileImageUrl uses officialPortraitUrl, not the raw/deprecated thumbnailUrl", () => {
+  const officers = [
+    officer({
+      officerId: "A",
+      dateOfBirth: utcDate(1990, 7, 17),
+      thumbnailUrl: "https://unreliable-legacy-url.example/raw.jpg",
+      officialPortraitUrl: "https://resolved-official-portrait.example/real.jpg",
+    }),
+  ];
+  const result = computeBirthdayIntelligence(officers, ASOF);
+  assert.equal(result.today[0].profileImageUrl, "https://resolved-official-portrait.example/real.jpg");
+});
+
+test("Birthday Intelligence profileImageUrl is null (placeholder) when no Official Portrait is resolved, even if a raw thumbnailUrl exists", () => {
+  const officers = [
+    officer({
+      officerId: "A",
+      dateOfBirth: utcDate(1990, 7, 17),
+      thumbnailUrl: "https://unreliable-legacy-url.example/raw.jpg",
+      officialPortraitUrl: null,
+    }),
+  ];
+  const result = computeBirthdayIntelligence(officers, ASOF);
+  assert.equal(result.today[0].profileImageUrl, null);
+});
+
+// ---------------------------------------------------------------------------
 // 7. Birthday this month
 // ---------------------------------------------------------------------------
 test("birthday this month includes today, upcoming, and already-passed entries in the required sort order", () => {

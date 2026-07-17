@@ -1,16 +1,22 @@
 /**
- * CommanderResultsTable (Commander Promotion UX refinement — presentation
- * and terminology only, no calculation changed).
+ * CommanderResultsTable (Phase 43 — Commander Search Intelligence, Table
+ * UX, and Official Portrait Consistency — Task A4/B/C).
  *
- * Rebuilt column set (task-specified order):
- *   รูป, ยศ ชื่อ-สกุล, ตำแหน่ง, หน่วย, ระดับตำแหน่ง, อายุ,
+ * Rebuilt to the Phase 43 16-column order:
+ *   รูป, ยศ ชื่อ–สกุล, ตำแหน่ง, หน่วย, ระดับตำแหน่ง, อายุ,
  *   ดำรงตำแหน่งนี้มาตั้งแต่ปี, จำนวนปีในระดับนี้, ระดับเป้าหมาย,
- *   ปีที่ครบครั้งแรก, เกินกำหนด, สถานะ, ปีนี้เป็นปีที่, ดูประวัติ.
+ *   ปีที่ครบครั้งแรก, รอการแต่งตั้งมาแล้ว, สถานะ, ปีนี้เป็นปีที่,
+ *   ปีเกษียณอายุราชการ, อายุราชการ, ดูประวัติ.
  *
  * Every value renders directly from `officer.promotionIntelligence`
  * (PromotionSummary — Phase 41's single source of truth) or the existing,
- * unmodified Service/Timeline/Retirement fields already on
- * CommanderQueryOfficer:
+ * unmodified Service/Timeline/Retirement/Portrait fields already on
+ * CommanderQueryOfficer — no calculation happens in this component:
+ *   - รูป:                        officialPortraitUrl (Phase 43 Workstream
+ *                                  C — the ONE canonical portrait resolver,
+ *                                  batch-resolved once in
+ *                                  getCommanderQueryDataset(); never the
+ *                                  raw/unreliable thumbnailUrl field).
  *   - อายุ:                       displayAgeYearsMonthsTh (Age Intelligence,
  *                                  years+months, never decimal).
  *   - ดำรงตำแหน่งนี้มาตั้งแต่ปี:      positionLevelStartYearBe (Timeline
@@ -21,23 +27,34 @@
  *   - ระดับเป้าหมาย:               promotionIntelligence.targetPosition.
  *   - ปีที่ครบครั้งแรก:             promotionIntelligence.eligibleFiscalYearBe
  *                                  (Buddhist Era — never Gregorian).
- *   - เกินกำหนด:                  overdueYears - 1 (whole missed promotion
+ *   - รอการแต่งตั้งมาแล้ว:          overdueYears - 1 (whole missed promotion
  *                                  opportunities: eligible since FY2568,
  *                                  current FY2569 -> overdueYears=2 ->
- *                                  1 missed opportunity), floored at 0,
- *                                  computed from the ALREADY-COMPUTED
+ *                                  1 missed opportunity/"1 ปี"), floored at
+ *                                  0, computed from the ALREADY-COMPUTED
  *                                  promotionIntelligence.overdueYears field
  *                                  — a presentation-only reinterpretation,
- *                                  not a new eligibility calculation.
+ *                                  not a new eligibility calculation. Label
+ *                                  renamed from the legacy "เกินกำหนด" per
+ *                                  Phase 43 (clearer, does not imply
+ *                                  misconduct); the old i18n key/internal
+ *                                  filter field name is unchanged for
+ *                                  compatibility.
  *   - สถานะ:                      promotionIntelligence.displayStatusTh
  *                                  (the existing PROMOTION_STATUS_DISPLAY_TH
  *                                  mapping), as a Badge.
  *   - ปีนี้เป็นปีที่:               promotionIntelligence.overdueYears,
  *                                  displayed as a bare number — never
  *                                  calculated from today's date.
+ *   - ปีเกษียณอายุราชการ:          retirementYearBe (Buddhist Era only).
+ *   - อายุราชการ:                 displayServiceDurationTh (Service
+ *                                  Intelligence, exact/compact, never
+ *                                  decimal).
  *
  * Horizontal scroll UX: DualScrollTable (top + bottom scrollbar, synced,
- * Shift+wheel, click-and-drag) wraps the table; รูป/ยศ ชื่อ-สกุล are sticky.
+ * Shift+wheel, click-and-drag) wraps the table; รูป/ยศ ชื่อ-สกุล are sticky,
+ * with min-widths matching the Phase 43 recommendation so text never
+ * compresses into unreadable stacks.
  */
 "use client";
 
@@ -52,6 +69,9 @@ import { UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { overdueOpportunities } from "@/lib/commander_query/promotion_display";
 import { useT } from "@/components/i18n/language_provider";
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+
+/** Phase 43 B5: photo column is 72px wide (matching the Dashboard table); the sticky name column starts right after it. */
+const PHOTO_COL_PX = 72;
 
 const STATUS_TONE: Record<PromotionEligibilityStatus, NonNullable<BadgeProps["tone"]>> = {
   EligibleThisYear: "good",
@@ -83,20 +103,22 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
             <table className="w-full min-w-330 text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                  <th scope="col" className="sticky left-0 z-10 bg-surface px-3 py-3 font-medium">{t("commander.portrait")}</th>
-                  <th scope="col" className="sticky left-14 z-10 bg-surface px-3 py-3 font-medium">{t("commander.name")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.currentPosition")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.company")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.positionLevel")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.age")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.positionLevelStartYear")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.yearsInLevel")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.targetLevel")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.firstEligibleYear")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.overdueYears")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("commander.qualificationStatus")}</th>
-                  <th scope="col" className="px-3 py-3 text-center font-medium">{t("commander.eligibilityYear")}</th>
-                  <th scope="col" className="px-3 py-3 font-medium">{t("dashboard.priorityColumnAction")}</th>
+                  <th scope="col" className="sticky left-0 z-10 bg-surface px-3 py-3 font-medium" style={{ minWidth: PHOTO_COL_PX, width: PHOTO_COL_PX }}>{t("commander.portrait")}</th>
+                  <th scope="col" className="sticky z-10 bg-surface px-3 py-3 font-medium" style={{ left: PHOTO_COL_PX, minWidth: 220 }}>{t("commander.name")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 200 }}>{t("commander.currentPosition")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 150 }}>{t("commander.company")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 140 }}>{t("commander.positionLevel")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 140 }}>{t("commander.age")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 160 }}>{t("commander.positionLevelStartYear")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 150 }}>{t("commander.yearsInLevel")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 180 }}>{t("commander.targetLevel")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 140 }}>{t("commander.firstEligibleYear")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 160 }}>{t("commander.overdueYears")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 180 }}>{t("commander.qualificationStatus")}</th>
+                  <th scope="col" className="px-3 py-3 text-center font-medium" style={{ minWidth: 110 }}>{t("commander.eligibilityYear")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 140 }}>{t("commander.retirementYear")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 150 }}>{t("commander.governmentServiceYears")}</th>
+                  <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 110 }}>{t("dashboard.priorityColumnAction")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -105,16 +127,14 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                   const missedOpportunities = overdueOpportunities(promotion.overdueYears);
                   return (
                     <tr key={officer.officerId} className="border-b border-border align-middle last:border-0 hover:bg-neutral-bg/60">
-                      <td className="sticky left-0 z-10 bg-surface px-3 py-3">
+                      <td className="sticky left-0 z-10 bg-surface px-3 py-3" style={{ minWidth: PHOTO_COL_PX, width: PHOTO_COL_PX }}>
                         <OfficerPhoto
                           name={officer.displayName}
-                          thumbnailUrl={officer.thumbnailUrl}
-                          driveFileId={officer.driveFileId}
-                          webViewUrl={officer.webViewUrl}
-                          size={32}
+                          thumbnailUrl={officer.officialPortraitUrl}
+                          size={48}
                         />
                       </td>
-                      <td className="sticky left-14 z-10 bg-surface px-3 py-3 font-medium">
+                      <td className="sticky z-10 bg-surface px-3 py-3 font-medium" style={{ left: PHOTO_COL_PX, minWidth: 220 }}>
                         <Link href={`/officers/${encodeURIComponent(officer.officerId)}`} className="whitespace-normal wrap-break-word text-accent hover:underline">
                           {officer.rank ? `${officer.rank} ` : ""}
                           {officer.displayName}
@@ -137,6 +157,8 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                       <td className="px-3 py-3 text-center font-medium text-foreground">
                         {promotion.overdueYears && promotion.overdueYears > 0 ? promotion.overdueYears : <span className="text-muted">—</span>}
                       </td>
+                      <td className="px-3 py-3 tabular-nums text-muted">{officer.retirementYearBe != null ? `พ.ศ. ${officer.retirementYearBe}` : "—"}</td>
+                      <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">{cell(officer.displayServiceDurationTh)}</td>
                       <td className="px-3 py-3">
                         <Button asChild variant="ghost" size="sm">
                           <Link href={`/officers/${encodeURIComponent(officer.officerId)}`}>{t("dashboard.priorityColumnAction")}</Link>

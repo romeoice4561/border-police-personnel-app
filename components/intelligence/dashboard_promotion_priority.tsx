@@ -36,15 +36,18 @@ import { DualScrollTable } from "@/components/ui/dual_scroll_table";
 import { useT } from "@/components/i18n/language_provider";
 import type { PromotionCandidateViewModel } from "@/lib/commander_dashboard/types";
 
+/** Phase 43 B5/B8: photo column min-width (72px) and avatar diameter (52px, within the 48-56px recommended range). */
+const PHOTO_COL_PX = 72;
+
 /** Circular, object-cover, consistent-size Official Portrait avatar with a graceful icon fallback when no trusted portrait exists. Never a gallery thumbnail. */
 function OfficialPortraitAvatar({ src, alt }: { src: string | null; alt: string }) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element -- small circular avatar, not a content image worth next/image's overhead here.
-    return <img src={src} alt={alt} className="h-10 w-10 shrink-0 rounded-full border border-border object-cover" loading="lazy" />;
+    return <img src={src} alt={alt} className="h-13 w-13 shrink-0 rounded-full border border-border object-cover" loading="lazy" />;
   }
   return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-neutral-bg text-muted" aria-hidden="true">
-      <User className="h-4 w-4" />
+    <span className="flex h-13 w-13 shrink-0 items-center justify-center rounded-full border border-border bg-neutral-bg text-muted" aria-hidden="true">
+      <User className="h-5 w-5" />
     </span>
   );
 }
@@ -69,41 +72,28 @@ export function DashboardPromotionPriority({ candidates }: { candidates: Promoti
         ) : (
           <DualScrollTable>
             <table className="w-full min-w-270 text-left text-sm">
-              <colgroup>
-                <col className="w-14" />
-                <col className="w-[15%]" />
-                <col className="w-[13%]" />
-                <col className="w-[9%]" />
-                <col className="w-[10%]" />
-                <col className="w-[9%]" />
-                <col className="w-[13%]" />
-                <col className="w-[12%]" />
-                <col className="w-[7%]" />
-                <col className="w-[10%]" />
-                <col className="w-20" />
-              </colgroup>
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                  <th className="sticky left-0 z-10 bg-surface px-3 py-2 font-medium">{t("dashboard.priorityColumnPhoto")}</th>
-                  <th className="sticky left-14 z-10 bg-surface px-3 py-2 font-medium">{t("dashboard.priorityColumnName")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnPosition")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnUnit")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnRetirementYear")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnServiceYears")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnQualification")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnStatus")}</th>
-                  <th className="px-3 py-2 text-center font-medium">{t("dashboard.priorityColumnEligibleDuration")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnYearsAtLevel")}</th>
-                  <th className="px-3 py-2 font-medium">{t("dashboard.priorityColumnAction")}</th>
+                  <th className="sticky left-0 z-10 bg-surface px-3 py-2 font-medium" style={{ minWidth: PHOTO_COL_PX, width: PHOTO_COL_PX }}>{t("dashboard.priorityColumnPhoto")}</th>
+                  <th className="sticky z-10 bg-surface px-3 py-2 font-medium" style={{ left: PHOTO_COL_PX, minWidth: 220 }}>{t("dashboard.priorityColumnName")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 260 }}>{t("dashboard.priorityColumnPosition")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 150 }}>{t("dashboard.priorityColumnUnit")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 130 }}>{t("dashboard.priorityColumnRetirementYear")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 150 }}>{t("dashboard.priorityColumnServiceYears")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 180 }}>{t("dashboard.priorityColumnQualification")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 180 }}>{t("dashboard.priorityColumnStatus")}</th>
+                  <th className="px-3 py-2 text-center font-medium" style={{ minWidth: 110 }}>{t("dashboard.priorityColumnEligibleDuration")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 160 }}>{t("dashboard.priorityColumnYearsAtLevel")}</th>
+                  <th className="px-3 py-2 font-medium" style={{ minWidth: 110 }}>{t("dashboard.priorityColumnAction")}</th>
                 </tr>
               </thead>
               <tbody>
                 {candidates.map((candidate) => (
                   <tr key={candidate.officerId} className="border-b border-border align-middle last:border-b-0 hover:bg-neutral-bg">
-                    <td className="sticky left-0 z-10 bg-surface px-3 py-2.5">
+                    <td className="sticky left-0 z-10 bg-surface px-3 py-2.5" style={{ minWidth: PHOTO_COL_PX, width: PHOTO_COL_PX }}>
                       <OfficialPortraitAvatar src={candidate.officialPortraitUrl} alt={candidate.displayName} />
                     </td>
-                    <td className="sticky left-14 z-10 bg-surface px-3 py-2.5">
+                    <td className="sticky z-10 bg-surface px-3 py-2.5" style={{ left: PHOTO_COL_PX, minWidth: 220 }}>
                       <p className="whitespace-normal wrap-break-word font-medium text-foreground">
                         {candidate.rank ? `${candidate.rank} ` : ""}
                         {candidate.displayName}

@@ -241,9 +241,24 @@ export const DICTIONARY = {
   "commander.noOfficersMatch": tr("ไม่มีกำลังพลตรงกับเงื่อนไข", "No officers match the current query."),
   "commander.drilldown": tr("เจาะข้อมูล", "Drill-down"),
   "commander.clearDrilldown": tr("ล้างการเจาะข้อมูล", "Clear drill-down"),
+  // Commander — Phase 43 Intelligence Summary cards (reflect the FILTERED result set; drill down via promotionEligibilityStatus)
+  "commander.intelligenceSummary": tr("สรุปข่าวกรองผลลัพธ์", "Commander Intelligence Summary"),
+  "commander.summaryTotal": tr("ผลลัพธ์ทั้งหมด", "All Results"),
+  "commander.summaryEligibleThisYear": tr("ครบคุณสมบัติปีนี้", "Eligible This Year"),
+  "commander.summaryAlreadyEligible": tr("มีคุณสมบัติครบแล้ว", "Already Eligible"),
+  "commander.summaryWaiting": tr("รอการแต่งตั้ง", "Waiting"),
+  "commander.summaryMissingTraining": tr("ขาดหลักสูตร", "Missing Training"),
+  "commander.summaryMissingDocuments": tr("ขาดเอกสาร", "Missing Documents"),
+  "commander.summaryRetirementRestricted": tr("ใกล้เกษียณ", "Near Retirement"),
+  "commander.summaryUnknown": tr("ไม่สามารถวิเคราะห์ได้", "Unable to Analyze"),
   "commander.exportPlaceholder": tr(
     "โครงสร้างการส่งออก (พร้อมสำหรับตัวเขียนไฟล์ในอนาคต)",
     "Export architecture placeholder. Data is already prepared for future file writers."
+  ),
+  "commander.print": tr("พิมพ์", "Print"),
+  "commander.exportPdfFutureWork": tr(
+    "การส่งออก PDF อยู่ระหว่างการวางแผนสำหรับเฟสถัดไป",
+    "PDF export is planned for a future phase."
   ),
 
   // Commander — table headers
@@ -267,8 +282,8 @@ export const DICTIONARY = {
   "commander.yearsInLevel": tr("จำนวนปีในระดับนี้", "Years in Level"),
   /** "ปีที่ครบครั้งแรก" — the Buddhist-Era fiscal year the officer FIRST became eligible (PromotionSummary.eligibleFiscalYearBe). Distinct from the deprecated commander.eligibleSince (a cycle-count field). */
   "commander.firstEligibleYear": tr("ปีที่ครบครั้งแรก", "First Eligible Year"),
-  /** "เกินกำหนด" — whole promotion opportunities already missed (PromotionSummary.overdueYears - 1, floored at 0; e.g. first eligible 2568, current fiscal year 2569 = 1 missed opportunity). Distinct from the deprecated commander.eligibleOverdue. */
-  "commander.overdueYears": tr("เกินกำหนด", "Overdue"),
+  /** Phase 43: user-facing label changed from "เกินกำหนด" to "รอการแต่งตั้งมาแล้ว" — clearer, does not imply misconduct. Internal key name (commander.overdueYears) and filter-field compatibility unchanged. Value: whole promotion opportunities already missed (PromotionSummary.overdueYears - 1, floored at 0; e.g. first eligible 2568, current fiscal year 2569 = 1 missed opportunity). Distinct from the deprecated commander.eligibleOverdue. */
+  "commander.overdueYears": tr("รอการแต่งตั้งมาแล้ว", "Waiting for Appointment"),
   /** "ปีนี้เป็นปีที่" — which numbered eligibility year this is (PromotionSummary.overdueYears, displayed as a bare number). */
   "commander.eligibilityYear": tr("ปีนี้เป็นปีที่", "Eligibility Year"),
   "commander.qualificationStatus": tr("สถานะ", "Status"),
@@ -278,7 +293,8 @@ export const DICTIONARY = {
   "commander.companyDistribution": tr("การกระจายตามกองร้อย", "Company Distribution"),
   "commander.promotionCycleDistribution": tr("การกระจายรอบแต่งตั้ง", "Promotion Cycle Distribution"),
   "commander.retirementTimeline": tr("ไทม์ไลน์การเกษียณ", "Retirement Timeline"),
-  "commander.retirementYear": tr("ปีเกษียณ", "Retirement Year"),
+  "commander.noTimelineData": tr("ไม่มีข้อมูลไทม์ไลน์", "No timeline data available."),
+  "commander.retirementYear": tr("ปีเกษียณอายุราชการ", "Retirement Year"),
 
   // Commander — filter fields
   "commander.rank": tr("ยศ", "Rank"),
@@ -298,6 +314,10 @@ export const DICTIONARY = {
   "commander.allRegions": tr("ทุกภาค", "All regions"),
   "commander.allBattalions": tr("ทุกกองกำกับการ", "All battalions"),
   "commander.allCompanies": tr("ทุกกองร้อย", "All companies"),
+  "commander.anyRetirementHorizon": tr("ทุกช่วงเวลา", "Any horizon"),
+  "commander.retirementWithin1Year": tr("ภายใน 1 ปี", "Within 1 year"),
+  "commander.retirementWithin3Years": tr("ภายใน 3 ปี", "Within 3 years"),
+  "commander.retirementWithin5Years": tr("ภายใน 5 ปี", "Within 5 years"),
 
   // Commander — promotion eligibility
   "commander.currentRank": tr("ยศปัจจุบัน", "Current Rank"),

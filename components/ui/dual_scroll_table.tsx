@@ -17,6 +17,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { tableOverflowsViewport, isInteractiveDragTarget, dragScrollLeft } from "@/lib/ui/dual_scroll_table_logic";
 
 export function DualScrollTable({ children, className }: { children: ReactNode; className?: string }) {
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -25,9 +26,14 @@ export function DualScrollTable({ children, className }: { children: ReactNode; 
   const syncingFrom = useRef<"top" | "body" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, scrollLeft: 0 });
+  // B3: no decorative top scrollbar when the table content doesn't actually
+  // overflow the viewport — only show it once there's real horizontal
+  // content to scroll.
+  const [overflows, setOverflows] = useState(false);
 
   // Keep the top scrollbar's spacer the same width as the table's actual
-  // scrollable content, so it represents the true horizontal extent.
+  // scrollable content, so it represents the true horizontal extent, and
+  // track whether the content overflows the visible width at all.
   useEffect(() => {
     const body = bodyScrollRef.current;
     const spacer = spacerRef.current;
@@ -35,7 +41,9 @@ export function DualScrollTable({ children, className }: { children: ReactNode; 
 
     const updateWidth = () => {
       const table = body.firstElementChild as HTMLElement | null;
-      spacer.style.width = `${table?.scrollWidth ?? body.scrollWidth}px`;
+      const scrollWidth = table?.scrollWidth ?? body.scrollWidth;
+      spacer.style.width = `${scrollWidth}px`;
+      setOverflows(tableOverflowsViewport(scrollWidth, body.clientWidth));
     };
     updateWidth();
 
@@ -81,7 +89,9 @@ export function DualScrollTable({ children, className }: { children: ReactNode; 
     // normal clicks still work — only the empty table background/cell text
     // initiates a drag-scroll.
     const target = event.target as HTMLElement;
-    if (target.closest("a,button,input,select,textarea")) return;
+    const tagChain: string[] = [];
+    for (let el: HTMLElement | null = target; el; el = el.parentElement) tagChain.push(el.tagName);
+    if (isInteractiveDragTarget(tagChain)) return;
     const body = bodyScrollRef.current;
     if (!body) return;
     setIsDragging(true);
@@ -93,7 +103,7 @@ export function DualScrollTable({ children, className }: { children: ReactNode; 
     function onMove(event: MouseEvent) {
       const body = bodyScrollRef.current;
       if (!body) return;
-      body.scrollLeft = dragStart.current.scrollLeft - (event.clientX - dragStart.current.x);
+      body.scrollLeft = dragScrollLeft(dragStart.current.scrollLeft, dragStart.current.x, event.clientX);
     }
     function onUp() {
       setIsDragging(false);
@@ -108,17 +118,21 @@ export function DualScrollTable({ children, className }: { children: ReactNode; 
 
   return (
     <div className={className}>
-      {/* Top scrollbar — a thin, always-visible horizontal scrollbar mirroring the table's real content width, synced with the table body below. */}
-      <div ref={topScrollRef} onScroll={() => syncScroll("top")} className="overflow-x-auto overflow-y-hidden" style={{ height: 14 }}>
-        <div ref={spacerRef} style={{ height: 1 }} />
-      </div>
+      {/* Top scrollbar — mirrors the table's real content width, synced with the table body below. Hidden entirely when the content doesn't overflow (B3: no decorative scrollbar). */}
+      {overflows ? (
+        <div ref={topScrollRef} onScroll={() => syncScroll("top")} className="overflow-x-auto overflow-y-hidden" style={{ height: 14 }}>
+          <div ref={spacerRef} style={{ height: 1 }} />
+        </div>
+      ) : (
+        <div ref={spacerRef} style={{ display: "none" }} />
+      )}
       <div
         ref={bodyScrollRef}
         onScroll={() => syncScroll("body")}
         onWheel={onBodyWheel}
         onMouseDown={onDragStart}
         className="overflow-x-auto"
-        style={{ cursor: isDragging ? "grabbing" : "grab" }}
+        style={{ cursor: overflows ? (isDragging ? "grabbing" : "grab") : "default", userSelect: isDragging ? "none" : undefined }}
       >
         {children}
       </div>

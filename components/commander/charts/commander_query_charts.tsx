@@ -2,6 +2,7 @@
 
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { DrilldownFilter } from "@/components/commander/query/types";
+import { PROMOTION_STATUS_DISPLAY_TH } from "@/lib/intelligence/promotion";
 import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -14,12 +15,12 @@ interface Slice {
 function distribution<T extends string | number | null>(
   officers: CommanderQueryOfficer[],
   getValue: (officer: CommanderQueryOfficer) => T,
-  fallback = "Unknown"
+  fallbackLabel: string
 ): Array<{ label: string; raw: T; value: number }> {
   const counts = new Map<string, { raw: T; value: number }>();
   for (const officer of officers) {
     const raw = getValue(officer);
-    const label = raw == null || raw === "" ? fallback : String(raw);
+    const label = raw == null || raw === "" ? fallbackLabel : String(raw);
     counts.set(label, { raw, value: (counts.get(label)?.value ?? 0) + 1 });
   }
   return [...counts.entries()].map(([label, row]) => ({ label, raw: row.raw, value: row.value })).sort((a, b) => b.value - a.value);
@@ -91,14 +92,20 @@ export function CommanderQueryCharts({
   onDrilldown: (next: DrilldownFilter) => void;
 }) {
   const { t } = useT();
-  const promotion = distribution(officers, (officer) => officer.promotionStatus).map((row, index) => ({
-    label: row.label,
+  const unknownLabel = t("commander.summaryUnknown");
+  // Task A5: the result-distribution pie uses the SAME Promotion Intelligence
+  // status (promotionIntelligence.promotionStatus) as the results table's
+  // status badge and the Intelligence Summary cards — never the legacy
+  // score-ratio promotionStatus field — so chart totals always match the
+  // table/summary for the identical filtered set.
+  const promotion = distribution(officers, (officer) => officer.promotionIntelligence.promotionStatus, unknownLabel).map((row, index) => ({
+    label: row.raw ? PROMOTION_STATUS_DISPLAY_TH[row.raw] : unknownLabel,
     value: row.value,
-    color: ["#16a34a", "#f59e0b", "#dc2626", "#64748b"][index % 4],
+    color: ["#16a34a", "#f59e0b", "#dc2626", "#64748b", "#0ea5e9", "#a855f7", "#ef4444", "#64748b"][index % 8],
   }));
-  const rankRows = distribution(officers, (officer) => officer.rank);
-  const positionRows = distribution(officers, (officer) => officer.positionLevel);
-  const companyRows = distribution(officers, (officer) => officer.companyLabel);
+  const rankRows = distribution(officers, (officer) => officer.rank, unknownLabel);
+  const positionRows = distribution(officers, (officer) => officer.positionLevel, unknownLabel);
+  const companyRows = distribution(officers, (officer) => officer.companyLabel, unknownLabel);
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">

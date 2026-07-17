@@ -7,10 +7,16 @@ import { matchesSkillFilter } from "@/lib/capability/skill_filter";
 import { CommanderQueryBuilder, type QueryMode } from "@/components/commander/filters/commander_query_builder";
 import { CommanderSearchPresets } from "@/components/commander/filters/commander_search_presets";
 import { CommanderQuerySummary } from "@/components/commander/summary/commander_query_summary";
+import { CommanderIntelligenceSummary } from "@/components/commander/summary/commander_intelligence_summary";
 import { CommanderEligibilityCards } from "@/components/commander/summary/commander_eligibility_cards";
 import { CommanderQueryCharts } from "@/components/commander/charts/commander_query_charts";
 import { CommanderTimelineCharts } from "@/components/commander/charts/commander_timeline_charts";
 import { CommanderResultsTable } from "@/components/commander/results/commander_results_table";
+import { CommanderExportBar } from "@/components/commander/query/commander_export_bar";
+import { buildCommanderInsightTh } from "@/lib/commander_query/commander_insight";
+import { describeFiltersTh, type CommanderExportMeta } from "@/lib/commander_query/commander_export";
+import { computeFiscalYearSummary } from "@/lib/intelligence/shared/fiscal_year";
+import { formatFullThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { CommanderPreset } from "@/lib/commander_query/presets";
 import { useT } from "@/components/i18n/language_provider";
 import { Card, CardBody } from "@/components/ui/card";
@@ -122,6 +128,21 @@ export function CommanderQueryCenter({
     return sortRows(matches, sortBy, sortDirection);
   }, [dataset.officers, drilldown, filters, sortBy, sortDirection]);
 
+  /** Task A6: deterministic (non-LLM), recomputed only when the filtered set changes. */
+  const insight = useMemo(() => buildCommanderInsightTh(filtered), [filtered]);
+
+  /** Task A7: export/print metadata — Thai title, filters applied, result count, Buddhist-Era generation date, current fiscal year. */
+  const exportMeta: CommanderExportMeta = useMemo(() => {
+    const now = new Date();
+    return {
+      titleTh: "รายงานผลการค้นหากำลังพล (ผู้บังคับบัญชา)",
+      filtersAppliedTh: describeFiltersTh(filters),
+      resultCount: filtered.length,
+      generatedOnTh: `สร้างเมื่อ ${formatFullThaiDateTh(now)}`,
+      fiscalYearTh: computeFiscalYearSummary(now).displayFiscalYearTh,
+    };
+  }, [filtered.length, filters]);
+
   /** When the user hand-edits filters, any active preset/card selection no longer describes the state. */
   function handleFilterChange(next: CommanderQueryFilters) {
     setFilters(next);
@@ -165,6 +186,14 @@ export function CommanderQueryCenter({
     setMode("promotion");
   }
 
+  /** Task A2: clicking an Intelligence Summary status card replaces filters with just that status — the same field Commander Dashboard drill-down links already use. */
+  function applyIntelligenceSummaryCard(cardFilters: CommanderQueryFilters) {
+    setFilters(cardFilters);
+    setDrilldown(null);
+    setActivePresetId(undefined);
+    setActiveCardLevel(undefined);
+  }
+
   return (
     <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="space-y-4">
@@ -178,17 +207,7 @@ export function CommanderQueryCenter({
           onClearFilters={clearFilters}
           onResetAll={resetAll}
         />
-        <Card>
-          <CardBody className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("common.export")}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" disabled>Excel</Button>
-              <Button type="button" variant="outline" size="sm" disabled>PDF</Button>
-              <Button type="button" variant="outline" size="sm" disabled>CSV</Button>
-            </div>
-            <p className="text-xs text-muted">{t("commander.exportPlaceholder")}</p>
-          </CardBody>
-        </Card>
+        <CommanderExportBar officers={filtered} meta={exportMeta} />
       </aside>
 
       <section ref={resultsRef} className="min-w-0 space-y-5">
@@ -200,6 +219,14 @@ export function CommanderQueryCenter({
             <Button type="button" variant="ghost" size="sm" onClick={() => setDrilldown(null)}>{t("commander.clearDrilldown")}</Button>
           </div>
         ) : null}
+        <Card>
+          <CardBody className="text-sm text-foreground">{insight}</CardBody>
+        </Card>
+        <CommanderIntelligenceSummary
+          officers={filtered}
+          activeStatus={filters.promotionEligibilityStatus}
+          onSelectStatus={applyIntelligenceSummaryCard}
+        />
         <CommanderQuerySummary officers={filtered} onDrilldown={setDrilldown} />
         <CommanderQueryCharts officers={filtered} onDrilldown={setDrilldown} />
         <CommanderTimelineCharts officers={filtered} onDrilldown={setDrilldown} />

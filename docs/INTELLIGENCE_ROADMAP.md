@@ -335,6 +335,19 @@ means "nothing to prioritize" (status `Unknown`), never a score of 0.
   of it — a decision, not yet made. See
   `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`.
 
+## Phase 43 — Commander Search Intelligence, Table UX, and Official Portrait Consistency
+
+Closes two long-standing gaps flagged in earlier phases of this roadmap:
+the Official Portrait resolver was wired into Commander Dashboard (Phase
+42) but not Commander Search, and Commander Search's results table was
+missing 2 of the now-16 spec columns. Both are fixed at the shared read
+model (`getCommanderQueryDataset()`), not per-page — see
+`docs/COMMANDER_SEARCH_INTELLIGENCE.md` for full detail. Commander Search
+also gained a filtered-result Intelligence Summary, Thai-localized charts
+(previously leaking raw English cycle-bucket labels), a deterministic
+Commander Insight sentence, and functional Excel/Print export (CSV, RFC
+4180 + UTF-8 BOM — PDF remains unscheduled).
+
 ## AI Commander Intelligence
 
 - **Purpose:** AI-assisted narrative/recommendation layer on top of
@@ -378,5 +391,5 @@ left `null`/unscoped.
 | Training | Planned — no facade exists | No | No dedicated engine; training presence read directly (`officer.training.length > 0`) by callers such as `lib/intelligence/flags.ts` | Build Training Intelligence, gated on a prior product decision defining "required training" per rank/role (unscheduled) |
 | Document | Existing production logic wrapped, partial | Yes (`lib/intelligence/document/`) | Real active/verified/pending document counts + portrait signal only — no required-documents checklist exists in the schema | Migrate `lib/ui/profile_completeness.ts`'s checklist logic behind this facade, reusing it as-is (Phase 46) |
 | Document & Expiry | Planned — no facade exists | No | Not implemented; Commander Dashboard reserves one disabled Action Center line as an integration point (Phase 42) | Full implementation — schema, engine, UI — in **Phase 46** |
-| Commander | Existing production engine, not yet a dedicated facade | Existing architecture (`CommanderDashboard`/`CommanderQueryDataset`); Phase 42 adds a Dashboard-SPECIFIC (not general-purpose) composition layer, `lib/commander_dashboard/` | Flags, priority, recommendations, aggregation — mostly computed ad hoc per service; Dashboard's promotion/birthday/retirement/action-center view models now composed via `lib/commander_dashboard/view_model.ts` | Extract a general-purpose `lib/intelligence/commander/`, consuming the strengthened per-officer facades, and decide whether `lib/commander_dashboard/` folds into it (Phase 47) |
+| Commander | Existing production engine, not yet a dedicated facade | Existing architecture (`CommanderDashboard`/`CommanderQueryDataset`); Phase 42 adds a Dashboard-SPECIFIC (not general-purpose) composition layer, `lib/commander_dashboard/` | Flags, priority, recommendations, aggregation — mostly computed ad hoc per service; Dashboard's promotion/birthday/retirement/action-center view models now composed via `lib/commander_dashboard/view_model.ts`; Phase 43 adds batch Official Portrait resolution to `getCommanderQueryDataset()` itself (shared by both Dashboard and Search) plus a rebuilt 16-column Commander Search results table | Extract a general-purpose `lib/intelligence/commander/`, consuming the strengthened per-officer facades, and decide whether `lib/commander_dashboard/` folds into it (Phase 47) |
 | AI Commander | Planned — no implementation | No | Not implemented in any form; `lib/intelligence/recommendations.ts`'s deterministic (non-AI) suggestions are the closest existing analogue | Build once Commander Intelligence (Phase 47) lands and an LLM-integration decision is made (unscheduled) |

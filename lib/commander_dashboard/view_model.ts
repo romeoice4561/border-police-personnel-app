@@ -186,7 +186,7 @@ function toBirthdayViewModel(officer: DashboardSourceOfficer, age: AgeSummary): 
     rank: officer.rank,
     position: officer.currentPosition,
     unit: officer.currentUnit,
-    profileImageUrl: officer.thumbnailUrl,
+    profileImageUrl: officer.officialPortraitUrl,
     birthDate: age.birthDate,
     birthdayDateThisYear: age.nextBirthdayDate,
     turningAge: age.nextBirthdayAge,

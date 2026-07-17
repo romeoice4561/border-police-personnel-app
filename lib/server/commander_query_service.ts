@@ -1,5 +1,6 @@
 import "server-only";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
+import { resolveOfficerPortraitsBatch } from "@/lib/server/officer_portrait_service";
 import { calculateAge, calculateGovernmentServiceDuration, calculateRetirement } from "@/lib/personnel_calendar";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { toEffectiveDate } from "@/lib/officer_profile/thai_date";
@@ -131,7 +132,8 @@ function computeNextLevelEligibility(eligibilityInput: EligibilityOfficer, asOf:
 function toQueryOfficer(
   officer: OfficerWithRelations,
   asOf: Date,
-  orgLabels: { company: string | null }
+  orgLabels: { company: string | null },
+  officialPortraitUrl: string | null
 ): CommanderQueryOfficer {
   const intelligence = buildOfficerProfileIntelligence(officer);
   const serviceStart = firstServiceLikeDate(officer);
@@ -220,6 +222,7 @@ function toQueryOfficer(
     thumbnailUrl: officer.thumbnailUrl,
     driveFileId: officer.driveFileId,
     webViewUrl: officer.webViewUrl,
+    officialPortraitUrl,
   };
 }
 
@@ -235,6 +238,11 @@ export async function getCommanderQueryDataset(): Promise<CommanderQueryDataset>
     loadOrganizationEngine(),
     getSkillCatalog(),
   ]);
+  // Phase 43: batch-resolve Official Portraits ONCE here, upstream of every
+  // consumer (Commander Search, Commander Dashboard), via the canonical
+  // resolver — so no caller can regress onto the unreliable legacy
+  // thumbnailUrl/driveFileId fields. Constant query count, not N+1.
+  const portraits = await resolveOfficerPortraitsBatch(officers.map((officer) => officer.officerId));
   const rows = officers.map((officer) => {
     const labels = organizationEngine.resolveLabels({
       headquartersId: officer.headquartersId,
@@ -242,7 +250,8 @@ export async function getCommanderQueryDataset(): Promise<CommanderQueryDataset>
       battalionId: officer.battalionId,
       companyId: officer.companyId,
     });
-    return toQueryOfficer(officer, asOf, labels);
+    const officialPortraitUrl = portraits.get(officer.officerId)?.thumbnailUrl ?? null;
+    return toQueryOfficer(officer, asOf, labels, officialPortraitUrl);
   });
 
   return {

@@ -485,5 +485,37 @@ authenticated session in this phase (environment constraint, not a scope
 decision) — verification relied on `tsc --noEmit`, the full test suite,
 and a successful `next build` (which type-checks and statically compiles
 every route, including the Dashboard's Server Component data fetching).
-See `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`'s Known Limitations for
-this and the other Phase 42-specific gaps.
+See `docs/COMMANDER_DASHBOARD_INTELLIGENCE.md`'s Known Limitations section
+for the full list.
+
+## Phase 43 — Commander Search Intelligence, Table UX, and Official Portrait Consistency
+
+Phase 43 is the first phase to batch-resolve Official Portraits inside
+`getCommanderQueryDataset()` itself (`lib/server/commander_query_service.ts`)
+rather than in a per-page service layer — `CommanderQueryOfficer` gains
+`officialPortraitUrl`, resolved ONCE via the canonical resolver
+(`resolveOfficerPortraitsBatch`) upstream of both Commander Search and
+Commander Dashboard, so no future consumer of this dataset can regress onto
+the unreliable legacy `thumbnailUrl`/`driveFileId` fields (now marked
+`@deprecated` on the type). `commander_dashboard_service.ts` no longer
+resolves portraits itself — it reads the value straight off the shared
+dataset. A second portrait bug (Dashboard's Birthday Intelligence panel
+reading the wrong field) was found and fixed in the same phase.
+
+**Architecture rule (binding):** All officer avatars in operational and
+Commander-facing pages must use the canonical Official Portrait resolver.
+Feature components must not independently select images from gallery or
+document media.
+
+Commander Search itself gained a rebuilt 16-column results table, a
+filtered-result-set Intelligence Summary, Thai-localized analytics charts, a
+deterministic (non-LLM) Commander Insight sentence, and functional
+Excel/Print export (PDF documented as future work). Full detail — data
+flow, summary/filter/chart/export semantics, the five easily-confused
+promotion-timing column concepts, and table-UX changes — lives in
+**`docs/COMMANDER_SEARCH_INTELLIGENCE.md`**, the Commander-Search-specific
+companion to this document (mirroring how Phase 42's Dashboard work has its
+own companion doc). See that document for full details and known
+limitations (PDF export not implemented, no live browser verification this
+phase, Retirement Intelligence facade still unconsumed by
+`commander_query_service.ts`).

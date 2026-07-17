@@ -4,10 +4,15 @@ import type { CommanderQueryOptions, NumericOperator } from "@/lib/commander_que
 import type { CommanderQueryFilters, NumericFilter } from "@/components/commander/query/types";
 import { PromotionEligibilityFilter } from "@/components/commander/filters/promotion_eligibility_filter";
 import { SkillFilterControl } from "@/components/commander/filters/skill_filter";
+import { PROMOTION_STATUS_DISPLAY_TH } from "@/lib/intelligence/promotion";
+import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
 import { useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+
+/** Every PromotionEligibilityStatus value, in the same order the Intelligence Summary cards use (Task A3: a manual control for the status this dataset already computes reliably — previously only reachable via URL/preset/card). */
+const PROMOTION_ELIGIBILITY_STATUS_VALUES = Object.keys(PROMOTION_STATUS_DISPLAY_TH) as PromotionEligibilityStatus[];
 
 const controlClass = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
@@ -215,6 +220,36 @@ function PersonnelFilters({
         <NumericFilterControl label={t("commander.completedPromotionCycles")} value={value.completedPromotionCycles} onChange={(next) => set("completedPromotionCycles", next)} />
         <NumericFilterControl label={t("commander.appointmentCycle")} value={value.appointmentCycle} onChange={(next) => set("appointmentCycle", next)} />
         <NumericFilterControl label={t("commander.age")} value={value.age} onChange={(next) => set("age", next)} />
+
+        {/* Task A3: Promotion Intelligence status — reads officer.promotionIntelligence.promotionStatus, the same field the Intelligence Summary cards/results table already use. */}
+        <label className="space-y-1 text-xs font-medium text-muted">
+          {t("commander.qualificationStatus")}
+          <select
+            className={controlClass}
+            value={value.promotionEligibilityStatus ?? ""}
+            onChange={(e) => set("promotionEligibilityStatus", (e.target.value || undefined) as PromotionEligibilityStatus | undefined)}
+          >
+            <option value="">{t("commander.anyStatus")}</option>
+            {PROMOTION_ELIGIBILITY_STATUS_VALUES.map((status) => (
+              <option key={status} value={status}>{PROMOTION_STATUS_DISPLAY_TH[status]}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Task A3: retirement-within horizon — reads officer.retirementYear (Retirement/Personnel Calendar), the same field the Dashboard drill-down and retirement timeline chart already use. */}
+        <label className="space-y-1 text-xs font-medium text-muted">
+          {t("commander.retirementYear")}
+          <select
+            className={controlClass}
+            value={value.retirementWithin ?? ""}
+            onChange={(e) => set("retirementWithin", (e.target.value || undefined) as CommanderQueryFilters["retirementWithin"])}
+          >
+            <option value="">{t("commander.anyRetirementHorizon")}</option>
+            <option value="within-1-year">{t("commander.retirementWithin1Year")}</option>
+            <option value="within-3-years">{t("commander.retirementWithin3Years")}</option>
+            <option value="within-5-years">{t("commander.retirementWithin5Years")}</option>
+          </select>
+        </label>
 
         <label className="space-y-1 text-xs font-medium text-muted">
           {t("commander.intelligenceFlag")}

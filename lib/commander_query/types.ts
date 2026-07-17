@@ -106,9 +106,20 @@ export interface CommanderQueryOfficer {
   eligibleCycle: number | null;
   overdueCycles: number;
   promotionCycleBucket: CommanderEligibilitySummary["promotionCycleBucket"];
+  /** @deprecated SYSTEMATICALLY UNRELIABLE (Phase 23B) — never render directly. Use officialPortraitUrl. Kept only for back-compat callers. */
   thumbnailUrl: string | null;
+  /** @deprecated see thumbnailUrl. */
   driveFileId: string | null;
+  /** @deprecated see thumbnailUrl. */
   webViewUrl: string | null;
+  /**
+   * Phase 43: the resolved Official Portrait URL, batch-resolved once in
+   * getCommanderQueryDataset() via the canonical resolver
+   * (lib/server/officer_portrait_service.ts, resolveOfficerPortraitsBatch).
+   * Null when no trusted portrait is linked (caller shows a placeholder).
+   * This is the ONLY portrait field UI components should render.
+   */
+  officialPortraitUrl: string | null;
 }
 
 export interface CommanderQueryOptions {
