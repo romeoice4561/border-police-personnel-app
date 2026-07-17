@@ -105,8 +105,8 @@ source field:
 
 | Column | Source | Meaning |
 |---|---|---|
-| ดำรงตำแหน่งนี้มาตั้งแต่ปี | `positionLevelStartYearBe` | The Buddhist-Era year the officer FIRST reached their CURRENT structured position level (earliest matching timeline row). Not a cycle bucket. |
-| จำนวนปีในระดับนี้ | `yearsInPositionLevel` | Whole years elapsed since that start date, computed today — "how long have they been at this level." |
+| ดำรงตำแหน่งนี้มาตั้งแต่ปี | `positionLevelStartYearBe` | The Buddhist-Era year the officer FIRST reached their CURRENT structured position level (earliest matching timeline row, recovered via fallback text classification for legacy rows missing a stored `positionLevel` — Phase 44.1). Not a cycle bucket. |
+| จำนวนปีในระดับนี้ | `positionLevelYearCount` (Phase 44.1) | The commander-facing YEAR COUNT: `currentYearBe - positionLevelStartYearBe`, a Buddhist-Era calendar-year subtraction, never `+1`. **Not** the deprecated `yearsInPositionLevel` (an exact elapsed decimal-years duration that can truncate to one year less — e.g. showing "4 ปี" for an officer whose start/current year difference is unambiguously 5). See `docs/OFFICER_INTELLIGENCE_WORKSPACE.md`'s "Exact elapsed duration vs. commander-facing position-level year count" for the full distinction and the bug this fixed. |
 | ปีที่ครบครั้งแรก | `promotionIntelligence.eligibleFiscalYearBe` | The Buddhist-Era FISCAL YEAR the officer first became eligible for their NEXT level — a promotion-eligibility date, unrelated to their current level's start year. |
 | รอการแต่งตั้งมาแล้ว | `overdueOpportunities(promotionIntelligence.overdueYears)` | Whole promotion opportunities already missed since first becoming eligible (`overdueYears - 1`, floored at 0). Renamed from the legacy "เกินกำหนด" — clearer, does not imply misconduct. Internal field/filter name (`commander.overdueYears`) unchanged for compatibility. |
 | ปีนี้เป็นปีที่ | `promotionIntelligence.overdueYears` (bare number) | Which numbered eligibility year THIS fiscal year is (year 1 = first eligible year). Never calculated from today's date in the component — read directly from `PromotionSummary`. |

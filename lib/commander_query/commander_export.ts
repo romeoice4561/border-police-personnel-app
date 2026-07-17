@@ -49,7 +49,7 @@ function officerRow(officer: CommanderQueryOfficer): string[] {
     officer.positionLevel && officer.positionLevel !== UNKNOWN_POSITION_LEVEL ? officer.positionLevel : "",
     officer.displayAgeYearsMonthsTh ?? "",
     officer.positionLevelStartYearBe != null ? String(officer.positionLevelStartYearBe) : "",
-    officer.yearsInPositionLevel != null ? `${Math.trunc(officer.yearsInPositionLevel)} ปี` : "",
+    officer.positionLevelYearCount != null ? `${officer.positionLevelYearCount} ปี` : "",
     promotion.targetPosition ?? "",
     promotion.eligibleFiscalYearBe != null ? String(promotion.eligibleFiscalYearBe) : "",
     missedOpportunities != null ? `${missedOpportunities} ปี` : "",

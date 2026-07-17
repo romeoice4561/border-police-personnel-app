@@ -63,8 +63,10 @@ export interface DashboardSourceOfficer {
   retirementYearBe: number | null;
   /** The officer's NEXT position level — from PromotionSummary.targetPosition, unchanged/unmodified. Null when unavailable. */
   targetPosition: string | null;
-  /** Whole years the officer has held their CURRENT position level — from the Commander read model's existing yearsInPositionLevel (lib/server/commander_query_service.ts), unchanged/unmodified. Null when unavailable. */
+  /** @deprecated exact elapsed decimal-years duration (lib/commander_query/query_officer.ts's yearsInPositionLevel) — do not use for display; see positionLevelYearCount. */
   yearsInPositionLevel: number | null;
+  /** Phase 44.1: the commander-facing YEAR COUNT for time at the current position level (currentYearBe - positionLevelStartYearBe) — from the Commander read model's positionLevelYearCount, unchanged/unmodified. Null when unavailable. */
+  positionLevelYearCount: number | null;
 }
 
 function officerHref(officerId: string): string {
@@ -151,7 +153,7 @@ export function buildPromotionPriorityCandidates(
       retirementYearBe: officer.retirementYearBe,
       displayRetirementYearTh: officer.retirementYearBe != null ? `พ.ศ. ${officer.retirementYearBe}` : null,
       displayTargetQualificationTh: officer.targetPosition != null ? `ครบขึ้น ${officer.targetPosition}` : null,
-      displayYearsAtLevelTh: officer.yearsInPositionLevel != null ? `${Math.trunc(officer.yearsInPositionLevel)} ปี` : null,
+      displayYearsAtLevelTh: officer.positionLevelYearCount != null ? `${officer.positionLevelYearCount} ปี` : null,
       priority: officer.priority,
       priorityReason: officer.priorityReason,
       href: officerHref(officer.officerId),

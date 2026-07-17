@@ -26,6 +26,25 @@ export function yearsSince(date: Date | null, asOf: Date): number | null {
   return yearsFromDuration(date ? differenceYMD(date, asOf) : null);
 }
 
+/**
+ * Commander-facing YEAR-COUNT (not exact elapsed duration) between two
+ * Buddhist-Era years — e.g. `currentYearBe - startYearBe`, never adding 1
+ * after subtraction. Distinct from `yearsSince`/`yearsFromDuration`, which
+ * compute an EXACT chronological duration (years/months/days from a real
+ * date) that can truncate to N-1 whenever the anniversary hasn't occurred
+ * yet within the current calendar year (e.g. a 2564 start observed on 17
+ * July of fiscal year 2569 elapses only ~5 years 6 months if anchored
+ * mid-year, but truncates to 4 when anchored later in the year or when the
+ * start date is anchored past the as-of month/day) — the wrong number for
+ * a commander-facing "how many BE years has this officer been at this
+ * level" question, which is a calendar-year count, not a duration. Returns
+ * null when either year is null (never a fabricated 0).
+ */
+export function yearCountSince(startYearBe: number | null, currentYearBe: number): number | null {
+  if (startYearBe == null) return null;
+  return currentYearBe - startYearBe;
+}
+
 /** A DurationYMD expressed as whole months, rounding any partial trailing day up to the next month. */
 export function monthsFromDuration(duration: DurationYMD | null): number | null {
   if (!duration) return null;

@@ -22,8 +22,11 @@
  *   - ดำรงตำแหน่งนี้มาตั้งแต่ปี:      positionLevelStartYearBe (Timeline
  *                                  Intelligence — earliest timeline row at
  *                                  the current level — NOT appointment cycle).
- *   - จำนวนปีในระดับนี้:            yearsInPositionLevel (existing field,
- *                                  NOT a promotion-cycle count).
+ *   - จำนวนปีในระดับนี้:            positionLevelYearCount (Phase 44.1 —
+ *                                  currentYearBe - positionLevelStartYearBe,
+ *                                  a Buddhist-Era calendar-year count, NOT
+ *                                  the deprecated yearsInPositionLevel exact
+ *                                  duration and NOT a promotion-cycle count).
  *   - ระดับเป้าหมาย:               promotionIntelligence.targetPosition.
  *   - ปีที่ครบครั้งแรก:             promotionIntelligence.eligibleFiscalYearBe
  *                                  (Buddhist Era — never Gregorian).
@@ -61,28 +64,17 @@
 import Link from "next/link";
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import { OfficerPhoto } from "@/components/officer/officer_photo";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { DualScrollTable } from "@/components/ui/dual_scroll_table";
 import { UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { overdueOpportunities } from "@/lib/commander_query/promotion_display";
 import { useT } from "@/components/i18n/language_provider";
-import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
 
 /** Phase 43 B5: photo column is 72px wide (matching the Dashboard table); the sticky name column starts right after it. */
 const PHOTO_COL_PX = 72;
-
-const STATUS_TONE: Record<PromotionEligibilityStatus, NonNullable<BadgeProps["tone"]>> = {
-  EligibleThisYear: "good",
-  AlreadyEligible: "warning",
-  Waiting: "neutral",
-  MissingTraining: "serious",
-  MissingDocuments: "serious",
-  RetirementRestricted: "critical",
-  NotEligible: "neutral",
-  Unknown: "neutral",
-};
 
 function cell(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "—" : String(value);
@@ -147,12 +139,12 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                       </td>
                       <td className="whitespace-normal px-3 py-3 text-muted">{cell(officer.displayAgeYearsMonthsTh)}</td>
                       <td className="px-3 py-3 tabular-nums text-muted">{cell(officer.positionLevelStartYearBe)}</td>
-                      <td className="px-3 py-3 text-muted">{officer.yearsInPositionLevel != null ? `${Math.trunc(officer.yearsInPositionLevel)} ปี` : "—"}</td>
+                      <td className="px-3 py-3 text-muted">{officer.positionLevelYearCount != null ? `${officer.positionLevelYearCount} ปี` : "—"}</td>
                       <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">{cell(promotion.targetPosition)}</td>
                       <td className="px-3 py-3 tabular-nums text-muted">{cell(promotion.eligibleFiscalYearBe)}</td>
                       <td className="px-3 py-3 text-muted">{missedOpportunities != null ? `${missedOpportunities} ปี` : "—"}</td>
                       <td className="px-3 py-3">
-                        <Badge tone={STATUS_TONE[promotion.promotionStatus]}>{promotion.displayStatusTh}</Badge>
+                        <Badge tone={PROMOTION_STATUS_TONE[promotion.promotionStatus]}>{promotion.displayStatusTh}</Badge>
                       </td>
                       <td className="px-3 py-3 text-center font-medium text-foreground">
                         {promotion.overdueYears && promotion.overdueYears > 0 ? promotion.overdueYears : <span className="text-muted">—</span>}

@@ -22,6 +22,7 @@ import { getKnownUnits } from "@/lib/server/unit_service";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
 import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { buildOfficerProfileIntelligence } from "@/lib/server/commander_intelligence_service";
+import { composeOfficerIntelligenceViewModel } from "@/lib/officer_intelligence/view_model";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,22 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
+  // Phase 44: composed here (not a second fetch) — reuses the SAME officer,
+  // resolved portrait, and organization labels already loaded above, so the
+  // Officer Intelligence View Model costs zero extra I/O.
+  const orgLabels = organizationEngine.resolveLabels({
+    headquartersId: officer.headquartersId,
+    regionId: officer.regionId,
+    battalionId: officer.battalionId,
+    companyId: officer.companyId,
+  });
+  const officerIntelligence = composeOfficerIntelligenceViewModel(
+    officer,
+    { company: orgLabels.company },
+    portrait.thumbnailUrl,
+    new Date()
+  );
+
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm">
@@ -67,6 +84,7 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
         orgTree={organizationEngine.getOrganizationTree()}
         portrait={portrait}
         intelligence={buildOfficerProfileIntelligence(officer)}
+        officerIntelligence={officerIntelligence}
         skillCatalog={skillCatalog}
       />
     </div>

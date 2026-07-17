@@ -43,8 +43,30 @@ export interface CommanderQueryOfficer {
   companyLabel: string;
   yearsInRank: number | null;
   yearsInPosition: number | null;
-  /** Phase 41 Part 3: years the officer has held their CURRENT structured position level (from the earliest timeline row at that level). Null when the level is Unknown or undated. Kept for non-promotion filters; promotion uses completedPromotionCycles. */
+  /**
+   * @deprecated Phase 41 Part 3 field — an EXACT elapsed decimal-years
+   * duration (`yearsSince`, chronological, can truncate to N-1 depending on
+   * whether the current month/day has passed the anniversary). Still feeds
+   * `EligibilityOfficer.yearsInPositionLevel` (Promotion Intelligence's
+   * tenure-requirement check) unchanged — do not repurpose for display. For
+   * the commander-facing "จำนวนปีในระดับนี้"/"ดำรงตำแหน่งระดับนี้มา" YEAR
+   * COUNT, use `positionLevelYearCount` instead (Phase 44.1).
+   */
   yearsInPositionLevel: number | null;
+  /**
+   * Phase 44.1 (position-level year-count fix): the commander-facing YEAR
+   * COUNT for how long the officer has held their CURRENT structured
+   * position level — `currentYearBe - positionLevelStartYearBe`, a
+   * Buddhist-Era calendar-year subtraction, never an exact elapsed
+   * duration and never `+1`. Distinct from the deprecated
+   * `yearsInPositionLevel` above (an exact decimal duration) and from
+   * `promotionIntelligence.promotionCyclesPassed` (an appointment-cycle
+   * approximation) — this field must be the ONLY source for
+   * "จำนวนปีในระดับนี้"/"ดำรงตำแหน่งระดับนี้มา" display text everywhere
+   * (Commander Search table, Officer Intelligence Workspace). Null when
+   * `positionLevelStartYearBe` is unavailable — never a fabricated 0.
+   */
+  positionLevelYearCount: number | null;
   /** Phase 42B: completed appointment cycles at the current position level (from PromotionCycleEngine). */
   completedPromotionCycles: number | null;
   governmentServiceYears: number | null;

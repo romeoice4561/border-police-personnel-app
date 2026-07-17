@@ -22,13 +22,17 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import type { OfficerIntelligenceCard as OfficerIntelligenceCardData } from "@/lib/intelligence";
-import { officerFullName } from "@/lib/ui/officer_summary";
+import type { OfficerIntelligenceViewModel } from "@/lib/officer_intelligence/types";
+import { officerFullName, currentTimelineRow } from "@/lib/ui/officer_summary";
 import { useOfficerWorkspace } from "@/components/officer/use_officer_workspace";
-import { ProfileHeader } from "@/components/officer/profile_header";
+import { OfficerIntelligenceHeader } from "@/components/officer/officer_intelligence_header";
+import { OfficerPromotionIntelligenceCard } from "@/components/officer/officer_promotion_intelligence_card";
+import { OfficerPersonalTimelineCard } from "@/components/officer/officer_personal_timeline_card";
+import { OfficerRetirementIntelligenceCard } from "@/components/officer/officer_retirement_intelligence_card";
+import { OfficerCommanderActions } from "@/components/officer/officer_commander_actions";
 import { ProfileEditor, PersonalInformationEditor } from "@/components/officer/profile_editor";
 import { BasicInformationSection } from "@/components/officer/basic_information_section";
 import { CareerSection } from "@/components/officer/career_section";
-import { PromotionCycleSection } from "@/components/officer/promotion_cycle_section";
 import { CurrentOrganizationSection } from "@/components/officer/current_organization_section";
 import { ContactSection } from "@/components/officer/contact_section";
 import { PersonalInformationSection } from "@/components/officer/personal_information_section";
@@ -67,6 +71,8 @@ export interface OfficerWorkspaceProps {
   portrait: ResolvedOfficerPortrait;
   /** Prepared by Commander Intelligence Engine on the server. */
   intelligence: OfficerIntelligenceCardData | null;
+  /** Phase 44: the composed Officer Intelligence View Model (Age/Service/Promotion/Retirement/Commander/Profile-Quality) — the single source every Intelligence-driven section on this page reads from. */
+  officerIntelligence: OfficerIntelligenceViewModel;
   /**
    * Phase 27: the raw org-tree snapshot, fetched server-side. Wrapped into an
    * OrganizationEngine HERE (client-side) rather than accepted as an
@@ -136,7 +142,7 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
  * viewing a colleague's (already excluded by canViewFull, but defense in
  * depth), never sees a working Edit control.
  */
-function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, skillCatalog, canEdit }: OfficerWorkspaceProps & { canEdit: boolean }) {
+function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, officerIntelligence, skillCatalog, canEdit }: OfficerWorkspaceProps & { canEdit: boolean }) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
@@ -165,9 +171,18 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
     }
   }
 
+  const officerCurrentTimelineRow = currentTimelineRow(officer.timeline);
+
   return (
     <div className="space-y-8">
-      <ProfileHeader officer={officer} portrait={portrait} organizationEngine={organizationEngine} onPortraitChanged={handlePortraitChanged} />
+      {/* Phase 44 Task 8, section 1: Officer Intelligence Summary Header. */}
+      <OfficerIntelligenceHeader
+        viewModel={officerIntelligence}
+        portrait={portrait}
+        phone={officer.phone}
+        currentTimelineRow={officerCurrentTimelineRow}
+        onPortraitChanged={handlePortraitChanged}
+      />
 
       {editing ? (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -191,6 +206,21 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         </div>
       ) : null}
 
+      {/* Phase 44 Task 8, sections 2-4: ประเด็นที่ควรดำเนินการ -> Promotion
+          Intelligence -> Age/Service/Retirement Summary. Hidden in Edit
+          Mode (nothing here is editable; showing it while editing invites
+          acting on stale data mid-edit). */}
+      {!editing ? (
+        <>
+          <OfficerCommanderActions items={officerIntelligence.commander.recommendations} />
+          <OfficerPromotionIntelligenceCard viewModel={officerIntelligence} />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <OfficerPersonalTimelineCard viewModel={officerIntelligence} dateOfBirth={officer.dateOfBirth ?? null} />
+            <OfficerRetirementIntelligenceCard viewModel={officerIntelligence} />
+          </div>
+        </>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {/* Phase 26D Part 1: Basic Information -> Career -> Current
@@ -208,7 +238,6 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
                 <BasicInformationSection officer={officer} />
                 <CareerSection officer={officer} />
               </div>
-              <PromotionCycleSection officer={officer} />
               <CurrentOrganizationSection officer={officer} organizationEngine={organizationEngine} />
               <ContactSection officer={officer} />
               <PersonalInformationSection officer={officer} />

@@ -519,3 +519,46 @@ own companion doc). See that document for full details and known
 limitations (PDF export not implemented, no live browser verification this
 phase, Retirement Intelligence facade still unconsumed by
 `commander_query_service.ts`).
+
+## Phase 44 — Officer Intelligence Workspace
+
+Phase 44 brings the same trusted Intelligence outputs (Age/Service/
+Promotion/Retirement/Commander/Profile-Quality, plus the canonical Official
+Portrait resolver) into the individual Officer Profile, via a new
+`OfficerIntelligenceViewModel` (`lib/officer_intelligence/`). Two pure
+compositions were EXTRACTED (not rewritten) out from behind `server-only`
+import guards so they could be unit-tested and reused by a second
+consumer: `toQueryOfficer()` (the per-officer Commander read-model
+composition) moved to `lib/commander_query/query_officer.ts`, and
+`toIntelligenceInput()`/`buildOfficerProfileIntelligence()` (the Phase 36
+Commander Intelligence Card composition) moved to
+`lib/intelligence/officer_intelligence_input.ts`. Both original files
+(`lib/server/commander_query_service.ts`,
+`lib/server/commander_intelligence_service.ts`) now re-export them
+unchanged — no calculation was duplicated or altered, and no existing
+caller needed to change.
+
+The Officer Profile Header, a new Promotion Intelligence card, a new Age/
+Service/Retirement card, and a new deterministic "ประเด็นที่ควรดำเนินการ"
+Commander Actions section all read exclusively from this one view model —
+none independently calculates age, service duration, retirement, promotion
+eligibility, or Buddhist Era conversion. This closes the Phase 43-noted gap
+that the Retirement Intelligence facade was not consumed anywhere in the
+Officer Workspace. Full detail — view model shape, header KPI definitions,
+card semantics, section ordering, and known limitations — lives in
+**`docs/OFFICER_INTELLIGENCE_WORKSPACE.md`**.
+
+### Phase 44.1 — architecture rule: exact duration vs. year count are never interchangeable
+
+A calculation-consistency bug fix (found before Phase 44 was committed) established a
+binding rule for any future "how long has this officer been at X" field: **an exact
+elapsed chronological duration** (`yearsSince`/`differenceYMD`, e.g. "4 ปี 7 เดือน") and a
+**commander-facing calendar-YEAR-COUNT** (`yearCountSince`, e.g. "5 ปี" from
+`currentYearBe - startYearBe`) are different calculations that can legitimately disagree by
+one, and neither may be substituted for the other by truncating/rounding. Every "years at
+level"/"tenure" DISPLAY field must use the year-count primitive
+(`lib/intelligence/shared/duration.ts`'s `yearCountSince`); exact-duration fields remain
+reserved for eligibility-threshold calculations (Promotion Intelligence's
+`minYearsInPositionLevel` check) and true chronological displays (exact age, exact service
+duration), which this fix does not touch. See
+`docs/OFFICER_INTELLIGENCE_WORKSPACE.md`'s dedicated section for the full worked example.

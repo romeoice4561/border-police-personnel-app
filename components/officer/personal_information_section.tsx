@@ -1,25 +1,27 @@
 /**
  * PersonalInformationSection (Phase 26B Part 5 Part G/O; Phase 26B Part 6
- * Part E — reorganized into logical groups).
+ * Part E — reorganized into logical groups; Phase 44 Task 9 — removed
+ * Current Age and the Retirement group, now fully covered by the dedicated
+ * OfficerPersonalTimelineCard/OfficerRetirementIntelligenceCard Intelligence
+ * cards on this page, so the same value is never shown twice).
  *
  * Read-only display of the officer's Personal Information, grouped into
- * Identity / Personal / Family / Residence / Health / Uniform / Retirement
- * (Part E) rather than one flat grid — the same fields as before, just
- * organized so a reader can scan by category instead of an undifferentiated
- * list. Every field is genuinely optional — a missing value renders "—"
- * (never invented). BMI, Current Age, and Retirement Year/Countdown are
- * AUTO-CALCULATED here for display only, never persisted (there is no
- * Officer.bmi/currentAge/retirementYear column — recomputing on every read
- * guarantees the displayed value can never drift from its inputs).
+ * Identity / Personal / Family / Residence / Health / Uniform (Part E)
+ * rather than one flat grid — the same fields as before, just organized so
+ * a reader can scan by category instead of an undifferentiated list. Every
+ * field is genuinely optional — a missing value renders "—" (never
+ * invented). BMI is AUTO-CALCULATED here for display only, never persisted
+ * (there is no Officer.bmi column — recomputing on every read guarantees
+ * the displayed value can never drift from its inputs). Date of birth
+ * itself remains here (factual Master Data), formatted via the canonical
+ * Thai date formatter (Task 9 — "11 ส.ค. 2528", never "11/08/2528").
  */
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { BilingualLabel } from "@/components/ui/bilingual_label";
 import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
 import { calculateBmi } from "@/lib/officer_profile/retirement_calculator";
-import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
-import { computeAgeSummary } from "@/lib/intelligence/age";
-import { computeRetirementSummary } from "@/lib/intelligence/retirement";
+import { formatFullThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 
 function Field({ labelKey, value }: { labelKey: keyof typeof FIELD_LABELS; value: string | number | null | undefined }) {
   const display = value === null || value === undefined || value === "" ? "—" : value;
@@ -45,8 +47,6 @@ function Group({ titleTh, titleEn, children }: { titleTh: string; titleEn: strin
 
 export function PersonalInformationSection({ officer }: { officer: OfficerWithRelations }) {
   const bmi = calculateBmi(officer.weightKg ?? null, officer.heightCm ?? null);
-  const retirement = computeRetirementSummary(officer.dateOfBirth ?? null);
-  const age = computeAgeSummary(officer.dateOfBirth ?? null);
 
   return (
     <EditableSectionCard title="ข้อมูลส่วนบุคคล / Personal Information">
@@ -58,8 +58,7 @@ export function PersonalInformationSection({ officer }: { officer: OfficerWithRe
         </Group>
 
         <Group titleTh="ข้อมูลส่วนตัว" titleEn="Personal">
-          <Field labelKey="dateOfBirth" value={formatThaiPersonnelDate(officer.dateOfBirth ?? null)} />
-          <Field labelKey="currentAge" value={age.available ? age.displayAgeTh : null} />
+          <Field labelKey="dateOfBirth" value={officer.dateOfBirth ? formatFullThaiDateTh(officer.dateOfBirth) : null} />
           <Field labelKey="nickname" value={officer.nickname} />
           <Field labelKey="bloodGroup" value={officer.bloodGroup} />
           <Field labelKey="rh" value={officer.rh} />
@@ -89,11 +88,6 @@ export function PersonalInformationSection({ officer }: { officer: OfficerWithRe
           <Field labelKey="jacketSize" value={officer.jacketSize} />
           <Field labelKey="uniformShoeSize" value={officer.uniformShoeSize} />
           <Field labelKey="hatSize" value={officer.hatSize} />
-        </Group>
-
-        <Group titleTh="เกษียณอายุราชการ" titleEn="Retirement">
-          <Field labelKey="retirementYear" value={retirement.available ? retirement.displayRetirementDateTh : null} />
-          <Field labelKey="retirementCountdown" value={retirement.available ? retirement.displayRemainingTh : null} />
         </Group>
       </div>
     </EditableSectionCard>

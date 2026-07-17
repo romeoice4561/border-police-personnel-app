@@ -9,12 +9,14 @@ import "server-only";
 import { createDatabaseClient } from "@/lib/database/database";
 import type { OfficerWithRelations, ReadDatabaseClient } from "@/lib/database/query_types";
 import { OfficerQueryRepository } from "@/lib/database/repositories/officer_query_repository";
-import { computeProfileCompleteness } from "@/lib/ui/profile_completeness";
-import { officerFullName } from "@/lib/ui/officer_summary";
-import { firstServiceLikeDate } from "@/lib/intelligence/shared/timeline_dates";
-import { buildCommanderDashboard, buildOfficerIntelligenceCard, type CommanderDashboard, type OfficerIntelligenceCard, type OfficerIntelligenceInput } from "@/lib/intelligence";
-import { buildPromotionContext, createRequiredDocumentsRule, createRequiredTrainingRule } from "@/lib/promotion";
-import { calculateRetirement } from "@/lib/personnel_calendar";
+import { buildCommanderDashboard, type CommanderDashboard, type OfficerIntelligenceCard } from "@/lib/intelligence";
+import { toIntelligenceInput, buildOfficerProfileIntelligence } from "@/lib/intelligence/officer_intelligence_input";
+
+// Phase 44: re-exported for existing call sites — the pure composition
+// itself now lives in lib/intelligence/officer_intelligence_input.ts (no
+// server-only import) so it can be unit-tested and reused by
+// lib/commander_query/query_officer.ts without pulling in Prisma.
+export { buildOfficerProfileIntelligence };
 
 let cachedRepository: OfficerQueryRepository | undefined;
 
@@ -49,51 +51,9 @@ export async function loadCommanderOfficerProfiles(): Promise<OfficerWithRelatio
   });
 }
 
-function toIntelligenceInput(officer: OfficerWithRelations): OfficerIntelligenceInput {
-  const asOf = new Date();
-  const trainingRecords = officer.training.map((row) => ({ code: row.course || `TRAINING_${row.id}` }));
-  const documents = officer.documents.map((doc) => ({
-    typeCode: doc.documentType,
-    isActive: doc.isActive,
-    verifiedAt: doc.verifiedAt,
-  }));
-  const intelligenceTrainingRecords = trainingRecords.length > 0 ? [{ code: "ANY_TRAINING" }, ...trainingRecords] : [];
-  const promotionContext = buildPromotionContext({
-    asOf,
-    currentRank: officer.rank,
-    currentPosition: officer.currentPosition,
-    // Schema has no confirmed official service-start field yet. Earliest
-    // timeline date is passed only as an available context signal, not treated
-    // as official policy by the intelligence engine.
-    governmentServiceStartDate: firstServiceLikeDate(officer),
-    dateOfBirth: officer.dateOfBirth ?? null,
-    trainingRecords: intelligenceTrainingRecords,
-    documents,
-  });
-
-  return {
-    officerId: officer.officerId,
-    displayName: officerFullName(officer),
-    promotionContext,
-    promotionRules: [
-      createRequiredDocumentsRule({ requiredDocumentTypes: ["GP7"], score: 20 }),
-      createRequiredTrainingRule({ requiredTrainingCodes: ["ANY_TRAINING"], score: 20 }),
-    ],
-    profileCompletenessPercent: computeProfileCompleteness(officer).percent,
-    hasOfficialPortrait: Boolean(officer.officialPortraitId || officer.thumbnailUrl || officer.driveFileId),
-    documents,
-    trainingRecords: intelligenceTrainingRecords,
-    remainingUntilRetirement: calculateRetirement(officer.dateOfBirth ?? null, asOf)?.remaining ?? null,
-  };
-}
-
 export async function getCommanderDashboardIntelligence(): Promise<CommanderDashboard> {
   const officers = await loadCommanderOfficerProfiles();
-  return buildCommanderDashboard(officers.map(toIntelligenceInput));
-}
-
-export function buildOfficerProfileIntelligence(officer: OfficerWithRelations): OfficerIntelligenceCard {
-  return buildOfficerIntelligenceCard(toIntelligenceInput(officer));
+  return buildCommanderDashboard(officers.map((officer) => toIntelligenceInput(officer)));
 }
 
 export async function getOfficerIntelligence(officerId: string): Promise<OfficerIntelligenceCard | null> {

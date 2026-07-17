@@ -43,6 +43,7 @@ function officer(overrides: Partial<DashboardSourceOfficer> = {}): DashboardSour
     retirementYearBe: null,
     targetPosition: null,
     yearsInPositionLevel: null,
+    positionLevelYearCount: null,
     ...overrides,
   };
 }
@@ -459,14 +460,14 @@ test("target-qualification label is null when targetPosition is unavailable", ()
   assert.equal(candidates[0].displayTargetQualificationTh, null);
 });
 
-test("'ดำรงตำแหน่งระดับนี้มา' shows whole years at the CURRENT position level, not a promotion-cycle count", () => {
-  const officers = [officer({ officerId: "A", promotionStatus: "AlreadyEligible", priority: 75, yearsInPositionLevel: 5 })];
+test("'ดำรงตำแหน่งระดับนี้มา' shows the commander-facing YEAR COUNT at the CURRENT position level, not a promotion-cycle count", () => {
+  const officers = [officer({ officerId: "A", promotionStatus: "AlreadyEligible", priority: 75, positionLevelYearCount: 5 })];
   const candidates = buildPromotionPriorityCandidates(officers);
   assert.equal(candidates[0].displayYearsAtLevelTh, "5 ปี");
 });
 
-test("'ดำรงตำแหน่งระดับนี้มา' truncates a fractional years-in-level value to whole years, never decimal", () => {
-  const officers = [officer({ officerId: "A", promotionStatus: "AlreadyEligible", priority: 75, yearsInPositionLevel: 5.9 })];
+test("'ดำรงตำแหน่งระดับนี้มา' never shows a decimal — positionLevelYearCount is already a whole-number year count", () => {
+  const officers = [officer({ officerId: "A", promotionStatus: "AlreadyEligible", priority: 75, positionLevelYearCount: 5 })];
   const candidates = buildPromotionPriorityCandidates(officers);
   assert.equal(candidates[0].displayYearsAtLevelTh, "5 ปี");
   assert.ok(!candidates[0].displayYearsAtLevelTh?.includes("."));

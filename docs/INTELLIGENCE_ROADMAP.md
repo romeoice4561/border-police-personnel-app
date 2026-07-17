@@ -348,6 +348,22 @@ also gained a filtered-result Intelligence Summary, Thai-localized charts
 Commander Insight sentence, and functional Excel/Print export (CSV, RFC
 4180 + UTF-8 BOM — PDF remains unscheduled).
 
+## Phase 44 — Officer Intelligence Workspace
+
+Brings Age/Service/Promotion/Retirement/Commander Intelligence and the
+canonical Official Portrait resolver into the individual Officer Profile —
+the same trusted outputs Commander Search/Dashboard already consume, now
+also on the single-officer page. Closes the last "facade built but not yet
+wired into the Officer Workspace" gap for Retirement Intelligence. See
+`docs/OFFICER_INTELLIGENCE_WORKSPACE.md` for full detail. Two pure
+compositions (`toQueryOfficer`, `buildOfficerProfileIntelligence`) were
+extracted from behind `server-only` guards into new, testable modules
+(`lib/commander_query/query_officer.ts`,
+`lib/intelligence/officer_intelligence_input.ts`) so the same calculation
+could be reused by both Commander Search's dataset builder and the new
+Officer Intelligence View Model — no calculation duplicated, no behavior
+changed for existing callers.
+
 ## AI Commander Intelligence
 
 - **Purpose:** AI-assisted narrative/recommendation layer on top of
@@ -385,7 +401,7 @@ left `null`/unscoped.
 |---|---|---|---|---|
 | Age | Foundation complete | Yes (`lib/intelligence/age/`) | Exact age, next-birthday tracking, Thai display (Phase 40A + 40B); now feeds Commander Dashboard's Birthday Intelligence (Phase 42) | UI integration — `profile_header.tsx` still shows whole-year age (Phase 40C) |
 | Service | Foundation complete, with source limitations | Yes (`lib/intelligence/service/`) | Timeline-derived service-start (earliest dated row, no event-type field to refine further) + exact duration (Phase 40A + 40B); `yearsInPositionLevel` left `null` | Improve source classification if/when the schema gains an event-type field; UI integration — `profile_header.tsx` still shows whole-year career years (Phase 40C) |
-| Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B); now feeds Commander Dashboard's Retirement Awareness (Phase 42) | Full retirement analytics page still unbuilt — Phase 42 only added a dashboard awareness summary |
+| Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B); feeds Commander Dashboard's Retirement Awareness (Phase 42) and, as of Phase 44, the Officer Workspace's Retirement Intelligence card | Full retirement analytics page still unbuilt; `commander_query_service.ts`'s own dataset still bypasses this facade for `retirementYearBe` (uses `calculateRetirement` directly) |
 | Promotion | Foundation complete, policy-data gaps | Yes (`lib/intelligence/promotion/`) | Full WHY-explaining status, first eligible date, exact eligible duration, priority score (Phase 41); now feeds Commander Dashboard's Promotion Intelligence KPIs + Priority list (Phase 42); `MissingTraining`/`MissingDocuments`/`RetirementRestricted` correctly wired but unreachable until a policy configures those requirements | Migrate Commander Search and Officer Profile off the older coarse `promotionStatus` onto `PromotionSummary`; configure training/document/retirement-window policy data if product wants those statuses to fire |
 | Salary | Existing production logic wrapped, partial | Yes (`lib/intelligence/salary/`) | Real two-step ("2 ขั้น") eligibility only — the one deterministic rule that exists today | Broader salary-step forecasting once a second business rule exists to wrap (unscheduled) |
 | Training | Planned — no facade exists | No | No dedicated engine; training presence read directly (`officer.training.length > 0`) by callers such as `lib/intelligence/flags.ts` | Build Training Intelligence, gated on a prior product decision defining "required training" per rank/role (unscheduled) |
