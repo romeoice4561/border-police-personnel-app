@@ -16,6 +16,30 @@ import {
   buildActionCenter,
   type DashboardSourceOfficer,
 } from "@/lib/commander_dashboard/view_model";
+import type { TrainingSummary } from "@/lib/intelligence/training/types";
+
+function noDataTrainingSummary(): TrainingSummary {
+  return {
+    available: true,
+    asOfDate: "2026-07-17",
+    totalRecords: 0,
+    verifiedRecords: 0,
+    unverifiedRecords: 0,
+    completedCourseCount: 0,
+    missingRequiredCourseCount: 0,
+    expiringSoonCount: 0,
+    expiredCount: 0,
+    requiredRequirements: [],
+    completedCourses: [],
+    missingRequirements: [],
+    expiringSoon: [],
+    expired: [],
+    trainingStatus: "NoData",
+    displayStatusTh: "ยังไม่มีข้อมูลการฝึกอบรม",
+    recommendationsTh: [],
+    dataQualityFlags: [],
+  };
+}
 
 function officer(overrides: Partial<DashboardSourceOfficer> = {}): DashboardSourceOfficer {
   return {
@@ -44,6 +68,7 @@ function officer(overrides: Partial<DashboardSourceOfficer> = {}): DashboardSour
     targetPosition: null,
     yearsInPositionLevel: null,
     positionLevelYearCount: null,
+    training: noDataTrainingSummary(),
     ...overrides,
   };
 }
@@ -471,4 +496,138 @@ test("'ดำรงตำแหน่งระดับนี้มา' never sh
   const candidates = buildPromotionPriorityCandidates(officers);
   assert.equal(candidates[0].displayYearsAtLevelTh, "5 ปี");
   assert.ok(!candidates[0].displayYearsAtLevelTh?.includes("."));
+});
+
+// ---------------------------------------------------------------------------
+// Phase 45 — Training Intelligence Dashboard integration.
+// ---------------------------------------------------------------------------
+
+test("20. Dashboard training.missingRequiredCount is confirmed zero (never fabricated) when no officer has MissingRequired status", () => {
+  const officers = [officer({ training: noDataTrainingSummary() })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.missingRequiredCount, 0);
+});
+
+test("NoPolicy officers are counted separately from MissingRequired — never conflated", () => {
+  const noPolicySummary = { ...noDataTrainingSummary(), trainingStatus: "NoPolicy" as const, totalRecords: 3 };
+  const officers = [officer({ training: noPolicySummary }), officer({ officerId: "B", training: noPolicySummary })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.noPolicyCount, 2);
+  assert.equal(viewModel.training.missingRequiredCount, 0);
+});
+
+test("training.policyConfigured is false when no officer's target level has a real TrainingPolicy (true for every officer today)", () => {
+  const officers = [officer({ targetPosition: "รองผู้กำกับการ" })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.policyConfigured, false);
+});
+
+test("Action Center's NoPolicy training item (Phase 45 completion pass, Task 7C) is informational only — never actionable/urgent, never the MissingRequired/Expired id", () => {
+  const officers = [officer({ training: { ...noDataTrainingSummary(), trainingStatus: "NoPolicy" } })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  const trainingItems = viewModel.actionCenter.filter((item) => item.category === "TRAINING");
+  assert.ok(trainingItems.length > 0, "a NoPolicy item should exist so a commander understands why training evaluation is unavailable");
+  for (const item of trainingItems) {
+    assert.equal(item.severity, "info", "NoPolicy must never be presented with medium/high severity");
+    assert.notEqual(item.id, "training-missing-required");
+    assert.notEqual(item.id, "training-expired");
+  }
+});
+
+test("Action Center's NoPolicy training item never carries a drill-down href (there is nothing real to filter to)", () => {
+  const officers = [officer({ training: { ...noDataTrainingSummary(), trainingStatus: "NoPolicy" } })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  const noPolicyItem = viewModel.actionCenter.find((item) => item.id === "training-no-policy");
+  assert.ok(noPolicyItem);
+  assert.equal(noPolicyItem!.href, null);
+});
+
+test("Action Center DOES surface a real MissingRequired training item (never a NoPolicy misread) when the count is genuinely positive", () => {
+  const missingSummary = { ...noDataTrainingSummary(), trainingStatus: "MissingRequired" as const, missingRequiredCourseCount: 1 };
+  const officers = [officer({ training: missingSummary })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  const trainingItem = viewModel.actionCenter.find((item) => item.category === "TRAINING");
+  assert.ok(trainingItem);
+  assert.equal(trainingItem!.id, "training-missing-required");
+});
+
+// ---------------------------------------------------------------------------
+// Phase 45 completion pass — Dashboard KPI/Overview/Priority visibility
+// (Task 14 items 11-13, 20-22).
+// ---------------------------------------------------------------------------
+
+test("11. Dashboard NoPolicy: policyConfigured is false and every officer reports NoPolicy/NoData, never MissingRequired", () => {
+  const officers = [officer({ targetPosition: "รองผู้กำกับการ", training: { ...noDataTrainingSummary(), trainingStatus: "NoPolicy" } })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.policyConfigured, false);
+  assert.equal(viewModel.training.missingRequiredCount, 0);
+  assert.equal(viewModel.training.noPolicyCount, 1);
+});
+
+test("12. Dashboard confirmed zero under a real policy state: missingRequiredCount is exactly 0 (not fabricated) and distinct from noPolicyCount", () => {
+  const officers = [officer({ training: { ...noDataTrainingSummary(), trainingStatus: "Complete" } })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.missingRequiredCount, 0);
+  assert.equal(viewModel.training.noPolicyCount, 0, "a Complete officer must never be counted as NoPolicy");
+});
+
+test("13. Dashboard real missing-training count is a genuine positive tally, never conflated with NoPolicy/NoData counts", () => {
+  const officers = [
+    officer({ officerId: "A", training: { ...noDataTrainingSummary(), trainingStatus: "MissingRequired", missingRequiredCourseCount: 1 } }),
+    officer({ officerId: "B", training: { ...noDataTrainingSummary(), trainingStatus: "NoPolicy" } }),
+  ];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.missingRequiredCount, 1);
+  assert.equal(viewModel.training.noPolicyCount, 1);
+});
+
+test("training.unavailableCount is 0 (never fabricated) and only counts officers whose TrainingSummary.available is false", () => {
+  const officers = [officer({ training: noDataTrainingSummary() })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.unavailableCount, 0);
+});
+
+test("20. Training Priority panel data: priorityOfficers is empty when no officer matches any priority tier", () => {
+  const officers = [officer({ training: { ...noDataTrainingSummary(), trainingStatus: "Complete" } })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.deepEqual(viewModel.training.priorityOfficers, []);
+});
+
+test("21. Training Priority panel data: a real MissingRequired + promotion-eligible officer produces a priority record", () => {
+  const officers = [
+    officer({
+      officerId: "PRIORITY-1",
+      displayName: "ทดสอบ เร่งด่วน",
+      promotionStatus: "AlreadyEligible",
+      training: { ...noDataTrainingSummary(), trainingStatus: "MissingRequired", missingRequiredCourseCount: 1 },
+    }),
+  ];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.priorityOfficers.length, 1);
+  assert.equal(viewModel.training.priorityOfficers[0].officerId, "PRIORITY-1");
+});
+
+test("22. Training Priority record uses the officer's officialPortraitUrl (the canonical resolver field), never a raw/gallery field", () => {
+  const officers = [
+    officer({
+      officerId: "PRIORITY-2",
+      officialPortraitUrl: "https://resolved.example/official.jpg",
+      promotionStatus: "EligibleThisYear",
+      training: { ...noDataTrainingSummary(), trainingStatus: "Expired", expiredCount: 1 },
+    }),
+  ];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.priorityOfficers[0].officialPortraitUrl, "https://resolved.example/official.jpg");
+});
+
+test("Training Priority never creates a record from NoPolicy alone", () => {
+  const officers = [officer({ training: { ...noDataTrainingSummary(), trainingStatus: "NoPolicy" } })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.deepEqual(viewModel.training.priorityOfficers, []);
+});
+
+test("26. no fabricated policy — composeCommanderDashboardViewModel never invents a TrainingPolicy; policyConfigured stays false with real, unconfigured production policy data", () => {
+  const officers = [officer({ targetPosition: "ผู้กำกับการ" })];
+  const viewModel = composeCommanderDashboardViewModel(officers, ASOF);
+  assert.equal(viewModel.training.policyConfigured, false);
 });

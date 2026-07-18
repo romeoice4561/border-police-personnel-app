@@ -30,6 +30,7 @@ import { OfficerPromotionIntelligenceCard } from "@/components/officer/officer_p
 import { OfficerPersonalTimelineCard } from "@/components/officer/officer_personal_timeline_card";
 import { OfficerRetirementIntelligenceCard } from "@/components/officer/officer_retirement_intelligence_card";
 import { OfficerCommanderActions } from "@/components/officer/officer_commander_actions";
+import { OfficerTrainingIntelligenceCard } from "@/components/officer/officer_training_intelligence_card";
 import { ProfileEditor, PersonalInformationEditor } from "@/components/officer/profile_editor";
 import { BasicInformationSection } from "@/components/officer/basic_information_section";
 import { CareerSection } from "@/components/officer/career_section";
@@ -288,6 +289,12 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
       ) : (
         <CareerTimelineSection timeline={officer.timeline} organizationEngine={organizationEngine} />
       )}
+
+      {/* Phase 45 Task 9: Training Intelligence summary sits ABOVE the
+          factual Training/Education record list, never replacing it —
+          hidden in Edit Mode like the other Intelligence cards (nothing
+          here is editable). */}
+      {!editing ? <OfficerTrainingIntelligenceCard viewModel={officerIntelligence} /> : null}
 
       <div className="grid gap-6 sm:grid-cols-2">
         {editing ? (

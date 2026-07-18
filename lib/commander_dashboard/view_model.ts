@@ -23,6 +23,9 @@ import { computeRetirementSummary } from "@/lib/intelligence/retirement";
 import { fiscalYearStart } from "@/lib/personnel_calendar";
 import { yearBEToGregorian } from "@/lib/officer_profile/thai_date";
 import type { AgeSummary, PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+import type { TrainingSummary } from "@/lib/intelligence/training/types";
+import { hasTrainingPolicyForTargetLevel } from "@/lib/intelligence/training/policy";
+import { buildTrainingPriorityList, type TrainingPriorityInput } from "@/lib/intelligence/training/priority";
 import type {
   BirthdayOfficerViewModel,
   CommanderActionItemViewModel,
@@ -67,6 +70,8 @@ export interface DashboardSourceOfficer {
   yearsInPositionLevel: number | null;
   /** Phase 44.1: the commander-facing YEAR COUNT for time at the current position level (currentYearBe - positionLevelStartYearBe) — from the Commander read model's positionLevelYearCount, unchanged/unmodified. Null when unavailable. */
   positionLevelYearCount: number | null;
+  /** Phase 45: this officer's full TrainingSummary — from Training Intelligence (lib/intelligence/training), unchanged/unmodified. */
+  training: TrainingSummary;
 }
 
 function officerHref(officerId: string): string {
@@ -353,6 +358,13 @@ export function buildActionCenter(input: {
   retirementWithinOneYearCount: number;
   unknownPromotionCount: number;
   birthdayTodayCount: number;
+  /** Phase 45: real MissingRequired training count only — never fires for NoPolicy/NoData (those are truthful non-issues, not action items). */
+  trainingMissingRequiredCount?: number;
+  trainingExpiredCount?: number;
+  /** Phase 45 completion pass (Task 7B): officers whose training evidence is Unverified — a data-quality issue, not a policy blocker. */
+  trainingUnverifiedCount?: number;
+  /** Phase 45 completion pass (Task 7C): officers reporting NoPolicy — informational only, never presented as individual officer misconduct. */
+  trainingNoPolicyCount?: number;
 }): CommanderActionItemViewModel[] {
   const items: CommanderActionItemViewModel[] = [];
 
@@ -404,6 +416,66 @@ export function buildActionCenter(input: {
     });
   }
 
+  // Phase 45: real MissingRequired/Expired training conditions only — a
+  // NoPolicy/NoData officer NEVER contributes to either count (see
+  // composeCommanderDashboardViewModel's trainingCounts), so this item is
+  // structurally absent today (both counts are 0 with no configured policy)
+  // and only appears once a real TrainingPolicy makes it truthful.
+  if (input.trainingMissingRequiredCount && input.trainingMissingRequiredCount > 0) {
+    items.push({
+      id: "training-missing-required",
+      category: "TRAINING",
+      severity: "medium",
+      title: "ขาดหลักสูตรที่จำเป็น",
+      description: "กำลังพลที่ยังขาดหลักสูตรที่จำเป็นตามนโยบาย",
+      count: input.trainingMissingRequiredCount,
+      href: "/commander-search?trainingStatus=MissingRequired",
+    });
+  }
+
+  if (input.trainingExpiredCount && input.trainingExpiredCount > 0) {
+    items.push({
+      id: "training-expired",
+      category: "TRAINING",
+      severity: "medium",
+      title: "มีหลักสูตรหมดอายุ",
+      description: "กำลังพลที่มีหลักสูตรจำเป็นหมดอายุแล้ว ควรอบรมทบทวน",
+      count: input.trainingExpiredCount,
+      href: "/commander-search?trainingStatus=Expired",
+    });
+  }
+
+  // Task 7B: real data-quality issue (Unverified training evidence) — a
+  // caveat about data trustworthiness, not a promotion blocker. Medium
+  // severity, matching the DATA_QUALITY entry's precedent above.
+  if (input.trainingUnverifiedCount && input.trainingUnverifiedCount > 0) {
+    items.push({
+      id: "training-data-quality",
+      category: "TRAINING",
+      severity: "medium",
+      title: "ข้อมูลการฝึกอบรมควรตรวจสอบ",
+      description: "กำลังพลที่มีข้อมูลหลักสูตรซึ่งยังไม่ผ่านการตรวจสอบ",
+      count: input.trainingUnverifiedCount,
+      href: "/commander-search?trainingStatus=Unverified",
+    });
+  }
+
+  // Task 7C: NoPolicy is informational ONLY — never implies any individual
+  // officer is at fault, never the same severity as a real blocker. Shown
+  // so a commander understands WHY the training KPI/filters can't yet
+  // report a real missing-required count, not as an alert about people.
+  if (input.trainingNoPolicyCount && input.trainingNoPolicyCount > 0) {
+    items.push({
+      id: "training-no-policy",
+      category: "TRAINING",
+      severity: "info",
+      title: "ยังไม่ได้กำหนดนโยบายหลักสูตร",
+      description: "ยังไม่สามารถประเมินหลักสูตรที่จำเป็นต่อการเลื่อนตำแหน่งได้ เนื่องจากยังไม่ได้กำหนดนโยบาย",
+      count: input.trainingNoPolicyCount,
+      href: null,
+    });
+  }
+
   return items;
 }
 
@@ -444,11 +516,51 @@ export function composeCommanderDashboardViewModel(
     (officer) => officer.promotionStatus === "AlreadyEligible" && (officer.priority ?? 0) >= 80
   ).length;
 
+  // Phase 45: Training Intelligence counts — every officer's TrainingSummary
+  // was already computed upstream (Training Intelligence, via
+  // toQueryOfficer); this only tallies, never recalculates.
+  const trainingCounts = {
+    missingRequiredCount: officers.filter((o) => o.training.trainingStatus === "MissingRequired").length,
+    expiredCount: officers.filter((o) => o.training.trainingStatus === "Expired").length,
+    expiringSoonCount: officers.filter((o) => o.training.trainingStatus === "ExpiringSoon").length,
+    unverifiedCount: officers.filter((o) => o.training.trainingStatus === "Unverified").length,
+    noPolicyCount: officers.filter((o) => o.training.trainingStatus === "NoPolicy").length,
+    noDataCount: officers.filter((o) => o.training.trainingStatus === "NoData").length,
+    // Officers whose TrainingSummary itself could not be loaded/computed —
+    // distinct from NoData (zero real records, a truthful zero) and NoPolicy
+    // (records exist, nothing to check them against). Always 0 today (the
+    // engine's computeTrainingSummary never returns available: false for a
+    // successfully-loaded officer) — kept as an explicit, honest field
+    // rather than silently folding this case into NoData.
+    unavailableCount: officers.filter((o) => !o.training.available).length,
+    // True only when a real policy exists for at least one officer's target level.
+    policyConfigured: officers.some((o) => o.targetPosition != null && hasTrainingPolicyForTargetLevel(o.targetPosition)),
+    priorityOfficers: buildTrainingPriorityList(
+      officers.map(
+        (o): TrainingPriorityInput => ({
+          officerId: o.officerId,
+          displayName: o.displayName,
+          rank: o.rank,
+          position: o.currentPosition,
+          unit: o.currentUnit,
+          officialPortraitUrl: o.officialPortraitUrl,
+          training: o.training,
+          promotionEligible: o.promotionStatus === "EligibleThisYear" || o.promotionStatus === "AlreadyEligible",
+          promotionStatusTh: o.displayStatusTh || null,
+        })
+      )
+    ),
+  };
+
   const actionCenter = buildActionCenter({
     eligibleThisYearHighPriorityCount: highPriorityAlreadyEligible,
     retirementWithinOneYearCount: retirement.withinOneYear,
     unknownPromotionCount: statusCounts.Unknown,
     birthdayTodayCount: birthdays.todayCount,
+    trainingMissingRequiredCount: trainingCounts.missingRequiredCount,
+    trainingExpiredCount: trainingCounts.expiredCount,
+    trainingUnverifiedCount: trainingCounts.unverifiedCount,
+    trainingNoPolicyCount: trainingCounts.noPolicyCount,
   });
 
   return {
@@ -488,6 +600,8 @@ export function composeCommanderDashboardViewModel(
       withinFiveYears: retirement.withinFiveYears,
       candidates: retirement.candidates,
     },
+
+    training: trainingCounts,
 
     actionCenter,
   };

@@ -267,14 +267,38 @@ replace/history UI) is unchanged — it still receives the full `ResolvedOfficer
   Model composer — a NEW, correct call to the facade, not a fix to the pre-existing gap in
   Commander Search's own dataset.
 
-## Future Training Intelligence integration (not implemented this phase)
+## Training Intelligence integration (Phase 45; strengthened in the Phase 45 completion pass)
 
-No dedicated Training Intelligence facade exists yet (`lib/intelligence/training` does not
-exist — training presence is read directly via `officer.training.length > 0`, as before).
-When it lands, `OfficerPromotionIntelligenceCard`'s blockers list and
-`OfficerCommanderActions`'s "ตรวจสอบข้อมูลการฝึกอบรม" item are the natural integration
-points — both already read a boolean/list shape that a real facade output could replace
-without restructuring either component.
+`lib/intelligence/training/` is wired into this workspace:
+`OfficerIntelligenceViewModel.training` (`TrainingSummary`, read straight off
+`toQueryOfficer()`'s `trainingIntelligence` — never recomputed) feeds
+`components/officer/officer_training_intelligence_card.tsx`, which sits ABOVE the
+factual `TrainingSection`/`TrainingEditor` record list (never replaces it), hidden in
+Edit Mode.
+
+**Phase 45 completion pass changes:**
+- Fixed a bilingual heading bug (`"Training Intelligence / การวิเคราะห์หลักสูตร"`) — the
+  card now uses `t("officer.trainingIntelligenceTitle")` like every other localized
+  heading, correctly switching between TH/EN.
+- Added a `ประเด็นข้อมูลที่ควรตรวจสอบ` data-quality section rendering
+  `TrainingSummary.dataQualityFlags` (previously computed but never displayed), each
+  flag localized via `officer.trainingFlag.<CODE>` dictionary keys rather than the
+  engine's Thai-only `messageTh` string directly.
+- Corrected the "verified"/"unverified" count copy so it never implies real
+  verification tracking exists (the schema has no verification field — see
+  `docs/TRAINING_INTELLIGENCE.md`'s schema reality section).
+- `components/officer/training_section.tsx` (the factual record list) now sorts
+  chronologically and displays Buddhist-Era years via `lib/ui/training_history.ts`'s
+  extracted, unit-tested `sortTrainingRowsChronologically`/`displayTrainingYear`
+  helpers — reusing Training Intelligence's own `completionDate` derivation rather than
+  inventing a new one. A row's raw free-text `year` is shown verbatim when it doesn't
+  parse as an unambiguous year — never reformatted into a fabricated date.
+
+`OfficerCommanderActions`'s pre-existing "ตรวจสอบข้อมูลการฝึกอบรม" item (still sourced
+from the separate `hasTraining` boolean, unchanged) and
+`OfficerPromotionIntelligenceCard`'s blockers list were left as-is — neither needed a
+data-source change to remain correct. See `docs/TRAINING_INTELLIGENCE.md` for the full
+engine detail.
 
 ## Future Phase 46 — Document & Expiry Intelligence (not implemented this phase)
 

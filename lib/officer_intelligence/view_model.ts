@@ -219,5 +219,9 @@ export function composeOfficerIntelligenceViewModel(
       hasOfficialPortrait,
       hasGp7,
     },
+
+    // Phase 45: read straight off queryOfficer — toQueryOfficer() already
+    // computed this via computeTrainingSummary(); never recomputed here.
+    training: queryOfficer.trainingIntelligence,
   };
 }

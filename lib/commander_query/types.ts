@@ -2,6 +2,7 @@ import type { OfficerFlag, OfficerFlagCode, OfficerPriority, PromotionStatus, Re
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import type { OfficerSkillSignal, SkillCatalog } from "@/lib/capability/capability_types";
 import type { PromotionSummary } from "@/lib/intelligence/shared/types";
+import type { TrainingSummary } from "@/lib/intelligence/training/types";
 
 export type NumericOperator = "exactly" | "at_least" | "more_than" | "less_than";
 
@@ -101,6 +102,15 @@ export interface CommanderQueryOfficer {
    * richer engine output, not a replacement for either.
    */
   promotionIntelligence: PromotionSummary;
+  /**
+   * Phase 45 (Training Intelligence Engine): the full training summary —
+   * evidence, required-course evaluation (when a real policy is
+   * configured), status, and Thai display text. `trainingStatus` is
+   * `NoPolicy`/`NoData` for every officer today since no real
+   * TrainingPolicy is configured yet (see docs/TRAINING_INTELLIGENCE.md) —
+   * never fabricated as `MissingRequired`.
+   */
+  trainingIntelligence: TrainingSummary;
   /**
    * Phase 42 (Commander Dashboard Intelligence): the officer's date of
    * birth, exposed so the Dashboard View Model can compute Age/Retirement

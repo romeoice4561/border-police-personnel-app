@@ -293,3 +293,118 @@ test("25. deterministic asOfDate/generatedAt — identical asOf always produces 
   assert.equal(vm1.generatedAt, vm2.generatedAt);
   assert.deepEqual(vm1, vm2);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 45 — Training Intelligence Officer Workspace integration.
+// ---------------------------------------------------------------------------
+
+test("19. Officer Workspace TrainingSummary is present, NoData when the officer has no training records", () => {
+  const vm = composeOfficerIntelligenceViewModel(officer({ training: [] }), ORG_LABELS, null, ASOF);
+  assert.equal(vm.training.available, true);
+  assert.equal(vm.training.trainingStatus, "NoData");
+});
+
+test("Officer Workspace TrainingSummary reports NoPolicy (not MissingRequired) when records exist but no policy is configured", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officer({
+      currentPosition: "รองสารวัตร",
+      timeline: [{ id: 1, officerId: 1, sequence: 0, year: "2555", yearBE: 2555, appointmentCycle: 2555, position: "รองสารวัตร", positionLevel: "รองสารวัตร", unit: "กก.ตชด.41", rank: "รองสารวัตร", isPresent: true }],
+      training: [{ id: 1, officerId: 1, course: "หลักสูตรทดสอบ", organization: null, year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() }],
+    }),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.training.trainingStatus, "NoPolicy");
+  assert.notEqual(vm.training.trainingStatus, "MissingRequired");
+});
+
+// ---------------------------------------------------------------------------
+// Phase 45 completion pass — Officer Training Intelligence card visibility
+// (Task 14 items 1-6, 9-10). The card (officer_training_intelligence_card.tsx)
+// is a pure render of viewModel.training — these tests assert the exact
+// data the card consumes, which is equivalent to testing the card's output
+// without a React render.
+// ---------------------------------------------------------------------------
+
+function officerWithLevelAndTraining(trainingRows: Record<string, unknown>[]) {
+  return officer({
+    currentPosition: "รองสารวัตร",
+    timeline: [{ id: 1, officerId: 1, sequence: 0, year: "2555", yearBE: 2555, appointmentCycle: 2555, position: "รองสารวัตร", positionLevel: "รองสารวัตร", unit: "กก.ตชด.41", rank: "รองสารวัตร", isPresent: true }],
+    training: trainingRows,
+  });
+}
+
+test("1. Officer card with training records and NoPolicy: totalRecords reflects real records, trainingStatus is NoPolicy, missingRequiredCourseCount is 0 (nothing to measure against)", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officerWithLevelAndTraining([
+      { id: 1, officerId: 1, course: "หลักสูตร ก", organization: "กก.ตชด.41", year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() },
+      { id: 2, officerId: 1, course: "หลักสูตร ข", organization: "กก.ตชด.41", year: "2566", notes: null, createdAt: new Date(), updatedAt: new Date() },
+    ]),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.training.trainingStatus, "NoPolicy");
+  assert.equal(vm.training.totalRecords, 2);
+  assert.equal(vm.training.missingRequiredCourseCount, 0);
+});
+
+test("2. Officer card with NoData: zero records, trainingStatus is NoData, never MissingRequired", () => {
+  const vm = composeOfficerIntelligenceViewModel(officerWithLevelAndTraining([]), ORG_LABELS, null, ASOF);
+  assert.equal(vm.training.trainingStatus, "NoData");
+  assert.equal(vm.training.totalRecords, 0);
+  assert.notEqual(vm.training.trainingStatus, "MissingRequired");
+});
+
+test("6. NoPolicy does not show a missing-course count — missingRequiredCourseCount is 0 and missingRequirements is empty", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officerWithLevelAndTraining([{ id: 1, officerId: 1, course: "หลักสูตร ก", organization: null, year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() }]),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.training.trainingStatus, "NoPolicy");
+  assert.equal(vm.training.missingRequiredCourseCount, 0);
+  assert.deepEqual(vm.training.missingRequirements, []);
+});
+
+test("9. data-quality warnings render — a duplicate course record produces a dataQualityFlags entry", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officerWithLevelAndTraining([
+      { id: 1, officerId: 1, course: "หลักสูตร ก", organization: "กก.ตชด.41", year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() },
+      { id: 2, officerId: 1, course: "หลักสูตร ก", organization: "กก.ตชด.41", year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() },
+    ]),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.ok(vm.training.dataQualityFlags.some((flag) => flag.code === "DUPLICATE_COURSE_RECORD"));
+});
+
+test("10. no-quality-warning empty state — clean records produce zero dataQualityFlags", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officerWithLevelAndTraining([{ id: 1, officerId: 1, course: "หลักสูตร ก", organization: "กก.ตชด.41", year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() }]),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.deepEqual(vm.training.dataQualityFlags, []);
+});
+
+test("missing course name (blank string) is flagged as a real data-quality issue, never silently accepted", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officerWithLevelAndTraining([{ id: 1, officerId: 1, course: "", organization: "กก.ตชด.41", year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() }]),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.ok(vm.training.dataQualityFlags.some((flag) => flag.code === "MISSING_COURSE_NAME"));
+});
+
+test("27. same officer receives an identical TrainingSummary via composeOfficerIntelligenceViewModel across repeated calls (Officer Workspace consistency)", () => {
+  const o = officerWithLevelAndTraining([{ id: 1, officerId: 1, course: "หลักสูตร ก", organization: "กก.ตชด.41", year: "2564", notes: null, createdAt: new Date(), updatedAt: new Date() }]);
+  const vm1 = composeOfficerIntelligenceViewModel(o, ORG_LABELS, null, ASOF);
+  const vm2 = composeOfficerIntelligenceViewModel(o, ORG_LABELS, null, ASOF);
+  assert.deepEqual(vm1.training, vm2.training);
+});

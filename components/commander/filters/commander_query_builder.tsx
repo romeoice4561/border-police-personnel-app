@@ -6,6 +6,8 @@ import { PromotionEligibilityFilter } from "@/components/commander/filters/promo
 import { SkillFilterControl } from "@/components/commander/filters/skill_filter";
 import { PROMOTION_STATUS_DISPLAY_TH } from "@/lib/intelligence/promotion";
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+import { TRAINING_STATUS_DISPLAY_TH } from "@/lib/intelligence/training/display";
+import type { TrainingStatus } from "@/lib/intelligence/training/types";
 import { useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +15,9 @@ import { Button } from "@/components/ui/button";
 
 /** Every PromotionEligibilityStatus value, in the same order the Intelligence Summary cards use (Task A3: a manual control for the status this dataset already computes reliably — previously only reachable via URL/preset/card). */
 const PROMOTION_ELIGIBILITY_STATUS_VALUES = Object.keys(PROMOTION_STATUS_DISPLAY_TH) as PromotionEligibilityStatus[];
+
+/** Every TrainingStatus value (Phase 45 Task 11) — the same statuses the Dashboard/results-table training column already surface. */
+const TRAINING_STATUS_VALUES = Object.keys(TRAINING_STATUS_DISPLAY_TH) as TrainingStatus[];
 
 const controlClass = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
@@ -250,6 +255,29 @@ function PersonnelFilters({
             <option value="within-5-years">{t("commander.retirementWithin5Years")}</option>
           </select>
         </label>
+
+        {/* Phase 45 completion pass (Task 8): a distinct, discoverable
+            filter GROUP — reads officer.trainingIntelligence.trainingStatus,
+            the SAME field the Dashboard/results-table training column read.
+            Every real, reliably-computable status is offered; none is
+            fabricated (see TRAINING_STATUS_VALUES, sourced from the
+            engine's own TrainingStatus union — no filter option exists that
+            the engine cannot truthfully produce). */}
+        <div className="space-y-1 rounded-lg border border-border p-3">
+          <label className="block space-y-1 text-xs font-semibold text-foreground">
+            {t("commander.trainingFilterGroupTitle")}
+            <select
+              className={controlClass}
+              value={value.trainingStatus ?? ""}
+              onChange={(e) => set("trainingStatus", (e.target.value || undefined) as CommanderQueryFilters["trainingStatus"])}
+            >
+              <option value="">{t("commander.trainingFilterAll")}</option>
+              {TRAINING_STATUS_VALUES.map((status) => (
+                <option key={status} value={status}>{TRAINING_STATUS_DISPLAY_TH[status]}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <label className="space-y-1 text-xs font-medium text-muted">
           {t("commander.intelligenceFlag")}

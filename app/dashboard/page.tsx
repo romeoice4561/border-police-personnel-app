@@ -21,6 +21,8 @@ import { DashboardKpiSection } from "@/components/intelligence/dashboard_kpi_sec
 import { DashboardActionCenter } from "@/components/intelligence/dashboard_action_center";
 import { DashboardPromotionIntelligence } from "@/components/intelligence/dashboard_promotion_intelligence";
 import { DashboardPromotionPriority } from "@/components/intelligence/dashboard_promotion_priority";
+import { DashboardTrainingOverview } from "@/components/intelligence/dashboard_training_overview";
+import { DashboardTrainingPriority } from "@/components/intelligence/dashboard_training_priority";
 import { DashboardBirthdayIntelligence } from "@/components/intelligence/dashboard_birthday_intelligence";
 import { DashboardRetirementAwareness } from "@/components/intelligence/dashboard_retirement_awareness";
 import { CommanderDashboardPanel } from "@/components/intelligence/commander_dashboard_panel";
@@ -49,6 +51,17 @@ export default async function DashboardPage() {
 
       <DashboardPromotionPriority candidates={viewModel.promotion.priorityCandidates} />
 
+      {/* Phase 45 completion pass (Task 6): visually secondary to Promotion
+          Intelligence — a smaller card grid, placed after the Promotion
+          Priority list. */}
+      <WorkspaceSection className="opacity-95">
+        <DashboardTrainingOverview training={viewModel.training} totalPersonnel={viewModel.personnelOverview.totalPersonnel} />
+      </WorkspaceSection>
+
+      {/* Phase 45 completion pass (Task 10): hides itself entirely when
+          there are no real priority records — never a decorative empty panel. */}
+      <DashboardTrainingPriority officers={viewModel.training.priorityOfficers} />
+
       <DashboardBirthdayIntelligence birthdays={viewModel.birthdays} />
 
       <DashboardRetirementAwareness retirement={viewModel.retirement} />
@@ -57,7 +70,7 @@ export default async function DashboardPage() {
           visually secondary (last in reading order) per Task 10: generic
           personnel totals must not dominate the page. */}
       <WorkspaceSection className="opacity-90">
-        <DashboardKpiSection summary={dashboard.summary} />
+        <DashboardKpiSection summary={dashboard.summary} training={viewModel.training} />
       </WorkspaceSection>
 
       {/* Phase 48A.1 Part E: WorkspaceSection (untitled — both panels already

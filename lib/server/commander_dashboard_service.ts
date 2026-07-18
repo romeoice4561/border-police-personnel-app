@@ -50,6 +50,7 @@ function toSourceOfficer(officer: CommanderQueryOfficer): DashboardSourceOfficer
     targetPosition: promotion.targetPosition,
     yearsInPositionLevel: officer.yearsInPositionLevel,
     positionLevelYearCount: officer.positionLevelYearCount,
+    training: officer.trainingIntelligence,
   };
 }
 

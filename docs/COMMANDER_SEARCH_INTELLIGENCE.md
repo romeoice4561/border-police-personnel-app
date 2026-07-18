@@ -216,6 +216,28 @@ photo column instead of a stale hardcoded value.
   correctly at current data volumes; flagged in the Phase 43 audit as a
   natural target if officer count grows materially (unscheduled).
 
+## Training Intelligence integration (Phase 45; strengthened in the Phase 45 completion pass)
+
+`CommanderQueryFilters.trainingStatus` filters on
+`officer.trainingIntelligence.trainingStatus` (`lib/intelligence/training`) — every
+real status (`Complete`, `MissingRequired`, `ExpiringSoon`, `Expired`, `Unverified`,
+`NoPolicy`, `NoData`, `Unknown`) is offered via a dropdown in the filter builder and via
+URL (`?trainingStatus=...`, matching the `promotionEligibilityStatus` convention —
+parsed by `lib/commander_query/search_params.ts`'s `filtersFromSearchParams()`,
+extracted from the page component in the completion pass so it is directly
+unit-tested).
+
+**Discoverability (completion pass, Task 8):** the filter now sits in its own visually
+distinct, bordered group labeled `สถานะการฝึกอบรม` — previously an unlabeled dropdown
+row indistinguishable from the surrounding filters.
+
+The results table's OPTIONAL, hidden-by-default "สถานะหลักสูตร" column (a toggle button
+in the table header) is unchanged — the table is already 16 columns wide, so a 17th
+column defaults to hidden rather than an always-visible column. See
+`docs/TRAINING_INTELLIGENCE.md` for the full engine detail, including why
+`MissingRequired`/`MissingTraining` remain unreachable today (no real `TrainingPolicy`
+is configured).
+
 ## Document & Expiry Intelligence (Phase 46 — future plan, unchanged)
 
 Not implemented in this phase. Planned scope (carried forward unchanged

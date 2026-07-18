@@ -149,6 +149,32 @@ export const DICTIONARY = {
   "dashboard.missingGp7": tr("ขาด ก.พ.7", "Missing GP7"),
   "dashboard.missingPortrait": tr("ไม่มีรูปโปรไฟล์", "Missing Portrait"),
   "dashboard.missingTraining": tr("ขาดหลักสูตร", "Missing Training"),
+  "dashboard.trainingNoPolicy": tr("ยังไม่ได้กำหนดนโยบาย", "No Policy Configured"),
+  "dashboard.trainingUnavailable": tr("ข้อมูลไม่เพียงพอ", "Insufficient Data"),
+  "dashboard.trainingZeroConfirmedHint": tr(
+    "ไม่พบผู้ขาดหลักสูตรตามนโยบายที่กำหนด",
+    "No officers found missing required training under the configured policy."
+  ),
+  "dashboard.trainingNoPolicyHint": tr(
+    "ยังไม่สามารถประเมินหลักสูตรที่จำเป็นต่อการเลื่อนตำแหน่งได้",
+    "Required training cannot be evaluated for promotion yet."
+  ),
+
+  // ── dashboard.* — Phase 45 completion pass: Training Overview card group (Task 6) ──
+  "dashboard.trainingOverviewTitle": tr("ภาพรวมการฝึกอบรม", "Training Overview"),
+  "dashboard.trainingHasDataCount": tr("มีกำลังพลที่มีข้อมูลการอบรม", "Officers With Training Data"),
+  "dashboard.trainingNoDataCount": tr("ยังไม่มีข้อมูลการอบรม", "No Training Data"),
+  "dashboard.trainingDataIssueCount": tr("มีข้อมูลหลักสูตรที่ควรตรวจสอบ", "Training Records to Review"),
+  "dashboard.trainingMissingRequiredCount": tr("ขาดหลักสูตรตามนโยบาย", "Missing Required Training"),
+  "dashboard.trainingPolicyNotSetCount": tr("นโยบายหลักสูตรยังไม่กำหนด", "Training Policy Not Configured"),
+
+  // ── dashboard.* — Phase 45 completion pass: Training Priority panel (Task 10) ──
+  "dashboard.trainingPriorityTitle": tr(
+    "กำลังพลที่ควรพิจารณาส่งเข้ารับการอบรม",
+    "Officers Recommended for Training"
+  ),
+  "dashboard.trainingPriorityMissingCourses": tr("หลักสูตรที่ขาด", "Missing Courses"),
+  "dashboard.trainingPriorityRecommendedAction": tr("ข้อเสนอแนะ", "Recommended Action"),
 
   // ── dashboard.* — Phase 42: Commander Dashboard Intelligence ──
   "dashboard.fiscalYearLabel": tr("ปีงบประมาณปัจจุบัน", "Current Fiscal Year"),
@@ -308,6 +334,13 @@ export const DICTIONARY = {
   "commander.yearsInPositionLevel": tr("อายุการดำรงระดับตำแหน่ง", "Years in Position Level"),
   "commander.age": tr("อายุ", "Age"),
   "commander.governmentServiceYears": tr("อายุราชการ", "Government Service Years"),
+  "commander.trainingStatus": tr("สถานะหลักสูตร", "Training Status"),
+  "commander.showTrainingColumn": tr("แสดงคอลัมน์หลักสูตร", "Show Training Column"),
+  "commander.hideTrainingColumn": tr("ซ่อนคอลัมน์หลักสูตร", "Hide Training Column"),
+
+  // ── commander.* — Phase 45 completion pass: discoverable training filter group (Task 8) ──
+  "commander.trainingFilterGroupTitle": tr("สถานะการฝึกอบรม", "Training Status"),
+  "commander.trainingFilterAll": tr("ทั้งหมด", "All"),
   "commander.intelligenceFlag": tr("สัญญาณข่าวกรอง", "Intelligence Flag"),
   "commander.priority": tr("ระดับความสำคัญ", "Priority"),
   "commander.minProfileCompleteness": tr("ความสมบูรณ์ของข้อมูลขั้นต่ำ", "Minimum Profile Completeness"),
@@ -457,6 +490,50 @@ export const DICTIONARY = {
   "officer.cannotDetermine": tr("ไม่สามารถระบุได้", "Cannot determine"),
   "officer.noEducation": tr("ยังไม่มีข้อมูลการศึกษา", "No education records yet."),
   "officer.noTraining": tr("ยังไม่มีข้อมูลการฝึกอบรม", "No training records yet."),
+
+  // ── Officer — Training Intelligence card (Phase 45 completion pass) ──
+  "officer.trainingIntelligenceTitle": tr("การวิเคราะห์การฝึกอบรม", "Training Intelligence"),
+  "officer.trainingStatusLabel": tr("สถานะการฝึกอบรม", "Training Status"),
+  "officer.trainingTotalRecords": tr("หลักสูตรทั้งหมด", "Total Courses"),
+  "officer.trainingVerified": tr("ข้อมูลที่ตรวจสอบแล้ว", "Verified Records"),
+  "officer.trainingUnverified": tr("ข้อมูลที่ยังไม่ตรวจสอบ", "Unverified Records"),
+  "officer.trainingRequiredByPolicy": tr("หลักสูตรตามนโยบาย", "Required by Policy"),
+  "officer.trainingMissing": tr("หลักสูตรที่ขาด", "Missing Courses"),
+  "officer.trainingDataIssueCount": tr("ข้อมูลผิดปกติ", "Data Issues"),
+  "officer.trainingNoPolicySupportingText": tr(
+    "ระบบพบข้อมูลการฝึกอบรม แต่ยังไม่สามารถประเมินว่าหลักสูตรครบตามเกณฑ์หรือไม่ เนื่องจากยังไม่ได้กำหนดนโยบายหลักสูตรสำหรับตำแหน่งเป้าหมายนี้",
+    "Training records were found, but course requirements cannot be evaluated yet because no training policy is configured for this target position."
+  ),
+  "officer.trainingHistoryTitle": tr("ประวัติการฝึกอบรม", "Training History"),
+  "officer.trainingDataIssuesTitle": tr("ประเด็นข้อมูลที่ควรตรวจสอบ", "Training Data Issues"),
+  "officer.trainingNoDataIssues": tr("ไม่พบปัญหาคุณภาพข้อมูลที่ตรวจสอบได้", "No data-quality issues detected."),
+  "officer.trainingYearUnavailable": tr("ไม่ระบุปี", "Year not specified"),
+  "officer.trainingProviderUnavailable": tr("ไม่ระบุหน่วยงานที่จัด", "Provider not specified"),
+  "officer.trainingCourseNameUnavailable": tr("ไม่มีชื่อหลักสูตร", "Course name missing"),
+  "officer.trainingUnavailable": tr("ยังไม่สามารถวิเคราะห์ได้", "Not enough data to analyze."),
+  "officer.trainingRecommendationsTitle": tr("ข้อเสนอแนะ", "Recommendations"),
+
+  // Data-quality flag labels (Phase 45 completion pass) — keyed by
+  // TrainingDataQualityFlagCode so the UI can localize instead of trusting
+  // the engine's Thai-only messageTh directly (see data_quality.ts).
+  "officer.trainingFlag.MISSING_COURSE_NAME": tr("ไม่มีชื่อหลักสูตร", "Missing course name"),
+  "officer.trainingFlag.INVALID_DATE": tr("ปีไม่ถูกต้อง", "Invalid date"),
+  "officer.trainingFlag.COMPLETION_AFTER_EXPIRY": tr(
+    "วันที่สำเร็จการอบรมอยู่หลังวันหมดอายุ",
+    "Completion date is after the expiry date"
+  ),
+  "officer.trainingFlag.DUPLICATE_CERTIFICATE_NUMBER": tr(
+    "พบเลขที่ใบรับรองซ้ำกัน",
+    "Duplicate certificate number found"
+  ),
+  "officer.trainingFlag.DUPLICATE_COURSE_RECORD": tr(
+    "พบรายการหลักสูตรที่อาจซ้ำกัน",
+    "Possible duplicate course record found"
+  ),
+  "officer.trainingFlag.UNVERIFIED_RECORD": tr(
+    "มีข้อมูลหลักสูตรที่ยังไม่ผ่านการตรวจสอบ",
+    "Unverified training record"
+  ),
   "officer.comingSoon": tr("เร็ว ๆ นี้", "Coming soon"),
   "officer.availableFuture": tr("จะเปิดใช้งานในอนาคต", "Available in a future update"),
   "officer.uploadPortrait": tr("อัปโหลดรูปโปรไฟล์", "Upload Portrait"),

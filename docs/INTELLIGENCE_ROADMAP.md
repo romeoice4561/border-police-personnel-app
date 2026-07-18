@@ -293,6 +293,13 @@ means "nothing to prioritize" (status `Unknown`), never a score of 0.
   points.
 - **Planned implementation phase:** **Phase 46**. Nothing beyond this
   planning entry and one disabled Action Center line exists yet.
+- **Phase 45 note:** `lib/intelligence/training/expiry.ts` (Training Intelligence)
+  independently implements the SAME default expiry bands this section specifies (valid
+  >90 days, expiring soon 31-90, urgent 1-30, expires today 0, expired negative) — built
+  because Training's own certificate-expiry concept needed it, not as Phase 46 work. The
+  two remain separate features (training certificates vs. personal/vehicle documents),
+  but a future Phase 46 implementation could share the band-calculation primitive
+  rather than reimplementing it, since the thresholds already match.
 
 ## Commander Intelligence
 
@@ -364,6 +371,38 @@ could be reused by both Commander Search's dataset builder and the new
 Officer Intelligence View Model — no calculation duplicated, no behavior
 changed for existing callers.
 
+## Phase 45 — Training Intelligence Engine & Integration
+
+Adds `lib/intelligence/training/` — the first Training-specific Intelligence facade
+(previously "no dedicated engine," per the table above). Turns factual `Training` rows
+into `TrainingSummary`: required-course evaluation against an explicit, currently-empty
+`TrainingPolicy` extension point, conservative course-name normalization (exact/alias
+only, never fuzzy), expiry-band awareness (built and tested, unreachable until the
+schema gains an expiry field), and data-quality flags. Composed once in the shared
+`toQueryOfficer()` so Commander Search, Commander Dashboard, and the Officer Workspace
+all receive an identical summary for the same officer. `PromotionEligibilityStatus.
+MissingTraining` remains unreachable (no real policy configures it), but the evidence
+feeding it now flows through normalized course keys instead of raw strings, so a future
+policy's matching is correct-by-construction. See `docs/TRAINING_INTELLIGENCE.md` for
+full detail, including the binding architecture rule: training requirements must come
+from explicit policy configuration, never from UI labels or generic course counts.
+
+**Phase 45 completion pass:** the engine and view-model wiring above shipped first with
+subtle UI surfacing; a follow-up pass made Training Intelligence clearly visible without
+changing any calculation. Added: an Officer Workspace Training Intelligence card above
+the factual training timeline (four honest states — NoPolicy/NoData/Complete/Missing,
+NoPolicy always styled as informational, never a warning); a data-quality findings
+section; a Dashboard "ขาดหลักสูตร" KPI card distinguishing real-policy-missing,
+confirmed-zero, no-policy, and unavailable; a secondary Training Overview card group; a
+"กำลังพลที่ควรพิจารณาส่งเข้ารับการอบรม" priority panel that renders nothing when no real
+priority records exist; two new Action Center entries (`training-data-quality`,
+severity `medium`; `training-no-policy`, severity `info`, `href: null`, never mixed with
+real misconduct/violation items); a discoverable "สถานะการฝึกอบรม" filter group in
+Commander Search; and `lib/commander_query/search_params.ts` /
+`lib/ui/training_history.ts`, two pure helpers extracted from page components so they
+are directly unit-tested. `TRAINING_POLICIES` remains a fixed, empty production
+constant — no policy was configured or invented in this pass.
+
 ## AI Commander Intelligence
 
 - **Purpose:** AI-assisted narrative/recommendation layer on top of
@@ -404,7 +443,7 @@ left `null`/unscoped.
 | Retirement | Foundation complete | Yes (`lib/intelligence/retirement/`) | Retirement date, Buddhist-Era fiscal year, exact remaining duration, 2-October rollover rule verified (Phase 40A + 40B); feeds Commander Dashboard's Retirement Awareness (Phase 42) and, as of Phase 44, the Officer Workspace's Retirement Intelligence card | Full retirement analytics page still unbuilt; `commander_query_service.ts`'s own dataset still bypasses this facade for `retirementYearBe` (uses `calculateRetirement` directly) |
 | Promotion | Foundation complete, policy-data gaps | Yes (`lib/intelligence/promotion/`) | Full WHY-explaining status, first eligible date, exact eligible duration, priority score (Phase 41); now feeds Commander Dashboard's Promotion Intelligence KPIs + Priority list (Phase 42); `MissingTraining`/`MissingDocuments`/`RetirementRestricted` correctly wired but unreachable until a policy configures those requirements | Migrate Commander Search and Officer Profile off the older coarse `promotionStatus` onto `PromotionSummary`; configure training/document/retirement-window policy data if product wants those statuses to fire |
 | Salary | Existing production logic wrapped, partial | Yes (`lib/intelligence/salary/`) | Real two-step ("2 ขั้น") eligibility only — the one deterministic rule that exists today | Broader salary-step forecasting once a second business rule exists to wrap (unscheduled) |
-| Training | Planned — no facade exists | No | No dedicated engine; training presence read directly (`officer.training.length > 0`) by callers such as `lib/intelligence/flags.ts` | Build Training Intelligence, gated on a prior product decision defining "required training" per rank/role (unscheduled) |
+| Training | Foundation complete, policy-data gap | Yes (`lib/intelligence/training/`, Phase 45) | Required-course evaluation, course-name normalization, expiry-band awareness (built, unreachable — no expiry data), data-quality flags; feeds Commander Dashboard's training KPI/Action Center, Commander Search's training filter/column, and the Officer Workspace's Training Intelligence card | Configure a real `TrainingPolicy` (`lib/intelligence/training/policy.ts`'s `TRAINING_POLICIES`, currently empty) to make `MissingRequired`/Promotion Intelligence's `MissingTraining` reachable; extend `Training` (or a new certificate model) with completion/expiry/certificate/verification fields |
 | Document | Existing production logic wrapped, partial | Yes (`lib/intelligence/document/`) | Real active/verified/pending document counts + portrait signal only — no required-documents checklist exists in the schema | Migrate `lib/ui/profile_completeness.ts`'s checklist logic behind this facade, reusing it as-is (Phase 46) |
 | Document & Expiry | Planned — no facade exists | No | Not implemented; Commander Dashboard reserves one disabled Action Center line as an integration point (Phase 42) | Full implementation — schema, engine, UI — in **Phase 46** |
 | Commander | Existing production engine, not yet a dedicated facade | Existing architecture (`CommanderDashboard`/`CommanderQueryDataset`); Phase 42 adds a Dashboard-SPECIFIC (not general-purpose) composition layer, `lib/commander_dashboard/` | Flags, priority, recommendations, aggregation — mostly computed ad hoc per service; Dashboard's promotion/birthday/retirement/action-center view models now composed via `lib/commander_dashboard/view_model.ts`; Phase 43 adds batch Official Portrait resolution to `getCommanderQueryDataset()` itself (shared by both Dashboard and Search) plus a rebuilt 16-column Commander Search results table | Extract a general-purpose `lib/intelligence/commander/`, consuming the strengthened per-officer facades, and decide whether `lib/commander_dashboard/` folds into it (Phase 47) |

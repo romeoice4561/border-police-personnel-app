@@ -3,6 +3,7 @@ import type { OfficerFlagCode, OfficerPriority, PromotionStatus } from "@/lib/in
 import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import type { SkillFilter } from "@/lib/capability/skill_filter";
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+import type { TrainingStatus } from "@/lib/intelligence/training/types";
 
 export type CommanderSortField =
   | "rank"
@@ -69,6 +70,8 @@ export interface CommanderQueryFilters {
   skill?: SkillFilter;
   /** Phase 42: Commander Dashboard retirement-awareness drill-down — matches officers retiring within the given horizon (cumulative: "within-1-year" is a subset of "within-3-years"). */
   retirementWithin?: "within-1-year" | "within-3-years" | "within-5-years";
+  /** Phase 45: filters on TrainingSummary.trainingStatus (lib/intelligence/training) — used by the Commander Dashboard's "ขาดหลักสูตร"/Action Center drill-down links and the Commander Search training filter. */
+  trainingStatus?: TrainingStatus;
 }
 
 export interface DrilldownFilter {

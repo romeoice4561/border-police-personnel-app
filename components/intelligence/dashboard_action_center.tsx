@@ -9,7 +9,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Cake, Info, TrendingUp } from "lucide-react";
+import { AlertTriangle, Cake, GraduationCap, Info, TrendingUp } from "lucide-react";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
@@ -34,6 +34,7 @@ const CATEGORY_ICON: Record<CommanderActionItemViewModel["category"], typeof Ale
   RETIREMENT: AlertTriangle,
   DATA_QUALITY: Info,
   BIRTHDAY: Cake,
+  TRAINING: GraduationCap,
   DOCUMENT_EXPIRY_FUTURE: Info,
 };
 

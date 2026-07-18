@@ -15,6 +15,7 @@
  */
 
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+import type { TrainingSummary } from "@/lib/intelligence/training/types";
 
 export interface OfficerIntelligenceViewModel {
   /** ISO timestamp this view model was composed. */
@@ -96,6 +97,9 @@ export interface OfficerIntelligenceViewModel {
     hasOfficialPortrait: boolean;
     hasGp7: boolean | null;
   };
+
+  /** Phase 45 (Training Intelligence Engine) — the full TrainingSummary for this officer, evaluated against their next position level. See lib/intelligence/training/types.ts. */
+  training: TrainingSummary;
 }
 
 export type CommanderActionSeverity = "urgent" | "recommended" | "informational";

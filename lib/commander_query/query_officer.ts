@@ -28,6 +28,8 @@ import { toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
 import { computePromotionSummary } from "@/lib/intelligence/promotion";
 import { computeServiceSummary } from "@/lib/intelligence/service";
 import { computeAgeSummary } from "@/lib/intelligence/age";
+import { computeTrainingSummary } from "@/lib/intelligence/training";
+import { normalizeCourseName } from "@/lib/intelligence/training/course_normalization";
 
 function hasActiveDocument(officer: OfficerWithRelations, typeCode: string): boolean {
   return officer.documents.some((doc) => doc.documentType === typeCode && doc.isActive !== false);
@@ -110,6 +112,17 @@ function appointmentCycleForPositionLevel(officer: OfficerWithRelations, level: 
  * facade (lib/intelligence/promotion) both consume — extracted so both
  * `computeNextLevelEligibility` and the new `promotionIntelligence` field
  * build it identically, once, rather than duplicating the same assembly.
+ *
+ * Phase 45: `trainingCodes` is now sourced from Training Intelligence's
+ * normalized course keys (lib/intelligence/training/course_normalization.ts)
+ * instead of raw free-text `Training.course` strings — the evidence
+ * PROVIDER changed, but since `PROMOTION_POLICIES.requiredTrainingCodes` is
+ * empty for every level today (see docs/TRAINING_INTELLIGENCE.md), no
+ * eligibility outcome changes: `createRequiredTrainingRule` never runs
+ * without a configured code list to check against. If a future policy adds
+ * `requiredTrainingCodes`, matching becomes correct-by-construction (exact
+ * normalized key, never a raw-string coincidence) rather than an
+ * accidental substring/exact-string match on unnormalized free text.
  */
 function buildEligibilityOfficer(
   officer: OfficerWithRelations,
@@ -126,7 +139,9 @@ function buildEligibilityOfficer(
     yearsInRank,
     governmentServiceYears,
     retirementRemainingMonths,
-    trainingCodes: officer.training.map((t) => t.course).filter((c): c is string => Boolean(c)),
+    trainingCodes: officer.training
+      .map((t) => normalizeCourseName(t.course).normalizedCourseKey)
+      .filter((key): key is string => Boolean(key)),
     documentCodes: officer.documents.filter((d) => d.isActive !== false).map((d) => d.documentType),
     twoStepCount: countTwoStep(officer.salaryHistory),
     appointmentCycle: appointmentCycleForPositionLevel(officer, positionLevel),
@@ -213,6 +228,10 @@ export function toQueryOfficer(
   // doc comment on CommanderQueryOfficer.
   const positionLevelStartYearBe = positionLevelStart ? toBuddhistEraYear(positionLevelStart.getUTCFullYear()) : null;
   const positionLevelYearCount = yearCountSince(positionLevelStartYearBe, toBuddhistEraYear(asOf.getUTCFullYear()));
+  // Phase 45: Training Intelligence, evaluated against the officer's NEXT
+  // position level (the same target Promotion Intelligence evaluates) —
+  // reports NoPolicy/NoData truthfully since no real TrainingPolicy exists yet.
+  const trainingIntelligence = computeTrainingSummary(officer.training, promotionIntelligence.targetPosition, asOf);
 
   return {
     officerId: officer.officerId,
@@ -252,6 +271,7 @@ export function toQueryOfficer(
     skillSignals: toSkillSignals(officer.skills ?? [], asOf),
     nextLevelEligibility,
     promotionIntelligence,
+    trainingIntelligence,
     displayServiceDurationTh: serviceSummary.available ? serviceSummary.displayServiceDurationTh : null,
     positionLevelStartYearBe,
     displayAgeYearsMonthsTh: ageSummary.available ? formatAgeYearsMonthsTh(ageSummary.exactAge) : null,

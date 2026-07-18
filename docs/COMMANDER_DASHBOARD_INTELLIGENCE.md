@@ -173,11 +173,43 @@ renders an empty-state message, never a fabricated "all clear" item):
 | `RETIREMENT` | `retirement.withinOneYear > 0` | medium |
 | `DATA_QUALITY` | `promotion.unknown > 0` | medium |
 | `BIRTHDAY` | `birthdays.todayCount > 0` | **info, always** |
+| `TRAINING` (Phase 45) | `training.missingRequiredCount > 0` OR `training.expiredCount > 0` | medium |
 
 **Birthdays are always `info` severity** — Task 7 explicitly forbids
 inflating a birthday into an urgent item; this is enforced structurally
 (the birthday branch is the only one that ever sets `severity: "info"`),
 not by convention.
+
+## Training Intelligence integration (Phase 45; strengthened in the Phase 45 completion pass)
+
+`CommanderDashboardViewModel.training` — `missingRequiredCount`, `expiredCount`,
+`expiringSoonCount`, `unverifiedCount`, `noPolicyCount`, `noDataCount`,
+`unavailableCount` (completion pass — officers whose `TrainingSummary` failed to load;
+always 0 today), `policyConfigured`, and `priorityOfficers` (a deterministic,
+rule-ordered list — see `docs/TRAINING_INTELLIGENCE.md`'s Task 12 section — not an AI
+recommendation, not a numerical score).
+
+**KPI card (`dashboard_kpi_section.tsx`):** the "ขาดหลักสูตร" card distinguishes FOUR
+states (unavailable / confirmed-positive-with-drilldown / confirmed-zero-with-hint /
+no-policy-with-hint) — see `docs/TRAINING_INTELLIGENCE.md`'s Dashboard integration
+section for the exact state table. Never shows a numeric 0 for the no-policy case.
+
+**Training Overview card group (`dashboard_training_overview.tsx`, completion pass,
+new):** a small, visually-secondary section (placed after Promotion Priority) showing
+officers-with-data, officers-with-no-data, records-needing-review, and either a real
+missing-required count or an explicit policy-not-configured state.
+
+**Action Center:** the `TRAINING` category (table above) now has three entry types —
+real MissingRequired/Expired (medium severity, actionable), a data-quality entry for
+`unverifiedCount > 0` (medium severity), and a NoPolicy entry (info severity, no
+`href`) explaining WHY evaluation isn't possible yet — matching the Birthday-severity
+precedent of enforcing "never inflate to urgent" structurally rather than by
+convention.
+
+**Training Priority panel (`dashboard_training_priority.tsx`, completion pass, new):**
+renders `training.priorityOfficers` with the canonical Official Portrait; the whole
+panel renders `null` when the list is empty (true for the entire roster today) —
+never a decorative empty panel.
 
 ## Drill-down behavior (Task 9)
 

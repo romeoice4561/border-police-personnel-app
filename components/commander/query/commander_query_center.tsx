@@ -79,6 +79,9 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
     const currentYear = new Date().getUTCFullYear();
     if (row.retirementYear - currentYear > horizonYears) return false;
   }
+  // Phase 45: Training Intelligence status filter — reads the SAME
+  // TrainingSummary every other consumer (Dashboard, Officer Workspace) reads.
+  if (filters.trainingStatus && row.trainingIntelligence.trainingStatus !== filters.trainingStatus) return false;
   return (
     matchesNumber(row.completedPromotionCycles, filters.completedPromotionCycles) &&
     matchesNumber(row.appointmentCycle, filters.appointmentCycle) &&

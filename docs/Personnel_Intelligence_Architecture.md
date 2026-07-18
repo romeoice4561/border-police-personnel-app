@@ -562,3 +562,30 @@ reserved for eligibility-threshold calculations (Promotion Intelligence's
 `minYearsInPositionLevel` check) and true chronological displays (exact age, exact service
 duration), which this fix does not touch. See
 `docs/OFFICER_INTELLIGENCE_WORKSPACE.md`'s dedicated section for the full worked example.
+
+## Phase 45 — Training Intelligence Engine & Integration
+
+Phase 45 adds `lib/intelligence/training/` as the public Training Intelligence API
+layer, following the same thin-facade convention as `lib/intelligence/{age,service,
+promotion,retirement}/`. It turns factual `Training` rows (course/organization/year —
+free text, no completion date, no expiry, no certificate number, no verification field
+on the schema today) into a `TrainingSummary`: required-course evaluation against an
+explicit `TrainingPolicy` (currently unconfigured — `TRAINING_POLICIES` is an empty
+extension point, never fabricated), conservative course-name normalization (exact
+structural match or a documented alias — never fuzzy matching for policy decisions),
+expiry-band awareness (built and tested, but unreachable from real data until a
+schema/certificate extension exists), and data-quality flags. Composed once in
+`lib/commander_query/query_officer.ts`'s `toQueryOfficer()` — the same shared
+per-officer function Commander Search, Commander Dashboard, and the Officer Intelligence
+Workspace all already call — so all three consumers receive an identical
+`TrainingSummary` for the same officer.
+
+**Architecture rule (binding):** Training requirements must come from explicit policy
+configuration. UI components, labels, and generic course counts must never define
+promotion requirements.
+
+`PromotionEligibilityStatus.MissingTraining` (Phase 41) remains unreachable today — no
+`PROMOTION_POLICIES` entry configures `requiredTrainingCodes` — but the evidence feeding
+it (`EligibilityOfficer.trainingCodes`) now flows through Training Intelligence's
+normalized course keys instead of raw free-text strings, so a future policy's matching
+will be correct-by-construction. Full detail lives in **`docs/TRAINING_INTELLIGENCE.md`**.

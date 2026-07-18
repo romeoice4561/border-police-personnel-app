@@ -12,6 +12,7 @@
  */
 
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
+import type { TrainingPriorityOfficer } from "@/lib/intelligence/training/priority";
 
 /**
  * One officer row in the Promotion Priority list
@@ -130,7 +131,7 @@ export interface RetirementOfficerViewModel {
   href: string;
 }
 
-export type CommanderActionCategory = "PROMOTION_PRIORITY" | "RETIREMENT" | "DATA_QUALITY" | "BIRTHDAY" | "DOCUMENT_EXPIRY_FUTURE";
+export type CommanderActionCategory = "PROMOTION_PRIORITY" | "RETIREMENT" | "DATA_QUALITY" | "BIRTHDAY" | "TRAINING" | "DOCUMENT_EXPIRY_FUTURE";
 export type CommanderActionSeverity = "high" | "medium" | "info";
 
 export interface CommanderActionItemViewModel {
@@ -181,6 +182,32 @@ export interface CommanderDashboardViewModel {
     withinThreeYears: number;
     withinFiveYears: number;
     candidates: RetirementOfficerViewModel[];
+  };
+
+  /**
+   * Phase 45 (Training Intelligence Engine). Every count here is sourced
+   * from TrainingSummary.trainingStatus per officer — truthful, never a
+   * fabricated zero. `noPolicyCount` is reported SEPARATELY from
+   * `missingRequiredCount` — a NoPolicy officer is never counted as
+   * MissingRequired. Since no real TrainingPolicy is configured today (see
+   * docs/TRAINING_INTELLIGENCE.md), `missingRequiredCount`/`expiredCount`/
+   * `expiringSoonCount` are structurally 0 for every officer and
+   * `noPolicyCount` equals the officer total (or `noDataCount` for officers
+   * with zero training records) — this is the truthful state, not a bug.
+   */
+  training: {
+    missingRequiredCount: number;
+    expiredCount: number;
+    expiringSoonCount: number;
+    unverifiedCount: number;
+    noPolicyCount: number;
+    noDataCount: number;
+    /** Officers whose TrainingSummary itself could not be loaded (distinct from NoData/NoPolicy — always 0 today, kept honest rather than folded into NoData). */
+    unavailableCount: number;
+    /** True only when at least one officer's target level has a real configured TrainingPolicy — drives whether the KPI card may link to a Commander Search training filter. */
+    policyConfigured: boolean;
+    /** Deterministic, rule-ordered priority list (Task 12) — not an AI recommendation, not a numerical score. */
+    priorityOfficers: TrainingPriorityOfficer[];
   };
 
   actionCenter: CommanderActionItemViewModel[];

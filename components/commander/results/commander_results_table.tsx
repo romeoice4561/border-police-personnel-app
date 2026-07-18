@@ -61,6 +61,7 @@
  */
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import { OfficerPhoto } from "@/components/officer/officer_photo";
@@ -72,6 +73,7 @@ import { UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { overdueOpportunities } from "@/lib/commander_query/promotion_display";
 import { useT } from "@/components/i18n/language_provider";
 import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
+import { TRAINING_STATUS_TONE } from "@/lib/intelligence/training/status_tone";
 
 /** Phase 43 B5: photo column is 72px wide (matching the Dashboard table); the sticky name column starts right after it. */
 const PHOTO_COL_PX = 72;
@@ -82,10 +84,18 @@ function cell(value: string | number | null | undefined): string {
 
 export function CommanderResultsTable({ officers }: { officers: CommanderQueryOfficer[] }) {
   const { t } = useT();
+  // Phase 45 Task 11: the training status column defaults to HIDDEN — the
+  // table is already 16 columns wide (Phase 43); a 17th column is opt-in
+  // rather than always rendered, per the task's explicit "column visibility
+  // may default to hidden if the table is already wide" rule.
+  const [showTrainingColumn, setShowTrainingColumn] = useState(false);
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>{t("commander.resultsTable")}</CardTitle>
+        <Button type="button" variant="outline" size="sm" onClick={() => setShowTrainingColumn((prev) => !prev)}>
+          {showTrainingColumn ? t("commander.hideTrainingColumn") : t("commander.showTrainingColumn")}
+        </Button>
       </CardHeader>
       <CardBody className="p-0">
         {officers.length === 0 ? (
@@ -110,6 +120,9 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                   <th scope="col" className="px-3 py-3 text-center font-medium" style={{ minWidth: 110 }}>{t("commander.eligibilityYear")}</th>
                   <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 140 }}>{t("commander.retirementYear")}</th>
                   <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 150 }}>{t("commander.governmentServiceYears")}</th>
+                  {showTrainingColumn ? (
+                    <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 180 }}>{t("commander.trainingStatus")}</th>
+                  ) : null}
                   <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 110 }}>{t("dashboard.priorityColumnAction")}</th>
                 </tr>
               </thead>
@@ -151,6 +164,11 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                       </td>
                       <td className="px-3 py-3 tabular-nums text-muted">{officer.retirementYearBe != null ? `พ.ศ. ${officer.retirementYearBe}` : "—"}</td>
                       <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">{cell(officer.displayServiceDurationTh)}</td>
+                      {showTrainingColumn ? (
+                        <td className="px-3 py-3">
+                          <Badge tone={TRAINING_STATUS_TONE[officer.trainingIntelligence.trainingStatus]}>{officer.trainingIntelligence.displayStatusTh}</Badge>
+                        </td>
+                      ) : null}
                       <td className="px-3 py-3">
                         <Button asChild variant="ghost" size="sm">
                           <Link href={`/officers/${encodeURIComponent(officer.officerId)}`}>{t("dashboard.priorityColumnAction")}</Link>
