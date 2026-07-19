@@ -108,6 +108,31 @@ export const FIELD_LABELS = {
   uniformShoeSize: bilingual("ขนาดรองเท้า", "Uniform Shoe Size"),
   hatSize: bilingual("ขนาดหมวก", "Hat Size"),
   jacketSize: bilingual("ขนาดเสื้อแจ็คเก็ต", "Jacket Size"),
+
+  // Phase 45.1 — Personnel Master Data Expansion: membership + salary/bank.
+  membershipAndFinancialSection: bilingual("ข้อมูลสมาชิกและการเงิน", "Membership and Financial Information"),
+  membershipGroup: bilingual("ข้อมูลสมาชิก", "Membership"),
+  salaryAndBankGroup: bilingual("ข้อมูลเงินเดือนและบัญชี", "Salary and Bank Information"),
+  academyClass: bilingual("รุ่น นรต.", "Police Cadet Academy Class"),
+  isGpfMember: bilingual("สมาชิก กบข.", "GPF Member"),
+  isPoliceFuneralWelfareMember: bilingual("สมาชิกฌาปนกิจสงเคราะห์ ตร.", "Police Funeral Welfare Member"),
+  isCooperativeMember: bilingual("สมาชิกสหกรณ์", "Cooperative Member"),
+  cooperativeName: bilingual("ชื่อสหกรณ์", "Cooperative Name"),
+  salaryLevel: bilingual("ระดับเงินเดือน", "Salary Level"),
+  currentSalaryStep: bilingual("ขั้นเงินเดือน", "Salary Step"),
+  // Phase 45.1 UX refinement pass (Task 3): renamed from "เงินเดือนปัจจุบัน"
+  // to "ฐานเงินเดือน" — this field is the OFFICIAL salary base determined by
+  // salary level + salary step, not the employee's take-home pay (that's
+  // netSalary/"เงินเดือนรับจริง" below). UI label only — the underlying
+  // Officer.currentSalary column name is unchanged (no schema/migration).
+  currentSalary: bilingual("ฐานเงินเดือน", "Base Salary"),
+  otherSpecialAllowances: bilingual("เงินเพิ่ม / ค่าตอบแทนพิเศษ", "Special Allowances / Compensation"),
+  // Stored as Officer.cooperativeMonthlyDeduction — total monthly deductions.
+  cooperativeMonthlyDeduction: bilingual("รายจ่ายรวม", "Total Expenses"),
+  totalMonthlyIncome: bilingual("รายรับรวม", "Total Income"),
+  netSalary: bilingual("เงินเดือนรับจริง", "Net Salary"),
+  bankName: bilingual("ธนาคาร", "Bank"),
+  bankAccountNumber: bilingual("เลขบัญชี", "Bank Account Number"),
 } as const satisfies Record<string, BilingualText>;
 
 export type FieldLabelKey = keyof typeof FIELD_LABELS;

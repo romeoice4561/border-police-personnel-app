@@ -30,7 +30,10 @@ import { Combobox } from "@/components/ui/combobox";
 import { Select } from "@/components/ui/select";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { BilingualLabel } from "@/components/ui/bilingual_label";
+import { useT } from "@/components/i18n/language_provider";
 import { FIELD_LABELS } from "@/lib/i18n/bilingual_label";
+import { ACADEMY_CLASS_OPTIONS } from "@/lib/officer_profile/academy_class_options";
+import { TRI_STATE_LABELS } from "@/lib/officer_profile/tri_state";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
 import { BLOOD_GROUP_OPTIONS } from "@/lib/officer_profile/blood_group_options";
@@ -80,6 +83,9 @@ export interface ProfileEditorProps {
 }
 
 export function ProfileEditor({ profile, onChange, organizationEngine }: ProfileEditorProps) {
+  const { t, language } = useT();
+  const unspecifiedLabel = language === "en" ? TRI_STATE_LABELS.unspecified.en : TRI_STATE_LABELS.unspecified.th;
+
   function set<K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) {
     onChange({ ...profile, [key]: value });
   }
@@ -205,6 +211,16 @@ export function ProfileEditor({ profile, onChange, organizationEngine }: Profile
             onChange={(e) => set("nickname", e.target.value)}
           />
         </Field>
+        <BilingualField labelKey="academyClass" htmlFor="edit-academyClass">
+          <Select
+            id="edit-academyClass"
+            options={ACADEMY_CLASS_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+            placeholder={unspecifiedLabel}
+            value={profile.academyClass}
+            onChange={(e) => set("academyClass", e.target.value)}
+          />
+          <p className="mt-1 text-xs text-muted">{t("officer.academyClassPlaceholder")}</p>
+        </BilingualField>
       </CardBody>
     </Card>
   );

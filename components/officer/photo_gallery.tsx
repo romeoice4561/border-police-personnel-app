@@ -188,24 +188,23 @@ export function PhotoGallery({ officerId, name, officialPortraitId, refreshKey =
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
             {group.items.map((entry) => {
               const index = entries.indexOf(entry);
-              const source = resolveViewerSource(entry);
+              const viewerSource = resolveViewerSource(entry);
               const isOfficial = entry.id === officialPortraitId;
               const isProtected = isOfficial || entry.isProfile;
               return (
-                <div key={entry.id} className="group relative rounded-lg focus-within:ring-2 focus-within:ring-accent">
-                  {/* Gallery thumbnails use rounded-rectangle (Part 5 — Photo
-                      Gallery images are NOT portrait circles). Uses shared
-                      GalleryImage component (Phase 30.2). */}
+                <div key={entry.id} className="group relative max-w-full rounded-lg focus-within:ring-2 focus-within:ring-accent">
+                  {/* Grid thumbnails use the stored thumbnail URL only.
+                      resolveViewerSource() (w2048 Drive URLs) is reserved for
+                      PhotoModal / full-screen viewer — never for the grid. */}
                   <button
                     type="button"
                     onClick={() => setOpenIndex(index)}
-                    className="group block aspect-square w-full overflow-hidden rounded-lg border border-border bg-black/10 focus-visible:outline-none"
+                    className="group block aspect-square w-full max-w-full overflow-hidden rounded-lg border border-border bg-black/10 focus-visible:outline-none"
                     aria-label={`Open ${GROUP_LABEL[group.type]} image`}
                   >
                     <GalleryImage
-                      src={source.imageUrl}
+                      src={entry.thumbnailUrl}
                       alt={`${GROUP_LABEL[group.type]} of ${name}`}
-                      fallbackSrc={source.fallbackUrl}
                       hoverScale
                       className="h-full w-full"
                     />
@@ -235,7 +234,7 @@ export function PhotoGallery({ officerId, name, officialPortraitId, refreshKey =
                     <button
                       type="button"
                       onClick={() => downloadPhoto(entry)}
-                      disabled={!source.hasImage}
+                      disabled={!viewerSource.hasImage}
                       className="inline-flex h-7 items-center justify-center rounded bg-black/70 text-white hover:bg-black disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                       aria-label={`Download ${GROUP_LABEL[group.type]} image`}
                       title="Download"
@@ -332,7 +331,6 @@ function DeleteGalleryPhotoDialog({
   onConfirm: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const source = resolveViewerSource(entry);
   const protectedByCurrent = isOfficial || entry.isProfile;
 
   useEffect(() => {
@@ -383,7 +381,7 @@ function DeleteGalleryPhotoDialog({
         </div>
 
         <div className="mb-3 overflow-hidden rounded-lg border border-border bg-black/10">
-          <GalleryImage src={source.imageUrl} fallbackSrc={source.fallbackUrl} alt={`Gallery image of ${name}`} className="aspect-video w-full" />
+          <GalleryImage src={entry.thumbnailUrl} alt={`Gallery image of ${name}`} className="aspect-video w-full" />
         </div>
 
         <div className="space-y-1 text-xs text-muted">

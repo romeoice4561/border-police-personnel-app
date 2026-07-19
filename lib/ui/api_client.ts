@@ -323,6 +323,20 @@ export interface OfficerProfileSaveRequest {
     uniformShoeSize?: string | null;
     hatSize?: string | null;
     jacketSize?: string | null;
+    /** Phase 45.1: Personnel Master Data Expansion — membership + salary/bank (factual Master Data only). */
+    academyClass?: number | null;
+    isGpfMember?: boolean | null;
+    isPoliceFuneralWelfareMember?: boolean | null;
+    isCooperativeMember?: boolean | null;
+    cooperativeName?: string | null;
+    salaryLevel?: string | null;
+    currentSalaryStep?: string | null;
+    currentSalary?: number | null;
+    otherSpecialAllowances?: number | null;
+    cooperativeMonthlyDeduction?: number | null;
+    netSalary?: number | null;
+    bankName?: string | null;
+    bankAccountNumber?: string | null;
   };
   timeline?: Array<{
     sequence: number;

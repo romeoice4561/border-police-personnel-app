@@ -200,6 +200,18 @@ leaks, no overstated certainty ("รอบ {N}" is the officer's actual recorded
 year, a factual timeline attribute, distinct from and not confused with the Promotion
 Intelligence card's "รอการแต่งตั้งมาแล้ว"/"ปีนี้เป็นปีที่" language).
 
+**Phase 45.1 addition:** `MembershipFinancialSection`/`MembershipFinancialEditor`
+("ข้อมูลสมาชิกและการเงิน") is placed immediately after `PersonalInformationSection`,
+following the same rule — every value shown is factual Master Data (Academy Class,
+membership tri-state, salary level/step/gross/net, bank name/account number), never an
+Intelligence calculation. Unlike its sibling section, it is a CLIENT component: several
+of its display VALUES (not just labels) are language-dependent — money format,
+membership Yes/No/Not-specified — and must render through `useBilingualText()` in the
+single active language, never TH+EN simultaneously. Bank account number is masked
+(`maskBankAccountNumber`) unless the viewer holds `officers.viewFinancial` or is viewing
+their own profile — see `docs/PERSONNEL_MASTER_DATA_STANDARD.md` for the full field
+list, tri-state semantics, and RBAC rule.
+
 ## Unavailable-data behavior (Task 11)
 
 Every new card defines its own explicit Thai fallback (`ยังไม่มีข้อมูลเพียงพอ` for most

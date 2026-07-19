@@ -56,6 +56,17 @@ export const PERMISSIONS = [
   /** AI-assisted bulk import tooling. Admin only. */
   "ai.import",
   "admin.manage",
+  /**
+   * Phase 45.1: see the UNMASKED bank account number and other sensitive
+   * financial Master Data fields (salary/bank) on an officer's profile.
+   * Independent of `officers.view`/`officers.edit` — a role can see an
+   * officer's general profile without seeing their full bank account
+   * number. Admin only today; the officer's own record is always visible
+   * to themselves via officer.viewOwn/editOwn regardless of this permission
+   * (self-service is ownership-scoped, not permission-gated, matching the
+   * officer.editOwn convention above).
+   */
+  "officers.viewFinancial",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

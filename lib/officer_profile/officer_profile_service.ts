@@ -27,9 +27,12 @@ import { OfficerSkillRepository } from "@/lib/database/repositories/officer_skil
 import { normalizeTimelinePositionUnit } from "@/lib/import/timeline_normalization";
 import {
   OfficerNotFoundError,
+  OfficerProfileValidationError,
   type OfficerProfileSaveInput,
   type OfficerProfileSaveResult,
 } from "@/lib/officer_profile/officer_profile_types";
+import { moneyFieldToNumber } from "@/lib/officer_profile/money_draft";
+import { resolveNetSalaryForSave } from "@/lib/officer_profile/net_salary";
 
 export interface OfficerProfileServiceDependencies {
   db: DatabaseClient;
@@ -55,7 +58,14 @@ export class OfficerProfileService {
 
       let profileUpdated = false;
       if (input.profile) {
-        await officerRepo.updateProfile(officerId, input.profile);
+        // netSalary is derived server-side; never persist a client-supplied value.
+        const resolved = resolveNetSalaryForSave(input.profile, {
+          currentSalary: moneyFieldToNumber(existing.currentSalary),
+          otherSpecialAllowances: moneyFieldToNumber(existing.otherSpecialAllowances),
+          cooperativeMonthlyDeduction: moneyFieldToNumber(existing.cooperativeMonthlyDeduction),
+        });
+        if (!resolved.ok) throw new OfficerProfileValidationError(resolved.message);
+        await officerRepo.updateProfile(officerId, { ...input.profile, ...resolved.patch });
         profileUpdated = true;
       }
 

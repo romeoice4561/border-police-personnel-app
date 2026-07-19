@@ -54,3 +54,11 @@ export class OfficerNotFoundError extends Error {
     this.name = "OfficerNotFoundError";
   }
 }
+
+/** Thrown when profile business rules fail after Zod parse (e.g. deduction vs existing salary). */
+export class OfficerProfileValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OfficerProfileValidationError";
+  }
+}

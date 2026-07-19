@@ -95,7 +95,13 @@ export function GalleryImage({
   return (
     <div
       className={cn(
-        "relative overflow-hidden bg-neutral-bg",
+        // Defensive containment (bug-fix pass): max-w-full/max-h-full here are
+        // a SAFETY NET, not the primary sizing mechanism — callers are still
+        // expected to pass an explicit bounded className (aspect-square,
+        // h-full w-full, etc.). This just guarantees a caller that forgets to
+        // bound this component can never have it expand past its own parent,
+        // regardless of the source image's intrinsic pixel dimensions.
+        "relative max-h-full max-w-full overflow-hidden bg-neutral-bg",
         className
       )}
       style={aspectRatio ? { aspectRatio } : undefined}
@@ -111,7 +117,11 @@ export function GalleryImage({
           onLoad={handleLoad}
           onError={handleError}
           className={cn(
-            "h-full w-full object-cover transition-all duration-300",
+            // object-cover fills the bounded container above without ever
+            // rendering at the image's intrinsic pixel size — the container's
+            // own dimensions (from aspectRatio/className) are always what's
+            // laid out, never the <img>'s natural width/height.
+            "h-full max-h-full w-full max-w-full object-cover transition-all duration-300",
             hoverScale && "group-hover:scale-105",
             imgLoaded ? "opacity-100" : "opacity-0"
           )}

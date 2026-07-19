@@ -16,7 +16,7 @@ import { badRequest, jsonOk, notFound } from "@/lib/api/api_response";
 import { officerIdParamSchema } from "@/lib/api/api_schemas";
 import type { OfficerProfileService } from "@/lib/officer_profile/officer_profile_service";
 import { officerProfileSaveSchema } from "@/lib/officer_profile/officer_profile_api_schemas";
-import { OfficerNotFoundError } from "@/lib/officer_profile/officer_profile_types";
+import { OfficerNotFoundError, OfficerProfileValidationError } from "@/lib/officer_profile/officer_profile_types";
 
 function zodDetails(error: z.ZodError): unknown {
   return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
@@ -50,6 +50,7 @@ export async function handleOfficerProfileSave(
     return jsonOk(result);
   } catch (error) {
     if (error instanceof OfficerNotFoundError) return notFound(error.message);
+    if (error instanceof OfficerProfileValidationError) return badRequest(error.message);
     throw error;
   }
 }

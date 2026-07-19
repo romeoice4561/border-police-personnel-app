@@ -24,6 +24,8 @@ import { formatThaiPersonnelDate, normalizeThaiPersonnelDateForSave, toGregorian
 import { sortHistory } from "@/lib/officer_profile/career_salary_engine";
 import { normalizePositionLevel, mapPositionTextToLevel } from "@/lib/commander_query/position_level";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
+import { booleanToTriState, triStateToBoolean, type TriState } from "@/lib/officer_profile/tri_state";
+import { moneyFieldToNumber, parseMoneyDraft } from "@/lib/officer_profile/money_draft";
 
 export interface ProfileDraft {
   rank: string;
@@ -69,6 +71,20 @@ export interface ProfileDraft {
   uniformShoeSize: string;
   hatSize: string;
   jacketSize: string;
+  /** Phase 45.1: Personnel Master Data Expansion — membership + salary/bank. */
+  academyClass: string;
+  isGpfMember: TriState;
+  isPoliceFuneralWelfareMember: TriState;
+  isCooperativeMember: TriState;
+  cooperativeName: string;
+  salaryLevel: string;
+  currentSalaryStep: string;
+  currentSalary: string;
+  otherSpecialAllowances: string;
+  cooperativeMonthlyDeduction: string;
+  netSalary: string;
+  bankName: string;
+  bankAccountNumber: string;
 }
 
 export interface EducationDraftRow {
@@ -190,7 +206,67 @@ function toProfileDraft(officer: OfficerWithRelations, organizationEngine: Organ
     uniformShoeSize: officer.uniformShoeSize ?? "",
     hatSize: officer.hatSize ?? "",
     jacketSize: officer.jacketSize ?? "",
+    academyClass: officer.academyClass != null ? String(officer.academyClass) : "",
+    isGpfMember: booleanToTriState(officer.isGpfMember),
+    isPoliceFuneralWelfareMember: booleanToTriState(officer.isPoliceFuneralWelfareMember),
+    isCooperativeMember: booleanToTriState(officer.isCooperativeMember),
+    cooperativeName: officer.cooperativeName ?? "",
+    salaryLevel: officer.salaryLevel ?? "",
+    currentSalaryStep: officer.currentSalaryStep ?? "",
+    currentSalary: (() => {
+      const n = moneyFieldToNumber(officer.currentSalary);
+      return n != null ? String(n) : "";
+    })(),
+    otherSpecialAllowances: (() => {
+      const n = moneyFieldToNumber(officer.otherSpecialAllowances);
+      return n != null ? String(n) : "";
+    })(),
+    cooperativeMonthlyDeduction: (() => {
+      const n = moneyFieldToNumber(officer.cooperativeMonthlyDeduction);
+      return n != null ? String(n) : "";
+    })(),
+    // Display-only in the editor (live-calculated); still seeded so cancel/reset is stable.
+    netSalary: (() => {
+      const n = moneyFieldToNumber(officer.netSalary);
+      return n != null ? String(n) : "";
+    })(),
+    bankName: officer.bankName ?? "",
+    // Phase 45.1 hardening pass: the `officer` this draft is built from has
+    // already been through redactOfficerForClient() (see app/officers/[id]/
+    // page.tsx) — officer.bankAccountNumber is the MASKED string
+    // ("xxxxxx7890"), never the real value, because this codebase has no
+    // server-verifiable session to decide who may see it unmasked. Seeding
+    // the draft with that masked string would let an admin who opens Edit
+    // Mode and clicks Save-without-touching silently overwrite the real
+    // account number with masked garbage. The field is therefore always
+    // seeded BLANK (write-only, like a password field) — see save()'s
+    // matching "blank means unchanged" handling below, and
+    // hasStoredBankAccountNumber, which lets the editor show a
+    // "•••• on file" hint instead of a real or masked value.
+    bankAccountNumber: "",
   };
+}
+
+/** Whether the officer already has a bank account number on file — used only to show a "already on file" hint in the editor; never exposes the value itself (see toProfileDraft's bankAccountNumber comment above). */
+export function hasStoredBankAccountNumber(officer: OfficerWithRelations): boolean {
+  return Boolean(officer.bankAccountNumber);
+}
+
+/**
+ * The bankAccountNumber slice of a save payload — extracted as a pure
+ * function so its "blank means unchanged" contract is directly unit-tested
+ * (see components/officer/__tests__/use_officer_workspace_financial.test.ts)
+ * without needing a full React hook-testing setup. Returns an object with
+ * the key present (real new value) or ABSENT (blank — leave untouched);
+ * never returns the key set to `null`, since this field's "clear it"
+ * behavior would silently corrupt the stored value with the masked
+ * placeholder every other field's "blank -> null" convention would produce
+ * here (see toProfileDraft's bankAccountNumber comment for why the draft
+ * is always seeded blank in the first place).
+ */
+export function bankAccountNumberSavePatch(draftValue: string): { bankAccountNumber: string } | Record<string, never> {
+  const trimmed = draftValue.trim();
+  return trimmed ? { bankAccountNumber: trimmed } : {};
 }
 
 function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: OrganizationEngine): TimelineDraftRow[] {
@@ -338,9 +414,11 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
 
   const mutation = useSaveOfficerProfile();
 
+  // Exit edit mode when navigating to a different officer (same component instance).
   useEffect(() => {
     setEditing(false);
     mutation.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [officer.officerId]);
 
   const startEditing = useCallback(() => {
@@ -404,6 +482,24 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
         uniformShoeSize: profile.uniformShoeSize.trim() || null,
         hatSize: profile.hatSize.trim() || null,
         jacketSize: profile.jacketSize.trim() || null,
+        academyClass: profile.academyClass.trim() ? Number(profile.academyClass) : null,
+        isGpfMember: triStateToBoolean(profile.isGpfMember),
+        isPoliceFuneralWelfareMember: triStateToBoolean(profile.isPoliceFuneralWelfareMember),
+        isCooperativeMember: triStateToBoolean(profile.isCooperativeMember),
+        cooperativeName: profile.cooperativeName.trim() || null,
+        salaryLevel: profile.salaryLevel.trim() || null,
+        currentSalaryStep: profile.currentSalaryStep.trim() || null,
+        currentSalary: parseMoneyDraft(profile.currentSalary),
+        otherSpecialAllowances: parseMoneyDraft(profile.otherSpecialAllowances),
+        cooperativeMonthlyDeduction: parseMoneyDraft(profile.cooperativeMonthlyDeduction),
+        // netSalary is calculated server-side from base + allowances − expenses;
+        // omit any client value so a stale draft cannot overwrite the formula.
+        bankName: profile.bankName.trim() || null,
+        // Phase 45.1 hardening pass: bankAccountNumber is WRITE-ONLY (see
+        // bankAccountNumberSavePatch's doc comment and
+        // docs/PERSONNEL_MASTER_DATA_STANDARD.md) — blank means "leave
+        // unchanged," the one field in this form where that's true.
+        ...bankAccountNumberSavePatch(profile.bankAccountNumber),
       },
       // Phase 26A stabilization (bug #1): a row added via "เพิ่มแถว" but
       // never filled in (still fully blank) previously reached the server

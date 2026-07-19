@@ -341,6 +341,67 @@ export const DICTIONARY = {
   // ── commander.* — Phase 45 completion pass: discoverable training filter group (Task 8) ──
   "commander.trainingFilterGroupTitle": tr("สถานะการฝึกอบรม", "Training Status"),
   "commander.trainingFilterAll": tr("ทั้งหมด", "All"),
+  // Phase 45.1 (Task 9): Personnel Master Data filters.
+  "commander.masterDataFilterGroupTitle": tr("ข้อมูลสมาชิก", "Membership Data"),
+  "commander.academyClassFilter": tr("รุ่น นรต.", "Police Cadet Academy Class"),
+  "commander.gpfMemberFilter": tr("สมาชิก กบข.", "GPF Member"),
+  "commander.cooperativeMemberFilter": tr("สมาชิกสหกรณ์", "Cooperative Member"),
+  "commander.cooperativeNameFilter": tr("ชื่อสหกรณ์", "Cooperative Name"),
+  // Phase 45.1 hardening pass (Task 6): localized authorization errors —
+  // usability-layer copy only (see lib/officer_profile/officer_financial_redaction.ts
+  // for why these are not, today, backed by a real server-side check).
+  "officer.financialViewDenied": tr("คุณไม่มีสิทธิ์ดูข้อมูลการเงิน", "You do not have permission to view financial information."),
+  "officer.financialEditDenied": tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลการเงิน", "You do not have permission to edit financial information."),
+  // Phase 45.1 UX refinement pass (Task 2/6): Membership and Financial
+  // Information placeholders/helper text — meaningful guidance, not
+  // generic dropdown prompts.
+  "officer.academyClassPlaceholder": tr("เช่น 61", "e.g. 61"),
+  "officer.membershipStatusPlaceholder": tr("เลือกสถานะสมาชิก", "Select membership status"),
+  "officer.cooperativeNamePlaceholder": tr("เช่น สหกรณ์ออมทรัพย์ตำรวจ", "e.g. Police Savings Cooperative"),
+  "officer.salaryLevelPlaceholder": tr("เลือกระดับเงินเดือน", "Select salary level"),
+  "officer.salaryLevelHelper": tr("เช่น ส.5", "e.g. ส.5"),
+  "officer.salaryStepPlaceholder": tr("เลือกขั้นเงินเดือน", "Select salary step"),
+  "officer.salaryStepHelper": tr("เช่น 31.5", "e.g. 31.5"),
+  "officer.baseSalaryPlaceholder": tr("เลือกจากรายการ หรือกรอกเอง", "Select from the list or enter manually"),
+  "officer.baseSalaryHelper": tr("เลือกอัตราที่ตรงกับเอกสารต้นทาง", "Choose the rate matching the source document"),
+  "officer.baseSalaryNoStepHelper": tr("เลือกขั้นเงินเดือนเพื่อดูอัตราที่เกี่ยวข้อง หรือกรอกเอง", "Select a salary step to see related rates, or enter manually"),
+  "officer.baseSalaryManualHelper": tr("กรอกเอง — กรุณาตรวจสอบกับเอกสารต้นทาง", "Manually entered — please verify against the source document"),
+  "officer.netSalaryPlaceholder": tr("กรอกยอดรับจริงตามสลิปเงินเดือน", "Enter the net amount from the pay slip"),
+  "officer.salaryFormulaHelper": tr(
+    "เงินเดือนรับจริง = ฐานเงินเดือน + เงินเพิ่ม / ค่าตอบแทนพิเศษ − รายจ่ายรวม",
+    "Net salary = base salary + special allowances / compensation − total expenses"
+  ),
+  "officer.netSalaryHelper": tr(
+    "คำนวณจากฐานเงินเดือน + เงินเพิ่ม / ค่าตอบแทนพิเศษ − รายจ่ายรวม",
+    "Calculated from base salary + special allowances / compensation − total expenses"
+  ),
+  "officer.otherSpecialAllowancesPlaceholder": tr("เช่น 2,000", "e.g. 2,000"),
+  "officer.otherSpecialAllowancesHelper": tr(
+    "พ.ส.ร. / ต.ป.ป. / ค่าเสี่ยงภัย / เงินเพิ่มและค่าตอบแทนอื่นต่อเดือน",
+    "Hazard / special duty / risk / other monthly allowances and compensation"
+  ),
+  "officer.otherSpecialAllowancesNone": tr("ไม่มีเงินเพิ่ม / ค่าตอบแทนพิเศษ", "No special allowances / compensation"),
+  "officer.cooperativeDeductionPlaceholder": tr("เช่น 8,000", "e.g. 8,000"),
+  "officer.cooperativeDeductionHelper": tr(
+    "ภาษี / กบข. / แฟลต / ค่าน้ำไฟ / หนี้สหกรณ์ / รายจ่ายอื่นต่อเดือน",
+    "Tax / GPF / housing / utilities / cooperative debt / other monthly expenses"
+  ),
+  "officer.cooperativeDeductionExceedsSalary": tr(
+    "รายจ่ายรวมต้องไม่เกินฐานเงินเดือนรวมเงินเพิ่มพิเศษ",
+    "Total expenses must not exceed base salary plus special allowances"
+  ),
+  "officer.cooperativeDeductionNone": tr("ไม่มีรายการหัก", "No expenses"),
+  "officer.salaryGaugeEmpty": tr("ยังไม่มีข้อมูลรายรับ", "No income data yet"),
+  "officer.salaryGaugeNetLabel": tr("เงินเดือนรับจริง", "Net salary"),
+  "officer.salaryGaugeLegendRemaining": tr("เงินคงเหลือ {pct}%", "Remaining {pct}%"),
+  "officer.salaryGaugeLegendExpenses": tr("รายจ่ายรวม {pct}%", "Total expenses {pct}%"),
+  "officer.salaryGaugeAria": tr(
+    "รายรับรวม {income} รายจ่ายรวม {expenses} คิดเป็น {expensePct} เปอร์เซ็นต์ เงินเดือนรับจริง {net} คิดเป็น {remainingPct} เปอร์เซ็นต์",
+    "Total income {income}. Total expenses {expenses} ({expensePct} percent). Net salary {net} ({remainingPct} percent)."
+  ),
+  "officer.bankNamePlaceholder": tr("เลือกหรือพิมพ์ชื่อธนาคาร", "Select or type a bank name"),
+  "officer.bankAccountNumberPlaceholder": tr("กรอกเลขบัญชี", "Enter account number"),
+  "officer.bankAccountNumberOnFileHelper": tr("มีข้อมูลอยู่แล้ว — พิมพ์เพื่อเปลี่ยน", "On file — type to change"),
   "commander.intelligenceFlag": tr("สัญญาณข่าวกรอง", "Intelligence Flag"),
   "commander.priority": tr("ระดับความสำคัญ", "Priority"),
   "commander.minProfileCompleteness": tr("ความสมบูรณ์ของข้อมูลขั้นต่ำ", "Minimum Profile Completeness"),
@@ -437,6 +498,10 @@ export const DICTIONARY = {
     "Edit mode — change any section, then press \"Save\" to save everything at once."
   ),
   "officer.saveFailed": tr("บันทึกไม่สำเร็จ", "Save failed"),
+  // Bug-fix pass (Task 10): distinct, user-safe success/failure copy for the
+  // Officer Workspace save flow — never the raw server/network error message.
+  "officer.saveSuccess": tr("บันทึกข้อมูลสำเร็จ", "Information saved successfully."),
+  "officer.saveErrorGeneric": tr("ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง", "Unable to save the information. Please try again."),
 
   // Officer — profile fields (spec examples; complements FIELD_LABELS)
   "profile.personalInformation": tr("ข้อมูลส่วนบุคคล", "Personal Information"),

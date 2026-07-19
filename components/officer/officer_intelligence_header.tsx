@@ -14,6 +14,7 @@
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import type { OfficerIntelligenceViewModel } from "@/lib/officer_intelligence/types";
 import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
+import { formatOfficerInformalIdentity } from "@/lib/officer_profile/informal_identity";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import type { Timeline } from "@/lib/database/query_types";
 import { PortraitManager } from "@/components/officer/portrait_manager";
@@ -56,6 +57,8 @@ export function OfficerIntelligenceHeader({
   viewModel,
   portrait,
   phone,
+  nickname,
+  academyClass,
   currentTimelineRow,
   onPortraitChanged,
 }: {
@@ -63,10 +66,15 @@ export function OfficerIntelligenceHeader({
   /** Full ResolvedOfficerPortrait (not just the URL) — PortraitManager needs source/driveFileId for the upload/replace/history UI, unchanged from before this phase. */
   portrait: ResolvedOfficerPortrait;
   phone: string | null;
+  /** From the same officer profile payload as the rest of the workspace (not a separate query). */
+  nickname?: string | null;
+  academyClass?: number | null;
   currentTimelineRow: Timeline | null;
   onPortraitChanged?: () => void;
 }) {
   const { identity, age, service, retirement, promotion } = viewModel;
+  // Hero stays Thai-primary (same convention as nearby KPI labels); formatter supports EN for tests/dictionary use.
+  const informalIdentity = formatOfficerInformalIdentity({ nickname, academyClass }, "th");
 
   return (
     <header className="rounded-2xl border border-border bg-surface p-4">
@@ -104,6 +112,11 @@ export function OfficerIntelligenceHeader({
                   </span>
                 ) : null}
               </div>
+              {informalIdentity ? (
+                <p className="mt-1 text-sm text-muted" data-testid="officer-informal-identity">
+                  {informalIdentity}
+                </p>
+              ) : null}
             </div>
             <VerificationBadge currentTimelineRow={currentTimelineRow} />
           </div>

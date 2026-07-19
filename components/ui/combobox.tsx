@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent } from "react";
 import { cn } from "@/lib/ui/cn";
 
 export interface ComboboxProps {
@@ -25,6 +25,7 @@ export interface ComboboxProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   "aria-label"?: string;
 }
 
@@ -38,6 +39,7 @@ export function Combobox({
   placeholder,
   disabled,
   className,
+  inputMode,
   "aria-label": ariaLabel,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
@@ -105,6 +107,7 @@ export function Combobox({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
+        inputMode={inputMode}
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);

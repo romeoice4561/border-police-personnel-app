@@ -1,0 +1,47 @@
+{
+  "steps": [
+    {
+      "login": "ok",
+      "url": "http://localhost:3000/dashboard"
+    },
+    {
+      "officerPage": "http://localhost:3000/officers/%E0%B8%A0%E0%B8%B2%E0%B8%844%2F20",
+      "title": "ชลัช จุมพลพักตร์ · Officer"
+    },
+    {
+      "editMode": true
+    },
+    {
+      "wholeBahtExample": {
+        "expenseLegend": "รายจ่ายรวม 7.1%",
+        "remainingLegend": "เงินคงเหลือ 92.9%",
+        "expenseOk": true,
+        "remainingOk": true,
+        "not71": true
+      }
+    },
+    {
+      "typedDeduction": "3773.50",
+      "domValue": "3773.50",
+      "decimalAccepted": true
+    },
+    {
+      "typedTrailingDot": "3773.",
+      "domValue": "3773.",
+      "trailingDotKept": true
+    },
+    {
+      "decimalExample": {
+        "expenseLegend": "รายจ่ายรวม 7.1%",
+        "remainingLegend": "เงินคงเหลือ 92.9%"
+      }
+    },
+    {
+      "screenshot": "D:\\AI Projects\\border-police-personnel-app\\tmp-runtime-evidence\\edit-gauge-decimal.png"
+    },
+    {
+      "fullScreenshot": "D:\\AI Projects\\border-police-personnel-app\\tmp-runtime-evidence\\edit-financial-full.png"
+    }
+  ],
+  "errors": []
+}

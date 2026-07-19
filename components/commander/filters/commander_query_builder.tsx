@@ -8,6 +8,7 @@ import { PROMOTION_STATUS_DISPLAY_TH } from "@/lib/intelligence/promotion";
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
 import { TRAINING_STATUS_DISPLAY_TH } from "@/lib/intelligence/training/display";
 import type { TrainingStatus } from "@/lib/intelligence/training/types";
+import { ACADEMY_CLASS_OPTIONS } from "@/lib/officer_profile/academy_class_options";
 import { useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -276,6 +277,61 @@ function PersonnelFilters({
                 <option key={status} value={status}>{TRAINING_STATUS_DISPLAY_TH[status]}</option>
               ))}
             </select>
+          </label>
+        </div>
+
+        {/* Phase 45.1 (Task 9): privacy-safe Personnel Master Data filters —
+            รุ่น นรต. / สมาชิก กบข. / สมาชิกสหกรณ์ / ชื่อสหกรณ์. Salary and bank
+            account are deliberately NOT offered here (see
+            docs/PERSONNEL_MASTER_DATA_STANDARD.md's Commander Search
+            Exposure section). */}
+        <div className="space-y-2 rounded-lg border border-border p-3">
+          <p className="text-xs font-semibold text-foreground">{t("commander.masterDataFilterGroupTitle")}</p>
+          <label className="block space-y-1 text-xs font-medium text-muted">
+            {t("commander.academyClassFilter")}
+            <select
+              className={controlClass}
+              value={value.academyClass != null ? String(value.academyClass) : ""}
+              onChange={(e) => set("academyClass", e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">{t("commander.trainingFilterAll")}</option>
+              {ACADEMY_CLASS_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-1 text-xs font-medium text-muted">
+            {t("commander.gpfMemberFilter")}
+            <select
+              className={controlClass}
+              value={value.isGpfMember == null ? "" : value.isGpfMember ? "yes" : "no"}
+              onChange={(e) => set("isGpfMember", e.target.value === "" ? undefined : e.target.value === "yes")}
+            >
+              <option value="">{t("commander.trainingFilterAll")}</option>
+              <option value="yes">{t("common.yes")}</option>
+              <option value="no">{t("common.no")}</option>
+            </select>
+          </label>
+          <label className="block space-y-1 text-xs font-medium text-muted">
+            {t("commander.cooperativeMemberFilter")}
+            <select
+              className={controlClass}
+              value={value.isCooperativeMember == null ? "" : value.isCooperativeMember ? "yes" : "no"}
+              onChange={(e) => set("isCooperativeMember", e.target.value === "" ? undefined : e.target.value === "yes")}
+            >
+              <option value="">{t("commander.trainingFilterAll")}</option>
+              <option value="yes">{t("common.yes")}</option>
+              <option value="no">{t("common.no")}</option>
+            </select>
+          </label>
+          <label className="block space-y-1 text-xs font-medium text-muted">
+            {t("commander.cooperativeNameFilter")}
+            <input
+              type="text"
+              className={controlClass}
+              value={value.cooperativeName ?? ""}
+              onChange={(e) => set("cooperativeName", e.target.value || undefined)}
+            />
           </label>
         </div>
 

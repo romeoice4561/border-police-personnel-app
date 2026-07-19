@@ -589,3 +589,31 @@ promotion requirements.
 it (`EligibilityOfficer.trainingCodes`) now flows through Training Intelligence's
 normalized course keys instead of raw free-text strings, so a future policy's matching
 will be correct-by-construction. Full detail lives in **`docs/TRAINING_INTELLIGENCE.md`**.
+
+## Phase 45.1 — Personnel Master Data Expansion
+
+A **Master Data** phase, not an Intelligence phase — no new calculation engine, no
+change to any existing Intelligence rule. Adds the personnel Master Data fields deferred
+when Phase 40A was narrowed to architecture-only work: Police Cadet Academy Class
+(`Officer.academyClass`), three membership tri-state fields (GPF/Police Funeral
+Welfare/Cooperative), Cooperative Name, and Salary/Bank fields (level, step, current
+gross, net, bank name, account number). All 11 columns are nullable/additive
+(`prisma/migrations/20260721000000_personnel_master_data_expansion/`) — every existing
+Officer row simply has them `NULL` until a human fills them in through the new
+"ข้อมูลสมาชิกและการเงิน" editor section.
+
+**Architecture rule (binding):** Membership, salary, and banking fields are factual
+Master Data, not calculated Intelligence — no engine under `lib/intelligence/` reads or
+writes them in this phase. `SalaryHistory` (the existing per-year step-history table
+feeding Salary Intelligence's "2 ขั้น" eligibility calculation) remains a distinct
+concept from the new `currentSalary`/`salaryLevel`/`currentSalaryStep` fields — neither
+reads nor writes the other.
+
+Unknown legacy membership data stays `null` (a real tri-state, never coerced to
+`false`). Bank account number is stored as `String?` (never numeric) to preserve leading
+zeros, and is masked by default everywhere except to the `officers.viewFinancial`
+permission or the officer's own profile. Commander Search exposes exactly 4
+privacy-safe filters (Academy Class, GPF/Cooperative membership, Cooperative Name);
+salary and bank fields are deliberately excluded from `CommanderQueryOfficer` entirely,
+so they cannot reach the results table, drilldowns, or the CSV export. Full detail lives
+in **`docs/PERSONNEL_MASTER_DATA_STANDARD.md`**.

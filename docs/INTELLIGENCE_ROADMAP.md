@@ -403,6 +403,25 @@ Commander Search; and `lib/commander_query/search_params.ts` /
 are directly unit-tested. `TRAINING_POLICIES` remains a fixed, empty production
 constant — no policy was configured or invented in this pass.
 
+## Phase 45.1 — Personnel Master Data Expansion
+
+A **Master Data** phase (not Intelligence): adds the personnel fields deferred when
+Phase 40A was narrowed to architecture-only work — Police Cadet Academy Class, three
+membership tri-state fields (GPF/Police Funeral Welfare/Cooperative + Cooperative Name),
+and Salary/Bank fields (level, step, current gross, net, bank name, account number). 11
+new nullable `Officer` columns
+(`prisma/migrations/20260721000000_personnel_master_data_expansion/`), a new
+"ข้อมูลสมาชิกและการเงิน" editor + read-only section in the Officer Workspace, 4
+privacy-safe Commander Search filters (Academy Class/GPF/Cooperative membership/
+Cooperative Name — salary and bank fields are deliberately excluded from
+`CommanderQueryOfficer` so they can never reach the results table, drilldowns, or CSV
+export), and one new RBAC permission (`officers.viewFinancial`, admin-only, gates the
+unmasked bank account number independently of general profile view/edit access). No
+Intelligence engine reads or writes any of these fields — a future Salary Intelligence
+engine (still unscheduled, see below) is the earliest point a calculation could read
+`currentSalary`/`salaryLevel`/`currentSalaryStep`, and it does not exist yet. Full detail
+lives in **`docs/PERSONNEL_MASTER_DATA_STANDARD.md`**.
+
 ## AI Commander Intelligence
 
 - **Purpose:** AI-assisted narrative/recommendation layer on top of

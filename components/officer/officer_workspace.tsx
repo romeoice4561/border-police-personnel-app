@@ -16,9 +16,9 @@
  */
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import type { OfficerIntelligenceCard as OfficerIntelligenceCardData } from "@/lib/intelligence";
@@ -37,6 +37,9 @@ import { CareerSection } from "@/components/officer/career_section";
 import { CurrentOrganizationSection } from "@/components/officer/current_organization_section";
 import { ContactSection } from "@/components/officer/contact_section";
 import { PersonalInformationSection } from "@/components/officer/personal_information_section";
+import { MembershipFinancialEditor } from "@/components/officer/membership_financial_editor";
+import { MembershipFinancialSection } from "@/components/officer/membership_financial_section";
+import { hasStoredBankAccountNumber } from "@/components/officer/use_officer_workspace";
 import { CareerTimelineSection } from "@/components/officer/career_timeline_section";
 import { CareerTimelineEditor } from "@/components/officer/career_timeline_editor";
 import { EducationSection } from "@/components/officer/education_section";
@@ -116,6 +119,14 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
   const isOwnProfile = user?.officerId != null && user.officerId === officer.officerId;
   const canViewFull = !AUTH_ENFORCED || can("officers.view") || isOwnProfile;
   const canEdit = !AUTH_ENFORCED || can("officers.edit") || (can("officer.editOwn") && isOwnProfile);
+  /**
+   * Phase 45.1: unmasked bank account number + full financial Master Data —
+   * a SEPARATE capability from canViewFull/canEdit (a commander or colleague
+   * with general view access still sees the bank account masked). Own
+   * profile always sees the unmasked value, matching the ownership-scoped
+   * pattern used by canEdit above.
+   */
+  const canViewFinancial = !AUTH_ENFORCED || can("officers.viewFinancial") || isOwnProfile;
 
   // An officer viewing a COLLEAGUE → restricted view (identity + Capability
   // Summary only). Admin/commander/self (or soft-guard off) → full workspace.
@@ -131,7 +142,7 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
     );
   }
 
-  return <OfficerFullWorkspace {...props} canEdit={canEdit} />;
+  return <OfficerFullWorkspace {...props} canEdit={canEdit} canViewFinancial={canViewFinancial} />;
 }
 
 /**
@@ -143,7 +154,7 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
  * viewing a colleague's (already excluded by canViewFull, but defense in
  * depth), never sees a working Edit control.
  */
-function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, officerIntelligence, skillCatalog, canEdit }: OfficerWorkspaceProps & { canEdit: boolean }) {
+function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, officerIntelligence, skillCatalog, canEdit, canViewFinancial }: OfficerWorkspaceProps & { canEdit: boolean; canViewFinancial: boolean }) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
@@ -155,21 +166,46 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
   const [galleryKey, setGalleryKey] = useState(0);
   const handlePortraitChanged = useCallback(() => setGalleryKey((k) => k + 1), []);
 
+  // Transient success flag — cleared on the next edit/cancel action (not a timer).
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
+
+  // The save mutation returns counts only (not a full officer payload), so
+  // router.refresh() is required to re-fetch Server Component props. Running
+  // it in the same turn as setEditing(false) raced React's editor→read-only
+  // teardown against the RSC payload replacement (removeChild(null)). A ref
+  // + effect defers refresh until after the editing=false commit; startTransition
+  // keeps the RSC update off the urgent path.
+  const pendingRefreshRef = useRef(false);
+  useEffect(() => {
+    if (!pendingRefreshRef.current || editing) return;
+    pendingRefreshRef.current = false;
+    startTransition(() => {
+      router.refresh();
+    });
+  }, [editing, router]);
+
   async function handleSave() {
-    // Phase 26A stabilization (bug #4/#5): a rejected save (validation
-    // failure, network error, ...) previously propagated as an unhandled
-    // promise rejection out of this onClick handler — `saveError` from
-    // useOfficerWorkspace already surfaces the message inline below, so the
-    // rejection is caught here and swallowed (not re-thrown, not logged
-    // again) rather than escaping the event handler. router.refresh() only
-    // runs after a genuinely successful save.
+    // Post-save: (1) save() PATCHes JSON and exits edit mode; (2) after that
+    // commit, the effect above refreshes Server Component data; (3) success
+    // feedback is set. Scroll position is never touched.
+    setSaveSucceeded(false);
     try {
       await save();
-      router.refresh();
+      setSaveSucceeded(true);
+      pendingRefreshRef.current = true;
     } catch {
-      // saveError (from useSaveOfficerProfile's useMutation) already holds
-      // this failure and is rendered below — nothing further to do here.
+      // saveError (from useSaveOfficerProfile) is rendered below.
     }
+  }
+
+  function handleStartEditing() {
+    setSaveSucceeded(false);
+    startEditing();
+  }
+
+  function handleCancel() {
+    setSaveSucceeded(false);
+    cancel();
   }
 
   const officerCurrentTimelineRow = currentTimelineRow(officer.timeline);
@@ -181,6 +217,8 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         viewModel={officerIntelligence}
         portrait={portrait}
         phone={officer.phone}
+        nickname={officer.nickname}
+        academyClass={officer.academyClass}
         currentTimelineRow={officerCurrentTimelineRow}
         onPortraitChanged={handlePortraitChanged}
       />
@@ -189,7 +227,7 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         <div className="flex flex-col gap-2 rounded-xl border border-accent/40 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-foreground">{t("officer.editModeBanner")}</p>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={isSaving}>
+            <Button type="button" variant="ghost" size="sm" onClick={handleCancel} disabled={isSaving}>
               {t("common.cancel")}
             </Button>
             <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
@@ -200,10 +238,22 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         </div>
       ) : null}
 
+      {/* Bug-fix pass (Task 10): distinct success/failure feedback, inline —
+          never a full-page asset, never the raw server/network error
+          message (saveError.message is intentionally NOT rendered here
+          anymore; it is still available to developers via saveError itself
+          for future logging, just never shown to the user verbatim). */}
+      {saveSucceeded && !saveError ? (
+        <div className="flex items-center gap-2 rounded-xl border border-good/40 bg-good/5 px-4 py-3 text-sm text-good" role="status">
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {t("officer.saveSuccess")}
+        </div>
+      ) : null}
+
       {saveError ? (
         <div className="flex items-center gap-2 rounded-xl border border-serious/40 bg-serious/5 px-4 py-3 text-sm text-serious" role="alert">
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {t("officer.saveFailed")}: {saveError.message}
+          {t("officer.saveErrorGeneric")}
         </div>
       ) : null}
 
@@ -232,6 +282,12 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
             <>
               <ProfileEditor profile={workspace.profile} onChange={workspace.setProfile} knownUnits={knownUnits} organizationEngine={organizationEngine} />
               <PersonalInformationEditor profile={workspace.profile} onChange={workspace.setProfile} />
+              <MembershipFinancialEditor
+                profile={workspace.profile}
+                onChange={workspace.setProfile}
+                canViewFinancial={canViewFinancial}
+                hasStoredBankAccountNumber={hasStoredBankAccountNumber(officer)}
+              />
             </>
           ) : (
             <>
@@ -242,6 +298,7 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
               <CurrentOrganizationSection officer={officer} organizationEngine={organizationEngine} />
               <ContactSection officer={officer} />
               <PersonalInformationSection officer={officer} />
+              <MembershipFinancialSection officer={officer} />
             </>
           )}
         </div>
@@ -249,7 +306,7 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         <div className="space-y-6">
           {intelligence ? <OfficerIntelligenceCard card={intelligence} /> : null}
           <ProfileCompletenessCard officer={officer} />
-          <ProfileActionsCard editing={editing} onEditProfile={startEditing} canEdit={canEdit} />
+          <ProfileActionsCard editing={editing} onEditProfile={handleStartEditing} canEdit={canEdit} />
         </div>
       </div>
 

@@ -82,6 +82,11 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   // Phase 45: Training Intelligence status filter — reads the SAME
   // TrainingSummary every other consumer (Dashboard, Officer Workspace) reads.
   if (filters.trainingStatus && row.trainingIntelligence.trainingStatus !== filters.trainingStatus) return false;
+  // Phase 45.1: Personnel Master Data filters (Task 9 — privacy-safe only).
+  if (filters.academyClass != null && row.academyClass !== filters.academyClass) return false;
+  if (filters.isGpfMember != null && row.isGpfMember !== filters.isGpfMember) return false;
+  if (filters.isCooperativeMember != null && row.isCooperativeMember !== filters.isCooperativeMember) return false;
+  if (filters.cooperativeName && !(row.cooperativeName ?? "").toLowerCase().includes(filters.cooperativeName.toLowerCase())) return false;
   return (
     matchesNumber(row.completedPromotionCycles, filters.completedPromotionCycles) &&
     matchesNumber(row.appointmentCycle, filters.appointmentCycle) &&

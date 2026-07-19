@@ -266,6 +266,14 @@ export function toQueryOfficer(
     hasOfficialPortrait: Boolean(officer.officialPortraitId || officer.thumbnailUrl || officer.driveFileId),
     hasTraining: officer.training.length > 0,
     hasDocuments: officer.documents.some((doc) => doc.isActive !== false),
+    // Phase 45.1: privacy-safe Master Data fields exposed for Commander
+    // Search filtering (Task 9) — deliberately excludes salary/bank; those
+    // stay out of CommanderQueryOfficer entirely so they can never leak
+    // into the results table, CSV export, or any drilldown built on this type.
+    academyClass: officer.academyClass ?? null,
+    isGpfMember: officer.isGpfMember ?? null,
+    isCooperativeMember: officer.isCooperativeMember ?? null,
+    cooperativeName: officer.cooperativeName ?? null,
     eligibleTwoStep: twoStepEvaluation.status === SalaryEligibilityStatus.Eligible,
     mustSkipStep: twoStepEvaluation.status === SalaryEligibilityStatus.NotEligible,
     skillSignals: toSkillSignals(officer.skills ?? [], asOf),

@@ -94,6 +94,25 @@ export interface OfficerProfilePatch {
   uniformShoeSize?: string | null;
   hatSize?: string | null;
   jacketSize?: string | null;
+  /**
+   * Phase 45.1: Personnel Master Data Expansion — membership + salary/bank
+   * fields. Factual Master Data only; no Intelligence calculation reads or
+   * writes these. Membership fields are tri-state (true/false/null) — null
+   * means "unknown", never coerced to false.
+   */
+  academyClass?: number | null;
+  isGpfMember?: boolean | null;
+  isPoliceFuneralWelfareMember?: boolean | null;
+  isCooperativeMember?: boolean | null;
+  cooperativeName?: string | null;
+  salaryLevel?: string | null;
+  currentSalaryStep?: string | null;
+  currentSalary?: number | null;
+  otherSpecialAllowances?: number | null;
+  cooperativeMonthlyDeduction?: number | null;
+  netSalary?: number | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
 }
 
 export class OfficerRepository {
@@ -199,6 +218,19 @@ export class OfficerRepository {
     if ("uniformShoeSize" in patch) data.uniformShoeSize = patch.uniformShoeSize;
     if ("hatSize" in patch) data.hatSize = patch.hatSize;
     if ("jacketSize" in patch) data.jacketSize = patch.jacketSize;
+    if ("academyClass" in patch) data.academyClass = patch.academyClass;
+    if ("isGpfMember" in patch) data.isGpfMember = patch.isGpfMember;
+    if ("isPoliceFuneralWelfareMember" in patch) data.isPoliceFuneralWelfareMember = patch.isPoliceFuneralWelfareMember;
+    if ("isCooperativeMember" in patch) data.isCooperativeMember = patch.isCooperativeMember;
+    if ("cooperativeName" in patch) data.cooperativeName = patch.cooperativeName;
+    if ("salaryLevel" in patch) data.salaryLevel = patch.salaryLevel;
+    if ("currentSalaryStep" in patch) data.currentSalaryStep = patch.currentSalaryStep;
+    if ("currentSalary" in patch) data.currentSalary = patch.currentSalary;
+    if ("otherSpecialAllowances" in patch) data.otherSpecialAllowances = patch.otherSpecialAllowances;
+    if ("cooperativeMonthlyDeduction" in patch) data.cooperativeMonthlyDeduction = patch.cooperativeMonthlyDeduction;
+    if ("netSalary" in patch) data.netSalary = patch.netSalary;
+    if ("bankName" in patch) data.bankName = patch.bankName;
+    if ("bankAccountNumber" in patch) data.bankAccountNumber = patch.bankAccountNumber;
 
     if (Object.keys(data).length === 0) return existing;
 

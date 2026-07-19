@@ -72,6 +72,15 @@ export interface CommanderQueryFilters {
   retirementWithin?: "within-1-year" | "within-3-years" | "within-5-years";
   /** Phase 45: filters on TrainingSummary.trainingStatus (lib/intelligence/training) — used by the Commander Dashboard's "ขาดหลักสูตร"/Action Center drill-down links and the Commander Search training filter. */
   trainingStatus?: TrainingStatus;
+  // ── Phase 45.1: Personnel Master Data filters (Task 9 — privacy-safe only) ──
+  /** รุ่น นรต. — matches CommanderQueryOfficer.academyClass exactly. */
+  academyClass?: number;
+  /** สมาชิก กบข. — tri-state: true/false match exactly; omitted means "any" (never filters out "unspecified" implicitly). */
+  isGpfMember?: boolean;
+  /** สมาชิกสหกรณ์. */
+  isCooperativeMember?: boolean;
+  /** ชื่อสหกรณ์ — case-insensitive substring match, mirrors other free-text filters. */
+  cooperativeName?: string;
 }
 
 export interface DrilldownFilter {

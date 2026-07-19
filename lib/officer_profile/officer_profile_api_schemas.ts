@@ -30,6 +30,8 @@ import { SALARY_STEP_OPTIONS } from "@/lib/officer_profile/salary_step_options";
 import { isPositionLevel } from "@/lib/commander_query/position_level";
 import { RELIGION_OPTIONS } from "@/lib/officer_profile/religion_options";
 import { EDUCATION_LEVEL_OPTIONS } from "@/lib/officer_profile/education_level_options";
+import { isValidAcademyClass } from "@/lib/officer_profile/academy_class_options";
+import { normalizeBankAccountNumber } from "@/lib/officer_profile/bank_account";
 
 /** Reasonable upper bound so a field can't be used to store megabytes, without rejecting real Thai text. */
 const MAX_FIELD = 500;
@@ -60,6 +62,59 @@ const thaiPersonnelDate = z
 function optionalAllowed(values: readonly string[]) {
   return optionalText.refine((v) => v == null || values.includes(v), { message: "Invalid option" });
 }
+
+/**
+ * Phase 45.1: a tri-state membership field (true/false/null). Unlike a plain
+ * `z.boolean().nullable()`, this never coerces a missing/unset value to
+ * false — "unspecified" legacy data must remain null end-to-end.
+ */
+const triStateMembership = z.boolean().nullable().optional();
+
+/**
+ * Non-negative salary amount with up to 2 decimal places (satang).
+ * Empty input → null (never coerced to zero). Rounded to 2 dp at the boundary.
+ */
+const nonNegativeMoney = z
+  .union([z.number(), z.string(), z.null()])
+  .optional()
+  .transform((v, ctx) => {
+    if (v === undefined) return undefined;
+    if (v === null || v === "") return null;
+    const n = typeof v === "number" ? v : Number(String(v).trim());
+    if (!Number.isFinite(n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Salary must be a number" });
+      return z.NEVER;
+    }
+    if (n < 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Salary must not be negative" });
+      return z.NEVER;
+    }
+    if (n > 10_000_000) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Salary exceeds maximum" });
+      return z.NEVER;
+    }
+    // Reject >2 decimal places (after accounting for float noise).
+    const cents = Math.round(n * 100);
+    if (Math.abs(n * 100 - cents) > 1e-6) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Salary may have at most 2 decimal places" });
+      return z.NEVER;
+    }
+    return Math.round(n * 100) / 100;
+  });
+
+/**
+ * Phase 45.1: bank account number — stored as TEXT to preserve leading
+ * zeros. Accepts digits and common separators (hyphen/space), trimmed and
+ * whitespace-collapsed; empty becomes null. No pattern tied to one bank.
+ */
+const bankAccountNumberField = z
+  .string()
+  .trim()
+  .max(40)
+  .nullable()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? normalizeBankAccountNumber(v) : null))
+  .refine((v) => v == null || /^[0-9\-]+$/.test(v), { message: "Bank account number may contain only digits and hyphens" });
 
 /**
  * PATCH body: officer profile fields (all optional — only supplied keys are
@@ -118,6 +173,60 @@ export const officerProfilePatchSchema = z.object({
   uniformShoeSize: optionalText,
   hatSize: optionalText,
   jacketSize: optionalText,
+  // Phase 45.1: Personnel Master Data Expansion — membership + salary/bank.
+  academyClass: z.coerce
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .refine((v) => v == null || isValidAcademyClass(v), { message: "Academy class must be between 40 and 100" }),
+  isGpfMember: triStateMembership,
+  isPoliceFuneralWelfareMember: triStateMembership,
+  isCooperativeMember: triStateMembership,
+  cooperativeName: optionalText,
+  salaryLevel: optionalText,
+  currentSalaryStep: optionalText,
+  currentSalary: nonNegativeMoney,
+  // เงินเพิ่มพิเศษอื่น ๆ — added to base before subtracting รายจ่ายรวม.
+  otherSpecialAllowances: nonNegativeMoney,
+  // รายจ่ายรวม — total monthly expenses (e.g. cooperative repayment).
+  // netSalary is accepted for backward compatibility but overwritten server-side
+  // (see resolveNetSalaryForSave) — never trusted as the source of truth.
+  cooperativeMonthlyDeduction: nonNegativeMoney,
+  netSalary: nonNegativeMoney,
+  bankName: optionalText,
+  bankAccountNumber: bankAccountNumberField,
+}).superRefine((data, ctx) => {
+  // When all three money inputs are present in the same request, enforce
+  // expenses ≤ base + allowances. Partial patches are checked in
+  // OfficerProfileService against the existing officer row.
+  if (
+    data.currentSalary === undefined ||
+    data.otherSpecialAllowances === undefined ||
+    data.cooperativeMonthlyDeduction === undefined
+  ) {
+    return;
+  }
+
+  const income = (data.currentSalary ?? 0) + (data.otherSpecialAllowances ?? 0);
+  const expenses = data.cooperativeMonthlyDeduction ?? 0;
+
+  if (data.currentSalary == null && data.otherSpecialAllowances == null && expenses > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Total expenses cannot exceed base salary plus special allowances",
+      path: ["cooperativeMonthlyDeduction"],
+    });
+    return;
+  }
+
+  if (expenses > income) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Total expenses cannot exceed base salary plus special allowances",
+      path: ["cooperativeMonthlyDeduction"],
+    });
+  }
 });
 
 /**

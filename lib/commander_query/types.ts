@@ -86,6 +86,16 @@ export interface CommanderQueryOfficer {
   hasOfficialPortrait: boolean;
   hasTraining: boolean;
   hasDocuments: boolean;
+  /**
+   * Phase 45.1: privacy-safe Master Data fields (Task 9) — salary/bank
+   * fields are deliberately NOT part of this type; see
+   * docs/PERSONNEL_MASTER_DATA_STANDARD.md's Commander Search Exposure
+   * section.
+   */
+  academyClass: number | null;
+  isGpfMember: boolean | null;
+  isCooperativeMember: boolean | null;
+  cooperativeName: string | null;
   /** Phase 41 Part 5: precomputed salary-step signals (reused from career_salary_engine) so the "ผู้มีสิทธิ์ 2 ขั้น" / "ผู้ต้องเว้นขั้น" presets can filter without a separate subsystem. */
   eligibleTwoStep: boolean;
   mustSkipStep: boolean;

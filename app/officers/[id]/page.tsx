@@ -23,6 +23,7 @@ import { loadOrganizationEngine } from "@/lib/organization/organization_engine_s
 import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { buildOfficerProfileIntelligence } from "@/lib/server/commander_intelligence_service";
 import { composeOfficerIntelligenceViewModel } from "@/lib/officer_intelligence/view_model";
+import { redactOfficerForClient } from "@/lib/officer_profile/officer_financial_redaction";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,17 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
           Hand off the plain OrgTree snapshot instead — OfficerWorkspace
           (client) wraps it in organizationEngineFromTree() itself, exactly
           like the client-fetch path (useOrganizationEngine) already does. */}
+      {/* Phase 45.1 hardening pass: redactOfficerForClient() masks
+          bankAccountNumber BEFORE it crosses into the Client Component
+          tree — this codebase has no server-verifiable session (see that
+          function's doc comment), so the raw value must never enter the
+          RSC payload for ANY viewer today, not even one whose local
+          client-side session claims officers.viewFinancial. officerIntelligence
+          above is composed from the UN-redacted `officer` (Intelligence
+          calculations never touch bank fields, so this is safe and avoids
+          a second, redundant fetch). */}
       <OfficerWorkspace
-        officer={officer}
+        officer={redactOfficerForClient(officer)}
         knownUnits={knownUnits}
         orgTree={organizationEngine.getOrganizationTree()}
         portrait={portrait}

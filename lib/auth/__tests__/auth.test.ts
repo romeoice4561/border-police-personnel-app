@@ -174,3 +174,23 @@ test("mock backend rejects wrong password and unknown user with a stable error c
   assert.equal(unknown.ok, false);
   if (!unknown.ok) assert.equal(unknown.error, "INVALID_CREDENTIALS");
 });
+
+// ── Phase 45.1: Personnel Master Data Expansion — financial-field RBAC ─────
+
+test("22. Unauthorized role (officer/commander) does not have officers.viewFinancial — matches 'unauthorized update rejected' at the UI-gating layer", () => {
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "officers.viewFinancial"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "officers.viewFinancial"), false);
+});
+
+test("23. Authorized role (admin) has officers.viewFinancial — matches 'authorized update succeeds' at the UI-gating layer", () => {
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "officers.viewFinancial"), true);
+});
+
+test("officers.viewFinancial is independent of officers.view/officers.edit — a role could theoretically have general view without financial view (documented, not currently assigned to any role)", () => {
+  // No role today has officers.view without ALSO lacking officers.viewFinancial
+  // (commander has the former, not the latter) — this is exactly the
+  // separation Task 14 requires: general profile visibility does not imply
+  // seeing the unmasked bank account number.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "officers.view"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "officers.viewFinancial"), false);
+});

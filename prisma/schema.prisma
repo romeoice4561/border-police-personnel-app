@@ -31,27 +31,27 @@ datasource db {
 /// One officer. `officerId` is the deterministic id from the knowledge layer
 /// (region/source-file), used as the idempotent upsert key.
 model Officer {
-  id               Int        @id @default(autoincrement())
-  officerId        String     @unique
-  rank             String
-  firstName        String
-  lastName         String
-  currentPosition  String?
-  currentUnit      String?
-  phone            String?
-  careerYears      Int        @default(0)
-  qualityScore     Int?
-  knowledgeScore   Int?
-  region           String?
-  confidence       Int?
+  id              Int      @id @default(autoincrement())
+  officerId       String   @unique
+  rank            String
+  firstName       String
+  lastName        String
+  currentPosition String?
+  currentUnit     String?
+  phone           String?
+  careerYears     Int      @default(0)
+  qualityScore    Int?
+  knowledgeScore  Int?
+  region          String?
+  confidence      Int?
   // Phase 17B: Google Drive photo identity, preserved from the Drive import
   // metadata (no re-scan, no re-download). All nullable — an officer imported
   // from a non-Drive source (or before this phase) simply has no photo.
-  driveFileId      String?
-  thumbnailUrl     String?
-  webViewUrl       String?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  driveFileId     String?
+  thumbnailUrl    String?
+  webViewUrl      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Phase 20C: optional links to the Organization master data (Phase 20A),
   // resolved from currentUnit/region/timeline text via OrganizationService.
@@ -59,28 +59,28 @@ model Officer {
   // Timeline.unit) are UNCHANGED and remain the source of truth. SetNull so
   // removing a Region/Battalion/Company can never block or cascade into
   // Officer rows. Never backfilled by this phase.
-  regionRef        Region?    @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  regionId         Int?
-  battalionRef     Battalion? @relation(fields: [battalionId], references: [id], onDelete: SetNull)
-  battalionId      Int?
-  companyRef       Company?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  companyId        Int?
+  regionRef       Region?       @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  regionId        Int?
+  battalionRef    Battalion?    @relation(fields: [battalionId], references: [id], onDelete: SetNull)
+  battalionId     Int?
+  companyRef      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId       Int?
   // Phase 26B Part C/H: optional link to the top-level Headquarters (see
   // Headquarters model docs). Nullable/additive, same SetNull convention as
   // regionId/battalionId/companyId above.
-  headquartersRef  Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
-  headquartersId   Int?
+  headquartersRef Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
+  headquartersId  Int?
 
   // Phase 23A: Officer Profile Workspace — additional contact channels.
   // All nullable/additive; existing `phone`/Phone[] are unchanged and remain
   // the primary phone. These are flat fields (matching the existing
   // phone/region flat-field style) rather than a separate Contact table.
-  email            String?
-  lineId           String?
-  facebookUrl      String?
+  email       String?
+  lineId      String?
+  facebookUrl String?
   // Phase 26B Part 5 Part C/I: nickname is shown alongside the other contact
   // channels (Phone/Email/LINE/Facebook/Nickname), not a separate section.
-  nickname         String?
+  nickname    String?
 
   // Phase 26B Part 5 Part G: Personal Information, extending Basic
   // Information. All nullable/additive — every existing officer simply has
@@ -93,14 +93,14 @@ model Officer {
   // while still accepting a "Custom" value, exactly like Rank/Position/Unit
   // already do (see lib/officer_profile/*_options.ts) — never a closed set
   // that could silently blank an imported/edited value outside the list.
-  dateOfBirth      DateTime? @db.Date
-  bloodGroup       String?
-  rh               String?
-  maritalStatus    String?
-  children         Int?
-  homeProvince     String?
-  shirtSize        String?
-  nationality      String?
+  dateOfBirth   DateTime? @db.Date
+  bloodGroup    String?
+  rh            String?
+  maritalStatus String?
+  children      Int?
+  homeProvince  String?
+  shirtSize     String?
+  nationality   String?
 
   // Phase 26B Part 5 Part O (optional improvements — all nullable/additive,
   // no regression risk). Free-form TEXT throughout for the same
@@ -124,6 +124,52 @@ model Officer {
   hatSize          String?
   jacketSize       String?
 
+  // Phase 45.1: Personnel Master Data Expansion — membership + salary/bank
+  // fields, all nullable/additive (every existing officer simply has these
+  // unset until a human fills them in; nothing is backfilled or guessed).
+  // These are FACTUAL Master Data, never derived Intelligence values — no
+  // Salary Intelligence calculation reads or writes them in this phase.
+  //
+  // academyClass: integer 40-100 (validated at the API layer, not a DB
+  // CHECK constraint, matching this schema's existing convention of
+  // validating ranges in Zod rather than SQL — see isValidYearBE/isValidDay
+  // for the same pattern on Timeline).
+  academyClass                 Int?
+  // Membership tri-state fields: Boolean? so "unknown" (legacy data) stays
+  // NULL and is never silently coerced to false — the UI's three-state
+  // control (ใช่/ไม่ใช่/ไม่ระบุ) maps 1:1 to (true/false/null).
+  isGpfMember                  Boolean?
+  isPoliceFuneralWelfareMember Boolean?
+  isCooperativeMember          Boolean?
+  cooperativeName              String?
+  // Salary level/step are free TEXT (not a DB enum) — the audit found no
+  // existing closed vocabulary for these two fields, so (matching Rank/
+  // Position's established "curated-suggestion, never a closed set"
+  // convention) the UI offers suggestions but never forces one, and no
+  // value here is ever guessed from salaryStep (SalaryHistory) or any
+  // other Intelligence-derived source.
+  salaryLevel                  String?
+  currentSalaryStep            String?
+  // Salary composition — Decimal(12,2) so satang (2 decimal places) are
+  // preserved. netSalary is DERIVED at save time as:
+  //   currentSalary + otherSpecialAllowances - cooperativeMonthlyDeduction
+  // (รายจ่ายรวม; never trusted from the client). Non-negative amounts and
+  // expenses ≤ income are enforced at the API/service layer (see
+  // officerProfilePatchSchema / resolveNetSalaryForSave).
+  //
+  // cooperativeMonthlyDeduction is retained as the persisted field name for
+  // backward compatibility; its current business meaning is total monthly
+  // deductions.
+  currentSalary                Decimal? @db.Decimal(12, 2)
+  otherSpecialAllowances       Decimal? @db.Decimal(12, 2)
+  cooperativeMonthlyDeduction  Decimal? @db.Decimal(12, 2)
+  netSalary                    Decimal? @db.Decimal(12, 2)
+  // Bank account number is stored as TEXT (never a numeric type) so leading
+  // zeros are preserved exactly as entered — this is the single most
+  // important storage decision in this phase; see docs/PERSONNEL_MASTER_DATA_STANDARD.md.
+  bankName                     String?
+  bankAccountNumber            String?
+
   // Phase 26A: Official Portrait Architecture. A single pinned pointer to the
   // ProfilePhoto row that is this officer's OFFICIAL portrait — displayed
   // everywhere (header, list, dashboard, search) in preference to any Drive
@@ -139,15 +185,15 @@ model Officer {
   officialPortrait   ProfilePhoto? @relation("OfficialPortrait", fields: [officialPortraitId], references: [id], onDelete: SetNull)
   officialPortraitId Int?
 
-  timeline         Timeline[]
-  phones           Phone[]
-  education        Education[]
-  training         Training[]
-  salaryHistory    SalaryHistory[]
+  timeline      Timeline[]
+  phones        Phone[]
+  education     Education[]
+  training      Training[]
+  salaryHistory SalaryHistory[]
   /// Phase 29A: Officer Document Vault — every document uploaded for this officer.
-  documents        OfficerDocument[]
+  documents     OfficerDocument[]
   /// Phase 44: Personnel Capability Intelligence — this officer's skills/competencies.
-  skills           OfficerSkill[]
+  skills        OfficerSkill[]
 
   @@index([rank])
   @@index([currentUnit])
@@ -164,14 +210,14 @@ model Officer {
 /// re-import replaces rather than duplicates. `year` is stored as the raw
 /// source string (never re-derived here) plus a parsed numeric year when known.
 model Timeline {
-  id         Int     @id @default(autoincrement())
-  officer    Officer @relation(fields: [officerId], references: [id], onDelete: Cascade)
-  officerId  Int
-  sequence   Int
-  year       String
-  yearValue  Int?
-  position   String
-  unit       String?
+  id        Int     @id @default(autoincrement())
+  officer   Officer @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId Int
+  sequence  Int
+  year      String
+  yearValue Int?
+  position  String
+  unit      String?
 
   // Phase 23A: Officer Profile Workspace — editable per-row fields, additive.
   // `rank` is the officer's rank AT THAT POINT in the timeline (may differ
@@ -182,9 +228,9 @@ model Timeline {
   // status ("ยังไม่ตรวจ" | "ตรวจแล้ว" | "ยืนยันแล้ว", defaulting to
   // unverified). Existing rows (from import) get rank=null/source=null/
   // verified=default — never backfilled, never invented.
-  rank       String?
-  source     String?
-  verified   String  @default("ยังไม่ตรวจ")
+  rank     String?
+  source   String?
+  verified String  @default("ยังไม่ตรวจ")
 
   // Phase 41 Part 1: structured Position Level (ระดับตำแหน่ง), additive
   // alongside the free-text `position` above (never merged/altered). This is
@@ -213,16 +259,16 @@ model Timeline {
   // auto-derived from day/month/yearBE (month/day default to 1 when unknown)
   // for sorting/range queries without re-parsing text; NULL until the row is
   // migrated (by the backfill script) or edited through the new date editor.
-  day           Int?
-  month         Int?
-  yearBE        Int?
+  day              Int?
+  month            Int?
+  yearBE           Int?
   // Phase 42A hotfix: Thai Police promotion eligibility follows the
   // appointment cycle (B.E.) rather than raw calendar duration. Nullable so
   // existing rows remain valid; the workspace defaults it from yearBE when a
   // human edits/saves a row.
   appointmentCycle Int?
-  isPresent     Boolean   @default(false)
-  effectiveDate DateTime? @db.Date
+  isPresent        Boolean   @default(false)
+  effectiveDate    DateTime? @db.Date
 
   // Phase 26B Part C: structured organization hierarchy, additive alongside
   // the legacy free-text `unit` column above (never altered/dropped — every
@@ -253,10 +299,10 @@ model Timeline {
   // simply has verificationStatus=null until a human explicitly sets it via
   // the new editor. verifiedBy/verifiedDate/verificationRemark are the
   // supporting audit fields Part H asks for.
-  verificationStatus  String?
-  verifiedBy          String?
-  verifiedDate        DateTime? @db.Date
-  verificationRemark  String?
+  verificationStatus String?
+  verifiedBy         String?
+  verifiedDate       DateTime? @db.Date
+  verificationRemark String?
 
   @@unique([officerId, sequence])
   @@index([yearValue])
@@ -351,8 +397,8 @@ model Unit {
 /// deterministic idempotent upsert key. `category` stores the AssetCategory
 /// value (e.g. "NEIGHBOR_MAP"); PROFILE assets are never persisted here.
 model Asset {
-  id           Int      @id @default(autoincrement())
-  assetId      String   @unique
+  id           Int       @id @default(autoincrement())
+  assetId      String    @unique
   category     String
   region       String?
   company      String?
@@ -366,18 +412,18 @@ model Asset {
   imageHeight  Int?
   createdTime  DateTime?
   updatedTime  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Phase 22A: user-editable metadata fields added by the Metadata Editor.
   // All additive — existing rows default to empty/false; never removes old cols.
-  unitName     String?
-  unitNumber   String?
+  unitName    String?
+  unitNumber  String?
   /// Comma-joined keyword list (e.g. "แผนที่,หน่วยข้างเคียง"). UI splits on comma to render chips.
-  keywords     String   @default("")
-  description  String?
-  remarks      String?
-  verified     Boolean  @default(false)
+  keywords    String  @default("")
+  description String?
+  remarks     String?
+  verified    Boolean @default(false)
 
   // Phase 20B: optional link to the authoritative Organization master data
   // (Phase 20A), resolved from the existing `company` text at import time.
@@ -385,8 +431,8 @@ model Asset {
   // unchanged and remain the source of truth for assets that don't resolve
   // to a registered Company. SetNull so removing a Company never blocks or
   // cascades into Assets.
-  companyRef   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  companyId    Int?
+  companyRef Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId  Int?
 
   @@index([category])
   @@index([region])
@@ -416,9 +462,9 @@ model Headquarters {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  regions      Region[]
-  timeline     Timeline[]
-  officers     Officer[]
+  regions  Region[]
+  timeline Timeline[]
+  officers Officer[]
 
   @@index([displayOrder])
 }
@@ -428,12 +474,12 @@ model Headquarters {
 /// Region. This table (not folder/OCR text) is the source of truth every
 /// future module (Officers, Gallery, Portfolio, permissions, ...) reads.
 model Region {
-  id           Int        @id @default(autoincrement())
-  code         String     @unique
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
   nameTh       String
-  displayOrder Int        @default(0)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Phase 26B Part C/H: optional link to the owning Headquarters (e.g. ภาค4
   // belongs to บช.ตชด.). Nullable/additive — every pre-26B Region row simply
@@ -442,10 +488,10 @@ model Region {
   headquarters   Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
   headquartersId Int?
 
-  battalions   Battalion[]
-  officers     Officer[]
-  timeline     Timeline[]
-  aliases      OrganizationAlias[]
+  battalions Battalion[]
+  officers   Officer[]
+  timeline   Timeline[]
+  aliases    OrganizationAlias[]
 
   @@index([headquartersId])
 }
@@ -454,19 +500,19 @@ model Region {
 /// `code` is the 2-digit string ("44"), unique. Belongs to one Region; has
 /// many Companies.
 model Battalion {
-  id           Int       @id @default(autoincrement())
-  code         String    @unique
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
   nameTh       String
-  region       Region    @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  region       Region   @relation(fields: [regionId], references: [id], onDelete: Restrict)
   regionId     Int
-  displayOrder Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  companies    Company[]
-  officers     Officer[]
-  timeline     Timeline[]
-  aliases      OrganizationAlias[]
+  companies Company[]
+  officers  Officer[]
+  timeline  Timeline[]
+  aliases   OrganizationAlias[]
 
   @@index([regionId])
 }
@@ -484,10 +530,10 @@ model Company {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  assets       Asset[]
-  officers     Officer[]
-  timeline     Timeline[]
-  aliases      OrganizationAlias[]
+  assets   Asset[]
+  officers Officer[]
+  timeline Timeline[]
+  aliases  OrganizationAlias[]
 
   @@index([battalionId])
 }
@@ -525,18 +571,18 @@ model UnresolvedOrganizationCode {
 /// is set, matching the level the alias resolves to (never invents a level
 /// the alias text didn't specify).
 model OrganizationAlias {
-  id                Int       @id @default(autoincrement())
+  id                   Int        @id @default(autoincrement())
   /// The raw legacy/OCR-variant/unofficial text this alias recognizes.
-  aliasText         String
-  canonicalRegion    Region?    @relation(fields: [canonicalRegionId], references: [id], onDelete: Cascade)
-  canonicalRegionId  Int?
-  canonicalBattalion Battalion? @relation(fields: [canonicalBattalionId], references: [id], onDelete: Cascade)
+  aliasText            String
+  canonicalRegion      Region?    @relation(fields: [canonicalRegionId], references: [id], onDelete: Cascade)
+  canonicalRegionId    Int?
+  canonicalBattalion   Battalion? @relation(fields: [canonicalBattalionId], references: [id], onDelete: Cascade)
   canonicalBattalionId Int?
-  canonicalCompany   Company?   @relation(fields: [canonicalCompanyId], references: [id], onDelete: Cascade)
-  canonicalCompanyId Int?
+  canonicalCompany     Company?   @relation(fields: [canonicalCompanyId], references: [id], onDelete: Cascade)
+  canonicalCompanyId   Int?
   /// Where this alias came from (e.g. "observed-seed-migration", "ocr-variant", "manual") — for audit, not logic.
-  source            String
-  createdAt         DateTime  @default(now())
+  source               String
+  createdAt            DateTime   @default(now())
 
   @@index([aliasText])
   @@index([canonicalRegionId])
@@ -588,13 +634,13 @@ model ProfilePhoto {
   //                  officer. On a new upload the prior current portrait is set
   //                  to false and the new row to true — old portraits are never
   //                  deleted (portrait history).
-  sourceType       String   @default("DRIVE_SCAN")
-  storagePath      String?
-  mimeType         String?
-  width            Int?
-  height           Int?
-  uploadedBy       String?
-  isProfile        Boolean  @default(false)
+  sourceType  String  @default("DRIVE_SCAN")
+  storagePath String?
+  mimeType    String?
+  width       Int?
+  height      Int?
+  uploadedBy  String?
+  isProfile   Boolean @default(false)
 
   // Phase 24B-2: Legacy Portrait Verification. Additive columns — existing
   // rows default to UNKNOWN/null (safe, non-destructive migration).
@@ -611,9 +657,9 @@ model ProfilePhoto {
   //                    of matchStatus.
   //   classifiedBy   — reviewer actor id (nullable; null until classified).
   //   classifiedAt   — when the classification was set (nullable).
-  classification   String   @default("UNKNOWN")
-  classifiedBy     String?
-  classifiedAt     DateTime?
+  classification String    @default("UNKNOWN")
+  classifiedBy   String?
+  classifiedAt   DateTime?
 
   // Phase 26A: Official Portrait Architecture. `photoType` records WHAT this
   // image fundamentally IS, independent of `classification` (what the
@@ -635,7 +681,7 @@ model ProfilePhoto {
   // `Officer.officialPortraitId` is the single source of truth for "the
   // official portrait"; photoType is descriptive metadata for the gallery/
   // history UI and future classification.
-  photoType        String   @default("GOOGLE_PROFILE_CARD")
+  photoType String @default("GOOGLE_PROFILE_CARD")
 
   // Opposite side of Officer.officialPortrait (Phase 26A). A ProfilePhoto can
   // be the pinned official portrait of at most one officer.
@@ -682,24 +728,24 @@ model ProfilePhoto {
 /// V2 master data — Region (ภาค). Top of the organization tree.
 /// Example codes: REGION_1, REGION_2, REGION_SOUTH. (DATABASE_V2_DESIGN §17)
 model MasterRegion {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code         String    @unique
-  nameTh       String    @map("name_th")
-  nameEn       String?   @map("name_en")
-  displayOrder Int       @default(0) @map("display_order")
-  isActive     Boolean   @default(true) @map("is_active")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String  @unique
+  nameTh       String  @map("name_th")
+  nameEn       String? @map("name_en")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
 
   // Standard columns (DATABASE_V2_DESIGN §6)
-  status       String    @default("ACTIVE")
-  version      Int       @default(1)
-  isDeleted    Boolean   @default(false) @map("is_deleted")
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?   @map("created_by") @db.Uuid
-  updatedBy    String?   @map("updated_by") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  commands     MasterCommand[]
+  commands MasterCommand[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -718,14 +764,14 @@ model MasterCommand {
   displayOrder Int          @default(0) @map("display_order")
   isActive     Boolean      @default(true) @map("is_active")
 
-  status       String       @default("ACTIVE")
-  version      Int          @default(1)
-  isDeleted    Boolean      @default(false) @map("is_deleted")
-  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?      @map("created_by") @db.Uuid
-  updatedBy    String?      @map("updated_by") @db.Uuid
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   subdivisions MasterSubdivision[]
 
@@ -748,16 +794,16 @@ model MasterSubdivision {
   displayOrder Int           @default(0) @map("display_order")
   isActive     Boolean       @default(true) @map("is_active")
 
-  status       String        @default("ACTIVE")
-  version      Int           @default(1)
-  isDeleted    Boolean       @default(false) @map("is_deleted")
-  deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?       @map("created_by") @db.Uuid
-  updatedBy    String?       @map("updated_by") @db.Uuid
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  companies    MasterCompany[]
+  companies MasterCompany[]
 
   @@index([commandId])
   @@index([isActive])
@@ -783,14 +829,14 @@ model MasterCompany {
   displayOrder  Int               @default(0) @map("display_order")
   isActive      Boolean           @default(true) @map("is_active")
 
-  status        String            @default("ACTIVE")
-  version       Int               @default(1)
-  isDeleted     Boolean           @default(false) @map("is_deleted")
-  deletedAt     DateTime?         @map("deleted_at") @db.Timestamptz(6)
-  createdBy     String?           @map("created_by") @db.Uuid
-  updatedBy     String?           @map("updated_by") @db.Uuid
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([subdivisionId])
   @@index([isActive])
@@ -801,23 +847,23 @@ model MasterCompany {
 /// V2 master data — Rank (ยศ). Ordered by `level` (never by text comparison).
 /// (DATABASE_V2_DESIGN §22)
 model MasterRank {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code         String    @unique
-  nameTh       String    @map("name_th")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String  @unique
+  nameTh       String  @map("name_th")
   abbreviation String?
   level        Int
-  groupName    String?   @map("group_name")
-  displayOrder Int       @default(0) @map("display_order")
-  isActive     Boolean   @default(true) @map("is_active")
+  groupName    String? @map("group_name")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
 
-  status       String    @default("ACTIVE")
-  version      Int       @default(1)
-  isDeleted    Boolean   @default(false) @map("is_deleted")
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?   @map("created_by") @db.Uuid
-  updatedBy    String?   @map("updated_by") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([level])
   @@index([isActive])
@@ -828,21 +874,21 @@ model MasterRank {
 /// V2 master data — Position (ตำแหน่ง). Every position carries a code + Thai
 /// name so spellings never diverge. (DATABASE_V2_DESIGN §23, MASTER_DATA Position)
 model MasterPosition {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code          String    @unique
-  nameTh        String    @map("name_th")
-  positionGroup String?   @map("position_group")
-  displayOrder  Int       @default(0) @map("display_order")
-  isActive      Boolean   @default(true) @map("is_active")
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String  @unique
+  nameTh        String  @map("name_th")
+  positionGroup String? @map("position_group")
+  displayOrder  Int     @default(0) @map("display_order")
+  isActive      Boolean @default(true) @map("is_active")
 
-  status        String    @default("ACTIVE")
-  version       Int       @default(1)
-  isDeleted     Boolean   @default(false) @map("is_deleted")
-  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdBy     String?   @map("created_by") @db.Uuid
-  updatedBy     String?   @map("updated_by") @db.Uuid
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([isActive])
   @@index([isDeleted])
@@ -852,23 +898,23 @@ model MasterPosition {
 /// V2 master data — Timeline Event Type. Every career-timeline event references
 /// one of these (no free text). (DATABASE_V2_DESIGN §38)
 model MasterTimelineType {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code         String    @unique
-  nameTh       String    @map("name_th")
-  nameEn       String?   @map("name_en")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String  @unique
+  nameTh       String  @map("name_th")
+  nameEn       String? @map("name_en")
   icon         String?
   color        String?
-  displayOrder Int       @default(0) @map("display_order")
-  isActive     Boolean   @default(true) @map("is_active")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
 
-  status       String    @default("ACTIVE")
-  version      Int       @default(1)
-  isDeleted    Boolean   @default(false) @map("is_deleted")
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?   @map("created_by") @db.Uuid
-  updatedBy    String?   @map("updated_by") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([isActive])
   @@index([isDeleted])
@@ -878,23 +924,23 @@ model MasterTimelineType {
 /// V2 master data — Asset Type. Classifies every Asset (Portrait, Map, GP7, …).
 /// (DATABASE_V2_DESIGN §51)
 model MasterAssetType {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code         String    @unique
-  nameTh       String    @map("name_th")
-  nameEn       String?   @map("name_en")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String  @unique
+  nameTh       String  @map("name_th")
+  nameEn       String? @map("name_en")
   icon         String?
   color        String?
-  displayOrder Int       @default(0) @map("display_order")
-  isActive     Boolean   @default(true) @map("is_active")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
 
-  status       String    @default("ACTIVE")
-  version      Int       @default(1)
-  isDeleted    Boolean   @default(false) @map("is_deleted")
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?   @map("created_by") @db.Uuid
-  updatedBy    String?   @map("updated_by") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([isActive])
   @@index([isDeleted])
@@ -904,21 +950,21 @@ model MasterAssetType {
 /// V2 master data — Document Type (GP7, คำสั่งแต่งตั้ง, …).
 /// (DATABASE_V2_DESIGN §52)
 model MasterDocumentType {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code         String    @unique
-  nameTh       String    @map("name_th")
-  nameEn       String?   @map("name_en")
-  displayOrder Int       @default(0) @map("display_order")
-  isActive     Boolean   @default(true) @map("is_active")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String  @unique
+  nameTh       String  @map("name_th")
+  nameEn       String? @map("name_en")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
 
-  status       String    @default("ACTIVE")
-  version      Int       @default(1)
-  isDeleted    Boolean   @default(false) @map("is_deleted")
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdBy    String?   @map("created_by") @db.Uuid
-  updatedBy    String?   @map("updated_by") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status    String    @default("ACTIVE")
+  version   Int       @default(1)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([isActive])
   @@index([isDeleted])
@@ -995,26 +1041,26 @@ model Phone {
 
 /// One database-import run, for auditing/idempotency reporting.
 model ImportJob {
-  id                Int         @id @default(autoincrement())
-  startedAt         DateTime    @default(now())
-  finishedAt        DateTime?
-  images            Int         @default(0)
-  imported          Int         @default(0)
-  skipped           Int         @default(0)
-  errors            Int         @default(0)
+  id         Int       @id @default(autoincrement())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  images     Int       @default(0)
+  imported   Int       @default(0)
+  skipped    Int       @default(0)
+  errors     Int       @default(0)
 
-  logs              ImportLog[]
+  logs ImportLog[]
 }
 
 /// A per-record log line for an import job (created/updated/skipped/error).
 model ImportLog {
-  id          Int       @id @default(autoincrement())
-  job         ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  jobId       Int
-  officerId   String
-  action      String
-  message     String?
-  createdAt   DateTime  @default(now())
+  id        Int       @id @default(autoincrement())
+  job       ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId     Int
+  officerId String
+  action    String
+  message   String?
+  createdAt DateTime  @default(now())
 
   @@index([jobId])
   @@index([officerId])
@@ -1055,7 +1101,7 @@ model SkillCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  skills    Skill[]
+  skills Skill[]
 
   @@index([sortOrder])
   @@index([active])
@@ -1063,25 +1109,25 @@ model SkillCategory {
 
 /// One skill within a category (ภาษาอังกฤษ, การประยุกต์ใช้ AI, TCCC, …).
 model Skill {
-  id                 Int           @id @default(autoincrement())
+  id                  Int           @id @default(autoincrement())
   /// Stable slug for idempotent seeding (e.g. "LANG_EN", "AI_APPLIED"). Never shown to users.
-  code               String        @unique
-  category           SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  categoryId         Int
-  nameTh             String
-  nameEn             String
+  code                String        @unique
+  category            SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId          Int
+  nameTh              String
+  nameEn              String
   /// Comma-joined free-text keywords to widen search (e.g. "อังกฤษ,english,ล่าม,interpreter"). Split on comma by the search layer.
-  searchableKeywords String        @default("")
+  searchableKeywords  String        @default("")
   /// Whether this skill typically carries a certificate (drives the UI's certificate fields; never blocks saving).
-  requiresCertificate Boolean      @default(false)
+  requiresCertificate Boolean       @default(false)
   /// Whether this skill's certificate can expire (drives the expiry field + "expiring soon" dashboard).
-  hasExpiry          Boolean       @default(false)
-  sortOrder          Int           @default(0)
-  active             Boolean       @default(true)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  hasExpiry           Boolean       @default(false)
+  sortOrder           Int           @default(0)
+  active              Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
-  officerSkills      OfficerSkill[]
+  officerSkills OfficerSkill[]
 
   @@index([categoryId])
   @@index([active])
@@ -1112,31 +1158,31 @@ model SkillLevel {
 /// current single-certificate UI; OfficerSkillCertificate holds the
 /// forward-compatible multi-certificate history.
 model OfficerSkill {
-  id                    Int         @id @default(autoincrement())
-  officer               Officer     @relation(fields: [officerId], references: [id], onDelete: Cascade)
-  officerId             Int
-  skill                 Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  skillId               Int
+  id                     Int         @id @default(autoincrement())
+  officer                Officer     @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  officerId              Int
+  skill                  Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId                Int
   /// Proficiency level (nullable — an officer may record a skill before assessing a level).
-  level                 SkillLevel? @relation(fields: [levelId], references: [id], onDelete: SetNull)
-  levelId               Int?
-  yearsExperience       Int?
+  level                  SkillLevel? @relation(fields: [levelId], references: [id], onDelete: SetNull)
+  levelId                Int?
+  yearsExperience        Int?
   /// Inline "primary certificate" fields (current UI). The multi-cert future lives in OfficerSkillCertificate.
-  certificateNumber     String?
-  issuingOrganization   String?
-  issueDate             DateTime?   @db.Date
-  expiryDate            DateTime?   @db.Date
+  certificateNumber      String?
+  issuingOrganization    String?
+  issueDate              DateTime?   @db.Date
+  expiryDate             DateTime?   @db.Date
   /// Verification triad (same shape as Timeline's verification — a closed Bool + who/when).
-  verified              Boolean     @default(false)
-  verifiedBy            String?
-  verifiedDate          DateTime?   @db.Date
+  verified               Boolean     @default(false)
+  verifiedBy             String?
+  verifiedDate           DateTime?   @db.Date
   /// When true, Commander Search / AI can surface "has this skill AND is ready to deploy".
-  availableForDeployment Boolean    @default(false)
-  remarks               String?
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  availableForDeployment Boolean     @default(false)
+  remarks                String?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
-  certificates          OfficerSkillCertificate[]
+  certificates OfficerSkillCertificate[]
 
   @@unique([officerId, skillId])
   @@index([officerId])
