@@ -52,7 +52,7 @@ import { SkillsSection } from "@/components/officer/skills_section";
 import { SkillsEditor } from "@/components/officer/skills_editor";
 import type { SkillCatalog } from "@/lib/capability/capability_types";
 import { AchievementsSection } from "@/components/officer/achievements_section";
-import { DocumentsSection } from "@/components/officer/documents_section";
+import { EpfSection } from "@/components/officer/epf/epf_section";
 import { NotesSection } from "@/components/officer/notes_section";
 import { PhotoGallery } from "@/components/officer/photo_gallery";
 import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
@@ -369,9 +369,16 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
 
       <AchievementsSection />
 
-      {/* Phase 31D.1: supporting evidence is grouped as Media after the core
-          career/qualification/achievement record. Existing gallery and
-          document components keep their props and behaviour unchanged. */}
+      {/* Phase 46: the Electronic Personnel File (e-PF) is now the central
+          document repository, positioned before Media/Photo Gallery. It
+          replaces DocumentsSection's rendering slot (same underlying
+          upload/download/delete/history endpoints) — Photo Gallery keeps its
+          own Media section unchanged below. Phase 46A: `portrait` is passed
+          through only to derive the "Official Portrait" completeness signal
+          (source !== "PLACEHOLDER") — never used to trigger a portrait
+          upload from the e-PF section. */}
+      <EpfSection officerId={officer.officerId} documents={officer.documents} portrait={portrait} />
+
       <section className="space-y-4">
         <div className="border-b border-border pb-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">Media</h2>
@@ -380,10 +387,6 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         <div className="rounded-2xl border border-border bg-neutral-bg p-4">
           <h3 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h3>
           <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} refreshKey={galleryKey} />
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <DocumentsSection officerId={officer.officerId} documents={officer.documents} />
         </div>
       </section>
 

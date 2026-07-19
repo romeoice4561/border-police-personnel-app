@@ -214,3 +214,42 @@ test("countForOfficer counts all rows regardless of isActive", async () => {
   const count = await repo.countForOfficer(10);
   assert.equal(count, 2);
 });
+
+// ── updateMetadata (Phase 46 — e-PF Foundation) ─────────────────────────────
+
+test("updateMetadata updates title and description on an existing row", async () => {
+  const { repo } = makeRepo();
+  const row = await repo.create(10, {
+    documentType: "GP7", title: "Old Title", description: "Old description",
+    storagePath: null, fileUrl: null, originalFilename: null,
+    mimeType: null, fileSize: null, uploadedAt: null, uploadedBy: null, version: 1,
+  });
+
+  const updated = await repo.updateMetadata(row.id, { title: "New Title", description: "New description" });
+  assert.ok(updated);
+  assert.equal(updated.title, "New Title");
+  assert.equal(updated.description, "New description");
+});
+
+test("updateMetadata returns null for a non-existent id", async () => {
+  const { repo } = makeRepo();
+  const result = await repo.updateMetadata(999, { title: "Anything" });
+  assert.equal(result, null);
+});
+
+test("updateMetadata only touches the fields provided, leaving others (version, isActive, file fields) untouched", async () => {
+  const { repo } = makeRepo();
+  const row = await repo.create(10, {
+    documentType: "GP7", title: "Keep type", description: "Keep description",
+    storagePath: "path/x.pdf", fileUrl: "https://s.test/x.pdf", originalFilename: "x.pdf",
+    mimeType: "application/pdf", fileSize: 123, uploadedAt: new Date(), uploadedBy: "admin", version: 1,
+  });
+
+  const updated = await repo.updateMetadata(row.id, { title: "Only Title Changed" });
+  assert.ok(updated);
+  assert.equal(updated.title, "Only Title Changed");
+  assert.equal(updated.description, "Keep description");
+  assert.equal(updated.documentType, "GP7");
+  assert.equal(updated.version, 1);
+  assert.equal(updated.isActive, true);
+});

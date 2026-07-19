@@ -230,6 +230,14 @@ export class DocumentUploadService {
   }
 
   /**
+   * Updates a document's editable metadata (title/description — Phase 46,
+   * e-PF Foundation). Returns null when the document does not exist.
+   */
+  updateMetadata(id: number, input: { title?: string; description?: string | null }): Promise<OfficerDocument | null> {
+    return this.repository.updateMetadata(id, input);
+  }
+
+  /**
    * Returns the minimal metadata required to serve a file download:
    * the public URL, the original filename, and the MIME type.
    *

@@ -797,6 +797,221 @@ export const DICTIONARY = {
   "document.filterMissing": tr("ยังไม่มีเอกสาร", "Missing"),
   "document.filterLabel": tr("กรองเอกสาร", "Filter documents"),
 
+  // ── epf.* — Phase 46 Electronic Personnel File (e-PF) Foundation ──
+  "epf.sectionTitle": tr("แฟ้มประวัติอิเล็กทรอนิกส์ (e-PF)", "Electronic Personnel File (e-PF)"),
+  "epf.sectionSubtitle": tr(
+    "ศูนย์รวมเอกสารประจำตัวข้าราชการตำรวจ",
+    "Central document repository for this officer"
+  ),
+  "epf.documentCount": tr("เอกสารทั้งหมด", "Total Documents"),
+  "epf.categoryDocumentCount": tr("รายการ", "documents"),
+  "epf.collapseCategory": tr("ย่อหมวดหมู่", "Collapse category"),
+  "epf.expandCategory": tr("ขยายหมวดหมู่", "Expand category"),
+
+  // Search
+  "epf.searchLabel": tr("ค้นหาในแฟ้มประวัติ", "Search in e-PF"),
+  "epf.searchPlaceholder": tr("ค้นหาชื่อ, หมวดหมู่, แท็ก, เลขที่เอกสาร", "Search title, category, tag, document number"),
+  "epf.searchNoResults": tr("ไม่พบเอกสารที่ตรงกับการค้นหา", "No documents match your search."),
+
+  // Filters
+  "epf.filterCategory": tr("หมวดหมู่", "Category"),
+  "epf.filterStatus": tr("สถานะ", "Status"),
+  "epf.filterYear": tr("ปี", "Year"),
+  "epf.filterUploadedBy": tr("ผู้อัปโหลด", "Uploaded By"),
+  "epf.filterAllCategories": tr("ทุกหมวดหมู่", "All Categories"),
+  "epf.filterAllYears": tr("ทุกปี", "All Years"),
+  "epf.filterAllUploaders": tr("ทุกคน", "Everyone"),
+  "epf.sortLabel": tr("เรียงลำดับ", "Sort"),
+  "epf.sortNewest": tr("ใหม่ล่าสุด", "Newest"),
+  "epf.sortOldest": tr("เก่าที่สุด", "Oldest"),
+  "epf.sortAlphabetical": tr("ตามตัวอักษร", "Alphabetical"),
+
+  // Document status (e-PF badge language — reuses document.status* tones)
+  "epf.statusOfficial": tr("เอกสารทางการ", "Official"),
+  "epf.statusVerified": tr("ตรวจสอบแล้ว", "Verified"),
+  "epf.statusPendingVerification": tr("รอการตรวจสอบ", "Pending Verification"),
+  "epf.statusArchived": tr("จัดเก็บถาวร", "Archived"),
+  "epf.statusDraft": tr("ยังไม่มีเอกสาร", "Draft"),
+
+  // Document card
+  "epf.cardIssueDate": tr("วันที่ออกเอกสาร", "Issue Date"),
+  "epf.cardUploadedDate": tr("วันที่อัปโหลด", "Uploaded"),
+  "epf.cardFileSize": tr("ขนาดไฟล์", "File Size"),
+  "epf.cardFileType": tr("ประเภทไฟล์", "File Type"),
+  "epf.cardUploadedBy": tr("อัปโหลดโดย", "Uploaded By"),
+  "epf.cardAiReady": tr("พร้อมสำหรับ AI", "AI Ready"),
+  "epf.cardPreview": tr("ดูตัวอย่าง", "Preview"),
+  "epf.cardDownload": tr("ดาวน์โหลด", "Download"),
+  "epf.cardDetails": tr("รายละเอียด", "Details"),
+  "epf.cardHistory": tr("ประวัติ", "History"),
+  "epf.cardUpload": tr("อัปโหลด", "Upload"),
+  "epf.cardReplace": tr("แทนที่", "Replace"),
+
+  // Detail drawer
+  "epf.detailTitle": tr("รายละเอียดเอกสาร", "Document Details"),
+  "epf.detailClose": tr("ปิด", "Close"),
+  "epf.detailMetadataHeading": tr("ข้อมูลเอกสาร", "Metadata"),
+  "epf.detailNotesHeading": tr("หมายเหตุ", "Notes"),
+  "epf.detailTimelineHeading": tr("ไทม์ไลน์", "Timeline"),
+  "epf.detailHistoryHeading": tr("ประวัติการอัปโหลด", "Upload History"),
+  "epf.detailAiHeading": tr("การวิเคราะห์ด้วย AI", "AI Analysis"),
+  "epf.detailAiComingSoon": tr("ความสามารถนี้จะเปิดใช้งานในระยะถัดไป", "This capability will be available in a future phase."),
+  "epf.detailFieldTitle": tr("ชื่อเอกสาร", "Title"),
+  "epf.detailFieldDescription": tr("คำอธิบาย", "Description"),
+  "epf.detailFieldCategory": tr("หมวดหมู่", "Category"),
+  "epf.detailSave": tr("บันทึก", "Save"),
+  "epf.detailCancel": tr("ยกเลิก", "Cancel"),
+  "epf.detailSaved": tr("บันทึกแล้ว", "Saved"),
+  "epf.detailSaveFailed": tr("บันทึกไม่สำเร็จ", "Failed to save"),
+  "epf.detailUnsupportedFieldsNote": tr(
+    "เลขที่เอกสาร วันที่ออกเอกสาร หน่วยงานที่ออก แท็ก และหมายเหตุ จะรองรับในระยะถัดไป",
+    "Document number, issue date, issuing agency, tags, and remarks will be supported in a future phase."
+  ),
+
+  // Empty state
+  "epf.emptyStateTitle": tr("ยังไม่มีการอัปโหลดเอกสารประจำตัว", "No personnel documents have been uploaded."),
+  "epf.emptyStateAction": tr("อัปโหลดเอกสาร", "Upload Document"),
+
+  // Category labels (Phase 46 — DOCUMENT_CATEGORIES)
+  "epf.category.IDENTITY": tr("เอกสารประจำตัว", "Identity Documents"),
+  "epf.category.OFFICIAL_PERSONNEL": tr("เอกสารราชการ", "Official Personnel Documents"),
+  "epf.category.EDUCATION": tr("การศึกษา", "Education"),
+  "epf.category.TRAINING": tr("การฝึกอบรม", "Training"),
+  "epf.category.AWARDS": tr("เกียรติบัตรและรางวัล", "Awards"),
+  "epf.category.MEDICAL": tr("การแพทย์", "Medical"),
+  "epf.category.FINANCIAL": tr("การเงิน", "Financial"),
+  "epf.category.WEAPONS_QUALIFICATION": tr("การทดสอบอาวุธปืน", "Weapons Qualification"),
+  "epf.category.MISCELLANEOUS": tr("เอกสารอื่น ๆ", "Miscellaneous"),
+
+  // ── epf.dashboard.* — Phase 46A Intelligence Dashboard ──
+  "epf.dashboard.title": tr("ภาพรวมแฟ้มประวัติ", "e-PF Overview"),
+  "epf.dashboard.totalDocuments": tr("เอกสารทั้งหมด", "Total Documents"),
+  "epf.dashboard.categoriesUsed": tr("หมวดหมู่ที่ใช้งาน", "Categories Used"),
+  "epf.dashboard.completionPercent": tr("ความสมบูรณ์ของแฟ้ม", "Completion"),
+  "epf.dashboard.missingRecommended": tr("เอกสารแนะนำที่ขาด", "Missing Recommended"),
+  "epf.dashboard.recentlyUploaded": tr("อัปโหลดล่าสุด", "Recently Uploaded"),
+  "epf.dashboard.totalStorage": tr("พื้นที่จัดเก็บทั้งหมด", "Total Storage Used"),
+  "epf.dashboard.largestFile": tr("ไฟล์ขนาดใหญ่ที่สุด", "Largest File"),
+  "epf.dashboard.latestUpdated": tr("อัปเดตล่าสุด", "Latest Updated"),
+  "epf.dashboard.unknown": tr("ไม่ทราบ", "Unknown"),
+  "epf.dashboard.none": tr("ไม่มี", "None"),
+
+  // Completeness intelligence
+  "epf.completeness.title": tr("ความสมบูรณ์ของเอกสาร", "Document Completeness"),
+  "epf.completeness.present": tr("มีเอกสารแล้ว", "Present"),
+  "epf.completeness.missing": tr("ยังไม่มี", "Missing"),
+  "epf.completeness.unknown": tr("ไม่ทราบสถานะ", "Unknown"),
+  "epf.completeness.progressLabel": tr("ความคืบหน้าความสมบูรณ์ของแฟ้มประวัติ", "e-PF completeness progress"),
+  "epf.completeness.checklist.GP7": tr("ก.พ.7", "GP7"),
+  "epf.completeness.checklist.OFFICIAL_PORTRAIT": tr("ภาพถ่ายทางการ", "Official Portrait"),
+  "epf.completeness.checklist.NATIONAL_ID": tr("บัตรประชาชน", "ID Card"),
+  "epf.completeness.checklist.HOUSE_REGISTRATION": tr("ทะเบียนบ้าน", "House Registration"),
+  "epf.completeness.checklist.EDUCATION_CERTIFICATE": tr("วุฒิการศึกษา", "Education"),
+  "epf.completeness.checklist.TRAINING_CERTIFICATE": tr("การฝึกอบรม", "Training"),
+  "epf.completeness.checklist.AWARD": tr("เกียรติบัตร/รางวัล", "Awards"),
+  "epf.completeness.checklist.MEDICAL_DOCUMENT": tr("เอกสารทางการแพทย์", "Medical"),
+  "epf.completeness.checklist.SALARY_DOCUMENT": tr("เอกสารเงินเดือน", "Salary"),
+  "epf.completeness.checklist.ANNUAL_EVALUATION": tr("แบบประเมินผลงานประจำปี", "Evaluation"),
+  "epf.completeness.checklist.FIREARMS_QUALIFICATION": tr("ผลทดสอบอาวุธปืน", "Firearms Qualification"),
+
+  // Missing document panel
+  "epf.missingPanel.title": tr("เอกสารที่แนะนำให้เพิ่มเติม", "Documents Recommended for Completion"),
+  "epf.missingPanel.allComplete": tr("เอกสารครบถ้วนตามรายการแนะนำแล้ว", "All recommended documents are on file."),
+  "epf.missingPanel.upload": tr("อัปโหลด", "Upload"),
+  "epf.missingPanel.groupRequired": tr("เอกสารจำเป็น", "Required Documents"),
+  "epf.missingPanel.groupProfessional": tr("เอกสารวิชาชีพ", "Professional Documents"),
+  "epf.missingPanel.groupOptional": tr("เอกสารเพิ่มเติม", "Optional Documents"),
+
+  // Recent activity
+  "epf.activity.title": tr("กิจกรรมล่าสุด", "Recent Activity"),
+  "epf.activity.uploaded": tr("อัปโหลดแล้ว", "Uploaded"),
+  "epf.activity.updated": tr("อัปเดตแล้ว", "Updated"),
+  "epf.activity.empty": tr("ยังไม่มีกิจกรรม", "No activity yet."),
+
+  // Quick actions
+  "epf.actions.upload": tr("อัปโหลดเอกสาร", "Upload Document"),
+  "epf.actions.expandAll": tr("ขยายทั้งหมด", "Expand All"),
+  "epf.actions.collapseAll": tr("ย่อทั้งหมด", "Collapse All"),
+  "epf.actions.downloadSelected": tr("ดาวน์โหลดที่เลือก", "Download Selected"),
+  "epf.actions.printEpf": tr("พิมพ์แฟ้มประวัติ", "Print e-PF"),
+  "epf.actions.exportPdf": tr("ส่งออก PDF", "Export PDF"),
+  "epf.actions.ocr": tr("OCR อัตโนมัติ", "Automatic OCR"),
+  "epf.actions.aiAnalysis": tr("การวิเคราะห์ด้วย AI", "AI Analysis"),
+  "epf.actions.comingSoon": tr("จะเปิดใช้งานในระยะถัดไป", "Coming in a future phase"),
+
+  // Storage summary
+  "epf.storage.title": tr("สรุปพื้นที่จัดเก็บ", "Storage Summary"),
+  "epf.storage.total": tr("พื้นที่ทั้งหมด", "Total Storage"),
+  "epf.storage.average": tr("ขนาดเฉลี่ยต่อเอกสาร", "Average Document Size"),
+  "epf.storage.largest": tr("เอกสารขนาดใหญ่ที่สุด", "Largest Document"),
+  "epf.storage.images": tr("รูปภาพ", "Images"),
+  "epf.storage.pdfs": tr("PDF", "PDFs"),
+  "epf.storage.other": tr("อื่น ๆ", "Other"),
+
+  // Category dashboard
+  "epf.categoryDashboard.documents": tr("เอกสาร", "documents"),
+  "epf.categoryDashboard.storage": tr("พื้นที่จัดเก็บ", "Storage"),
+  "epf.categoryDashboard.lastUpdated": tr("อัปเดตล่าสุด", "Last updated"),
+  "epf.categoryDashboard.noUpdates": tr("ยังไม่มีการอัปเดต", "No updates yet"),
+
+  // ── epf.hero.* — Phase 46B Executive Hero Summary ──
+  "epf.hero.title": tr("แฟ้มประวัติอิเล็กทรอนิกส์", "Electronic Personnel File"),
+  "epf.hero.fileHealth": tr("สถานะความสมบูรณ์ของแฟ้ม", "Officer File Health"),
+  "epf.hero.documentCount": tr("จำนวนเอกสาร", "Documents"),
+  "epf.hero.storageUsed": tr("พื้นที่จัดเก็บ", "Storage Used"),
+  "epf.hero.lastUpdated": tr("อัปเดตล่าสุด", "Last Updated"),
+
+  // File Health card
+  "epf.health.title": tr("สถานะความสมบูรณ์ของแฟ้ม", "File Health"),
+  "epf.health.healthy": tr("สมบูรณ์ดี", "Healthy"),
+  "epf.health.needsAttention": tr("ควรตรวจสอบ", "Needs Attention"),
+  "epf.health.incomplete": tr("ยังไม่สมบูรณ์", "Incomplete"),
+  "epf.health.complete": tr("ครบถ้วน", "Complete"),
+  "epf.health.missing": tr("ขาดหาย", "Missing"),
+  "epf.health.unknown": tr("ไม่ทราบ", "Unknown"),
+
+  // AI Insights (deterministic, rule-based — never an LLM)
+  "epf.insights.title": tr("ข้อมูลเชิงวิเคราะห์", "AI Insights"),
+  "epf.insights.subtitle": tr("สรุปข้อเท็จจริงจากข้อมูลที่มีอยู่โดยอัตโนมัติ", "Automated facts derived from existing data"),
+  "epf.insights.empty": tr("ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์", "Not enough data yet for insights."),
+  "epf.insight.missingGp7": tr("ยังไม่มีการอัปโหลด ก.พ.7", "GP7 has not been uploaded."),
+  "epf.insight.missingMedical": tr("ยังไม่มีใบรับรองแพทย์", "Medical certificate is missing."),
+  "epf.insight.missingPortrait": tr("ยังไม่มีภาพถ่ายทางการ", "Official portrait is missing."),
+  "epf.insight.hasPortrait": tr("มีภาพถ่ายทางการแล้ว", "Official portrait already exists."),
+  "epf.insight.hasTraining": tr("มีเอกสารการฝึกอบรม", "Training records available."),
+  "epf.insight.hasAwards": tr("มีเอกสารเกียรติบัตร/รางวัล", "Awards available."),
+  "epf.insight.pendingVerification": tr("มีเอกสารรอการตรวจสอบ", "documents pending verification."),
+  "epf.insight.latestUploadDaysAgo": tr("อัปโหลดล่าสุดเมื่อ", "Latest upload was"),
+  "epf.insight.latestUploadDaysAgoSuffix": tr("วันที่แล้ว", "days ago."),
+  "epf.insight.completionSummary": tr("แฟ้มประวัติมีความสมบูรณ์", "Personnel file is"),
+  "epf.insight.completionSummarySuffix": tr("เปอร์เซ็นต์", "% complete."),
+
+  // Recommended Next Actions
+  "epf.nextActions.title": tr("ขั้นตอนที่แนะนำต่อไป", "Recommended Next Actions"),
+  "epf.action.uploadMissing": tr("อัปโหลดเอกสารที่ขาด", "Upload missing document"),
+  "epf.action.verifyPending": tr("ตรวจสอบเอกสารที่รอดำเนินการ", "documents awaiting verification"),
+  "epf.action.reviewRecent": tr("ตรวจทานเอกสารที่อัปเดตล่าสุด", "Review recently updated document"),
+  "epf.action.completeProfile": tr("ดำเนินการให้แฟ้มประวัติสมบูรณ์", "Complete the personnel file"),
+  "epf.action.uploadMissingExplain": tr("เอกสารนี้ยังไม่มีในแฟ้มประวัติ", "This document has not been added to the file yet."),
+  "epf.action.verifyPendingExplain": tr("เอกสารเหล่านี้อัปโหลดแล้วแต่ยังไม่ได้รับการตรวจสอบ", "These documents have been uploaded but not yet verified."),
+  "epf.action.reviewRecentExplain": tr("มีเอกสารที่เพิ่งอัปโหลดหรืออัปเดต ควรตรวจทาน", "A document was recently uploaded or updated and may need review."),
+  "epf.action.completeProfileExplain": tr("แฟ้มประวัติยังไม่ครบตามรายการแนะนำ", "The personnel file is not yet complete against the recommended checklist."),
+
+  // Quick Actions groups
+  "epf.actions.availableGroup": tr("การดำเนินการที่ใช้งานได้", "Available Actions"),
+  "epf.actions.futureGroup": tr("ความสามารถในอนาคต", "Future Capabilities"),
+  "epf.actions.futurePhaseBadge": tr("ระยะถัดไป", "Future Phase"),
+
+  // Improved empty states
+  "epf.emptyStateHelp": tr("อัปโหลดเอกสารเพื่อเริ่มต้นแฟ้มประวัติอิเล็กทรอนิกส์ของเจ้าหน้าที่นายนี้", "Upload a document to start building this officer's electronic personnel file."),
+  "epf.categoryEmptyState": tr("ยังไม่มีเอกสารในหมวดหมู่นี้", "No documents have been uploaded in this category."),
+  "epf.categoryEmptyUpload": tr("อัปโหลดเอกสารแรก", "Upload First Document"),
+
+  // Recent activity grouping
+  "epf.activity.groupToday": tr("วันนี้", "Today"),
+  "epf.activity.groupLast7Days": tr("7 วันล่าสุด", "Last 7 Days"),
+  "epf.activity.groupEarlier": tr("ก่อนหน้านี้", "Earlier"),
+
   // ── auth.* — Phase 46 login screen ──
   "auth.systemNameShort": tr("BPPIS", "BPPIS"),
   // Phase 46A: title parts (each styled distinctly — see requirement 3).

@@ -190,6 +190,40 @@ export async function handleGetDocument(
   return jsonOk(doc);
 }
 
+const metadataUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+});
+
+/**
+ * PATCH — updates a document's editable metadata (title/description).
+ * Phase 46 (e-PF Foundation): only fields that are real, persisted columns
+ * on OfficerDocument are editable here — never touches file bytes, version,
+ * or active/inactive state. 404 when the document does not exist, 400 when
+ * the body fails validation.
+ */
+export async function handleUpdateDocumentMetadata(
+  service: DocumentUploadService,
+  rawOfficerId: string,
+  rawDocId: string,
+  request: Request
+): Promise<Response> {
+  const officerParsed = officerIdParamSchema.safeParse({ id: rawOfficerId });
+  if (!officerParsed.success) return badRequest("Invalid officer id");
+
+  const docParsed = docIdParamSchema.safeParse({ docId: rawDocId });
+  if (!docParsed.success) return badRequest("Invalid document id");
+
+  const body = await request.json().catch(() => null);
+  const parsed = metadataUpdateSchema.safeParse(body);
+  if (!parsed.success) return badRequest("Invalid metadata payload.");
+
+  const updated = await service.updateMetadata(docParsed.data.docId, parsed.data);
+  if (!updated) return notFound("Document not found.");
+
+  return jsonOk(updated);
+}
+
 /**
  * DELETE — version-aware soft-delete (PART 2 / PART 7).
  *

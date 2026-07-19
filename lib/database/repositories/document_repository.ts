@@ -175,4 +175,25 @@ export class DocumentRepository {
   countForOfficer(officerId: number): Promise<number> {
     return this.db.officerDocument.count({ where: { officerId } });
   }
+
+  /**
+   * Updates the editable metadata fields of a document row (Phase 46 — e-PF
+   * Foundation). Only `title`/`description` are real, persisted columns on
+   * OfficerDocument today — this never touches file bytes, version, or
+   * active/inactive state. Returns null when the row doesn't exist.
+   */
+  async updateMetadata(
+    id: number,
+    input: { title?: string; description?: string | null }
+  ): Promise<OfficerDocument | null> {
+    const existing = await this.findById(id);
+    if (!existing) return null;
+    return this.db.officerDocument.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      },
+    });
+  }
 }
