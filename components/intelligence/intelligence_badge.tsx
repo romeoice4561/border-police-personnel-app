@@ -1,4 +1,8 @@
+"use client";
+
 import type { OfficerFlag, OfficerPriority, PromotionStatus, RetirementStatus } from "@/lib/intelligence";
+import { PROMOTION_STATUS_KEY, RETIREMENT_STATUS_KEY, PRIORITY_KEY, FLAG_KEY } from "@/lib/intelligence/commander_intelligence_copy";
+import { useT } from "@/components/i18n/language_provider";
 import { cn } from "@/lib/ui/cn";
 
 type Tone = "good" | "warning" | "serious" | "critical" | "neutral";
@@ -19,43 +23,50 @@ function Badge({ label, tone, className }: { label: string; tone: Tone; classNam
   );
 }
 
+const PROMOTION_STATUS_TONE: Record<PromotionStatus, Tone> = {
+  eligible: "good",
+  near_eligible: "warning",
+  not_eligible: "serious",
+  unknown: "neutral",
+};
+
 export function PromotionStatusBadge({ status }: { status: PromotionStatus }) {
-  const meta: Record<PromotionStatus, { label: string; tone: Tone }> = {
-    eligible: { label: "Promotion Ready", tone: "good" },
-    near_eligible: { label: "Near Promotion", tone: "warning" },
-    not_eligible: { label: "Not Eligible", tone: "serious" },
-    unknown: { label: "Promotion Unknown", tone: "neutral" },
-  };
-  return <Badge {...meta[status]} />;
+  const { t } = useT();
+  return <Badge label={t(PROMOTION_STATUS_KEY[status])} tone={PROMOTION_STATUS_TONE[status]} />;
 }
+
+const RETIREMENT_STATUS_TONE: Record<RetirementStatus, Tone> = {
+  normal: "neutral",
+  retiring_within_2_years: "serious",
+  retiring_within_1_year: "critical",
+  retired: "critical",
+  unknown: "neutral",
+};
 
 export function RetirementStatusBadge({ status }: { status: RetirementStatus }) {
-  const meta: Record<RetirementStatus, { label: string; tone: Tone }> = {
-    normal: { label: "Retirement Normal", tone: "neutral" },
-    retiring_within_2_years: { label: "Retiring < 2 Years", tone: "serious" },
-    retiring_within_1_year: { label: "Retiring < 1 Year", tone: "critical" },
-    retired: { label: "Retired", tone: "critical" },
-    unknown: { label: "Retirement Unknown", tone: "neutral" },
-  };
-  return <Badge {...meta[status]} />;
+  const { t } = useT();
+  return <Badge label={t(RETIREMENT_STATUS_KEY[status])} tone={RETIREMENT_STATUS_TONE[status]} />;
 }
 
+const PRIORITY_TONE: Record<OfficerPriority, Tone> = {
+  low: "neutral",
+  medium: "warning",
+  high: "serious",
+  critical: "critical",
+};
+
 export function PriorityBadge({ priority }: { priority: OfficerPriority }) {
-  const meta: Record<OfficerPriority, { label: string; tone: Tone }> = {
-    low: { label: "Low Priority", tone: "neutral" },
-    medium: { label: "Medium Priority", tone: "warning" },
-    high: { label: "High Priority", tone: "serious" },
-    critical: { label: "Critical Priority", tone: "critical" },
-  };
-  return <Badge {...meta[priority]} />;
+  const { t } = useT();
+  return <Badge label={t(PRIORITY_KEY[priority])} tone={PRIORITY_TONE[priority]} />;
 }
 
 export function FlagBadge({ flag }: { flag: OfficerFlag }) {
+  const { t } = useT();
   const tone: Record<OfficerFlag["severity"], Tone> = {
     info: "good",
     warning: "warning",
     serious: "serious",
     critical: "critical",
   };
-  return <Badge label={flag.label} tone={tone[flag.severity]} />;
+  return <Badge label={t(FLAG_KEY[flag.code])} tone={tone[flag.severity]} />;
 }

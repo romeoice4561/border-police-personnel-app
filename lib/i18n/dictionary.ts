@@ -620,6 +620,79 @@ export const DICTIONARY = {
   "officer.completeness.documents": tr("เอกสาร", "Documents"),
   "officer.completeness.gp7": tr("ก.พ.7", "GP7"),
 
+  // Phase 45.2 — organization hierarchy picker labels (previously hardcoded
+  // "กองบัญชาการ (Headquarters)"-style concatenated bilingual strings).
+  "officer.orgHierarchy.headquarters": tr("กองบัญชาการ", "Headquarters"),
+  "officer.orgHierarchy.region": tr("กองบังคับการ ตชด.ภาค", "Border Patrol Region"),
+  "officer.orgHierarchy.battalion": tr("กองกำกับ", "Battalion"),
+  "officer.orgHierarchy.company": tr("กองร้อย", "Company"),
+
+  // Phase 45.2 — Career Timeline row labels (previously hardcoded slash-joined
+  // bilingual strings, e.g. "รอบแต่งตั้ง / Appointment Cycle").
+  "officer.timeline.appointmentCycle": tr("รอบแต่งตั้ง", "Appointment Cycle"),
+  "officer.timeline.positionLevel": tr("ระดับตำแหน่ง", "Position Level"),
+
+  // Phase 45.2 — Commander Intelligence card (components/intelligence/
+  // officer_intelligence_card.tsx, components/intelligence/intelligence_badge.tsx).
+  // Every key here maps a STABLE engine status/priority/flag CODE to display
+  // text — the engine's own calculation (severity, eligibility, score) is
+  // never touched; only how its output is presented changes.
+  "commander.intelligence.title": tr("ข้อมูลวิเคราะห์สำหรับผู้บังคับบัญชา", "Commander Intelligence"),
+  "commander.intelligence.profileCompletion": tr("ความสมบูรณ์ของข้อมูล", "Profile Completion"),
+  "commander.intelligence.recommendations": tr("ข้อเสนอแนะ", "Recommendations"),
+  "commander.intelligence.noRecommendations": tr("ไม่มีข้อเสนอแนะในขณะนี้", "No immediate recommendations."),
+  "commander.intelligence.completenessSummaryPrefix": tr("ความสมบูรณ์ของข้อมูล:", "Profile completeness:"),
+  "commander.intelligence.priorityScoreLabel": tr("คะแนนความสำคัญ", "Priority score"),
+
+  // Promotion status (PromotionStatus — lib/intelligence/types.ts).
+  "commander.intelligence.promotionStatus.eligible": tr("พร้อมเลื่อนตำแหน่ง", "Promotion Ready"),
+  "commander.intelligence.promotionStatus.near_eligible": tr("ใกล้ครบเกณฑ์เลื่อนตำแหน่ง", "Near Promotion"),
+  "commander.intelligence.promotionStatus.not_eligible": tr("ยังไม่ผ่านเกณฑ์", "Not Eligible"),
+  "commander.intelligence.promotionStatus.unknown": tr("ยังไม่ทราบสถานะการเลื่อนตำแหน่ง", "Promotion Unknown"),
+
+  // Retirement status (RetirementStatus).
+  "commander.intelligence.retirementStatus.normal": tr("เกษียณตามปกติ", "Retirement Normal"),
+  "commander.intelligence.retirementStatus.retiring_within_2_years": tr("เกษียณภายใน 2 ปี", "Retiring < 2 Years"),
+  "commander.intelligence.retirementStatus.retiring_within_1_year": tr("เกษียณภายใน 1 ปี", "Retiring < 1 Year"),
+  "commander.intelligence.retirementStatus.retired": tr("เกษียณอายุราชการแล้ว", "Retired"),
+  "commander.intelligence.retirementStatus.unknown": tr("ยังไม่ทราบสถานะการเกษียณ", "Retirement Unknown"),
+
+  // Priority (OfficerPriority).
+  "commander.intelligence.priority.low": tr("ความสำคัญต่ำ", "Low Priority"),
+  "commander.intelligence.priority.medium": tr("ความสำคัญปานกลาง", "Medium Priority"),
+  "commander.intelligence.priority.high": tr("ความสำคัญสูง", "High Priority"),
+  "commander.intelligence.priority.critical": tr("ความสำคัญเร่งด่วน", "Critical Priority"),
+
+  // Completeness band (CompletenessStatus).
+  "commander.intelligence.completenessBand.high": tr("สูง", "high"),
+  "commander.intelligence.completenessBand.medium": tr("ปานกลาง", "medium"),
+  "commander.intelligence.completenessBand.low": tr("ต่ำ", "low"),
+  "commander.intelligence.completenessBand.unknown": tr("ไม่ทราบ", "unknown"),
+
+  // Flags (OfficerFlagCode — lib/intelligence/flags.ts).
+  "commander.intelligence.flag.PROMOTION_READY": tr("พร้อมเลื่อนตำแหน่ง", "Promotion Ready"),
+  "commander.intelligence.flag.NEAR_PROMOTION": tr("ใกล้ครบเกณฑ์เลื่อนตำแหน่ง", "Near Promotion"),
+  "commander.intelligence.flag.RETIRING_SOON": tr("ใกล้เกษียณอายุราชการ", "Retiring Soon"),
+  "commander.intelligence.flag.NEEDS_TRAINING": tr("ขาดหลักสูตรที่กำหนด", "Needs Training"),
+  "commander.intelligence.flag.DOCUMENTS_MISSING": tr("เอกสารไม่ครบถ้วน", "Documents Missing"),
+  "commander.intelligence.flag.PROFILE_INCOMPLETE": tr("ข้อมูลยังไม่สมบูรณ์", "Profile Incomplete"),
+  "commander.intelligence.flag.MISSING_OFFICIAL_PORTRAIT": tr("ยังไม่มีรูปประจำตัวทางการ", "Missing Official Portrait"),
+
+  // Recommendation TOPICS (lib/intelligence/recommendations.ts's
+  // generateRecommendations output — see topicForCode; each topic maps to
+  // exactly one translated line, never a raw rule/requirement code).
+  "commander.intelligence.recommendation.PROMOTION_READY": tr("พร้อมเข้ารับการพิจารณาเลื่อนตำแหน่ง", "Officer is ready for promotion review."),
+  "commander.intelligence.recommendation.NEAR_PROMOTION": tr(
+    "ตรวจสอบเกณฑ์ที่ยังขาดและเตรียมความพร้อมสำหรับรอบเลื่อนตำแหน่งถัดไป",
+    "Review remaining promotion gaps and prepare the officer for the next cycle."
+  ),
+  "commander.intelligence.recommendation.RETIRING_SOON": tr("ควรเริ่มวางแผนก่อนเกษียณอายุราชการ", "Retirement planning should begin."),
+  "commander.intelligence.recommendation.training": tr("เพิ่มข้อมูลหรือผ่านหลักสูตรที่ระบบกำหนด", "Complete required training."),
+  "commander.intelligence.recommendation.DOCUMENTS_MISSING": tr("จัดทำเอกสารที่ใช้ประกอบการเลื่อนตำแหน่งให้ครบถ้วน", "Complete missing promotion documents."),
+  "commander.intelligence.recommendation.PROFILE_INCOMPLETE": tr("ปรับปรุงข้อมูลโปรไฟล์ที่ยังไม่สมบูรณ์", "Update incomplete profile information."),
+  "commander.intelligence.recommendation.MISSING_OFFICIAL_PORTRAIT": tr("เปลี่ยนรูปประจำตัวทางการที่ขาดหายไป", "Replace missing official portrait."),
+  "commander.intelligence.recommendation.document:gp7": tr("จัดทำเอกสาร ก.พ.7 ให้ครบถ้วน", "Complete GP7."),
+
   // ── capability.* — Phase 44 Personnel Capability Intelligence ──
   "capability.title": tr("ความเชี่ยวชาญและศักยภาพ", "Professional Skills & Competencies"),
   "capability.level": tr("ระดับความสามารถ", "Proficiency Level"),

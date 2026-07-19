@@ -29,6 +29,7 @@ import type { OrgSelection } from "@/lib/organization/org_tree";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { HEADQUARTERS_OPTIONS } from "@/lib/organization/headquarters_options";
 import { BORDER_PATROL_DIVISION_DEFAULTS, BORDER_PATROL_DIVISION_OPTIONS, divisionLabelForRegion } from "@/lib/organization/border_patrol_division_options";
+import { useT } from "@/components/i18n/language_provider";
 
 export interface OrgHierarchyValue extends OrgSelection {
   /** Free-typed labels, kept in sync with the resolved ids when a selection matches a known row — never forced to match. */
@@ -52,6 +53,7 @@ function findByLabel<T extends { id: number }>(rows: readonly T[], label: (row: 
 }
 
 export function OrgHierarchyPicker({ organizationEngine, value, onChange }: OrgHierarchyPickerProps) {
+  const { t } = useT();
   const tree = organizationEngine.getOrganizationTree();
   const battalionOptions = organizationEngine.getBattalions(value.regionId);
   const companyOptions = organizationEngine.getCompanies(value.battalionId);
@@ -137,43 +139,43 @@ export function OrgHierarchyPicker({ organizationEngine, value, onChange }: OrgH
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <LabeledField label="กองบัญชาการ (Headquarters)">
+      <LabeledField label={t("officer.orgHierarchy.headquarters")}>
         <Combobox
           value={value.headquartersText}
           onChange={onHeadquartersChange}
           suggestions={HEADQUARTERS_OPTIONS}
           placeholder="เลือกหรือพิมพ์กองบัญชาการ"
-          aria-label="กองบัญชาการ"
+          aria-label={t("officer.orgHierarchy.headquarters")}
         />
       </LabeledField>
 
-      <LabeledField label="กองบังคับการ ตชด.ภาค (Region)">
+      <LabeledField label={t("officer.orgHierarchy.region")}>
         <Combobox
           value={value.regionText}
           onChange={onRegionChange}
           suggestions={BORDER_PATROL_DIVISION_OPTIONS}
           placeholder="เลือกหรือพิมพ์ภาค"
-          aria-label="กองบังคับการ ตชด.ภาค"
+          aria-label={t("officer.orgHierarchy.region")}
         />
       </LabeledField>
 
-      <LabeledField label="กองกำกับ (Battalion)">
+      <LabeledField label={t("officer.orgHierarchy.battalion")}>
         <Combobox
           value={value.battalionText}
           onChange={onBattalionChange}
           suggestions={battalionOptions.map((b) => b.nameTh)}
           placeholder="เลือกหรือพิมพ์กองกำกับ"
-          aria-label="กองกำกับ"
+          aria-label={t("officer.orgHierarchy.battalion")}
         />
       </LabeledField>
 
-      <LabeledField label="กองร้อย (Company)">
+      <LabeledField label={t("officer.orgHierarchy.company")}>
         <Combobox
           value={value.companyText}
           onChange={onCompanyChange}
           suggestions={companyOptions.map((c) => c.nameTh)}
           placeholder="เลือกหรือพิมพ์กองร้อย"
-          aria-label="กองร้อย"
+          aria-label={t("officer.orgHierarchy.company")}
         />
       </LabeledField>
     </div>

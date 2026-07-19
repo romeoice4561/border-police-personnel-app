@@ -11,6 +11,8 @@
  * (calculateCareerYearsSimple/calculateCurrentAge) that bypassed the
  * Intelligence facades.
  */
+"use client";
+
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import type { OfficerIntelligenceViewModel } from "@/lib/officer_intelligence/types";
 import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
@@ -20,6 +22,7 @@ import type { Timeline } from "@/lib/database/query_types";
 import { PortraitManager } from "@/components/officer/portrait_manager";
 import { PhoneAction } from "@/components/officer/phone_action";
 import { Badge } from "@/components/ui/badge";
+import { useBilingualText } from "@/components/i18n/language_provider";
 import { ShieldCheck, Briefcase, Building2 } from "lucide-react";
 
 const UNAVAILABLE = "ยังไม่มีข้อมูลเพียงพอ";
@@ -33,14 +36,23 @@ function KpiCell({ label, value }: { label: string; value: string | null }) {
   );
 }
 
-/** Sourced from the officer's current (most recent) timeline row — mirrors the prior ProfileHeader's VerificationBadge exactly (unchanged behavior, just relocated). */
+/**
+ * Sourced from the officer's current (most recent) timeline row — mirrors
+ * the prior ProfileHeader's VerificationBadge exactly (unchanged behavior,
+ * just relocated). Renders ONLY the active language (Phase 45.2B) — the
+ * previous "TH / EN" concatenation made this badge wide enough to force
+ * horizontal page overflow at 1024px and narrower, since Badge's shared
+ * whitespace-nowrap (intentional elsewhere) had no room to fit both
+ * languages plus the icon.
+ */
 function VerificationBadge({ currentTimelineRow }: { currentTimelineRow: Timeline | null }) {
+  const render = useBilingualText();
   const status = currentTimelineRow?.verificationStatus;
   if (!status || !isValidTimelineVerificationStatus(status)) {
     return (
       <Badge tone="neutral">
         <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-        ยังไม่ตรวจสอบ / Not Verified
+        {render({ th: "ยังไม่ตรวจสอบ", en: "Not Verified" })}
       </Badge>
     );
   }
@@ -48,7 +60,7 @@ function VerificationBadge({ currentTimelineRow }: { currentTimelineRow: Timelin
   return (
     <Badge tone={meta.color} className="px-3 py-1 text-sm">
       <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-      {meta.labelTh} / {meta.labelEn}
+      {render({ th: meta.labelTh, en: meta.labelEn })}
     </Badge>
   );
 }

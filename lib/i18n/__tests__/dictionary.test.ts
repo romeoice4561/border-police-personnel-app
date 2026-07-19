@@ -50,3 +50,42 @@ test("the ticket's example keys all exist", () => {
     assert.ok(DICTIONARY[key], `missing key ${key}`);
   }
 });
+
+// Phase 45.2 — Officer Profile language-consistency + Commander Intelligence copy.
+
+test("Phase 45.2 org hierarchy / timeline keys exist and never fall back to a hardcoded slash-joined string", () => {
+  const required: TranslationKey[] = [
+    "officer.orgHierarchy.headquarters",
+    "officer.orgHierarchy.region",
+    "officer.orgHierarchy.battalion",
+    "officer.orgHierarchy.company",
+    "officer.timeline.appointmentCycle",
+    "officer.timeline.positionLevel",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(!translate(key, "th").includes("/"), `${key} TH value should not be a slash-joined bilingual string`);
+    assert.ok(!translate(key, "en").includes("/"), `${key} EN value should not be a slash-joined bilingual string`);
+  }
+});
+
+test("Phase 45.2 Commander Intelligence keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "commander.intelligence.title",
+    "commander.intelligence.profileCompletion",
+    "commander.intelligence.recommendations",
+    "commander.intelligence.noRecommendations",
+    "commander.intelligence.completenessSummaryPrefix",
+    "commander.intelligence.priorityScoreLabel",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0);
+    assert.ok(translate(key, "en").length > 0);
+  }
+});
+
+test("Thai mode never shows the raw English word 'Commander Intelligence' for the card title", () => {
+  assert.notEqual(translate("commander.intelligence.title", "th"), "Commander Intelligence");
+  assert.equal(translate("commander.intelligence.title", "th"), "ข้อมูลวิเคราะห์สำหรับผู้บังคับบัญชา");
+});

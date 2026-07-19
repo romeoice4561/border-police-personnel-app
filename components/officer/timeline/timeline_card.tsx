@@ -161,7 +161,7 @@ export function TimelineCard({
               />
             </LabeledField>
 
-            <LabeledField label="รอบแต่งตั้ง / Appointment Cycle" className="lg:col-span-2">
+            <LabeledField label={t("officer.timeline.appointmentCycle")} className="lg:col-span-2">
               <Select
                 options={YEAR_BE_SELECT_OPTIONS}
                 value={row.appointmentCycle != null ? String(row.appointmentCycle) : ""}
@@ -202,7 +202,7 @@ export function TimelineCard({
               <Combobox value={row.position} onChange={(value) => onUpdate({ position: value })} suggestions={POSITION_OPTIONS} placeholder="เลือกหรือพิมพ์ตำแหน่ง" aria-label="ตำแหน่ง" />
             </LabeledField>
 
-            <LabeledField label="ระดับตำแหน่ง / Position Level" className="lg:col-span-2">
+            <LabeledField label={t("officer.timeline.positionLevel")} className="lg:col-span-2">
               <Select options={POSITION_LEVEL_SELECT_OPTIONS} value={row.positionLevel} onChange={(e) => onUpdate({ positionLevel: e.target.value })} aria-label="ระดับตำแหน่ง" />
             </LabeledField>
 

@@ -33,7 +33,7 @@ import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_da
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { normalizePositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
-import { useT } from "@/components/i18n/language_provider";
+import { useT, useBilingualText } from "@/components/i18n/language_provider";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -121,8 +121,15 @@ function OrganizationStack({ row }: { row: CareerTimelineRow }) {
   );
 }
 
-/** Phase 26B Part 6 Part G: status badge PLUS Verified By / Verified Date / Remark — not just the badge. */
+/**
+ * Phase 26B Part 6 Part G: status badge PLUS Verified By / Verified Date /
+ * Remark — not just the badge. Phase 45.2B: the status badge renders only
+ * the active language (was a hardcoded "labelTh / labelEn" concatenation
+ * that made this badge wide enough to force horizontal overflow at tablet/
+ * mobile widths, since Badge's whitespace-nowrap had no room for both).
+ */
 function VerificationDetail({ row }: { row: CareerTimelineRow }) {
+  const render = useBilingualText();
   const status = row.verificationStatus;
   const meta = status && isValidTimelineVerificationStatus(status) ? VERIFICATION_STATUS_META[status] : null;
   return (
@@ -138,7 +145,7 @@ function VerificationDetail({ row }: { row: CareerTimelineRow }) {
           {row.verified}
         </span>
       )}
-      {meta ? <Badge tone={meta.color}>{meta.labelTh} / {meta.labelEn}</Badge> : null}
+      {meta ? <Badge tone={meta.color}>{render({ th: meta.labelTh, en: meta.labelEn })}</Badge> : null}
       {row.verifiedBy ? <p className="text-xs text-muted">โดย {row.verifiedBy}</p> : null}
       {row.verifiedDate ? <p className="text-xs tabular-nums text-muted">{row.verifiedDate}</p> : null}
       {row.verificationRemark ? <p className="wrap-break-word text-xs text-muted italic">&quot;{row.verificationRemark}&quot;</p> : null}

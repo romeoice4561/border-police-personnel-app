@@ -192,7 +192,7 @@ export function ProfileEditor({ profile, onChange, organizationEngine }: Profile
             onChange={(e) => set("lineId", e.target.value)}
           />
         </Field>
-        <Field label="Facebook URL" htmlFor="edit-facebookUrl">
+        <BilingualField labelKey="facebookUrl" htmlFor="edit-facebookUrl">
           <input
             id="edit-facebookUrl"
             type="url"
@@ -201,8 +201,8 @@ export function ProfileEditor({ profile, onChange, organizationEngine }: Profile
             value={profile.facebookUrl}
             onChange={(e) => set("facebookUrl", e.target.value)}
           />
-        </Field>
-        <Field label="ชื่อเล่น (Nickname)" htmlFor="edit-nickname">
+        </BilingualField>
+        <BilingualField labelKey="nickname" htmlFor="edit-nickname">
           <input
             id="edit-nickname"
             type="text"
@@ -210,7 +210,7 @@ export function ProfileEditor({ profile, onChange, organizationEngine }: Profile
             value={profile.nickname}
             onChange={(e) => set("nickname", e.target.value)}
           />
-        </Field>
+        </BilingualField>
         <BilingualField labelKey="academyClass" htmlFor="edit-academyClass">
           <Select
             id="edit-academyClass"
