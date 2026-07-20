@@ -1,10 +1,19 @@
 /**
- * EpfSearchFilterBar (Phase 46 — Electronic Personnel File Foundation).
+ * EpfSearchFilterBar (Phase 46 — Electronic Personnel File Foundation;
+ * Phase 47 — adds Expiry Status / Expiring Within filters and Newest/Oldest
+ * Expiry sort options, all client-side over documents already loaded — no
+ * new API surface, no expiry calculation performed here (status comes from
+ * lib/document/document_expiry.ts via the caller);
+ * Phase 47B — the Year filter's visible option labels are now Buddhist Era
+ * (e.g. "2569") via the existing shared `yearGregorianToBE` converter — the
+ * option's underlying `value` stays the raw Gregorian year string
+ * unchanged, since that's the internal contract EpfSection's filter
+ * comparison (`String(new Date(doc.uploadedAt).getFullYear())`) already
+ * relies on; only the label changed, not the filtering data flow.
  *
  * Search (title/category/tag/document number — scoped to e-PF only, no
  * global search change) plus Category/Status/Year/Uploaded By filters and a
- * Newest/Oldest/Alphabetical sort. Purely client-side over the documents
- * already loaded on the page — no new API surface.
+ * Newest/Oldest/Alphabetical/Newest-Expiry/Oldest-Expiry sort.
  */
 "use client";
 
@@ -14,8 +23,19 @@ import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { getDocumentCategories } from "@/lib/document/document_categories";
 import { ACTIVE_DOCUMENT_STATUSES, type DocumentStatus } from "@/lib/document/document_status";
 import { EPF_STATUS_LABEL_KEY } from "@/lib/document/epf_status_copy";
+import type { ExpiryStatus } from "@/lib/document/document_expiry";
+import { yearGregorianToBE } from "@/lib/officer_profile/thai_date";
 
-export type EpfSortValue = "newest" | "oldest" | "alphabetical";
+export type EpfSortValue = "newest" | "oldest" | "alphabetical" | "newestExpiry" | "oldestExpiry";
+export type EpfExpiringWithinValue = "ALL" | "30" | "60" | "90";
+
+const EXPIRY_STATUS_OPTIONS: readonly ExpiryStatus[] = ["valid", "expiring_soon", "expired", "unknown"];
+const EXPIRY_STATUS_LABEL_KEY: Record<ExpiryStatus, TranslationKey> = {
+  valid: "epf.expiry.statusValid",
+  expiring_soon: "epf.expiry.statusExpiringSoon",
+  expired: "epf.expiry.statusExpired",
+  unknown: "epf.expiry.statusUnknown",
+};
 
 export interface EpfFilterState {
   search: string;
@@ -24,12 +44,16 @@ export interface EpfFilterState {
   year: string | "ALL";
   uploadedBy: string | "ALL";
   sort: EpfSortValue;
+  expiryStatus: ExpiryStatus | "ALL";
+  expiringWithin: EpfExpiringWithinValue;
 }
 
 const SORT_OPTIONS: Array<{ value: EpfSortValue; labelKey: TranslationKey }> = [
   { value: "newest", labelKey: "epf.sortNewest" },
   { value: "oldest", labelKey: "epf.sortOldest" },
   { value: "alphabetical", labelKey: "epf.sortAlphabetical" },
+  { value: "newestExpiry", labelKey: "epf.expiry.sortNewestExpiry" },
+  { value: "oldestExpiry", labelKey: "epf.expiry.sortOldestExpiry" },
 ];
 
 function selectClassName() {
@@ -110,11 +134,39 @@ export function EpfSearchFilterBar({
             >
               <option value="ALL">{t("epf.filterAllYears")}</option>
               {availableYears.map((year) => (
-                <option key={year} value={year}>{year}</option>
+                <option key={year} value={year}>{yearGregorianToBE(Number(year))}</option>
               ))}
             </select>
           </>
         ) : null}
+
+        <label className="sr-only" htmlFor="epf-filter-expiry-status">{t("epf.expiry.filterExpiryStatus")}</label>
+        <select
+          id="epf-filter-expiry-status"
+          value={state.expiryStatus}
+          onChange={(e) => patch({ expiryStatus: e.target.value as EpfFilterState["expiryStatus"] })}
+          className={selectClassName()}
+        >
+          <option value="ALL">{t("document.filterAll")}</option>
+          {EXPIRY_STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {t(EXPIRY_STATUS_LABEL_KEY[status])}
+            </option>
+          ))}
+        </select>
+
+        <label className="sr-only" htmlFor="epf-filter-expiring-within">{t("epf.expiry.filterExpiringWithin")}</label>
+        <select
+          id="epf-filter-expiring-within"
+          value={state.expiringWithin}
+          onChange={(e) => patch({ expiringWithin: e.target.value as EpfExpiringWithinValue })}
+          className={selectClassName()}
+        >
+          <option value="ALL">{t("epf.filterAllCategories")}</option>
+          <option value="30">{t("epf.expiry.filterExpiringWithin30")}</option>
+          <option value="60">{t("epf.expiry.filterExpiringWithin60")}</option>
+          <option value="90">{t("epf.expiry.filterExpiringWithin90")}</option>
+        </select>
 
         {availableUploaders.length > 0 ? (
           <>

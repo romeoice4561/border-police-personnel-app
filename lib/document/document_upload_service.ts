@@ -231,9 +231,20 @@ export class DocumentUploadService {
 
   /**
    * Updates a document's editable metadata (title/description — Phase 46,
-   * e-PF Foundation). Returns null when the document does not exist.
+   * e-PF Foundation; issueDate/expiryDate/renewalDate — Phase 47, Document
+   * Expiry Intelligence, all optional). Returns null when the document does
+   * not exist.
    */
-  updateMetadata(id: number, input: { title?: string; description?: string | null }): Promise<OfficerDocument | null> {
+  updateMetadata(
+    id: number,
+    input: {
+      title?: string;
+      description?: string | null;
+      issueDate?: Date | null;
+      expiryDate?: Date | null;
+      renewalDate?: Date | null;
+    }
+  ): Promise<OfficerDocument | null> {
     return this.repository.updateMetadata(id, input);
   }
 

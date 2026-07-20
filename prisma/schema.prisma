@@ -1014,6 +1014,14 @@ model OfficerDocument {
   uploadedBy       String?
   verifiedAt       DateTime? @db.Date
   verifiedBy       String?
+  /// Phase 47 — Document Expiry Intelligence. All three are optional; a
+  /// document with no expiryDate is simply never expiry-tracked (status
+  /// "Unknown", never treated as expired). Not every document type uses
+  /// these — see lib/document/document_expiry_types.ts for which types are
+  /// expiry-enabled.
+  issueDate        DateTime? @db.Date
+  expiryDate       DateTime? @db.Date
+  renewalDate      DateTime? @db.Date
   /// Increments on every replace (first upload = 1). Used to surface "Version N" in history.
   version          Int       @default(1)
   /// false on superseded versions (soft-deleted on replace). True = the current active row for this type.
@@ -1026,6 +1034,7 @@ model OfficerDocument {
   @@index([isActive])
   @@index([officerId, documentType])
   @@index([officerId, isActive])
+  @@index([expiryDate])
 }
 
 /// A phone number associated with an officer. Unique per (officer, number).

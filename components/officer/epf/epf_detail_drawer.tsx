@@ -1,16 +1,26 @@
 /**
- * EpfDetailDrawer (Phase 46 — Electronic Personnel File Foundation).
+ * EpfDetailDrawer (Phase 46 — Electronic Personnel File Foundation;
+ * Phase 47 — adds an Expiry Information section: Issue Date, Expiry Date,
+ * Renewal Date [editable, saved via the same PATCH as title/description],
+ * plus derived Days Remaining/Status read from
+ * lib/document/document_expiry.ts — never computed inline here;
+ * Phase 47A — the three date fields now use the shared ThaiDatePicker
+ * (Buddhist-Era, Thai month names, DD/MM/YYYY display) in `outputFormat="iso"`
+ * mode instead of the browser-native `<input type="date">`, which always
+ * renders Gregorian years and English month names. The picker's onChange
+ * still hands back a plain ISO "yyyy-mm-dd" string — the wire format to the
+ * API/database is completely unchanged, only the picking UI is Thai now.).
  *
  * Right-side drawer showing a document's large preview, editable metadata,
- * notes/remarks, a simple timeline, full version history, and a disabled
- * "AI Analysis" placeholder (no OCR/AI in this phase — foundation only).
+ * expiry information, notes/remarks, a simple timeline, full version
+ * history, and a disabled "AI Analysis" placeholder (no OCR/AI in this
+ * phase — foundation only).
  *
- * Only `title` and `description` are real, persisted columns on
- * OfficerDocument (see lib/database/repositories/document_repository.ts) —
- * those are the only fields saved via PATCH here. Document Number, Issue
- * Date, Issuing Agency, and Tags have no backing storage yet; shown as
- * disabled/placeholder fields with an explicit note rather than silently
- * dropped or faked.
+ * `title`, `description`, `issueDate`, `expiryDate`, `renewalDate` are the
+ * only fields saved via PATCH here (see
+ * lib/database/repositories/document_repository.ts). Document Number,
+ * Issuing Agency, and Tags still have no backing storage — noted, not
+ * fabricated.
  */
 "use client";
 
@@ -19,11 +29,14 @@ import { Sparkles, FileText } from "lucide-react";
 import type { OfficerDocument } from "@/lib/database/query_types";
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MIN, THAI_EXPIRY_YEAR_BE_MAX } from "@/components/ui/thai_date_picker";
 import { DocumentThumbnail } from "@/components/ui/media/DocumentThumbnail";
 import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
 import { EpfHistoryPanel } from "@/components/officer/epf/epf_history_panel";
 import { findDocumentType } from "@/lib/document/document_types";
 import { categoryForTypeCode } from "@/lib/document/document_categories";
+import { expiryStatus, daysRemaining, EXPIRY_STATUS_TONE, type ExpiryStatus } from "@/lib/document/document_expiry";
 import { useT } from "@/components/i18n/language_provider";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -33,6 +46,23 @@ function formatDate(d: Date | string | null | undefined): string {
   const date = d instanceof Date ? d : new Date(d);
   return formatShortThaiDateTh(date);
 }
+
+/** Formats a Date/string into the yyyy-mm-dd value ThaiDatePicker's outputFormat="iso" expects. */
+function toDateInputValue(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+const EXPIRY_YEAR_RANGE = { min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX };
+
+const STATUS_LABEL_KEY: Record<ExpiryStatus, TranslationKey> = {
+  valid: "epf.expiry.statusValid",
+  expiring_soon: "epf.expiry.statusExpiringSoon",
+  expired: "epf.expiry.statusExpired",
+  unknown: "epf.expiry.statusUnknown",
+};
 
 export function EpfDetailDrawer({
   open,
@@ -56,11 +86,19 @@ export function EpfDetailDrawer({
 
   const [title, setTitle] = useState(doc?.title || labelEn);
   const [description, setDescription] = useState(doc?.description ?? "");
+  const [issueDate, setIssueDate] = useState(toDateInputValue(doc?.issueDate));
+  const [expiryDate, setExpiryDate] = useState(toDateInputValue(doc?.expiryDate));
+  const [renewalDate, setRenewalDate] = useState(toDateInputValue(doc?.renewalDate));
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
 
   if (!open) return null;
+
+  // Live preview of status/days-remaining as the user edits the field —
+  // always derived via the shared engine, never computed inline.
+  const previewStatus = expiryStatus(expiryDate || null);
+  const previewDaysRemaining = expiryDate ? daysRemaining(expiryDate) : null;
 
   async function handleSave() {
     if (!doc) return;
@@ -70,7 +108,13 @@ export function EpfDetailDrawer({
       const res = await fetch(`/api/officers/${encodeURIComponent(officerId)}/documents/${doc.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description: description || null }),
+        body: JSON.stringify({
+          title,
+          description: description || null,
+          issueDate: issueDate || null,
+          expiryDate: expiryDate || null,
+          renewalDate: renewalDate || null,
+        }),
       });
       if (!res.ok) throw new Error(`Save failed (${res.status}).`);
       setSaveState("saved");
@@ -130,6 +174,62 @@ export function EpfDetailDrawer({
           </div>
 
           <p className="rounded-md bg-neutral-bg px-2.5 py-2 text-[11px] text-muted">{t("epf.detailUnsupportedFieldsNote")}</p>
+        </section>
+
+        <section aria-labelledby="epf-detail-expiry-heading" className="space-y-3">
+          <h3 id="epf-detail-expiry-heading" className="text-sm font-semibold text-foreground">{t("epf.expiry.detailHeading")}</h3>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <label htmlFor="epf-detail-issue-date" className="text-xs font-medium text-muted">{t("epf.expiry.detailIssueDate")}</label>
+              <ThaiDatePicker
+                id="epf-detail-issue-date"
+                value={issueDate}
+                onChange={setIssueDate}
+                disabled={!doc}
+                outputFormat="iso"
+                yearRangeBE={EXPIRY_YEAR_RANGE}
+                showTodayButton
+                aria-label={t("epf.expiry.detailIssueDate")}
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="epf-detail-expiry-date" className="text-xs font-medium text-muted">{t("epf.expiry.detailExpiryDate")}</label>
+              <ThaiDatePicker
+                id="epf-detail-expiry-date"
+                value={expiryDate}
+                onChange={setExpiryDate}
+                disabled={!doc}
+                outputFormat="iso"
+                yearRangeBE={EXPIRY_YEAR_RANGE}
+                showTodayButton
+                aria-label={t("epf.expiry.detailExpiryDate")}
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="epf-detail-renewal-date" className="text-xs font-medium text-muted">{t("epf.expiry.detailRenewalDate")}</label>
+              <ThaiDatePicker
+                id="epf-detail-renewal-date"
+                value={renewalDate}
+                onChange={setRenewalDate}
+                disabled={!doc}
+                outputFormat="iso"
+                yearRangeBE={EXPIRY_YEAR_RANGE}
+                showTodayButton
+                aria-label={t("epf.expiry.detailRenewalDate")}
+              />
+            </div>
+          </div>
+
+          {doc ? (
+            <div className="flex items-center gap-3 text-xs text-muted">
+              <span>
+                {t("epf.expiry.detailDaysRemaining")}:{" "}
+                <span className="font-medium text-foreground">{previewDaysRemaining ?? t("epf.expiry.detailNotSet")}</span>
+              </span>
+              <Badge tone={EXPIRY_STATUS_TONE[previewStatus]}>{t(STATUS_LABEL_KEY[previewStatus])}</Badge>
+            </div>
+          ) : null}
 
           <div className="flex items-center gap-2">
             <Button type="button" size="sm" disabled={!doc || saving} onClick={() => void handleSave()}>
@@ -147,6 +247,9 @@ export function EpfDetailDrawer({
               <li>{t("epf.cardUploadedDate")}: {formatDate(doc.uploadedAt)}</li>
               <li>{t("epf.cardUploadedBy")}: {doc.uploadedBy ?? "—"}</li>
               {doc.verifiedAt ? <li>{t("document.statusVerified")}: {formatDate(doc.verifiedAt)}</li> : null}
+              {doc.issueDate ? <li>{t("epf.expiry.detailIssueDate")}: {formatDate(doc.issueDate)}</li> : null}
+              {doc.expiryDate ? <li>{t("epf.expiry.detailExpiryDate")}: {formatDate(doc.expiryDate)}</li> : null}
+              {doc.renewalDate ? <li>{t("epf.expiry.detailRenewalDate")}: {formatDate(doc.renewalDate)}</li> : null}
             </ul>
           ) : (
             <p className="text-xs text-muted">—</p>

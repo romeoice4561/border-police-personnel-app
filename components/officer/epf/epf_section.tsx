@@ -35,7 +35,7 @@
  */
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   IdCard,
@@ -63,6 +63,14 @@ import {
   computeCategoryRollups,
 } from "@/lib/document/epf_intelligence";
 import { computeFileHealth, computeInsights, computeRecommendedActions, groupRecentActivity } from "@/lib/document/epf_insights";
+import {
+  computeExpiryInfo,
+  sortByUrgency,
+  groupByTimelineBucket,
+  summary as computeExpirySummary,
+  expiryStatus as computeExpiryStatus,
+  daysRemaining as computeDaysRemaining,
+} from "@/lib/document/document_expiry";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { EpfCategoryGroup } from "@/components/officer/epf/epf_category_group";
 import { EpfSearchFilterBar, type EpfFilterState } from "@/components/officer/epf/epf_search_filter_bar";
@@ -76,6 +84,10 @@ import { EpfNextActionsCard } from "@/components/officer/epf/epf_next_actions_ca
 import { EpfMissingPanel } from "@/components/officer/epf/epf_missing_panel";
 import { EpfRecentActivity } from "@/components/officer/epf/epf_recent_activity";
 import { EpfQuickActions } from "@/components/officer/epf/epf_quick_actions";
+import { EpfExpiryDashboard } from "@/components/officer/epf/epf_expiry_dashboard";
+import { EpfExpiryTimeline } from "@/components/officer/epf/epf_expiry_timeline";
+import { EpfExpiryAlertPanel } from "@/components/officer/epf/epf_expiry_alert_panel";
+import { EpfExpiryReadiness } from "@/components/officer/epf/epf_expiry_readiness";
 import { useT } from "@/components/i18n/language_provider";
 
 const CATEGORY_ICON: Record<string, LucideIcon> = {
@@ -97,6 +109,8 @@ const DEFAULT_FILTER_STATE: EpfFilterState = {
   year: "ALL",
   uploadedBy: "ALL",
   sort: "newest",
+  expiryStatus: "ALL",
+  expiringWithin: "ALL",
 };
 
 export function EpfSection({
@@ -114,6 +128,7 @@ export function EpfSection({
   const [filterState, setFilterState] = useState<EpfFilterState>(DEFAULT_FILTER_STATE);
   const [detailTypeCode, setDetailTypeCode] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set(getDocumentCategories().map((c) => c.code)));
+  const expiryTimelineRef = useRef<HTMLDivElement>(null);
 
   const onRefresh = useCallback(() => {
     router.refresh();
@@ -162,6 +177,12 @@ export function EpfSection({
         if (uploadedYear !== filterState.year) return false;
       }
       if (filterState.uploadedBy !== "ALL" && row.doc?.uploadedBy !== filterState.uploadedBy) return false;
+      if (filterState.expiryStatus !== "ALL" && computeExpiryStatus(row.doc?.expiryDate ?? null) !== filterState.expiryStatus) return false;
+      if (filterState.expiringWithin !== "ALL") {
+        if (!row.doc?.expiryDate) return false;
+        const remaining = computeDaysRemaining(row.doc.expiryDate);
+        if (remaining < 0 || remaining > Number(filterState.expiringWithin)) return false;
+      }
       if (search) {
         const def = documentTypes.find((d) => d.code === row.code);
         const haystack = [def?.labelEn, def?.labelTh, row.doc?.title, row.doc?.originalFilename]
@@ -184,6 +205,17 @@ export function EpfSection({
         const ta = a.doc?.uploadedAt ? new Date(a.doc.uploadedAt).getTime() : 0;
         const tb = b.doc?.uploadedAt ? new Date(b.doc.uploadedAt).getTime() : 0;
         return filterState.sort === "newest" ? tb - ta : ta - tb;
+      });
+    } else if (filterState.sort === "newestExpiry" || filterState.sort === "oldestExpiry") {
+      rows = [...rows].sort((a, b) => {
+        // Documents with no expiry date sort last regardless of direction —
+        // there's nothing to compare, never fabricated into a fake date.
+        const ta = a.doc?.expiryDate ? new Date(a.doc.expiryDate).getTime() : null;
+        const tb = b.doc?.expiryDate ? new Date(b.doc.expiryDate).getTime() : null;
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return filterState.sort === "newestExpiry" ? tb - ta : ta - tb;
       });
     }
 
@@ -223,6 +255,16 @@ export function EpfSection({
     [completeness, documents, recentActivity]
   );
   const groupedActivity = useMemo(() => groupRecentActivity(recentActivity), [recentActivity]);
+
+  // ── Phase 47 — Document Expiry Intelligence (all derived from the same
+  // `documents` prop; never recomputes upload/history/completeness logic) ──
+  const expiryInfo = useMemo(() => computeExpiryInfo(documents), [documents]);
+  const expirySummary = useMemo(() => computeExpirySummary(expiryInfo), [expiryInfo]);
+  const expiryTimelineBuckets = useMemo(() => groupByTimelineBucket(expiryInfo), [expiryInfo]);
+  const expiryAlertItems = useMemo(
+    () => sortByUrgency(expiryInfo.filter((i) => i.status === "expired" || i.status === "expiring_soon")),
+    [expiryInfo]
+  );
 
   const handleExpandAll = useCallback(() => {
     setExpandedCategories(new Set(categories.map((c) => c.code)));
@@ -282,6 +324,23 @@ export function EpfSection({
               onExpandAll={handleExpandAll}
               onCollapseAll={handleCollapseAll}
             />
+          </div>
+
+          {/* 7. Document Expiry Intelligence — positioned above the document
+              categories per spec §5, using ONLY documents already loaded
+              (no new fetch). */}
+          <div className="space-y-4 border-t border-border pt-5">
+            <EpfExpiryDashboard
+              summary={expirySummary}
+              onJumpToTimeline={() => expiryTimelineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            />
+            <EpfExpiryReadiness summary={expirySummary} />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <EpfExpiryAlertPanel items={expiryAlertItems} onAction={(code) => setDetailTypeCode(code)} />
+              <div ref={expiryTimelineRef}>
+                <EpfExpiryTimeline buckets={expiryTimelineBuckets} />
+              </div>
+            </div>
           </div>
 
           <EpfSearchFilterBar

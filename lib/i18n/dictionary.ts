@@ -954,6 +954,66 @@ export const DICTIONARY = {
   "epf.categoryDashboard.lastUpdated": tr("อัปเดตล่าสุด", "Last updated"),
   "epf.categoryDashboard.noUpdates": tr("ยังไม่มีการอัปเดต", "No updates yet"),
 
+  // ── epf.expiry.* — Phase 47 Document Expiry Intelligence ──
+  "epf.expiry.sectionTitle": tr("ข้อมูลวิเคราะห์วันหมดอายุเอกสาร", "Document Expiry Intelligence"),
+  "epf.expiry.expiringSoon": tr("ใกล้หมดอายุ", "Expiring Soon"),
+  "epf.expiry.expired": tr("หมดอายุแล้ว", "Expired"),
+  "epf.expiry.unknownExpiry": tr("ไม่ทราบวันหมดอายุ", "Unknown Expiry"),
+  "epf.expiry.healthy": tr("ยังไม่หมดอายุ", "Healthy"),
+  "epf.expiry.statusValid": tr("ยังไม่หมดอายุ", "Valid"),
+  "epf.expiry.statusExpiringSoon": tr("ใกล้หมดอายุ", "Expiring Soon"),
+  "epf.expiry.statusExpired": tr("หมดอายุแล้ว", "Expired"),
+  "epf.expiry.statusUnknown": tr("ไม่ทราบ", "Unknown"),
+  "epf.expiry.daysRemaining": tr("เหลือเวลา", "Days Remaining"),
+  "epf.expiry.daysUnit": tr("วัน", "days"),
+  "epf.expiry.daysOverdue": tr("เกินกำหนด", "overdue"),
+  "epf.expiry.today": tr("วันนี้", "Today"),
+
+  // Timeline groups
+  "epf.expiry.timelineTitle": tr("ไทม์ไลน์วันหมดอายุ", "Expiry Timeline"),
+  "epf.expiry.groupExpired": tr("หมดอายุแล้ว", "Expired"),
+  "epf.expiry.groupNext30": tr("30 วันข้างหน้า", "Next 30 Days"),
+  "epf.expiry.groupNext60": tr("60 วันข้างหน้า", "Next 60 Days"),
+  "epf.expiry.groupNext90": tr("90 วันข้างหน้า", "Next 90 Days"),
+  "epf.expiry.groupLater": tr("มากกว่า 90 วัน", "Later"),
+  "epf.expiry.groupUnknown": tr("ไม่ทราบวันหมดอายุ", "Unknown Expiry"),
+  "epf.expiry.timelineEmpty": tr("ไม่มีเอกสารที่ติดตามวันหมดอายุ", "No expiry-tracked documents."),
+
+  // Alert panel
+  "epf.expiry.alertTitle": tr("ต้องดำเนินการ", "Attention Required"),
+  "epf.expiry.alertEmpty": tr("ไม่มีรายการที่ต้องดำเนินการ", "Nothing requires attention right now."),
+  "epf.expiry.alertExpiresIn": tr("หมดอายุในอีก", "expires in"),
+  "epf.expiry.alertExpiredSince": tr("หมดอายุแล้ว", "expired"),
+  "epf.expiry.alertMissing": tr("ยังไม่มีเอกสาร", "missing"),
+  "epf.expiry.alertReview": tr("ตรวจสอบ", "Review"),
+  "epf.expiry.alertRenew": tr("ต่ออายุ", "Renew"),
+  "epf.expiry.alertUpload": tr("อัปโหลด", "Upload"),
+
+  // Readiness summary
+  "epf.expiry.readinessTitle": tr("สรุปความพร้อมของเอกสาร", "Document Readiness Summary"),
+  "epf.expiry.readinessAllValid": tr("เอกสารที่ติดตามทั้งหมดยังไม่หมดอายุ", "All monitored documents are valid."),
+  "epf.expiry.readinessNeedsRenewal": tr("เอกสารต้องต่ออายุ", "documents require renewal."),
+  "epf.expiry.readinessExpired": tr("เอกสารหมดอายุแล้ว", "expired documents."),
+  "epf.expiry.readinessNoneTracked": tr("ยังไม่มีเอกสารที่ติดตามวันหมดอายุ", "No documents are being expiry-tracked yet."),
+
+  // Detail drawer
+  "epf.expiry.detailIssueDate": tr("วันที่ออกเอกสาร", "Issue Date"),
+  "epf.expiry.detailExpiryDate": tr("วันหมดอายุ", "Expiry Date"),
+  "epf.expiry.detailRenewalDate": tr("วันที่ต่ออายุ", "Renewal Date"),
+  "epf.expiry.detailDaysRemaining": tr("จำนวนวันคงเหลือ", "Days Remaining"),
+  "epf.expiry.detailStatus": tr("สถานะวันหมดอายุ", "Expiry Status"),
+  "epf.expiry.detailNotSet": tr("ยังไม่ระบุ", "Not set"),
+  "epf.expiry.detailHeading": tr("ข้อมูลวันหมดอายุ", "Expiry Information"),
+
+  // Search & filter
+  "epf.expiry.filterExpiryStatus": tr("สถานะวันหมดอายุ", "Expiry Status"),
+  "epf.expiry.filterExpiringWithin": tr("ใกล้หมดอายุภายใน", "Expiring Within"),
+  "epf.expiry.filterExpiringWithin30": tr("30 วัน", "30 days"),
+  "epf.expiry.filterExpiringWithin60": tr("60 วัน", "60 days"),
+  "epf.expiry.filterExpiringWithin90": tr("90 วัน", "90 days"),
+  "epf.expiry.sortNewestExpiry": tr("วันหมดอายุใหม่สุด", "Newest Expiry"),
+  "epf.expiry.sortOldestExpiry": tr("วันหมดอายุเก่าสุด", "Oldest Expiry"),
+
   // ── epf.hero.* — Phase 46B Executive Hero Summary ──
   "epf.hero.title": tr("แฟ้มประวัติอิเล็กทรอนิกส์", "Electronic Personnel File"),
   "epf.hero.fileHealth": tr("สถานะความสมบูรณ์ของแฟ้ม", "Officer File Health"),

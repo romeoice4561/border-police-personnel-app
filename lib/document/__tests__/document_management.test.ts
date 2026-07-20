@@ -395,6 +395,7 @@ describe("Download info", () => {
       description: null, storagePath: null, fileUrl: null,
       originalFilename: null, mimeType: null, fileSize: null,
       uploadedAt: null, uploadedBy: null, verifiedAt: null, verifiedBy: null,
+      issueDate: null, expiryDate: null, renewalDate: null,
       version: 1, isActive: true,
       createdAt: new Date(), updatedAt: new Date(),
     };

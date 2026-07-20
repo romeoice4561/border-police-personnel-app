@@ -178,13 +178,19 @@ export class DocumentRepository {
 
   /**
    * Updates the editable metadata fields of a document row (Phase 46 — e-PF
-   * Foundation). Only `title`/`description` are real, persisted columns on
-   * OfficerDocument today — this never touches file bytes, version, or
-   * active/inactive state. Returns null when the row doesn't exist.
+   * Foundation; Phase 47 — adds issueDate/expiryDate/renewalDate, all
+   * optional). Never touches file bytes, version, or active/inactive state.
+   * Returns null when the row doesn't exist.
    */
   async updateMetadata(
     id: number,
-    input: { title?: string; description?: string | null }
+    input: {
+      title?: string;
+      description?: string | null;
+      issueDate?: Date | null;
+      expiryDate?: Date | null;
+      renewalDate?: Date | null;
+    }
   ): Promise<OfficerDocument | null> {
     const existing = await this.findById(id);
     if (!existing) return null;
@@ -193,6 +199,9 @@ export class DocumentRepository {
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.issueDate !== undefined ? { issueDate: input.issueDate } : {}),
+        ...(input.expiryDate !== undefined ? { expiryDate: input.expiryDate } : {}),
+        ...(input.renewalDate !== undefined ? { renewalDate: input.renewalDate } : {}),
       },
     });
   }

@@ -190,17 +190,31 @@ export async function handleGetDocument(
   return jsonOk(doc);
 }
 
+const optionalDateField = z
+  .string()
+  .trim()
+  .refine((v) => !Number.isNaN(Date.parse(v)), "Invalid date")
+  .transform((v) => new Date(v))
+  .nullable()
+  .optional();
+
 const metadataUpdateSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
+  // Phase 47 — Document Expiry Intelligence. All optional; a document
+  // without these fields continues working exactly as before.
+  issueDate: optionalDateField,
+  expiryDate: optionalDateField,
+  renewalDate: optionalDateField,
 });
 
 /**
- * PATCH — updates a document's editable metadata (title/description).
- * Phase 46 (e-PF Foundation): only fields that are real, persisted columns
- * on OfficerDocument are editable here — never touches file bytes, version,
- * or active/inactive state. 404 when the document does not exist, 400 when
- * the body fails validation.
+ * PATCH — updates a document's editable metadata (title/description —
+ * Phase 46; issueDate/expiryDate/renewalDate — Phase 47, all optional).
+ * Only fields that are real, persisted columns on OfficerDocument are
+ * editable here — never touches file bytes, version, or active/inactive
+ * state. 404 when the document does not exist, 400 when the body fails
+ * validation.
  */
 export async function handleUpdateDocumentMetadata(
   service: DocumentUploadService,
