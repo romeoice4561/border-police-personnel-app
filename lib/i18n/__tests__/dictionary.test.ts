@@ -96,7 +96,7 @@ test("built-in document category labels named in the audit are Thai in TH and En
   const cases: Array<[TranslationKey, string, string]> = [
     ["officer.trainingEditorCourse", "หลักสูตร", "Course"],
     ["epf.completeness.checklist.HOUSE_REGISTRATION", "ทะเบียนบ้าน", "House Registration"],
-    ["epf.completeness.checklist.NATIONAL_ID", "บัตรประชาชน", "ID Card"],
+    ["epf.completeness.checklist.NATIONAL_ID", "บัตรประจำตัวประชาชน", "National ID Card"],
   ];
   for (const [key, th, en] of cases) {
     assert.equal(translate(key, "th"), th, `${key} TH mismatch`);

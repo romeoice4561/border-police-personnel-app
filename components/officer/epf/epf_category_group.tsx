@@ -22,11 +22,12 @@ import type { LucideIcon } from "lucide-react";
 import { Upload } from "lucide-react";
 import type { OfficerDocument } from "@/lib/database/query_types";
 import type { DocumentCategoryDefinition } from "@/lib/document/document_categories";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
 import type { CategoryRollup } from "@/lib/document/epf_intelligence";
 import { TimelineCollapse } from "@/components/officer/timeline/timeline_collapse";
 import { EpfDocumentCard } from "@/components/officer/epf/epf_document_card";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/components/i18n/language_provider";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -45,6 +46,7 @@ export function EpfCategoryGroup({
   onRefresh,
   onOpenDetails,
   onOpenHistory,
+  onUploadFirst,
   expanded,
   onToggle,
 }: {
@@ -56,10 +58,13 @@ export function EpfCategoryGroup({
   onRefresh: () => void;
   onOpenDetails: (typeCode: string) => void;
   onOpenHistory: (typeCode: string) => void;
+  /** Phase 49A.3: open Create/Upload mode (visible file picker) — never details-only. */
+  onUploadFirst: (typeCode: string) => void;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const { t } = useT();
+  const { language } = useLanguage();
   const panelId = useId();
   const uploadedCount = rows.filter((r) => r.doc).length;
   const isEmpty = uploadedCount === 0;
@@ -104,14 +109,35 @@ export function EpfCategoryGroup({
 
       {expanded ? (
         isEmpty ? (
-          <div id={panelId} className="flex flex-col items-center gap-2 border-t border-border px-4 py-6 text-center">
+          <div id={panelId} className="flex flex-col items-center gap-3 border-t border-border px-4 py-6 text-center">
             <p className="text-xs text-muted">
               {t(`epf.category.${category.code}` as TranslationKey)} — {t("epf.categoryEmptyState")}
             </p>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenDetails(rows[0].code)}>
-              <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("epf.categoryEmptyUpload")}
-            </Button>
+            {/* Phase 49A.3: every type in an empty category gets its own
+                “อัปโหลดเอกสารแรก” entry so Create/Upload can bind the correct
+                documentType — not only rows[0]. */}
+            <ul className="flex w-full max-w-md flex-col gap-2">
+              {rows.map((row) => {
+                const typeLabel = getDocumentTypeLabel(row.code, language);
+                return (
+                  <li key={row.code}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-center"
+                      onClick={() => onUploadFirst(row.code)}
+                      data-testid={`epf-upload-first-${row.code}`}
+                      aria-label={`${t("epf.categoryEmptyUpload")}: ${typeLabel}`}
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t("epf.categoryEmptyUpload")}
+                      <span className="text-muted">— {typeLabel}</span>
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         ) : (
           <ul id={panelId} className="space-y-2.5 border-t border-border p-2.5 sm:p-3">
@@ -124,6 +150,7 @@ export function EpfCategoryGroup({
                 onRefresh={onRefresh}
                 onOpenDetails={() => onOpenDetails(row.code)}
                 onOpenHistory={() => onOpenHistory(row.code)}
+                onOpenCreateUpload={() => onUploadFirst(row.code)}
               />
             ))}
           </ul>

@@ -39,6 +39,8 @@ function row(ov: Partial<TimelineDraftRow> & { key: string }): TimelineDraftRow 
     battalionText: "",
     companyId: null,
     companyText: "",
+    appointmentOrder: "",
+    workLine: "",
     verificationStatus: "",
     verifiedBy: "",
     verifiedDate: "",

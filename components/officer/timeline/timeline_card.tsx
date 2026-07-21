@@ -33,6 +33,7 @@ import { OrgHierarchyPicker } from "@/components/officer/org_hierarchy_picker";
 import { RANK_OPTIONS } from "@/lib/officer_profile/rank_options";
 import { POSITION_OPTIONS } from "@/lib/officer_profile/position_options";
 import { TIMELINE_SOURCE_OPTIONS } from "@/lib/officer_profile/timeline_status_options";
+import { WORK_LINE_OPTIONS } from "@/lib/officer_profile/work_line_options";
 import { VERIFIED_BY_OPTIONS } from "@/lib/officer_profile/verification_options";
 import { TimelineHeader } from "@/components/officer/timeline/timeline_header";
 import { TimelineActions } from "@/components/officer/timeline/timeline_actions";
@@ -206,8 +207,34 @@ export function TimelineCard({
               <Select options={POSITION_LEVEL_SELECT_OPTIONS} value={row.positionLevel} onChange={(e) => onUpdate({ positionLevel: e.target.value })} aria-label="ระดับตำแหน่ง" />
             </LabeledField>
 
-            <LabeledField label="ที่มาของข้อมูล" className="lg:col-span-6">
-              <Combobox value={row.source} onChange={(value) => onUpdate({ source: value })} suggestions={TIMELINE_SOURCE_OPTIONS} placeholder="เลือกหรือพิมพ์ที่มา" aria-label="ที่มาของข้อมูล" />
+            {/* Phase 49A.3: ตามคำสั่ง + สายงาน — full-width row under position level. */}
+            <LabeledField label={t("officer.timelineAppointmentOrder")} className="lg:col-span-4">
+              <textarea
+                className="min-h-[2.75rem] w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                rows={2}
+                value={row.appointmentOrder}
+                onChange={(e) => onUpdate({ appointmentOrder: e.target.value })}
+                placeholder={t("officer.timelineAppointmentOrderPlaceholder")}
+                aria-label={t("officer.timelineAppointmentOrder")}
+                aria-describedby="timeline-appointment-order-hint"
+              />
+              <span id="timeline-appointment-order-hint" className="sr-only">
+                {t("officer.timelineAppointmentOrderPlaceholder")}
+              </span>
+            </LabeledField>
+
+            <LabeledField label={t("officer.timelineWorkLine")} className="lg:col-span-2">
+              <Combobox
+                value={row.workLine}
+                onChange={(value) => onUpdate({ workLine: value })}
+                suggestions={[...WORK_LINE_OPTIONS]}
+                placeholder={t("officer.timelineWorkLinePlaceholder")}
+                aria-label={t("officer.timelineWorkLine")}
+              />
+            </LabeledField>
+
+            <LabeledField label={t("officer.timelineDataSource")} className="lg:col-span-6">
+              <Combobox value={row.source} onChange={(value) => onUpdate({ source: value })} suggestions={TIMELINE_SOURCE_OPTIONS} placeholder="เลือกหรือพิมพ์ที่มา" aria-label={t("officer.timelineDataSource")} />
             </LabeledField>
           </div>
 

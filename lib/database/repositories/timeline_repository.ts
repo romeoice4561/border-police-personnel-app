@@ -61,6 +61,9 @@ export interface TimelineRowInput {
   regionText?: string | null;
   battalionText?: string | null;
   companyText?: string | null;
+  /** Phase 49A.3: official order reference + work line — additive free text. */
+  appointmentOrder?: string | null;
+  workLine?: string | null;
   /**
    * Phase 26B Part 5 Part D/H/M: verification triad — ADDITIVE alongside the
    * existing free-text `verified` column above (untouched). A NEW closed

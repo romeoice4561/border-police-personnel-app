@@ -14,7 +14,8 @@ import type { CompletenessItem } from "@/lib/document/epf_intelligence";
 import { MISSING_DOCUMENT_GROUP, MISSING_DOCUMENT_GROUP_ORDER, type MissingDocumentGroupKey } from "@/lib/document/epf_missing_document_groups";
 import { TimelineCollapse } from "@/components/officer/timeline/timeline_collapse";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/components/i18n/language_provider";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const GROUP_LABEL_KEY: Record<MissingDocumentGroupKey, TranslationKey> = {
@@ -33,6 +34,7 @@ function MissingGroupSection({
   onUpload: (typeCode: string) => void;
 }) {
   const { t } = useT();
+  const { language } = useLanguage();
   const [expanded, setExpanded] = useState(true);
   const panelId = useId();
 
@@ -47,7 +49,9 @@ function MissingGroupSection({
         <ul id={panelId} className="space-y-1.5 border-t border-border p-2">
           {items.map((item) => {
             const isPortrait = item.code === "OFFICIAL_PORTRAIT";
-            const label = t(`epf.completeness.checklist.${item.code}` as TranslationKey);
+            const label = isPortrait
+              ? t("epf.completeness.checklist.OFFICIAL_PORTRAIT")
+              : getDocumentTypeLabel(item.code, language);
             return (
               <li key={item.code} className="flex items-center justify-between gap-2 rounded-md bg-warning-bg/40 px-2.5 py-1.5">
                 <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">

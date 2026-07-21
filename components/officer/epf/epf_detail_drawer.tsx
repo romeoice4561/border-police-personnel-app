@@ -35,10 +35,10 @@ import { DocumentThumbnail } from "@/components/ui/media/DocumentThumbnail";
 import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
 import { EpfHistoryPanel } from "@/components/officer/epf/epf_history_panel";
 import { EpfExtractionPanel } from "@/components/officer/epf/epf_extraction_panel";
-import { findDocumentType } from "@/lib/document/document_types";
 import { categoryForTypeCode } from "@/lib/document/document_categories";
+import { getDocumentTypeLabel, resolveDocumentDisplayTitle } from "@/lib/document/document_type_labels";
 import { expiryStatus, daysRemaining, EXPIRY_STATUS_TONE, type ExpiryStatus } from "@/lib/document/document_expiry";
-import { useT } from "@/components/i18n/language_provider";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -81,11 +81,12 @@ export function EpfDetailDrawer({
   onRefresh: () => void;
 }) {
   const { t } = useT();
-  const def = findDocumentType(typeCode);
-  const labelEn = def?.labelEn ?? typeCode;
+  const { language } = useLanguage();
+  const typeLabel = getDocumentTypeLabel(typeCode, language);
+  const displayTitle = resolveDocumentDisplayTitle(doc?.title, typeCode, language);
   const category = categoryForTypeCode(typeCode);
 
-  const [title, setTitle] = useState(doc?.title || labelEn);
+  const [title, setTitle] = useState(displayTitle);
   const [description, setDescription] = useState(doc?.description ?? "");
   const [issueDate, setIssueDate] = useState(toDateInputValue(doc?.issueDate));
   const [expiryDate, setExpiryDate] = useState(toDateInputValue(doc?.expiryDate));
@@ -149,7 +150,7 @@ export function EpfDetailDrawer({
     <Drawer open={open} onClose={onClose} titleId="epf-detail-title" title={t("epf.detailTitle")}>
       <div className="space-y-5">
         <div className="flex justify-center rounded-lg bg-neutral-bg p-4">
-          <DocumentThumbnail fileUrl={doc?.fileUrl} mimeType={doc?.mimeType} documentTypeCode={typeCode} size="md" altText={labelEn} />
+          <DocumentThumbnail fileUrl={doc?.fileUrl} mimeType={doc?.mimeType} documentTypeCode={typeCode} size="md" altText={displayTitle} />
         </div>
 
         <div className="flex items-center justify-between gap-2">
@@ -159,6 +160,8 @@ export function EpfDetailDrawer({
             {t("epf.cardAiReady")}
           </span>
         </div>
+
+        <p className="wrap-break-word text-xs text-muted">{typeLabel}</p>
 
         <section aria-labelledby="epf-detail-metadata-heading" className="space-y-3">
           <h3 id="epf-detail-metadata-heading" className="text-sm font-semibold text-foreground">{t("epf.detailMetadataHeading")}</h3>

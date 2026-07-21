@@ -49,7 +49,8 @@ import {
   ChevronUp,
 } from "lucide-react";
 import type { OfficerDocument } from "@/lib/database/query_types";
-import { getDocumentTypes, findDocumentType } from "@/lib/document/document_types";
+import { getDocumentTypes } from "@/lib/document/document_types";
+import { getDocumentTypeLabel, resolveDocumentDisplayTitle } from "@/lib/document/document_type_labels";
 import { ALLOWED_DOCUMENT_MIME, MAX_DOCUMENT_BYTES } from "@/lib/document/document_validation";
 import { EditableSectionCard } from "@/components/officer/editable_section_card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
 import { DocumentFilterBar, type DocumentFilterValue } from "@/components/officer/document_filter_bar";
 import { documentStatus } from "@/lib/document/document_status";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
+import { useLanguage } from "@/components/i18n/language_provider";
 
 const ACCEPT = Object.keys(ALLOWED_DOCUMENT_MIME).join(",");
 
@@ -416,9 +418,11 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
   // Brief fade-out shown right before a fully-deleted card reverts to empty.
   const [fadingOut, setFadingOut] = useState(false);
 
-  const def = findDocumentType(typeCode);
-  const labelEn = def?.labelEn ?? typeCode;
-  const labelTh = def?.labelTh ?? typeCode;
+  // Locale-aware type labels (Phase 49A.3) — never hardwire English as the card title in TH mode.
+  const { language } = useLanguage();
+  const typeLabel = getDocumentTypeLabel(typeCode, language);
+  const displayTitle = resolveDocumentDisplayTitle(doc?.title, typeCode, language);
+  const labelEn = typeLabel; // history/aria props still named labelEn; value is locale-aware
 
   // The version that will become Current if the active `doc` is deleted —
   // computed from data already available client-side (no extra request),
@@ -512,15 +516,15 @@ function DocumentRow({ officerId, typeCode, doc, allVersions, onRefresh }: Docum
           fileUrl={doc?.fileUrl}
           mimeType={doc?.mimeType}
           documentTypeCode={typeCode}
-          altText={labelEn}
+          altText={displayTitle}
           onClick={doc?.fileUrl ? () => openPreview(doc.fileUrl) : undefined}
         />
 
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">{labelEn}</p>
-              <p className="text-xs text-muted">{labelTh}</p>
+              <p className="wrap-break-word text-sm font-medium text-foreground">{displayTitle}</p>
+              <p className="wrap-break-word text-xs text-muted">{typeLabel}</p>
             </div>
             <div className="shrink-0 transition-all duration-300"><DocumentStatusBadge doc={doc} /></div>
           </div>

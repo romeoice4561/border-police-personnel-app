@@ -11,8 +11,8 @@
 
 import { Upload, RefreshCw } from "lucide-react";
 import type { ActivityGroup } from "@/lib/document/epf_insights";
-import { findDocumentType } from "@/lib/document/document_types";
-import { useT } from "@/components/i18n/language_provider";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -24,6 +24,7 @@ const GROUP_LABEL_KEY: Record<ActivityGroup["key"], TranslationKey> = {
 
 export function EpfRecentActivity({ groups }: { groups: ActivityGroup[] }) {
   const { t } = useT();
+  const { language } = useLanguage();
 
   return (
     <section aria-labelledby="epf-activity-heading" className="rounded-xl border border-border bg-surface p-3.5 sm:p-4">
@@ -40,7 +41,7 @@ export function EpfRecentActivity({ groups }: { groups: ActivityGroup[] }) {
               <p className="mb-1 text-[10px] font-medium tracking-wide text-muted uppercase">{t(GROUP_LABEL_KEY[group.key])}</p>
               <ol className="space-y-1">
                 {group.entries.map((entry, i) => {
-                  const label = findDocumentType(entry.documentType)?.labelEn ?? entry.documentType;
+                  const label = getDocumentTypeLabel(entry.documentType, language);
                   const Icon = entry.kind === "uploaded" ? Upload : RefreshCw;
                   const kindLabel = entry.kind === "uploaded" ? t("epf.activity.uploaded") : t("epf.activity.updated");
                   return (

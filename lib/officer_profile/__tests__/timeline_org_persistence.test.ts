@@ -65,6 +65,8 @@ function baseDraft(ov: Partial<TimelineOrgPersistenceDraft> = {}): TimelineOrgPe
     battalionText: "TEST-SUBDIVISION",
     companyId: null,
     companyText: "TEST-COMPANY",
+    appointmentOrder: "",
+    workLine: "",
     verificationStatus: "PENDING",
     verifiedBy: "tester",
     verifiedDate: "",

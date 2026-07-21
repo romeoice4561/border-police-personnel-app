@@ -48,6 +48,9 @@ export interface CareerTimelineRow {
   positionLevel: string;
   unit: string | null;
   source: string | null;
+  /** Phase 49A.3: official order reference — preferred display for "ที่มา". */
+  appointmentOrder: string | null;
+  workLine: string | null;
   verified: string;
   headquarters: string | null;
   borderPatrolDivision: string | null;
@@ -59,6 +62,19 @@ export interface CareerTimelineRow {
   verificationRemark: string | null;
   isPresent: boolean;
   appointmentCycle: number | null;
+}
+
+/** Display precedence for the "ที่มา" column: appointmentOrder → source → ไม่ระบุ. */
+export function timelineSourceDisplay(
+  appointmentOrder: string | null | undefined,
+  source: string | null | undefined,
+  unspecifiedLabel: string
+): string {
+  const order = (appointmentOrder ?? "").trim();
+  if (order) return order;
+  const src = (source ?? "").trim();
+  if (src) return src;
+  return unspecifiedLabel;
 }
 
 /**
@@ -83,6 +99,8 @@ function toCareerTimelineRow(entry: Timeline, organizationEngine: OrganizationEn
     positionLevel: normalizePositionLevel(entry.positionLevel),
     unit: entry.unit,
     source: entry.source,
+    appointmentOrder: entry.appointmentOrder ?? null,
+    workLine: entry.workLine ?? null,
     verified: entry.verified,
     headquarters: displayOrgLabel(entry.headquartersText, labels.headquarters),
     borderPatrolDivision: displayOrgLabel(entry.regionText, labels.borderPatrolDivision),
@@ -165,21 +183,27 @@ function VerificationDetail({ row }: { row: CareerTimelineRow }) {
  * No horizontal scrolling, 16px+ body text, generous touch spacing.
  */
 function TimelineCard({ row }: { row: CareerTimelineRow }) {
+  const { t } = useT();
+  const sourceText = timelineSourceDisplay(row.appointmentOrder, row.source, t("officer.timelineUnspecified"));
   return (
     <div className="space-y-2 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
         <span className="text-base font-medium tabular-nums text-foreground">{row.date || "—"}</span>
-        {row.isPresent ? <Badge tone="good">ปัจจุบัน / Current</Badge> : null}
+        {row.isPresent ? <Badge tone="good">{t("officer.current")}</Badge> : null}
       </div>
       {row.rank ? <p className="text-sm text-muted">{row.rank}</p> : null}
       {row.appointmentCycle ? <p className="text-xs text-muted">รอบแต่งตั้ง {row.appointmentCycle}</p> : null}
       <OrganizationStack row={row} />
-      {row.source ? (
+      {row.workLine ? (
         <p className="text-sm text-muted">
-          <span className="font-medium text-foreground">Source: </span>
-          {row.source}
+          <span className="font-medium text-foreground">{t("officer.timelineWorkLine")}: </span>
+          {row.workLine}
         </p>
       ) : null}
+      <p className="wrap-break-word text-sm text-muted">
+        <span className="font-medium text-foreground">{t("officer.timelineSource")}: </span>
+        {sourceText}
+      </p>
       <div className="border-t border-border pt-2">
         <VerificationDetail row={row} />
       </div>
@@ -208,47 +232,43 @@ export function CareerTimelineSection({ timeline, organizationEngine }: { timeli
               ))}
             </div>
 
-            {/* Desktop/tablet: table. Phase 26B Part 6 Part V: table-layout:fixed
-                with explicit proportional column widths (Position+Organization
-                get the most room, Source/Verified are narrower) so the table
-                fills the full card width instead of shrinking to content and
-                forcing a horizontal scrollbar on typical viewports.
-                overflow-x-auto is kept as a safety net for very narrow screens
-                only. */}
+            {/* Desktop/tablet: auto table with min-widths so date/rank never
+                overlap (Phase 49A.3). Horizontal scroll when the viewport is
+                narrower than the sum of mins — text wraps, never shrinks. */}
             <div className="hidden overflow-x-auto sm:block">
-              <table className="w-full table-fixed text-left text-sm">
-                <colgroup>
-                  <col className="w-[10%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[42%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[25%]" />
-                </colgroup>
+              <table className="w-full min-w-[56rem] border-separate border-spacing-0 text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineDate")}</th>
-                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineRank")}</th>
-                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelinePositionOrg")}</th>
-                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineSource")}</th>
-                    <th scope="col" className="px-5 py-3 font-medium">{t("officer.timelineVerification")}</th>
+                    <th scope="col" className="min-w-[9rem] px-4 py-3 font-medium">{t("officer.timelineDate")}</th>
+                    <th scope="col" className="min-w-[6.5rem] px-4 py-3 font-medium">{t("officer.timelineRank")}</th>
+                    <th scope="col" className="min-w-[18rem] px-4 py-3 font-medium">{t("officer.timelinePositionOrg")}</th>
+                    <th scope="col" className="min-w-[12rem] px-4 py-3 font-medium">{t("officer.timelineSource")}</th>
+                    <th scope="col" className="min-w-[10rem] px-4 py-3 font-medium">{t("officer.timelineVerification")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id} className="border-b border-border last:border-0 align-top">
-                      <td className="whitespace-nowrap px-5 py-3 tabular-nums">
-                        <span className="flex items-center gap-2">
-                          {row.date || "—"}
-                          {row.isPresent ? <Badge tone="good">{t("officer.current")}</Badge> : null}
-                        </span>
-                        {row.appointmentCycle ? <span className="mt-1 block text-xs text-muted">รอบ {row.appointmentCycle}</span> : null}
+                      <td className="min-w-[9rem] px-4 py-3 tabular-nums">
+                        <div className="flex flex-col gap-1">
+                          <span className="wrap-break-word leading-snug">{row.date || "—"}</span>
+                          {row.isPresent ? <Badge tone="good" className="w-fit">{t("officer.current")}</Badge> : null}
+                          {row.appointmentCycle ? <span className="text-xs text-muted">รอบ {row.appointmentCycle}</span> : null}
+                        </div>
                       </td>
-                      <td className="px-5 py-3 text-muted">{row.rank || "—"}</td>
-                      <td className="px-5 py-3">
+                      <td className="min-w-[6.5rem] wrap-break-word px-4 py-3 leading-snug text-muted">{row.rank || "—"}</td>
+                      <td className="min-w-[18rem] px-4 py-3">
                         <OrganizationStack row={row} />
+                        {row.workLine ? (
+                          <p className="mt-1 wrap-break-word text-xs text-muted">
+                            {t("officer.timelineWorkLine")}: {row.workLine}
+                          </p>
+                        ) : null}
                       </td>
-                      <td className="wrap-break-word px-5 py-3 text-muted">{row.source || "—"}</td>
-                      <td className="px-5 py-3">
+                      <td className="min-w-[12rem] wrap-break-word px-4 py-3 leading-snug text-muted">
+                        {timelineSourceDisplay(row.appointmentOrder, row.source, t("officer.timelineUnspecified"))}
+                      </td>
+                      <td className="min-w-[10rem] px-4 py-3">
                         <VerificationDetail row={row} />
                       </td>
                     </tr>

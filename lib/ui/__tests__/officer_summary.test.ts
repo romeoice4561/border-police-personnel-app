@@ -36,6 +36,8 @@ function timelineRow(ov: Partial<Timeline> & { id: number; officerId: number; se
     regionText: null,
     battalionText: null,
     companyText: null,
+    appointmentOrder: null,
+    workLine: null,
     verificationStatus: null,
     verifiedBy: null,
     verifiedDate: null,

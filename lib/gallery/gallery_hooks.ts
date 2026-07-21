@@ -26,10 +26,15 @@ export function useGalleryCategories(): UseQueryResult<AssetCategoryCount[]> {
 }
 
 export function useGalleryAssets(query: GalleryAssetsQuery): UseQueryResult<GalleryAssetsResult> {
+  // Phase 49A.3: when a search keyword is active, do NOT keep previous-page
+  // results as placeholder — that made stale "414" cards linger while the
+  // next query loaded. Category browsing without search still uses
+  // keepPreviousData for smoother pagination.
+  const hasSearch = Boolean(query.search?.trim());
   return useQuery({
     queryKey: galleryQueryKeys.assets(query),
     queryFn: () => galleryClient.listAssets(query),
-    placeholderData: keepPreviousData,
+    placeholderData: hasSearch ? undefined : keepPreviousData,
   });
 }
 

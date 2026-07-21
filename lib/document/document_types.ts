@@ -21,16 +21,16 @@ export interface DocumentTypeDefinition {
 
 /** Initial built-in document categories (spec §DOCUMENT TYPES). */
 export const BUILT_IN_DOCUMENT_TYPES: readonly DocumentTypeDefinition[] = [
-  { code: "NATIONAL_ID",        labelTh: "บัตรประชาชน",                    labelEn: "National ID Card" },
-  { code: "OFFICER_CARD",       labelTh: "บัตรประจำตัวข้าราชการ",          labelEn: "Government Officer Card" },
+  { code: "NATIONAL_ID",        labelTh: "บัตรประจำตัวประชาชน",              labelEn: "National ID Card" },
+  { code: "OFFICER_CARD",       labelTh: "บัตรประจำตัวข้าราชการตำรวจ",      labelEn: "Government Officer Card" },
   { code: "DRIVER_LICENSE",     labelTh: "ใบอนุญาตขับขี่",                 labelEn: "Driver License" },
   { code: "HOUSE_REGISTRATION", labelTh: "ทะเบียนบ้าน",                    labelEn: "House Registration" },
-  { code: "MILITARY_RECORD",    labelTh: "ป.4",                            labelEn: "Military Record (ป.4)" },
+  { code: "MILITARY_RECORD",    labelTh: "สมุดประวัติรับราชการ",            labelEn: "Military Record (ป.4)" },
   { code: "GP7",                labelTh: "ก.พ.7",                          labelEn: "ก.พ.7" },
   { code: "APPOINTMENT_ORDER",  labelTh: "คำสั่งแต่งตั้ง",                 labelEn: "Appointment Order" },
-  { code: "CERTIFICATE",        labelTh: "ประกาศนียบัตร",                  labelEn: "Certificate" },
+  { code: "CERTIFICATE",        labelTh: "หนังสือรับรอง",                  labelEn: "Certificate" },
   { code: "PASSPORT",           labelTh: "หนังสือเดินทาง",                 labelEn: "Passport" },
-  { code: "OTHER",              labelTh: "เอกสารอื่น",                     labelEn: "Other" },
+  { code: "OTHER",              labelTh: "เอกสารอื่น ๆ",                   labelEn: "Other" },
 ] as const;
 
 // Mutable registry starts with the built-in types. Modules can extend via registerDocumentType.
@@ -53,13 +53,18 @@ export function registerDocumentType(def: DocumentTypeDefinition): void {
 }
 
 /**
- * Resolves the English label for a given code. Falls back to the raw code
- * when the code is not in the registry (unknown/future types show their code
- * rather than crashing).
+ * English-only label helper kept for non-UI callers.
+ * UI must use `getDocumentTypeLabel(code, locale)` from
+ * `lib/document/document_type_labels.ts` so Thai mode is never stuck on EN.
  */
-export function getDocumentTypeLabel(code: string): string {
+export function getDocumentTypeLabelEn(code: string): string {
   const def = _registry.find((d) => d.code === code);
   return def ? def.labelEn : code;
+}
+
+/** @deprecated Prefer locale-aware getDocumentTypeLabel from document_type_labels. */
+export function getDocumentTypeLabel(code: string): string {
+  return getDocumentTypeLabelEn(code);
 }
 
 /** Returns the full definition for a code, or null when not found. */

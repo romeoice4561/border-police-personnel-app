@@ -365,6 +365,8 @@ export interface OfficerProfileSaveRequest {
     regionText?: string | null;
     battalionText?: string | null;
     companyText?: string | null;
+    appointmentOrder?: string | null;
+    workLine?: string | null;
     /** Phase 26B Part 5 Part D/H/M: verification triad — additive alongside the existing `verified` above. */
     verificationStatus: string | null;
     verifiedBy: string | null;

@@ -23,6 +23,10 @@ import { READINESS_LEVEL_TONE } from "@/lib/integration/documents/readiness_tone
 import type { ReadinessLevel } from "@/lib/intelligence/document_readiness";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
+import {
+  localizedPrimaryActionLabel,
+  localizedReadinessLabel,
+} from "@/lib/integration/documents/localize_document_intelligence";
 
 const READINESS_ICON: Record<ReadinessLevel, typeof Check> = {
   READY: Check,
@@ -40,9 +44,11 @@ export function EpfDocumentIntelligenceSummary({
   documentIntelligence: OfficerDocumentIntelligence;
   hasSessionOcrData?: boolean;
 }) {
-  const { t } = useT();
+  const { t, language } = useT();
   const di = documentIntelligence;
   const ReadinessIcon = READINESS_ICON[di.readinessLevel];
+  const readinessLabel = localizedReadinessLabel(di.readinessLevel, language);
+  const primaryActionLabel = localizedPrimaryActionLabel(di, language);
 
   return (
     <div className="rounded-2xl border border-border bg-neutral-bg p-5 sm:p-6">
@@ -56,9 +62,9 @@ export function EpfDocumentIntelligenceSummary({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Badge tone={READINESS_LEVEL_TONE[di.readinessLevel]} className="inline-flex items-center gap-1.5">
           <ReadinessIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          {di.readinessLabelTh}
+          {readinessLabel}
         </Badge>
-        {di.primaryAction !== "NONE" ? <span className="text-sm text-foreground">{di.primaryActionLabelTh}</span> : null}
+        {di.primaryAction !== "NONE" ? <span className="text-sm text-foreground">{primaryActionLabel}</span> : null}
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">

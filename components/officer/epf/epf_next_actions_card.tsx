@@ -13,8 +13,9 @@
 
 import { Upload, ShieldCheck, Eye, Gauge } from "lucide-react";
 import type { ActionKind, RecommendedAction } from "@/lib/document/epf_insights";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/components/i18n/language_provider";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const ACTION_ICON: Record<ActionKind, typeof Upload> = {
@@ -39,6 +40,7 @@ export function EpfNextActionsCard({
   onUploadMissing: (typeCode: string) => void;
 }) {
   const { t } = useT();
+  const { language } = useLanguage();
 
   return (
     <section aria-labelledby="epf-next-actions-heading" className="rounded-xl border border-border bg-surface p-4 sm:p-5">
@@ -56,7 +58,7 @@ export function EpfNextActionsCard({
           // generic phrasing only if typeCode is somehow absent.
           const specificDocumentLabel =
             action.kind === "upload_missing" && action.typeCode
-              ? t(`epf.completeness.checklist.${action.typeCode}` as TranslationKey)
+              ? getDocumentTypeLabel(action.typeCode, language)
               : null;
           const title = specificDocumentLabel
             ? `${t("epf.action.uploadMissingNamed")}${specificDocumentLabel}`

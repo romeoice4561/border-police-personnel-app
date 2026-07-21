@@ -146,6 +146,10 @@ export interface TimelineDraftRow {
   battalionText: string;
   companyId: number | null;
   companyText: string;
+  /** Phase 49A.3: ตามคำสั่ง — official order/reference text. */
+  appointmentOrder: string;
+  /** Phase 49A.3: สายงาน — standard option or custom free text. */
+  workLine: string;
   /** Phase 26B Part 5 Part D/H/M: verification triad — additive alongside the existing `verified` free-text field above. */
   verificationStatus: string;
   verifiedBy: string;
@@ -306,6 +310,8 @@ function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: Org
         battalionText: hydrateOrgLabel(t.battalionText, orgLabels.battalion),
         companyId: t.companyId ?? null,
         companyText: hydrateOrgLabel(t.companyText, orgLabels.company),
+        appointmentOrder: t.appointmentOrder ?? "",
+        workLine: t.workLine ?? "",
         verificationStatus: t.verificationStatus ?? "",
         verifiedBy: t.verifiedBy ?? "",
         verifiedDate: formatThaiPersonnelDate(t.verifiedDate),
@@ -621,6 +627,8 @@ export function emptyTimelineRow(): TimelineDraftRow {
     battalionText: "",
     companyId: null,
     companyText: "",
+    appointmentOrder: "",
+    workLine: "",
     verificationStatus: "",
     verifiedBy: "",
     verifiedDate: "",

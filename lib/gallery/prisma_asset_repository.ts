@@ -235,6 +235,24 @@ export class PrismaAssetRepository implements AssetRepository {
     const sortBy = query.sortBy ?? "folderName";
     const sortOrder = query.sortOrder ?? "desc";
 
+    // Phase 49A.3: Prisma `contains` is a candidate filter only. Numeric org
+    // codes (e.g. "414") must not match "41"/"4140"/"1414" — apply the shared
+    // token matcher, then paginate the filtered set so counts stay honest.
+    if (query.search?.trim()) {
+      const { assetMatchesSearch } = await import("@/lib/gallery/asset_search");
+      const allRows = await this.db.asset.findMany({ where, orderBy: { [sortBy]: sortOrder } });
+      const filtered = allRows.map(rowToAsset).filter((asset) => assetMatchesSearch(asset, query.search));
+      const total = filtered.length;
+      const start = (page - 1) * pageSize;
+      return {
+        data: filtered.slice(start, start + pageSize),
+        total,
+        page,
+        pageSize,
+        totalPages: pageSize > 0 ? Math.ceil(total / pageSize) : 0,
+      };
+    }
+
     const [rows, total] = await Promise.all([
       this.db.asset.findMany({ where, orderBy: { [sortBy]: sortOrder }, skip: (page - 1) * pageSize, take: pageSize }),
       this.db.asset.count({ where }),

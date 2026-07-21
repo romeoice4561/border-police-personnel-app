@@ -10,8 +10,8 @@
 
 import { LayoutGrid, FileWarning, Image as ImageIcon, FileText, File } from "lucide-react";
 import type { EpfDashboardStats, StorageSummary } from "@/lib/document/epf_intelligence";
-import { findDocumentType } from "@/lib/document/document_types";
-import { useT } from "@/components/i18n/language_provider";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -44,8 +44,9 @@ function StatCard({
 
 export function EpfSecondaryStats({ stats, storage }: { stats: EpfDashboardStats; storage: StorageSummary }) {
   const { t } = useT();
+  const { language } = useLanguage();
   const largestLabel = stats.largestDocument
-    ? findDocumentType(stats.largestDocument.documentType)?.labelEn ?? stats.largestDocument.documentType
+    ? getDocumentTypeLabel(stats.largestDocument.documentType, language)
     : t("epf.dashboard.none");
 
   const totalCount = storage.imageCount + storage.pdfCount + storage.otherCount;

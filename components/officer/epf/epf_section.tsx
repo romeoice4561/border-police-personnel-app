@@ -89,6 +89,7 @@ import { EpfExpiryTimeline } from "@/components/officer/epf/epf_expiry_timeline"
 import { EpfExpiryAlertPanel } from "@/components/officer/epf/epf_expiry_alert_panel";
 import { EpfExpiryReadiness } from "@/components/officer/epf/epf_expiry_readiness";
 import { EpfDocumentIntelligenceSummary } from "@/components/officer/epf/epf_document_intelligence_summary";
+import { EpfCreateUploadDrawer } from "@/components/officer/epf/epf_create_upload_drawer";
 import { composeOfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
 import { useT } from "@/components/i18n/language_provider";
 
@@ -129,12 +130,19 @@ export function EpfSection({
   const router = useRouter();
   const [filterState, setFilterState] = useState<EpfFilterState>(DEFAULT_FILTER_STATE);
   const [detailTypeCode, setDetailTypeCode] = useState<string | null>(null);
+  /** Create/Upload mode — never opens the details-only drawer without a file. */
+  const [createTypeCode, setCreateTypeCode] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set(getDocumentCategories().map((c) => c.code)));
   const expiryTimelineRef = useRef<HTMLDivElement>(null);
 
   const onRefresh = useCallback(() => {
     router.refresh();
   }, [router]);
+
+  const openCreateUpload = useCallback((typeCode: string) => {
+    setDetailTypeCode(null);
+    setCreateTypeCode(typeCode);
+  }, []);
 
   const documentTypes = getDocumentTypes();
   const categories = getDocumentCategories();
@@ -305,7 +313,7 @@ export function EpfSection({
       <p className="mb-5 text-xs text-muted">{t("epf.sectionSubtitle")}</p>
 
       {!hasAnyDocument ? (
-        <EpfEmptyState onUpload={() => setDetailTypeCode(documentTypes[0]?.code ?? null)} />
+        <EpfEmptyState onUpload={() => openCreateUpload(documentTypes[0]?.code ?? "OTHER")} />
       ) : (
         <div className="space-y-6">
           {/* Phase 49A: the canonical document-intelligence summary
@@ -324,7 +332,7 @@ export function EpfSection({
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <EpfInsightsCard insights={insights} />
             {nextActions.length > 0 ? (
-              <EpfNextActionsCard actions={nextActions} onUploadMissing={(code) => setDetailTypeCode(code)} />
+              <EpfNextActionsCard actions={nextActions} onUploadMissing={openCreateUpload} />
             ) : null}
           </div>
 
@@ -337,7 +345,7 @@ export function EpfSection({
           <EpfSecondaryStats stats={dashboardStats} storage={storageSummary} />
 
           {/* 5. Missing Documents — grouped Required/Professional/Optional. */}
-          <EpfMissingPanel missingItems={missingItems} onUpload={(code) => setDetailTypeCode(code)} />
+          <EpfMissingPanel missingItems={missingItems} onUpload={openCreateUpload} />
 
           {/* 6. Recent Activity — compact timeline, no longer paired with a
               duplicate storage card (storage now lives in Secondary Stats). */}
@@ -345,7 +353,7 @@ export function EpfSection({
 
           <div className="border-t border-border pt-5">
             <EpfQuickActions
-              onUpload={() => setDetailTypeCode(documentTypes[0]?.code ?? null)}
+              onUpload={() => openCreateUpload(documentTypes[0]?.code ?? "OTHER")}
               onExpandAll={handleExpandAll}
               onCollapseAll={handleCollapseAll}
             />
@@ -361,7 +369,7 @@ export function EpfSection({
             />
             <EpfExpiryReadiness summary={expirySummary} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <EpfExpiryAlertPanel items={expiryAlertItems} onAction={(code) => setDetailTypeCode(code)} />
+              <EpfExpiryAlertPanel items={expiryAlertItems} onAction={openCreateUpload} />
               <div ref={expiryTimelineRef}>
                 <EpfExpiryTimeline buckets={expiryTimelineBuckets} />
               </div>
@@ -395,6 +403,7 @@ export function EpfSection({
                     onRefresh={onRefresh}
                     onOpenDetails={setDetailTypeCode}
                     onOpenHistory={setDetailTypeCode}
+                    onUploadFirst={openCreateUpload}
                   />
                 );
               })}
@@ -403,9 +412,17 @@ export function EpfSection({
         </div>
       )}
 
-      {/* The "History" button opens this same drawer — it already includes
-          the Upload History section, so a separate history-only drawer would
-          just duplicate the chrome for no UX benefit. */}
+      {/* Create/Upload mode — visible file picker + metadata + “อัปโหลดและบันทึก”. */}
+      <EpfCreateUploadDrawer
+        key={createTypeCode ?? "create-closed"}
+        open={createTypeCode !== null}
+        onClose={() => setCreateTypeCode(null)}
+        officerId={officerId}
+        typeCode={createTypeCode ?? ""}
+        onRefresh={onRefresh}
+      />
+
+      {/* Details mode — existing persisted documents only (Preview/Download/History). */}
       <EpfDetailDrawer
         key={detailTypeCode ?? "closed"}
         open={detailTypeCode !== null}

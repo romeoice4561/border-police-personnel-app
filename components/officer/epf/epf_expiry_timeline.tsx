@@ -11,9 +11,9 @@
 import { AlertTriangle, XCircle, HelpCircle, Clock } from "lucide-react";
 import type { TimelineBucket, TimelineBucketKey, ExpiryStatus } from "@/lib/document/document_expiry";
 import { EXPIRY_STATUS_TONE } from "@/lib/document/document_expiry";
-import { findDocumentType } from "@/lib/document/document_types";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
 import { Badge } from "@/components/ui/badge";
-import { useT } from "@/components/i18n/language_provider";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const BUCKET_LABEL_KEY: Record<TimelineBucketKey, TranslationKey> = {
@@ -43,6 +43,7 @@ const BUCKET_ICON: Record<TimelineBucketKey, typeof AlertTriangle> = {
 
 export function EpfExpiryTimeline({ buckets }: { buckets: TimelineBucket[] }) {
   const { t } = useT();
+  const { language } = useLanguage();
 
   return (
     <section aria-labelledby="epf-expiry-timeline-heading" className="rounded-xl border border-border bg-surface p-3.5 sm:p-4">
@@ -64,7 +65,7 @@ export function EpfExpiryTimeline({ buckets }: { buckets: TimelineBucket[] }) {
                 </p>
                 <ul className="space-y-1">
                   {bucket.items.map((item) => {
-                    const label = findDocumentType(item.document.documentType)?.labelEn ?? item.document.documentType;
+                    const label = getDocumentTypeLabel(item.document.documentType, language);
                     return (
                       <li key={item.document.id} className="flex items-center justify-between gap-2 rounded-md bg-neutral-bg px-2.5 py-1.5 text-xs">
                         <span className="min-w-0 flex-1 truncate text-foreground">{label}</span>

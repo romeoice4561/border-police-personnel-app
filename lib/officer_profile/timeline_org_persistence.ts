@@ -32,6 +32,10 @@ export interface TimelineOrgPersistenceDraft {
   battalionText: string;
   companyId: number | null;
   companyText: string;
+  /** Phase 49A.3: official order reference ("ตามคำสั่ง"). */
+  appointmentOrder: string;
+  /** Phase 49A.3: work line ("สายงาน") — standard option or custom. */
+  workLine: string;
   verificationStatus: string;
   verifiedBy: string;
   verifiedDate: string;
@@ -62,6 +66,8 @@ export interface TimelineSaveRowPayload {
   regionText: string | null;
   battalionText: string | null;
   companyText: string | null;
+  appointmentOrder: string | null;
+  workLine: string | null;
   verificationStatus: string | null;
   verifiedBy: string | null;
   verifiedDate: string | null;
@@ -136,6 +142,8 @@ export function serializeTimelineDraftForSave(
     regionText: optionalOrgText(row.regionText),
     battalionText: optionalOrgText(row.battalionText),
     companyText: optionalOrgText(row.companyText),
+    appointmentOrder: optionalOrgText(row.appointmentOrder),
+    workLine: optionalOrgText(row.workLine),
     verificationStatus: row.verificationStatus || null,
     verifiedBy: row.verifiedBy.trim() || null,
     verifiedDate: normalizeThaiPersonnelDateForSave(row.verifiedDate),

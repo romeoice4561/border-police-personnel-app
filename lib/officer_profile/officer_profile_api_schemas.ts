@@ -284,6 +284,9 @@ export const timelineRowSchema = z
     regionText: optionalText,
     battalionText: optionalText,
     companyText: optionalText,
+    // Phase 49A.3: ตามคำสั่ง / สายงาน — free text, independent of `source`.
+    appointmentOrder: optionalText,
+    workLine: optionalText,
     // Phase 26B Part 5 Part D/H/M: verification triad — additive alongside
     // the existing free-text `verified` above (untouched). A true closed set
     // (unlike Rank/Position/Unit, there is no "preserve free legacy value"

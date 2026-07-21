@@ -23,20 +23,17 @@ import type { OfficerDocument } from "@/lib/database/query_types";
 import { computeDocumentReadiness, type ReadinessLevel } from "@/lib/intelligence/document_readiness";
 import { computeReviewWorkload } from "@/lib/intelligence/review_workload";
 import type { DocumentReviewStatus } from "@/lib/intelligence/document_review_status";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
+import { findDocumentType } from "@/lib/document/document_types";
 import { DICTIONARY, type TranslationKey } from "@/lib/i18n/dictionary";
 
 /**
- * Phase 49A.2 (§7): resolves a checklist document-type code (e.g. "GP7",
- * "HOUSE_REGISTRATION") to its Thai display label, reading DICTIONARY
- * directly rather than a React t() call — this module is pure/non-React
- * (same reasoning as lib/document/epf_status_copy.ts's precedent for
- * reading dictionary-adjacent data from a pure module). primaryActionLabelTh
- * is explicitly Thai-only by its own field name/contract (consumed as a
- * fixed-language string by three different UI surfaces), so reading the
- * "th" side specifically here — never re-derived, never guessed — is
- * consistent with that contract, not a new language decision.
+ * Resolves a checklist code to its Thai display label for primaryActionLabelTh.
+ * Document types use the canonical registry; OFFICIAL_PORTRAIT (and any
+ * non-registry code) falls back to the completeness checklist dictionary.
  */
 function checklistLabelTh(typeCode: string): string | null {
+  if (findDocumentType(typeCode)) return getDocumentTypeLabel(typeCode, "th");
   const key = `epf.completeness.checklist.${typeCode}` as TranslationKey;
   return DICTIONARY[key]?.th ?? null;
 }

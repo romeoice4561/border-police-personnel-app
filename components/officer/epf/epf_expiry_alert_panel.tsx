@@ -12,10 +12,10 @@
 
 import { AlertTriangle, XCircle } from "lucide-react";
 import type { DocumentExpiryInfo } from "@/lib/document/document_expiry";
-import { findDocumentType } from "@/lib/document/document_types";
+import { getDocumentTypeLabel } from "@/lib/document/document_type_labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useT } from "@/components/i18n/language_provider";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 
 const ICON_TONE_CLASS = { serious: "text-serious", warning: "text-warning" } as const;
 
@@ -28,6 +28,7 @@ export function EpfExpiryAlertPanel({
   onAction: (typeCode: string) => void;
 }) {
   const { t } = useT();
+  const { language } = useLanguage();
 
   return (
     <section aria-labelledby="epf-expiry-alert-heading" className="rounded-xl border border-border bg-surface p-4 sm:p-5">
@@ -40,7 +41,7 @@ export function EpfExpiryAlertPanel({
       ) : (
         <ul className="mt-3 space-y-2">
           {items.map((item) => {
-            const label = findDocumentType(item.document.documentType)?.labelEn ?? item.document.documentType;
+            const label = getDocumentTypeLabel(item.document.documentType, language);
             const Icon = item.status === "expired" ? XCircle : AlertTriangle;
             const tone: "serious" | "warning" = item.status === "expired" ? "serious" : "warning";
             const daysText =

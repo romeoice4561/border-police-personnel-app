@@ -72,6 +72,8 @@ function container() {
           regionText: null,
           battalionText: null,
           companyText: null,
+          appointmentOrder: null,
+          workLine: null,
           verificationStatus: null,
           verifiedBy: null,
           verifiedDate: null,

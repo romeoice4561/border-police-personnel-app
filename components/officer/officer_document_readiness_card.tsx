@@ -23,6 +23,11 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import type { ReadinessLevel } from "@/lib/intelligence/document_readiness";
+import {
+  localizedMissingDocumentNames,
+  localizedPrimaryActionLabel,
+  localizedReadinessLabel,
+} from "@/lib/integration/documents/localize_document_intelligence";
 
 const READINESS_ICON: Record<ReadinessLevel, typeof Check> = {
   READY: Check,
@@ -33,9 +38,12 @@ const READINESS_ICON: Record<ReadinessLevel, typeof Check> = {
 };
 
 export function OfficerDocumentReadinessCard({ documentIntelligence }: { documentIntelligence: OfficerDocumentIntelligence }) {
-  const { t } = useT();
+  const { t, language } = useT();
   const di = documentIntelligence;
   const ReadinessIcon = READINESS_ICON[di.readinessLevel];
+  const readinessLabel = localizedReadinessLabel(di.readinessLevel, language);
+  const primaryActionLabel = localizedPrimaryActionLabel(di, language);
+  const missingLabels = localizedMissingDocumentNames(di.missingRequiredDocuments, language);
 
   function scrollToEpf() {
     document.getElementById("epf-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -51,11 +59,11 @@ export function OfficerDocumentReadinessCard({ documentIntelligence }: { documen
           type="button"
           onClick={scrollToEpf}
           className="w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-          aria-label={`${di.readinessLabelTh} — ${t("officer.documentReadinessViewEpf")}`}
+          aria-label={`${readinessLabel} — ${t("officer.documentReadinessViewEpf")}`}
         >
           <Badge tone={READINESS_LEVEL_TONE[di.readinessLevel]} className="inline-flex items-center gap-1.5">
             <ReadinessIcon className="h-3.5 w-3.5" aria-hidden="true" />
-            {di.readinessLabelTh}
+            {readinessLabel}
           </Badge>
         </button>
 
@@ -67,7 +75,7 @@ export function OfficerDocumentReadinessCard({ documentIntelligence }: { documen
         <div className="text-sm">
           <p className="text-muted">{t("officer.documentReadinessMissing")}</p>
           <p className="text-foreground">
-            {di.missingRequiredCount > 0 ? di.missingRequiredDocuments.join(", ") : t("officer.documentReadinessMissingNone")}
+            {di.missingRequiredCount > 0 ? missingLabels.join(", ") : t("officer.documentReadinessMissingNone")}
           </p>
         </div>
 
@@ -98,7 +106,7 @@ export function OfficerDocumentReadinessCard({ documentIntelligence }: { documen
         {di.primaryAction !== "NONE" ? (
           <div className="border-t border-border pt-3 text-sm">
             <p className="text-muted">{t("officer.documentReadinessNextAction")}</p>
-            <p className="font-medium text-foreground">{di.primaryActionLabelTh}</p>
+            <p className="font-medium text-foreground">{primaryActionLabel}</p>
           </div>
         ) : null}
       </CardBody>

@@ -20,14 +20,14 @@
 import { useCallback, useRef, useState } from "react";
 import { Upload, Eye, RefreshCw, Download, History, Info, Sparkles, Loader2 } from "lucide-react";
 import type { OfficerDocument } from "@/lib/database/query_types";
-import { findDocumentType } from "@/lib/document/document_types";
 import { categoryForTypeCode } from "@/lib/document/document_categories";
+import { getDocumentTypeLabel, resolveDocumentDisplayTitle } from "@/lib/document/document_type_labels";
 import { ALLOWED_DOCUMENT_MIME, MAX_DOCUMENT_BYTES } from "@/lib/document/document_validation";
 import { DocumentThumbnail } from "@/components/ui/media/DocumentThumbnail";
 import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useT } from "@/components/i18n/language_provider";
+import { useLanguage, useT } from "@/components/i18n/language_provider";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import { expiryStatus, EXPIRY_STATUS_TONE } from "@/lib/document/document_expiry";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -81,6 +81,7 @@ export function EpfDocumentCard({
   onRefresh,
   onOpenDetails,
   onOpenHistory,
+  onOpenCreateUpload,
 }: {
   officerId: string;
   typeCode: string;
@@ -88,15 +89,17 @@ export function EpfDocumentCard({
   onRefresh: () => void;
   onOpenDetails: () => void;
   onOpenHistory: () => void;
+  /** Phase 49A.3: Create/Upload drawer (visible file picker) when no document exists yet. */
+  onOpenCreateUpload: () => void;
 }) {
   const { t } = useT();
+  const { language } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const def = findDocumentType(typeCode);
-  const labelEn = def?.labelEn ?? typeCode;
-  const labelTh = def?.labelTh ?? typeCode;
+  const typeLabel = getDocumentTypeLabel(typeCode, language);
+  const displayTitle = resolveDocumentDisplayTitle(doc?.title, typeCode, language);
   const category = categoryForTypeCode(typeCode);
 
   const handleFileSelected = useCallback(
@@ -115,7 +118,8 @@ export function EpfDocumentCard({
         const form = new FormData();
         form.append("file", file, file.name);
         form.append("documentType", typeCode);
-        form.append("title", labelEn);
+        // Persist the active-locale built-in label; display re-localizes either locale's default.
+        form.append("title", getDocumentTypeLabel(typeCode, language));
         const res = await fetch(`/api/officers/${encodeURIComponent(officerId)}/documents`, {
           method: "POST",
           body: form,
@@ -131,7 +135,7 @@ export function EpfDocumentCard({
         setBusy(false);
       }
     },
-    [officerId, typeCode, labelEn, onRefresh, t]
+    [officerId, typeCode, language, onRefresh, t]
   );
 
   return (
@@ -141,19 +145,19 @@ export function EpfDocumentCard({
           fileUrl={doc?.fileUrl}
           mimeType={doc?.mimeType}
           documentTypeCode={typeCode}
-          altText={labelEn}
-          previewAriaLabel={`${t("epf.cardPreviewThumbnail")} ${labelTh}`}
+          altText={displayTitle}
+          previewAriaLabel={`${t("epf.cardPreviewThumbnail")} ${typeLabel}`}
           onClick={doc?.fileUrl ? () => openPreview(doc.fileUrl) : undefined}
         />
 
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              {/* doc.title is the user-editable title (via the Details drawer);
-                  falls back to the fixed type label when unset/blank or when
-                  there's no uploaded document yet. */}
-              <p className="text-sm font-medium text-foreground">{(doc?.title || labelEn)}</p>
-              <p className="text-xs text-muted">{labelTh}</p>
+              {/* Built-in defaults localize at display time; custom titles stay verbatim. */}
+              <p className="wrap-break-word text-sm font-medium text-foreground">{displayTitle}</p>
+              {displayTitle !== typeLabel ? (
+                <p className="wrap-break-word text-xs text-muted">{typeLabel}</p>
+              ) : null}
               <p className="mt-0.5 text-[11px] text-muted">
                 {t(`epf.category.${category.code}` as TranslationKey)}
               </p>
@@ -195,8 +199,11 @@ export function EpfDocumentCard({
           variant="outline"
           size="sm"
           disabled={busy}
-          onClick={() => fileInputRef.current?.click()}
-          aria-label={doc ? `${t("epf.cardReplace")} ${labelEn}` : `${t("epf.cardUpload")} ${labelEn}`}
+          onClick={() => {
+            if (doc) fileInputRef.current?.click();
+            else onOpenCreateUpload();
+          }}
+          aria-label={doc ? `${t("epf.cardReplace")} ${typeLabel}` : `${t("epf.cardUpload")} ${typeLabel}`}
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : doc ? <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
           {doc ? t("epf.cardReplace") : t("epf.cardUpload")}
@@ -208,7 +215,7 @@ export function EpfDocumentCard({
           size="sm"
           disabled={!doc?.fileUrl}
           onClick={() => openPreview(doc?.fileUrl)}
-          aria-label={`${t("epf.cardPreview")} ${labelEn}`}
+          aria-label={`${t("epf.cardPreview")} ${typeLabel}`}
           title={!doc?.fileUrl ? t("epf.cardNoFileYet") : undefined}
         >
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
@@ -221,14 +228,23 @@ export function EpfDocumentCard({
           size="sm"
           disabled={!doc?.fileUrl || busy}
           onClick={() => doc && triggerDownload(officerId, doc.id)}
-          aria-label={`${t("epf.cardDownload")} ${labelEn}`}
+          aria-label={`${t("epf.cardDownload")} ${typeLabel}`}
           title={!doc?.fileUrl ? t("epf.cardNoFileYet") : undefined}
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           {t("epf.cardDownload")}
         </Button>
 
-        <Button type="button" variant="ghost" size="sm" onClick={onOpenDetails} aria-label={`${t("epf.cardDetails")} ${labelEn}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (doc) onOpenDetails();
+            else onOpenCreateUpload();
+          }}
+          aria-label={`${t("epf.cardDetails")} ${typeLabel}`}
+        >
           <Info className="h-3.5 w-3.5" aria-hidden="true" />
           {t("epf.cardDetails")}
         </Button>
@@ -239,7 +255,7 @@ export function EpfDocumentCard({
           size="sm"
           disabled={!doc}
           onClick={onOpenHistory}
-          aria-label={`${t("epf.cardHistory")} ${labelEn}`}
+          aria-label={`${t("epf.cardHistory")} ${typeLabel}`}
           title={!doc ? t("epf.cardNoHistoryYet") : undefined}
         >
           <History className="h-3.5 w-3.5" aria-hidden="true" />

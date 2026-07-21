@@ -26,12 +26,12 @@ export interface DocumentCategoryDefinition {
 // Register the e-PF spec's additional document types (idempotent — safe to
 // call at module load even if already registered elsewhere).
 const EPF_ADDITIONAL_TYPES: readonly DocumentTypeDefinition[] = [
-  { code: "TRAINING_CERTIFICATE", labelTh: "ประกาศนียบัตรฝึกอบรม", labelEn: "Training Certificate" },
+  { code: "TRAINING_CERTIFICATE", labelTh: "เอกสารการฝึกอบรม", labelEn: "Training Certificate" },
   { code: "EDUCATION_CERTIFICATE", labelTh: "วุฒิการศึกษา", labelEn: "Education Certificate" },
-  { code: "AWARD", labelTh: "เกียรติบัตร/รางวัล", labelEn: "Award" },
+  { code: "AWARD", labelTh: "เกียรติบัตรและรางวัล", labelEn: "Award" },
   { code: "MEDICAL_DOCUMENT", labelTh: "เอกสารทางการแพทย์", labelEn: "Medical Document" },
   { code: "FIREARMS_QUALIFICATION", labelTh: "ผลทดสอบอาวุธปืน", labelEn: "Firearms Qualification" },
-  { code: "ANNUAL_EVALUATION", labelTh: "แบบประเมินผลงานประจำปี", labelEn: "Annual Evaluation" },
+  { code: "ANNUAL_EVALUATION", labelTh: "แบบประเมินผลประจำปี", labelEn: "Annual Evaluation" },
   { code: "SALARY_DOCUMENT", labelTh: "เอกสารเงินเดือน", labelEn: "Salary Document" },
   { code: "PENSION_DOCUMENT", labelTh: "เอกสารบำเหน็จบำนาญ", labelEn: "Pension Document" },
 ];

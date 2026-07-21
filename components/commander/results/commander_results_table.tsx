@@ -75,6 +75,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
 import { TRAINING_STATUS_TONE } from "@/lib/intelligence/training/status_tone";
 import { READINESS_LEVEL_TONE, COMPLETENESS_LEVEL_TONE } from "@/lib/integration/documents/readiness_tone";
+import { localizedReadinessLabel } from "@/lib/integration/documents/localize_document_intelligence";
 
 /** Phase 43 B5: photo column is 72px wide (matching the Dashboard table); the sticky name column starts right after it. */
 const PHOTO_COL_PX = 72;
@@ -91,7 +92,7 @@ export function CommanderResultsTable({
   officers: CommanderQueryOfficer[];
   documentFiltersActive?: boolean;
 }) {
-  const { t } = useT();
+  const { t, language } = useT();
   // Phase 45 Task 11: the training status column defaults to HIDDEN — the
   // table is already 16 columns wide (Phase 43); a 17th column is opt-in
   // rather than always rendered, per the task's explicit "column visibility
@@ -202,7 +203,7 @@ export function CommanderResultsTable({
                         <>
                           <td className="px-3 py-3">
                             <Badge tone={READINESS_LEVEL_TONE[officer.documentIntelligence.readinessLevel]}>
-                              {officer.documentIntelligence.readinessLabelTh}
+                              {localizedReadinessLabel(officer.documentIntelligence.readinessLevel, language)}
                             </Badge>
                           </td>
                           <td className="px-3 py-3">

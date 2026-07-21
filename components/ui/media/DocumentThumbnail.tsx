@@ -1,87 +1,70 @@
 /**
- * DocumentThumbnail — Media Design System (Phase 30.2).
+ * DocumentThumbnail — Media Design System (Phase 30.2 / 49A.3 fit correction).
  *
  * Reusable thumbnail for every Officer Document Vault card and history row.
- * Extracted from documents_section.tsx (Phase 30.1) into the shared Media
- * Design System so any screen can render a document thumbnail with a single
- * import, with no duplicated rendering logic.
  *
- * Object-fit behaviour (Phase 45A refinement — token-driven):
- *   ALWAYS object-contain so an official document is NEVER cropped. The canvas
- *   ASPECT is chosen by document shape — landscape for ID-card-shaped types
- *   (isLandscapeDocumentType: ID / officer card / license / passport / ป.4),
- *   portrait for A4 types (house registration / GP7 / orders / certificates /
- *   other) — to minimise letterboxing and maximise recognition. The thumbnail
- *   is ~25% smaller than before; canvas sizes come from the shared
- *   DOCUMENT_CANVAS tokens (no local magic numbers).
+ * Object-fit behaviour:
+ *   ALWAYS object-contain so an official document is NEVER cropped.
+ *   Frame orientation adapts to the real image (naturalWidth/Height) after
+ *   load — portrait phone scans of passport/ID get a portrait frame so the
+ *   document fills most of the preview instead of becoming a thin strip in a
+ *   forced landscape canvas.
  *
- * Cross-fade animation (Phase 30.1 ISSUE 7):
- *   Replacing the image (new fileUrl on the same slot) cross-fades between
- *   the old and new image instead of hard-remounting. The old image stays
- *   visible while the new one loads, then fades out as the new one fades in.
- *
- * Accessibility:
- *   - Meaningful `alt` text required (defaults to "Document").
- *   - `loading="lazy"` on every <img> so off-screen thumbnails aren't fetched.
- *   - PDF / non-image / error states show the FileText icon — never a broken
- *     browser icon (Part 12).
+ * Image source:
+ *   Prefers the persisted full file URL (see resolveDocumentImageSrc). Never
+ *   uses a Drive webView HTML page as <img> src. Never fabricates Drive URLs
+ *   from synthetic upload IDs.
  *
  * Visual treatment:
- *   Uses a white document canvas with subtle border/shadow so white paper
- *   documents remain visible on dark or tinted cards.
+ *   One neutral preview canvas + minimal safety inset. Optional blurred
+ *   backdrop of the same image fills letterbox gaps without cropping the
+ *   foreground document. Official portraits never use this component.
  */
 "use client";
 
 import { useCallback, useState } from "react";
 import { FileText } from "lucide-react";
-import { DOCUMENT_THUMBNAIL_RENDER_WIDTH, DOCUMENT_CANVAS, isLandscapeDocumentType } from "@/lib/ui/media_tokens";
+import {
+  documentCanvasForOrientation,
+  documentThumbnailContentInsetClass,
+} from "@/lib/ui/media_tokens";
+import {
+  deriveDocumentThumbnailUrl,
+  fallbackOrientationForDocumentType,
+  orientationFromNaturalSize,
+  resolveDocumentImageSrc,
+  type DocumentImageOrientation,
+} from "@/lib/ui/document_thumbnail_source";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Derives a Supabase image-render URL from a stored fileUrl.
- * Returns null for non-image MIME types (e.g. PDFs) or URLs that don't
- * follow the Supabase Storage `/object/public/` pattern.
- * The requested width gives a sharp source for high-DPI displays while the
- * render API preserves native aspect ratio.
- */
-export function deriveDocumentThumbnailUrl(
-  fileUrl: string | null | undefined,
-  mimeType: string | null | undefined
-): string | null {
-  if (!fileUrl || !mimeType?.startsWith("image/")) return null;
-  const OBJECT_SEGMENT = "/storage/v1/object/public/";
-  if (!fileUrl.includes(OBJECT_SEGMENT)) return null;
-  return (
-    fileUrl.replace(OBJECT_SEGMENT, "/storage/v1/render/image/public/") +
-    `?width=${DOCUMENT_THUMBNAIL_RENDER_WIDTH}`
-  );
-}
+export { deriveDocumentThumbnailUrl };
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export interface DocumentThumbnailProps {
-  /** Stored document fileUrl (Supabase Storage URL). */
+  /** Stored document fileUrl (Supabase Storage / persisted preview URL). */
   fileUrl: string | null | undefined;
   /** Document MIME type — determines image vs. PDF fallback. */
   mimeType: string | null | undefined;
-  /** Document type code — determines object-fit strategy. */
+  /** Document type code — fallback orientation before natural size is known. */
   documentTypeCode: string;
   /**
-   * Canvas size variant (dimensions from DOCUMENT_CANVAS tokens):
-   * "md" — main card thumbnail: 136×92 (landscape) or 112×140 (portrait A4)
+   * Canvas size variant:
+   * "md" — main card thumbnail (adaptive orientation frame)
    * "sm" — history row thumbnail: 56×56
    */
   size?: "md" | "sm";
+  /** Optional stored thumbnail — only used when no full image URL exists. */
+  thumbnailUrl?: string | null | undefined;
+  /** Genuine Drive file id — never synthetic `upload:…` values. */
+  driveFileId?: string | null | undefined;
+  /** Drive HTML page — never used as image src. */
+  webViewUrl?: string | null | undefined;
   /** Accessible alt text for the image. Defaults to "Document". */
   altText?: string;
   /**
    * Full, already-localized accessible label for the clickable Preview
    * shortcut (e.g. "ดูตัวอย่างเอกสาร บัตรประจำตัวประชาชน") — required
-   * whenever `onClick` is supplied, since the label must speak the active
-   * UI language (Phase 49A.2: this component previously hardcoded the
-   * English word "Preview" here regardless of language). Ignored when
-   * `onClick` is omitted (the thumbnail is not a button in that case).
+   * whenever `onClick` is supplied.
    */
   previewAriaLabel?: string;
   /** Optional shortcut action, typically Preview. */
@@ -99,69 +82,90 @@ export function DocumentThumbnail({
   mimeType,
   documentTypeCode,
   size = "md",
+  thumbnailUrl: storedThumbnailUrl,
+  driveFileId,
+  webViewUrl,
   altText = "Document",
   previewAriaLabel,
   onClick,
 }: DocumentThumbnailProps) {
-  const thumbnailUrl = deriveDocumentThumbnailUrl(fileUrl, mimeType);
+  const resolved = resolveDocumentImageSrc({
+    fileUrl,
+    mimeType,
+    thumbnailUrl: storedThumbnailUrl,
+    driveFileId,
+    webViewUrl,
+  });
+  const imageUrl = resolved.imageUrl;
   const isPdf = mimeType === "application/pdf";
-  // Phase 45A refinement: choose a landscape (ID-card) or portrait (A4) canvas
-  // by document SHAPE only — the fit is ALWAYS object-contain so an official
-  // document is never cropped. Canvas sizes come from the shared DOCUMENT_CANVAS
-  // tokens (no local magic numbers).
-  const isLandscape = isLandscapeDocumentType(documentTypeCode);
+
+  const [orientation, setOrientation] = useState<DocumentImageOrientation>(() =>
+    fallbackOrientationForDocumentType(documentTypeCode)
+  );
 
   // Cross-fade state: `shown` is the currently-displayed (already-loaded)
-  // image URL; `incoming` is a new URL loading in the background. Once it
-  // finishes loading it fades in on top, then becomes `shown`.
+  // image URL; `incoming` is a new URL loading in the background.
   const [shown, setShown] = useState<string | null>(null);
   const [shownError, setShownError] = useState(false);
-  // Initialised to thumbnailUrl (not null) so the very first render starts
-  // loading the image immediately. The lastSeenUrl guard below only fires on
-  // *changes*, so without this initialisation the image never loads on mount.
-  const [incoming, setIncoming] = useState<string | null>(thumbnailUrl);
+  const [incoming, setIncoming] = useState<string | null>(imageUrl);
   const [incomingLoaded, setIncomingLoaded] = useState(false);
-  // Tracks the last `thumbnailUrl` prop value seen — lets us detect a change
-  // and adjust state DURING render (React's recommended "derive state from
-  // props" pattern), avoiding a setState-in-effect cascade.
-  const [lastSeenUrl, setLastSeenUrl] = useState(thumbnailUrl);
-  if (thumbnailUrl !== lastSeenUrl) {
-    setLastSeenUrl(thumbnailUrl);
-    if (thumbnailUrl !== shown) {
-      setIncoming(thumbnailUrl);
+  const [lastSeenUrl, setLastSeenUrl] = useState(imageUrl);
+  if (imageUrl !== lastSeenUrl) {
+    setLastSeenUrl(imageUrl);
+    if (imageUrl !== shown) {
+      setIncoming(imageUrl);
       setIncomingLoaded(false);
     }
   }
 
-  const commitIncoming = useCallback(() => {
-    setIncomingLoaded(true);
-    // Give the fade-in transition time to play before dropping the old layer.
-    window.setTimeout(() => {
-      setShown(thumbnailUrl);
-      setShownError(false);
-      setIncoming(null);
-    }, 200);
-  }, [thumbnailUrl]);
+  const applyNaturalOrientation = useCallback((naturalWidth: number, naturalHeight: number) => {
+    if (size === "sm") return;
+    setOrientation(orientationFromNaturalSize(naturalWidth, naturalHeight));
+  }, [size]);
 
-  // Canvas dimensions + radius from tokens. History rows use the small square;
-  // main cards use the landscape (ID-card) or portrait (A4) canvas — both
-  // ~25% smaller than before and both object-contain.
-  const canvas = size === "sm" ? DOCUMENT_CANVAS.HISTORY : isLandscape ? DOCUMENT_CANVAS.LANDSCAPE : DOCUMENT_CANVAS.PORTRAIT;
+  const commitIncoming = useCallback(
+    (naturalWidth?: number, naturalHeight?: number) => {
+      if (typeof naturalWidth === "number" && typeof naturalHeight === "number") {
+        applyNaturalOrientation(naturalWidth, naturalHeight);
+      }
+      setIncomingLoaded(true);
+      window.setTimeout(() => {
+        setShown(imageUrl);
+        setShownError(false);
+        setIncoming(null);
+      }, 200);
+    },
+    [imageUrl, applyNaturalOrientation]
+  );
+
+  const canvas = documentCanvasForOrientation(orientation, size);
   const radiusCls = size === "sm" ? "rounded-md" : "rounded-lg";
-  const sizeCls = `${canvas.w} ${canvas.h} ${radiusCls}`;
-  const iconCls = size === "sm" ? "h-6 w-6 text-muted" : "h-7 w-7 text-muted";
-  const imgPadCls = size === "sm" ? "p-1.5" : "p-1.5";
-  // Phase 45A refinement: ALWAYS contain — official documents are never cropped.
+  const sizeCls = `${canvas.frame} ${radiusCls}`;
+  const iconCls = size === "sm" ? "h-6 w-6 text-muted" : "h-8 w-8 text-muted";
+  const contentInsetCls = documentThumbnailContentInsetClass(size);
+  const contentScale = size === "sm" ? "0.92" : "0.96";
   const fitCls = "object-contain";
+  const activeSrc = shown && !shownError ? shown : incoming;
 
   const showShown = Boolean(shown && !shownError);
   const showIncoming = Boolean(incoming);
 
   const content = (
     <>
+      {/* Blurred same-image fill — decorative only; foreground stays object-contain. */}
+      {size === "md" && activeSrc && !shownError ? (
+        // eslint-disable-next-line @next/next/no-img-element -- decorative fill; next/image not applicable
+        <img
+          src={activeSrc}
+          alt=""
+          aria-hidden="true"
+          data-role="document-thumb-backdrop"
+          className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-md"
+        />
+      ) : null}
+
       {!showShown && !showIncoming ? (
-        /* PDF / non-image / error fallback — never a broken browser icon */
-        <div className="flex h-full w-full flex-col items-center justify-center gap-1">
+        <div className={`absolute ${contentInsetCls} z-[1] flex flex-col items-center justify-center gap-1`}>
           <FileText className={iconCls} aria-hidden="true" />
           {size === "md" && isPdf && fileUrl ? (
             <span className="text-[10px] font-semibold uppercase tracking-wide text-muted/70">
@@ -172,48 +176,71 @@ export function DocumentThumbnail({
       ) : null}
 
       {showShown ? (
-        // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage render URL; next/image not applicable
-        <img
-          src={shown!}
-          alt={altText}
-          loading="lazy"
-          className={`absolute inset-0 h-full w-full ${fitCls} object-center ${imgPadCls} opacity-100 transition-opacity duration-200`}
-          onError={() => setShownError(true)}
-        />
+        <div
+          className={`absolute ${contentInsetCls} z-[1]`}
+          data-content-scale={contentScale}
+          data-preview-canvas="primary"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- storage URL; next/image not applicable */}
+          <img
+            src={shown!}
+            alt={altText}
+            loading="lazy"
+            data-fit="contain"
+            data-orientation={orientation}
+            className={`h-full w-full ${fitCls} object-center opacity-100 transition-opacity duration-200`}
+            onLoad={(e) => applyNaturalOrientation(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+            onError={() => setShownError(true)}
+          />
+        </div>
       ) : null}
 
       {showIncoming ? (
-        // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage render URL; next/image not applicable
-        <img
-          src={incoming!}
-          alt={altText}
-          loading="lazy"
-          className={`absolute inset-0 h-full w-full ${fitCls} object-center ${imgPadCls} transition-opacity duration-200 ${incomingLoaded ? "opacity-100" : "opacity-0"}`}
-          onLoad={commitIncoming}
-          onError={() => setIncoming(null)}
-        />
+        <div
+          className={`absolute ${contentInsetCls} z-[1]`}
+          data-content-scale={contentScale}
+          data-preview-canvas="primary"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- storage URL; next/image not applicable */}
+          <img
+            src={incoming!}
+            alt={altText}
+            loading="lazy"
+            data-fit="contain"
+            data-orientation={orientation}
+            className={`h-full w-full ${fitCls} object-center transition-opacity duration-200 ${incomingLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={(e) =>
+              commitIncoming(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
+            }
+            onError={() => {
+              // Fall back to stored secondary URL once if primary fails.
+              if (resolved.fallbackUrl && incoming !== resolved.fallbackUrl) {
+                setIncoming(resolved.fallbackUrl);
+                setIncomingLoaded(false);
+                return;
+              }
+              setIncoming(null);
+            }}
+          />
+        </div>
       ) : null}
 
-      {/* Loading skeleton only for the very first image of this slot */}
       {!showShown && showIncoming && !incomingLoaded ? (
-        <div
-          className="absolute inset-0 animate-pulse bg-border/40"
-          aria-hidden="true"
-        />
+        <div className="absolute inset-0 z-[1] animate-pulse bg-border/40" aria-hidden="true" />
       ) : null}
     </>
   );
 
-  // White canvas + subtle padding + small shadow + rounded corners (kept). The
-  // hover treatment (smooth zoom, stronger shadow, pointer cursor) is applied
-  // ONLY to the clickable Preview thumbnail — a static thumbnail never zooms.
-  const baseClassName = `relative shrink-0 overflow-hidden ${sizeCls} bg-white shadow-sm ring-1 ring-border/60`;
+  // Single preview canvas — muted surface so white scans stay readable in dark mode.
+  const baseClassName = `relative shrink-0 overflow-hidden ${sizeCls} bg-neutral-bg shadow-sm ring-1 ring-border/60`;
 
   if (onClick) {
     return (
       <button
         type="button"
         onClick={onClick}
+        data-orientation={orientation}
+        data-source-kind={resolved.sourceKind}
         className={`${baseClassName} cursor-pointer transition-all duration-300 ease-out hover:scale-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
         aria-label={previewAriaLabel ?? `Preview ${altText}`}
       >
@@ -223,7 +250,7 @@ export function DocumentThumbnail({
   }
 
   return (
-    <div className={baseClassName}>
+    <div className={baseClassName} data-orientation={orientation} data-source-kind={resolved.sourceKind}>
       {content}
     </div>
   );

@@ -117,32 +117,86 @@ export function isLandscapeDocumentType(code: string): boolean {
 }
 
 /**
- * Width (in pixels) requested from the Supabase image-render endpoint for
- * document thumbnails. Larger than the displayed size to stay sharp on
- * high-DPI displays.
+ * Legacy width for older Supabase render helpers. Document card thumbnails
+ * now prefer the full persisted file URL (see document_thumbnail_source.ts);
+ * this constant remains for compatibility with older call sites/tests.
  */
 export const DOCUMENT_THUMBNAIL_RENDER_WIDTH = 480;
 
 /**
- * Canvas dimensions for each document thumbnail variant (Phase 45A
- * refinement: ALWAYS object-contain so the whole document shows with no
- * cropping; Phase 49A.2 polish: enlarged back into the spec's requested
- * ~120–140×88–104 px range — the Phase 45A sizes read as too small/
- * letterboxed for real users to recognise a document at a glance. The card
- * DIMENSIONS auto-grow with the thumbnail (flex layout) — no separate
- * "type/badge column" budget to protect.
+ * Canvas dimensions for each document thumbnail variant.
  *
- * Aspect ratios are chosen to match each shape so a contained image barely
- * letterboxes:
- *   • LANDSCAPE 136×92 (~1.48:1, close to the ID-1 card ratio 1.585:1)
- *   • PORTRAIT  112×140 (4:5 — a page-like ratio that reads as A4 without
- *     going oversized)
+ * Phase 49A.3 fit correction:
+ *   ALWAYS object-contain (never crop official documents).
+ *   Frame orientation follows the REAL image (naturalWidth/Height) — not a
+ *   forced landscape canvas for passport/ID phone scans.
+ *   Desktop targets:
+ *     • PORTRAIT  ~120–140 × 150–180 → 128×168
+ *     • LANDSCAPE ~150–180 × 100–120 → 160×112
+ *     • SQUARE    balanced            → 128×128
+ *   Mobile uses full available card width (capped) via `frame` classes.
  */
 export const DOCUMENT_CANVAS = {
-  /** Landscape (ID-card-shaped) main thumbnail — 136×92 px, object-contain. */
-  LANDSCAPE: { w: "w-34", h: "h-23" }, // 136×92 px
-  /** Portrait (A4-shaped) main thumbnail — 112×140 px, object-contain. */
-  PORTRAIT: { w: "w-28", h: "h-35" },  // 112×140 px
+  /** Landscape main thumbnail — 160×112 px desktop; wider on mobile. */
+  LANDSCAPE: {
+    w: "w-40",
+    h: "h-28",
+    frame:
+      "w-full max-w-44 aspect-[10/7] sm:w-40 sm:max-w-none sm:h-28 sm:aspect-auto",
+  },
+  /** Portrait main thumbnail — 128×168 px desktop; wider on mobile. */
+  PORTRAIT: {
+    w: "w-32",
+    h: "h-42",
+    frame:
+      "w-full max-w-36 aspect-[16/21] sm:w-32 sm:max-w-none sm:h-42 sm:aspect-auto",
+  },
+  /** Near-square main thumbnail — 128×128 px. */
+  SQUARE: {
+    w: "w-32",
+    h: "h-32",
+    frame:
+      "w-full max-w-32 aspect-square sm:w-32 sm:max-w-none sm:h-32 sm:aspect-auto",
+  },
   /** History panel thumbnail — 56×56 px. Named "sm". */
-  HISTORY: { w: "w-14", h: "h-14" },         // 56×56 px
+  HISTORY: {
+    w: "w-14",
+    h: "h-14",
+    frame: "w-14 h-14",
+  },
 } as const;
+
+export type DocumentCanvasOrientation = "portrait" | "landscape" | "square";
+
+/** Pick the canvas token for a measured (or fallback) orientation. */
+export function documentCanvasForOrientation(
+  orientation: DocumentCanvasOrientation,
+  size: "md" | "sm" = "md"
+): (typeof DOCUMENT_CANVAS)[keyof typeof DOCUMENT_CANVAS] {
+  if (size === "sm") return DOCUMENT_CANVAS.HISTORY;
+  if (orientation === "portrait") return DOCUMENT_CANVAS.PORTRAIT;
+  if (orientation === "square") return DOCUMENT_CANVAS.SQUARE;
+  return DOCUMENT_CANVAS.LANDSCAPE;
+}
+
+/**
+ * Minimal safety margin inside the single preview canvas (Phase 49A.3).
+ * One canvas only — no nested white padding layers.
+ *
+ *   MD inset 2% → ~96% of width/height for the content box
+ *   SM inset 4% → slightly more margin on 56×56 history thumbs
+ */
+export const DOCUMENT_CONTENT_INSET = {
+  MD: "inset-[2%]",
+  SM: "inset-[4%]",
+} as const;
+
+/** Tailwind inset class for the document image content box inside the canvas. */
+export function documentThumbnailContentInsetClass(size: "md" | "sm"): string {
+  return size === "sm" ? DOCUMENT_CONTENT_INSET.SM : DOCUMENT_CONTENT_INSET.MD;
+}
+
+/** Usable fraction of canvas after inset (for tests / audit). */
+export function documentThumbnailContentScale(size: "md" | "sm"): number {
+  return size === "sm" ? 0.92 : 0.96;
+}
