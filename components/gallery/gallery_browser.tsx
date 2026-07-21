@@ -14,6 +14,10 @@ import { ChevronLeft, Search, X, ArrowUpDown, ShieldCheck } from "lucide-react";
 import { ASSET_CATEGORY_LABELS } from "@/lib/gallery/asset_category";
 import type { AssetCategory } from "@/lib/gallery/asset_category";
 import type { Asset } from "@/lib/gallery/asset_types";
+import {
+  galleryAssetDownloadApiPath,
+  galleryAssetDownloadFilename,
+} from "@/lib/gallery/gallery_download";
 import { useGalleryAssets } from "@/lib/gallery/gallery_hooks";
 import { useOrganizationEngine } from "@/lib/ui/hooks";
 import { battalionLabelsForRegion } from "@/lib/organization/gallery_org_helpers";
@@ -398,6 +402,10 @@ export function GalleryBrowser({ category, onBack }: GalleryBrowserProps) {
             webViewUrl:   selectedAsset.webViewUrl,
           }}
           name={assetDisplayName(selectedAsset)}
+          // Same-origin proxy — Drive thumbnail URLs cannot be downloaded via
+          // client fetch (CORS) or cross-origin <a download> (ignored by browsers).
+          downloadUrl={galleryAssetDownloadApiPath(selectedAsset.assetId)}
+          downloadFilename={galleryAssetDownloadFilename(selectedAsset)}
           title={
             // Pass rich metadata as ReactNode — displayed in the top bar.
             // Spans are inline so the parent <p className="truncate"> clips gracefully.

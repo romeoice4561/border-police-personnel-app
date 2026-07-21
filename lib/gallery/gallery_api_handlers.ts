@@ -14,9 +14,16 @@
  */
 
 import { z } from "zod";
-import { badRequest, jsonOk, notFound } from "@/lib/api/api_response";
+import { badRequest, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
 import type { AssetService } from "@/lib/gallery/asset_service";
 import type { AssetCategory } from "@/lib/gallery/asset_category";
+import {
+  asciiFallbackDownloadFilename,
+  extensionFromPath,
+  galleryAssetDownloadFilename,
+  galleryAssetUpstreamImageUrls,
+  mimeTypeFromExtension,
+} from "@/lib/gallery/gallery_download";
 import {
   galleryAssetIdParamSchema,
   galleryAssetsQuerySchema,
@@ -114,6 +121,72 @@ export async function handleGalleryCompanies(service: AssetService, params: URLS
     region: parsed.data.region,
   });
   return jsonOk(companies, { total: companies.length });
+}
+
+/**
+ * GET /api/gallery/assets/{assetId}/download — proxy the asset image bytes with
+ * Content-Disposition: attachment so the browser downloads immediately.
+ *
+ * Client-side fetch of Drive thumbnail URLs fails CORS and cross-origin
+ * `<a download>` is ignored by browsers — this same-origin proxy is required.
+ */
+export async function handleDownloadGalleryAsset(
+  service: AssetService,
+  rawAssetId: string
+): Promise<Response> {
+  const parsed = galleryAssetIdParamSchema.safeParse({ assetId: rawAssetId });
+  if (!parsed.success) return badRequest("Invalid asset id", zodDetails(parsed.error));
+
+  const asset = await service.getById(parsed.data.assetId);
+  if (!asset) return notFound(`Asset '${parsed.data.assetId}' not found`);
+
+  const upstreamUrls = galleryAssetUpstreamImageUrls(asset);
+  if (upstreamUrls.length === 0) {
+    return notFound(`Asset '${parsed.data.assetId}' has no downloadable image`);
+  }
+
+  let lastStatus = 0;
+  for (const url of upstreamUrls) {
+    let upstream: globalThis.Response;
+    try {
+      upstream = await fetch(url, { cache: "no-store", redirect: "follow" });
+    } catch {
+      continue;
+    }
+    lastStatus = upstream.status;
+    if (!upstream.ok) continue;
+
+    let buffer: ArrayBuffer;
+    try {
+      buffer = await upstream.arrayBuffer();
+    } catch {
+      continue;
+    }
+    if (buffer.byteLength === 0) continue;
+
+    const filename = galleryAssetDownloadFilename(asset);
+    const ext = extensionFromPath(filename, "jpg");
+    const mimeType =
+      upstream.headers.get("content-type")?.split(";")[0]?.trim() || mimeTypeFromExtension(ext);
+    const safeFilename = asciiFallbackDownloadFilename(filename, mimeType);
+
+    return new Response(buffer, {
+      headers: {
+        "Content-Type": mimeType,
+        "Content-Disposition":
+          `attachment; filename="${safeFilename}"; ` +
+          `filename*=UTF-8''${encodeURIComponent(filename)}`,
+        "Content-Length": String(buffer.byteLength),
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  return jsonError(
+    "STORAGE",
+    lastStatus ? `File not available (${lastStatus}).` : "Could not reach image storage.",
+    502
+  );
 }
 
 /**

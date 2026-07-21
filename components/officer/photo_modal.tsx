@@ -30,6 +30,15 @@ export interface PhotoModalProps {
   name: string;
   /** Optional title shown top-left (defaults to the officer name). */
   title?: ReactNode;
+  /**
+   * Optional same-origin download URL (e.g. Gallery `/api/gallery/assets/…/download`).
+   * When set, Download uses this path instead of the cross-origin viewer image
+   * URL — required for Drive-hosted Gallery assets where CORS blocks fetch→blob
+   * and browsers ignore `<a download>` on cross-origin hrefs.
+   */
+  downloadUrl?: string | null;
+  /** Optional explicit download filename (with extension). Defaults from `name` + .jpg. */
+  downloadFilename?: string | null;
   /** Phase 26A: gallery navigation — shown only when both are supplied. */
   onPrev?: () => void;
   onNext?: () => void;
@@ -40,7 +49,19 @@ export interface PhotoModalProps {
 
 const FOCUSABLE = 'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function PhotoModal({ open, onClose, photo, name, title, onPrev, onNext, hasPrev = true, hasNext = true }: PhotoModalProps) {
+export function PhotoModal({
+  open,
+  onClose,
+  photo,
+  name,
+  title,
+  downloadUrl,
+  downloadFilename,
+  onPrev,
+  onNext,
+  hasPrev = true,
+  hasNext = true,
+}: PhotoModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -118,13 +139,15 @@ export function PhotoModal({ open, onClose, photo, name, title, onPrev, onNext, 
 
   const source = resolveViewerSource(photo);
   const showNav = Boolean(onPrev || onNext);
+  const resolvedDownloadUrl = (downloadUrl ?? "").trim() || source.imageUrl;
+  const resolvedDownloadName =
+    (downloadFilename ?? "").trim() || toDownloadName(name, { ext: "jpg" });
 
   function download() {
-    if (!source.imageUrl) return;
-    // Phase 45A Part 3: fetch->blob download so the file actually downloads
-    // (with its name) instead of opening in a new tab. Preview/Open-Original
-    // links below still open in a tab — that's correct.
-    void downloadFile(source.imageUrl, toDownloadName(name, { ext: "jpg" }));
+    if (!resolvedDownloadUrl) return;
+    // Prefer a same-origin proxy URL when supplied (Gallery). Otherwise fetch
+    // the viewer image URL into a blob so the filename is preserved.
+    void downloadFile(resolvedDownloadUrl, resolvedDownloadName);
   }
 
   return createPortal(
@@ -147,7 +170,7 @@ export function PhotoModal({ open, onClose, photo, name, title, onPrev, onNext, 
           <button
             type="button"
             onClick={download}
-            disabled={!source.hasImage}
+            disabled={!resolvedDownloadUrl}
             aria-label="Download image"
             title="Download"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white transition-colors hover:bg-white/15 disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"

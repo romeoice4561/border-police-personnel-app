@@ -40,14 +40,19 @@ function clickAnchor(href: string, filename: string, revoke?: () => void): void 
  */
 export async function downloadFile(url: string, filename: string): Promise<void> {
   if (!url) return;
+  const sameOrigin = url.startsWith("/") || (typeof window !== "undefined" && url.startsWith(window.location.origin));
   try {
-    const res = await fetch(url, { credentials: "omit" });
+    // Same-origin API proxies need cookies when auth is enforced; cross-origin
+    // Drive URLs must omit credentials (and usually fail CORS → fallback below).
+    const res = await fetch(url, { credentials: sameOrigin ? "same-origin" : "omit" });
     if (!res.ok) throw new Error(`download fetch failed: ${res.status}`);
     const blob = await res.blob();
     const objectUrl = URL.createObjectURL(blob);
     clickAnchor(objectUrl, filename, () => URL.revokeObjectURL(objectUrl));
   } catch {
     // CORS or network failure — best-effort direct anchor (no new tab).
+    // Cross-origin hosts may still ignore `download`; callers should prefer a
+    // same-origin proxy (e.g. /api/gallery/assets/…/download) when possible.
     clickAnchor(url, filename);
   }
 }
