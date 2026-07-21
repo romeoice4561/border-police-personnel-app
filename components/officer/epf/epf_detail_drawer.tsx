@@ -25,7 +25,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, FileText } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import type { OfficerDocument } from "@/lib/database/query_types";
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MIN, THAI_EXPIRY_YEAR_BE_MAX } from
 import { DocumentThumbnail } from "@/components/ui/media/DocumentThumbnail";
 import { DocumentStatusBadge } from "@/components/ui/media/DocumentStatusBadge";
 import { EpfHistoryPanel } from "@/components/officer/epf/epf_history_panel";
+import { EpfExtractionPanel } from "@/components/officer/epf/epf_extraction_panel";
 import { findDocumentType } from "@/lib/document/document_types";
 import { categoryForTypeCode } from "@/lib/document/document_categories";
 import { expiryStatus, daysRemaining, EXPIRY_STATUS_TONE, type ExpiryStatus } from "@/lib/document/document_expiry";
@@ -124,6 +125,24 @@ export function EpfDetailDrawer({
     } finally {
       setSaving(false);
     }
+  }
+
+  /**
+   * Phase 48 (spec §15): populates the existing metadata form fields from
+   * user-approved extraction values — never writes to the document
+   * directly. The existing "บันทึก"/Save button (handleSave above) is
+   * still the ONLY thing that actually persists anything, so approving an
+   * extracted value requires the exact same explicit user action as any
+   * manual edit. Only issueDate/expiryDate/renewalDate/title/description
+   * ever reach here — EpfExtractionPanel already filters out identity-like
+   * fields before calling this.
+   */
+  function handleApprovedFieldsFromExtraction(fields: Record<string, string>) {
+    if (fields.title !== undefined) setTitle(fields.title);
+    if (fields.description !== undefined) setDescription(fields.description);
+    if (fields.issueDate !== undefined) setIssueDate(fields.issueDate);
+    if (fields.expiryDate !== undefined) setExpiryDate(fields.expiryDate);
+    if (fields.renewalDate !== undefined) setRenewalDate(fields.renewalDate);
   }
 
   return (
@@ -273,13 +292,12 @@ export function EpfDetailDrawer({
           )}
         </section>
 
-        <section aria-labelledby="epf-detail-ai-heading" className="space-y-2 rounded-lg border border-dashed border-border p-3">
-          <h3 id="epf-detail-ai-heading" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-            <FileText className="h-4 w-4 text-muted" aria-hidden="true" />
-            {t("epf.detailAiHeading")}
-          </h3>
-          <p className="text-xs text-muted">{t("epf.detailAiComingSoon")}</p>
-        </section>
+        <EpfExtractionPanel
+          officerId={officerId}
+          docId={doc?.id ?? null}
+          hasDocument={!!doc}
+          onApprovedFieldsSave={handleApprovedFieldsFromExtraction}
+        />
       </div>
     </Drawer>
   );

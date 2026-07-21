@@ -18,6 +18,8 @@
  */
 
 import { createWorker, type Worker, type Page } from "tesseract.js";
+import path from "node:path";
+import fs from "node:fs";
 import type { OCREngine, OCROptions, OCRResult, OCRLanguage } from "@/lib/ocr/ocr_types";
 import {
   buildOCRResult,
@@ -41,6 +43,54 @@ export interface TesseractOCREngineConfig {
    * tests can supply a fake worker and never load the real WASM/traineddata.
    */
   createWorkerFn?: (lang: string) => Promise<Worker>;
+}
+
+/**
+ * Phase 48 fix: under Next.js/Turbopack's dev bundler, tesseract.js's
+ * default worker-script path resolution silently miscomputes to a bogus
+ * root (observed: "D:\ROOT\node_modules\tesseract.js\src\worker-script\
+ * node\index.js" — nothing under this project resolves to "D:\ROOT" at
+ * all), and the worker process then throws `MODULE_NOT_FOUND` as an
+ * *uncaught* exception that never rejects the calling `recognize()`
+ * promise — the request just hangs until it eventually times out, rather
+ * than failing fast with a catchable error.
+ *
+ * A `require.resolve()` call does NOT fix this: Turbopack intercepts/
+ * rewrites `require` inside bundled server chunks, so even
+ * `require.resolve("tesseract.js/...")` returns a bundler-internal
+ * identifier (observed:
+ * "...node_modules/tesseract.js/.../index.js [app-route] (ecmascript)",
+ * with literal "[project]"/"[app-route]" segments baked in) rather than a
+ * real OS filesystem path — passing THAT to `new Worker()` fails with
+ * ERR_WORKER_PATH.
+ *
+ * The fix that actually works: build the path from `process.cwd()` (a
+ * plain runtime string, never rewritten by the bundler) joined with the
+ * known, stable location of tesseract.js inside node_modules, then convert
+ * to a file:// URL for worker_threads. This never goes through `require`
+ * at all, so Turbopack has nothing to intercept.
+ */
+function resolveWorkerOptions(): { workerPath: string } | undefined {
+  try {
+    const resolvedPath = path.join(process.cwd(), "node_modules", "tesseract.js", "src", "worker-script", "node", "index.js");
+    if (!fs.existsSync(resolvedPath)) return undefined;
+
+    // tesseract.js's own spawnWorker.js does `new Worker(workerPath)` with
+    // the raw string, unwrapped — Node's worker_threads accepts a plain
+    // absolute OS path directly (no file:// URL needed for that form); a
+    // file:// URL STRING (as opposed to an actual `URL` instance) is
+    // rejected by this Node version with "Wrap file:// URLs with `new
+    // URL`", which tesseract.js's own code never does. Passing the plain
+    // absolute path (Windows-native backslashes included) sidesteps that
+    // entirely and is exactly what Node's error message says is accepted.
+    return { workerPath: resolvedPath };
+  } catch {
+    // Never throws here — a resolution failure should surface from
+    // createWorker() itself (a clear, catchable error) rather than from
+    // this helper, so callers fall back to tesseract.js's own default
+    // resolution if this path ever changes in a future version.
+    return undefined;
+  }
 }
 
 /**
@@ -85,7 +135,7 @@ export class TesseractOCREngine implements OCREngine {
 
   constructor(config: TesseractOCREngineConfig = {}) {
     this.defaultLanguage = config.defaultLanguage ?? "mixed";
-    this.createWorkerFn = config.createWorkerFn ?? ((lang) => createWorker(lang));
+    this.createWorkerFn = config.createWorkerFn ?? ((lang) => createWorker(lang, undefined, resolveWorkerOptions()));
   }
 
   async recognize(imagePath: string, options?: OCROptions): Promise<OCRResult> {
