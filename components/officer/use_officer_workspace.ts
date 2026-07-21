@@ -19,13 +19,14 @@ import type { OfficerWithRelations } from "@/lib/database/query_types";
 import type { CareerTimelineRow } from "@/components/officer/career_timeline_section";
 import { useSaveOfficerProfile } from "@/lib/officer_profile/officer_profile_hooks";
 import type { OfficerProfileSaveRequest } from "@/lib/ui/api_client";
-import { formatThaiDate, currentYearBE } from "@/lib/officer_profile/thai_date";
+import { currentYearBE } from "@/lib/officer_profile/thai_date";
 import { formatThaiPersonnelDate, normalizeThaiPersonnelDateForSave, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { sortHistory } from "@/lib/officer_profile/career_salary_engine";
 import { normalizePositionLevel, mapPositionTextToLevel } from "@/lib/commander_query/position_level";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { booleanToTriState, triStateToBoolean, type TriState } from "@/lib/officer_profile/tri_state";
 import { moneyFieldToNumber, parseMoneyDraft } from "@/lib/officer_profile/money_draft";
+import { hydrateOrgLabel, serializeTimelineDraftForSave } from "@/lib/officer_profile/timeline_org_persistence";
 
 export interface ProfileDraft {
   rank: string;
@@ -136,7 +137,7 @@ export interface TimelineDraftRow {
   yearBE: number | null;
   appointmentCycle: number | null;
   isPresent: boolean;
-  /** Phase 26B Part C/D: structured org hierarchy — the editor's primary input; `unit` above is kept in sync from these. */
+  /** Phase 26B Part C/D: structured org hierarchy — primary editor input. Legacy `unit` persists independently (Phase 49A.2B — never overwritten by org labels on save). */
   headquartersId: number | null;
   headquartersText: string;
   regionId: number | null;
@@ -298,13 +299,13 @@ function toTimelineDrafts(officer: OfficerWithRelations, organizationEngine: Org
         appointmentCycle: t.appointmentCycle ?? t.yearBE ?? null,
         isPresent: t.isPresent ?? false,
         headquartersId: t.headquartersId ?? null,
-        headquartersText: orgLabels.headquarters ?? "",
+        headquartersText: hydrateOrgLabel(t.headquartersText, orgLabels.headquarters),
         regionId: t.regionId ?? null,
-        regionText: orgLabels.borderPatrolDivision ?? "",
+        regionText: hydrateOrgLabel(t.regionText, orgLabels.borderPatrolDivision),
         battalionId: t.battalionId ?? null,
-        battalionText: orgLabels.battalion ?? "",
+        battalionText: hydrateOrgLabel(t.battalionText, orgLabels.battalion),
         companyId: t.companyId ?? null,
-        companyText: orgLabels.company ?? "",
+        companyText: hydrateOrgLabel(t.companyText, orgLabels.company),
         verificationStatus: t.verificationStatus ?? "",
         verifiedBy: t.verifiedBy ?? "",
         verifiedDate: formatThaiPersonnelDate(t.verifiedDate),
@@ -512,58 +513,7 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
       // still is not).
       timeline: timeline
         .filter((row) => row.year.trim() || row.position.trim() || row.unit.trim() || row.yearBE != null)
-        .map((row, i) => {
-        // The legacy free-text `year` is DERIVED from the structured fields
-        // whenever the row has been edited through the new Day/Month/Year
-        // dropdowns (yearBE set), so every reader that still displays `year`
-        // (or hasn't been migrated to the structured fields yet) keeps
-        // showing an accurate value. A row the user never touched in the new
-        // editor (yearBE still null) keeps its original free-text `year`
-        // verbatim — never overwritten with a guess.
-        const year = row.yearBE != null ? formatThaiDate(row) : row.year;
-        // The legacy free-text `unit` is DERIVED from the most specific
-        // resolved org level (company > battalion > region > headquarters)
-        // whenever the row has been linked through the new hierarchy
-        // pickers, so every reader that still displays `unit` (or hasn't
-        // been migrated to the structured org fields yet) keeps showing an
-        // accurate value. A row with no structured org selection keeps its
-        // original free-text `unit` verbatim — never overwritten with a guess.
-        const resolvedUnitText = row.companyText || row.battalionText || row.regionText || row.headquartersText;
-        const unit = resolvedUnitText || row.unit;
-        return {
-          sequence: i,
-          year: year.trim() || "-",
-          yearValue: row.yearBE ?? (/^\d+$/.test(row.year) ? Number(row.year) : null),
-          rank: row.rank.trim() || null,
-          // Server requires a non-empty position (Zod min(1)); a row with
-          // other real content (year/unit) but no position yet is a
-          // genuine partial edit worth keeping, not silently dropped — "-"
-          // is a visible placeholder the user can fill in on the next edit,
-          // never a guess at real data.
-          position: row.position.trim() || "-",
-          // Phase 41 Part 1: the structured level is persisted verbatim from
-          // the user's explicit choice — never re-derived from the position
-          // text on save. A blank falls back to "Unknown" (never null) so the
-          // authoritative column always holds a canonical value.
-          positionLevel: normalizePositionLevel(row.positionLevel),
-          unit: unit.trim() || null,
-          source: row.source.trim() || null,
-          verified: row.verified || "ยังไม่ตรวจ",
-          day: row.day,
-          month: row.month,
-          yearBE: row.yearBE,
-          appointmentCycle: row.appointmentCycle ?? row.yearBE,
-          isPresent: row.isPresent,
-          headquartersId: row.headquartersId,
-          regionId: row.regionId,
-          battalionId: row.battalionId,
-          companyId: row.companyId,
-          verificationStatus: row.verificationStatus || null,
-          verifiedBy: row.verifiedBy.trim() || null,
-          verifiedDate: normalizeThaiPersonnelDateForSave(row.verifiedDate),
-          verificationRemark: row.verificationRemark.trim() || null,
-        };
-        }),
+        .map((row, i) => serializeTimelineDraftForSave(row, i)),
       // Phase 26A stabilization (bug #1): same untouched-blank-row filter as timeline above.
       education: education
         .filter((row) => row.year.trim() || row.institution.trim() || row.degree.trim() || row.notes.trim())

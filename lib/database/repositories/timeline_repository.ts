@@ -53,6 +53,15 @@ export interface TimelineRowInput {
   battalionId?: number | null;
   companyId?: number | null;
   /**
+   * Phase 49A.2B: free-text org labels per hierarchy level — additive
+   * alongside the id FKs above. Omitted by callers that don't know about
+   * them (import path); workspace always sends them for exact round-trip.
+   */
+  headquartersText?: string | null;
+  regionText?: string | null;
+  battalionText?: string | null;
+  companyText?: string | null;
+  /**
    * Phase 26B Part 5 Part D/H/M: verification triad — ADDITIVE alongside the
    * existing free-text `verified` column above (untouched). A NEW closed
    * 4-value status (see verification_options.ts) plus who/when/why verified

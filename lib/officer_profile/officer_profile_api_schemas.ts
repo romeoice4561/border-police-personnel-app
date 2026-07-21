@@ -278,6 +278,12 @@ export const timelineRowSchema = z
     regionId: z.coerce.number().int().positive().nullable().optional(),
     battalionId: z.coerce.number().int().positive().nullable().optional(),
     companyId: z.coerce.number().int().positive().nullable().optional(),
+    // Phase 49A.2B: free-text org labels — additive alongside the id FKs.
+    // Persist exactly what the client sent; never re-derived from `unit`.
+    headquartersText: optionalText,
+    regionText: optionalText,
+    battalionText: optionalText,
+    companyText: optionalText,
     // Phase 26B Part 5 Part D/H/M: verification triad — additive alongside
     // the existing free-text `verified` above (untouched). A true closed set
     // (unlike Rank/Position/Unit, there is no "preserve free legacy value"

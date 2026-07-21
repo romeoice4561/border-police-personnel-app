@@ -360,6 +360,11 @@ export interface OfficerProfileSaveRequest {
     regionId: number | null;
     battalionId: number | null;
     companyId: number | null;
+    /** Phase 49A.2B: free-text org labels — additive alongside the id FKs. */
+    headquartersText?: string | null;
+    regionText?: string | null;
+    battalionText?: string | null;
+    companyText?: string | null;
     /** Phase 26B Part 5 Part D/H/M: verification triad — additive alongside the existing `verified` above. */
     verificationStatus: string | null;
     verifiedBy: string | null;

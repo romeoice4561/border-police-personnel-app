@@ -15,12 +15,10 @@
  * SETS the ancestor ids, it never locks them.
  *
  * A typed value that doesn't match any known row in the tree is preserved as
- * free text (matching the existing Rank/Position/Unit convention) but does
- * NOT resolve to an id — the row's headquartersId/regionId/battalionId/
- * companyId stay whatever they were, and only the legacy `unit` free-text
- * column reflects the typed text. This mirrors "Allow custom values": typing
- * a not-yet-seeded unit never blocks saving, it just isn't linked to the
- * structured hierarchy yet.
+ * free text (matching the existing Rank/Position/Unit convention) and does
+ * NOT resolve to an id — the corresponding *Id is cleared to null. Phase
+ * 49A.2B persists the free-text labels on Timeline so they round-trip
+ * independently of the id FKs and of the legacy `unit` column.
  */
 "use client";
 
@@ -60,7 +58,7 @@ export function OrgHierarchyPicker({ organizationEngine, value, onChange }: OrgH
 
   function onHeadquartersChange(text: string) {
     const match = findByLabel(tree.headquarters, (h) => h.nameTh, text);
-    onChange({ ...value, headquartersText: text, headquartersId: match ? match.id : value.headquartersId });
+    onChange({ ...value, headquartersText: text, headquartersId: match ? match.id : null });
   }
 
   /**

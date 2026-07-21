@@ -288,6 +288,16 @@ model Timeline {
   companyRef     Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   companyId      Int?
 
+  // Phase 49A.2B: free-text labels for each org hierarchy level, additive
+  // alongside the id FKs above (never alter/drop `unit` or the id columns).
+  // Persist what the user typed/selected so unmatched custom values and
+  // exact picker labels round-trip independently of master-data resolve.
+  // Null on pre-49A.2B rows; hydrate falls back to resolveLabels(ids).
+  headquartersText String?
+  regionText       String?
+  battalionText    String?
+  companyText      String?
+
   // Phase 26B Part 5 Part D/H/M: a richer verification TRIAD, additive
   // alongside the existing `verified` free-text status above (never altered
   // — every pre-26B row and reader of `verified` keeps working unchanged).

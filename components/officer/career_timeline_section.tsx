@@ -30,6 +30,7 @@ import type { Timeline } from "@/lib/database/query_types";
 import { sortTimelineByYear } from "@/lib/ui/officer_summary";
 import { formatThaiDate } from "@/lib/officer_profile/thai_date";
 import { formatThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
+import { displayOrgLabel } from "@/lib/officer_profile/timeline_org_persistence";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import { normalizePositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
@@ -83,10 +84,10 @@ function toCareerTimelineRow(entry: Timeline, organizationEngine: OrganizationEn
     unit: entry.unit,
     source: entry.source,
     verified: entry.verified,
-    headquarters: labels.headquarters,
-    borderPatrolDivision: labels.borderPatrolDivision,
-    battalion: labels.battalion,
-    company: labels.company,
+    headquarters: displayOrgLabel(entry.headquartersText, labels.headquarters),
+    borderPatrolDivision: displayOrgLabel(entry.regionText, labels.borderPatrolDivision),
+    battalion: displayOrgLabel(entry.battalionText, labels.battalion),
+    company: displayOrgLabel(entry.companyText, labels.company),
     verificationStatus: entry.verificationStatus ?? null,
     verifiedBy: entry.verifiedBy ?? null,
     verifiedDate: entry.verifiedDate ? formatThaiPersonnelDate(entry.verifiedDate) : null,
@@ -100,7 +101,10 @@ const VERIFIED_STATUS = "ยืนยันแล้ว";
 
 /** Phase 26B Part 6 Part F: Position, then Company/Battalion/Division/Headquarters, stacked most-senior-line-first — the spec's own worked example laid out as rows, not a slash-joined string. */
 function OrganizationStack({ row }: { row: CareerTimelineRow }) {
-  const lines = [row.position, row.company, row.battalion, row.borderPatrolDivision, row.headquarters].filter(Boolean);
+  const orgLines = [row.company, row.battalion, row.borderPatrolDivision, row.headquarters].filter(Boolean);
+  // Display-only fallback: when structured labels are absent, show legacy unit
+  // — never mutates stored fields.
+  const lines = [row.position, ...(orgLines.length > 0 ? orgLines : row.unit ? [row.unit] : [])].filter(Boolean);
   const showLevel = row.positionLevel !== UNKNOWN_POSITION_LEVEL;
   if (lines.length === 0 && !showLevel) return <span className="text-muted">—</span>;
   return (
