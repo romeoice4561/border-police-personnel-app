@@ -248,23 +248,34 @@ export async function guarded(run: () => Promise<Response>): Promise<Response> {
   try {
     return await run();
   } catch (error) {
-    // Temporary diagnostics (Phase 22A-FIX): the response body never leaks
-    // these details (still a generic 503/500 below) — this only writes to
-    // the server log so a real failure is no longer silent.
-    console.error(error);
-    console.error((error as { message?: unknown })?.message);
-    console.error((error as { stack?: unknown })?.stack);
+    // Temporary diagnostics (Phase 22A-FIX / Phase 49A.2A): the production
+    // response body never leaks stack traces — this only writes to the
+    // server log so a real failure is no longer silent. In development the
+    // client also receives the error message (not the stack) to speed up
+    // root-cause investigation of PATCH failures.
+    console.error("[api.guarded] Unhandled error:", error);
+    if (error instanceof Error) {
+      console.error("[api.guarded] message:", error.message);
+      console.error("[api.guarded] stack:", error.stack);
+    } else {
+      console.error("[api.guarded] non-Error:", String(error));
+    }
     if (error && typeof error === "object" && "code" in error) {
-      console.error((error as { code: unknown }).code);
+      console.error("[api.guarded] code:", (error as { code: unknown }).code);
     }
     if (error && typeof error === "object" && "meta" in error) {
-      console.error((error as { meta: unknown }).meta);
+      console.error("[api.guarded] meta:", (error as { meta: unknown }).meta);
     }
 
     if (error instanceof DatabaseConfigError || isConnectionError(error)) {
       return serviceUnavailable("Database unavailable");
     }
-    return internalError();
+    const isDev = process.env.NODE_ENV !== "production";
+    const message =
+      isDev && error instanceof Error && error.message.trim()
+        ? error.message
+        : "Internal server error";
+    return internalError(message);
   }
 }
 

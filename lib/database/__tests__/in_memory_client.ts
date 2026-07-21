@@ -255,7 +255,11 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
-  async $transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T> {
+  async $transaction<T>(
+    fn: (tx: DatabaseClient) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+  ): Promise<T> {
+    void options;
     const snaps = {
       officers: this.officers.snapshot(),
       timelines: this.timelines.snapshot(),

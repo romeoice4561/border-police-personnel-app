@@ -7,6 +7,12 @@
  * back to DIRECT_URL if DATABASE_URL is unavailable. DIRECT_URL remains
  * dedicated to Prisma migrate/introspection (see prisma.config.ts), which use
  * a single, short-lived connection and are unaffected by this change.
+ *
+ * Phase 49A.2A: default (env-based) clients are reused per process via
+ * `globalThis`. Each `new PrismaPg({ connectionString })` opens its own
+ * `pg.Pool`; containers that each called `createDatabaseClient()` without
+ * sharing exhausted the pooler and caused PATCH `$transaction` to fail with
+ * Prisma P2028 ("Unable to start a transaction in the given time").
  */
 
 import "dotenv/config";
@@ -29,23 +35,11 @@ export interface CreateDatabaseClientOptions {
   connectionString?: string;
 }
 
-/**
- * Creates a PrismaClient backed by the pg adapter.
- */
-export function createDatabaseClient(
-  options: CreateDatabaseClientOptions = {}
-): PrismaClient {
-  const connectionString =
-    options.connectionString ??
-    process.env.DATABASE_URL ??
-    process.env.DIRECT_URL;
+const globalForDb = globalThis as typeof globalThis & {
+  __borderPolicePrisma?: PrismaClient;
+};
 
-  if (!connectionString) {
-    throw new DatabaseConfigError(
-      "No database connection string configured. Set DIRECT_URL or DATABASE_URL in .env.local."
-    );
-  }
-
+function buildClient(connectionString: string): PrismaClient {
   const adapter = new PrismaPg({
     connectionString,
   });
@@ -53,4 +47,35 @@ export function createDatabaseClient(
   return new PrismaClient({
     adapter,
   });
+}
+
+/**
+ * Creates a PrismaClient backed by the pg adapter.
+ *
+ * When `connectionString` is omitted, returns the process-wide singleton
+ * (HMR-safe via `globalThis`). Explicit `connectionString` always builds a
+ * fresh client (scripts/tests that need an alternate URL).
+ */
+export function createDatabaseClient(
+  options: CreateDatabaseClientOptions = {}
+): PrismaClient {
+  if (options.connectionString) {
+    return buildClient(options.connectionString);
+  }
+
+  if (globalForDb.__borderPolicePrisma) {
+    return globalForDb.__borderPolicePrisma;
+  }
+
+  const connectionString = process.env.DATABASE_URL ?? process.env.DIRECT_URL;
+
+  if (!connectionString) {
+    throw new DatabaseConfigError(
+      "No database connection string configured. Set DIRECT_URL or DATABASE_URL in .env.local."
+    );
+  }
+
+  const client = buildClient(connectionString);
+  globalForDb.__borderPolicePrisma = client;
+  return client;
 }

@@ -59,8 +59,14 @@ export interface DatabaseClient {
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's
    * interactive form. A thrown error rolls the whole transaction back.
+   *
+   * `options` mirrors Prisma's interactive-transaction options (`maxWait` /
+   * `timeout`). Fakes may ignore them.
    */
-  $transaction<T>(fn: (tx: DatabaseClient) => Promise<T>): Promise<T>;
+  $transaction<T>(
+    fn: (tx: DatabaseClient) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+  ): Promise<T>;
 }
 
 /** The action recorded for each officer during an import (for ImportLog + statistics). */

@@ -51,62 +51,77 @@ export class OfficerProfileService {
    * before any write, so a bad id never partially writes anything).
    */
   async save(officerId: string, input: OfficerProfileSaveInput): Promise<OfficerProfileSaveResult> {
-    return this.db.$transaction(async (tx) => {
-      const officerRepo = new OfficerRepository(tx);
-      const existing = await officerRepo.findByOfficerId(officerId);
-      if (!existing) throw new OfficerNotFoundError(officerId);
+    // Phase 49A.2A: full workspace save (profile + timeline + education +
+    // training + salary + skills) can wait briefly for a free connection under
+    // concurrent page reads. Default Prisma maxWait (2s) was returning P2028
+    // before the transaction could start.
+    return this.db.$transaction(
+      async (tx) => {
+        const officerRepo = new OfficerRepository(tx);
+        const existing = await officerRepo.findByOfficerId(officerId);
+        if (!existing) throw new OfficerNotFoundError(officerId);
 
-      let profileUpdated = false;
-      if (input.profile) {
-        // netSalary is derived server-side; never persist a client-supplied value.
-        const resolved = resolveNetSalaryForSave(input.profile, {
-          currentSalary: moneyFieldToNumber(existing.currentSalary),
-          otherSpecialAllowances: moneyFieldToNumber(existing.otherSpecialAllowances),
-          cooperativeMonthlyDeduction: moneyFieldToNumber(existing.cooperativeMonthlyDeduction),
-        });
-        if (!resolved.ok) throw new OfficerProfileValidationError(resolved.message);
-        await officerRepo.updateProfile(officerId, { ...input.profile, ...resolved.patch });
-        profileUpdated = true;
-      }
+        let profileUpdated = false;
+        if (input.profile) {
+          // netSalary is derived server-side; never persist a client-supplied value.
+          const resolved = resolveNetSalaryForSave(input.profile, {
+            currentSalary: moneyFieldToNumber(existing.currentSalary),
+            otherSpecialAllowances: moneyFieldToNumber(existing.otherSpecialAllowances),
+            cooperativeMonthlyDeduction: moneyFieldToNumber(existing.cooperativeMonthlyDeduction),
+          });
+          if (!resolved.ok) throw new OfficerProfileValidationError(resolved.message);
+          await officerRepo.updateProfile(officerId, { ...input.profile, ...resolved.patch });
+          profileUpdated = true;
+        }
 
-      let timelineRowCount: number | null = null;
-      if (input.timeline) {
-        const timelineRepo = new TimelineRepository(tx);
-        // Phase 23B: lazily normalize position/unit on save — a row whose
-        // position embeds the unit (or duplicates it) is separated here before
-        // persisting, so editing/saving an officer cleans up its mixed rows.
-        const normalizedTimeline = input.timeline.map((row) => {
-          const { position, unit } = normalizeTimelinePositionUnit({ position: row.position, unit: row.unit });
-          return { ...row, position, unit };
-        });
-        timelineRowCount = await timelineRepo.replaceForOfficer(existing.id, normalizedTimeline);
-      }
+        let timelineRowCount: number | null = null;
+        if (input.timeline) {
+          const timelineRepo = new TimelineRepository(tx);
+          // Phase 23B: lazily normalize position/unit on save — a row whose
+          // position embeds the unit (or duplicates it) is separated here before
+          // persisting, so editing/saving an officer cleans up its mixed rows.
+          const normalizedTimeline = input.timeline.map((row) => {
+            const { position, unit } = normalizeTimelinePositionUnit({ position: row.position, unit: row.unit });
+            return { ...row, position, unit };
+          });
+          timelineRowCount = await timelineRepo.replaceForOfficer(existing.id, normalizedTimeline);
+        }
 
-      let educationRowCount: number | null = null;
-      if (input.education) {
-        const educationRepo = new EducationRepository(tx);
-        educationRowCount = await educationRepo.replaceForOfficer(existing.id, input.education);
-      }
+        let educationRowCount: number | null = null;
+        if (input.education) {
+          const educationRepo = new EducationRepository(tx);
+          educationRowCount = await educationRepo.replaceForOfficer(existing.id, input.education);
+        }
 
-      let trainingRowCount: number | null = null;
-      if (input.training) {
-        const trainingRepo = new TrainingRepository(tx);
-        trainingRowCount = await trainingRepo.replaceForOfficer(existing.id, input.training);
-      }
+        let trainingRowCount: number | null = null;
+        if (input.training) {
+          const trainingRepo = new TrainingRepository(tx);
+          trainingRowCount = await trainingRepo.replaceForOfficer(existing.id, input.training);
+        }
 
-      let salaryHistoryRowCount: number | null = null;
-      if (input.salaryHistory) {
-        const salaryHistoryRepo = new SalaryHistoryRepository(tx);
-        salaryHistoryRowCount = await salaryHistoryRepo.saveSalaryHistory(existing.id, input.salaryHistory);
-      }
+        let salaryHistoryRowCount: number | null = null;
+        if (input.salaryHistory) {
+          const salaryHistoryRepo = new SalaryHistoryRepository(tx);
+          salaryHistoryRowCount = await salaryHistoryRepo.saveSalaryHistory(existing.id, input.salaryHistory);
+        }
 
-      let skillRowCount: number | null = null;
-      if (input.skills) {
-        const officerSkillRepo = new OfficerSkillRepository(tx);
-        skillRowCount = await officerSkillRepo.replaceForOfficer(existing.id, input.skills);
-      }
+        let skillRowCount: number | null = null;
+        if (input.skills) {
+          const officerSkillRepo = new OfficerSkillRepository(tx);
+          skillRowCount = await officerSkillRepo.replaceForOfficer(existing.id, input.skills);
+        }
 
-      return { officerId, profileUpdated, timelineRowCount, educationRowCount, trainingRowCount, salaryHistoryRowCount, skillRowCount };
-    });
+        return {
+          officerId,
+          profileUpdated,
+          timelineRowCount,
+          educationRowCount,
+          trainingRowCount,
+          salaryHistoryRowCount,
+          skillRowCount,
+        };
+      },
+      { maxWait: 10_000, timeout: 30_000 }
+    );
   }
 }
