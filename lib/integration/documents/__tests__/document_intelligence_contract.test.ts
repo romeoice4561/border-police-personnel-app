@@ -58,6 +58,22 @@ test("INCOMPLETE officer: zero documents -> readinessLevel INCOMPLETE, primaryAc
   assert.ok(result.missingRequiredDocuments.includes("GP7"));
 });
 
+test("Phase 49A.2 (§7): exactly ONE missing required document -> primaryActionLabelTh names the specific document, not the generic phrase", () => {
+  const verified = new Date("2026-01-01");
+  const docs = fullChecklistDocs({ verifiedAt: verified }).filter((d) => d.documentType !== "HOUSE_REGISTRATION");
+  const result = composeOfficerDocumentIntelligence({ officerId: "test", officerPk: 1, documents: docs, asOf: ASOF });
+  assert.equal(result.missingRequiredDocuments.length, 1);
+  assert.equal(result.missingRequiredDocuments[0], "HOUSE_REGISTRATION");
+  assert.equal(result.primaryActionLabelTh, "อัปโหลดทะเบียนบ้าน");
+  assert.notEqual(result.primaryActionLabelTh, "อัปโหลดเอกสารที่ขาด", "must never be the generic phrase when exactly one document is identifiable");
+});
+
+test("Phase 49A.2 (§7): MULTIPLE missing required documents -> primaryActionLabelTh stays the generic phrase (never names an arbitrary 'first' one)", () => {
+  const result = composeOfficerDocumentIntelligence({ officerId: "test", officerPk: 1, documents: [], asOf: ASOF });
+  assert.ok(result.missingRequiredDocuments.length > 1);
+  assert.equal(result.primaryActionLabelTh, "อัปโหลดเอกสารที่ขาด");
+});
+
 test("BLOCKED officer: an expired required document -> readinessLevel BLOCKED, primaryAction REVIEW_EXPIRED", () => {
   const docs = fullChecklistDocs();
   docs[0] = { ...docs[0], expiryDate: new Date("2020-01-01") };

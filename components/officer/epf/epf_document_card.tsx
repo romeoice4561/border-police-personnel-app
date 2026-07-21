@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
+import { expiryStatus, EXPIRY_STATUS_TONE } from "@/lib/document/document_expiry";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const ACCEPT = Object.keys(ALLOWED_DOCUMENT_MIME).join(",");
@@ -51,6 +52,14 @@ function formatFileType(mimeType: string | null | undefined): string {
   const sub = mimeType.split("/")[1];
   return sub ? sub.toUpperCase() : mimeType;
 }
+
+/** Mirrors EXPIRY_STATUS_TONE's semantic tones as explicit Tailwind classes — a dynamic `text-${tone}` string cannot be statically detected by Tailwind's JIT scanner (same convention as components/workspace/kpi_card.tsx's TONE_TEXT map). */
+const EXPIRY_TEXT_TONE_CLASS: Record<"good" | "warning" | "serious" | "neutral", string> = {
+  good: "text-good",
+  warning: "text-warning",
+  serious: "text-serious",
+  neutral: "text-muted",
+};
 
 function openPreview(fileUrl: string | null | undefined) {
   if (fileUrl) window.open(fileUrl, "_blank", "noopener,noreferrer");
@@ -94,11 +103,11 @@ export function EpfDocumentCard({
     async (file: File) => {
       setError(null);
       if (!ALLOWED_DOCUMENT_MIME[file.type]) {
-        setError("Unsupported file type. Allowed: JPG, PNG, WEBP, PDF.");
+        setError(t("epf.cardUploadErrorType"));
         return;
       }
       if (file.size > MAX_DOCUMENT_BYTES) {
-        setError(`File too large. Maximum ${Math.round(MAX_DOCUMENT_BYTES / (1024 * 1024))} MB.`);
+        setError(`${t("epf.cardUploadErrorSize")} (${Math.round(MAX_DOCUMENT_BYTES / (1024 * 1024))} MB)`);
         return;
       }
       setBusy(true);
@@ -113,16 +122,16 @@ export function EpfDocumentCard({
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-          throw new Error(body?.error?.message ?? `Upload failed (${res.status}).`);
+          throw new Error(body?.error?.message ?? t("epf.cardUploadErrorGeneric"));
         }
         onRefresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Upload failed.");
+        setError(e instanceof Error ? e.message : t("epf.cardUploadErrorGeneric"));
       } finally {
         setBusy(false);
       }
     },
-    [officerId, typeCode, labelEn, onRefresh]
+    [officerId, typeCode, labelEn, onRefresh, t]
   );
 
   return (
@@ -133,6 +142,7 @@ export function EpfDocumentCard({
           mimeType={doc?.mimeType}
           documentTypeCode={typeCode}
           altText={labelEn}
+          previewAriaLabel={`${t("epf.cardPreviewThumbnail")} ${labelTh}`}
           onClick={doc?.fileUrl ? () => openPreview(doc.fileUrl) : undefined}
         />
 
@@ -159,7 +169,15 @@ export function EpfDocumentCard({
 
           {doc ? (
             <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-2 lg:grid-cols-3">
-              <span><span className="font-medium text-foreground">{t("epf.cardIssueDate")}:</span> —</span>
+              <span><span className="font-medium text-foreground">{t("epf.cardIssueDate")}:</span> {formatDate(doc.issueDate)}</span>
+              {doc.expiryDate ? (
+                <span>
+                  <span className="font-medium text-foreground">{t("epf.cardExpiryDate")}:</span>{" "}
+                  <span className={EXPIRY_TEXT_TONE_CLASS[EXPIRY_STATUS_TONE[expiryStatus(doc.expiryDate)]]}>{formatDate(doc.expiryDate)}</span>
+                </span>
+              ) : (
+                <span><span className="font-medium text-foreground">{t("epf.cardExpiryDate")}:</span> {formatDate(doc.expiryDate)}</span>
+              )}
               <span><span className="font-medium text-foreground">{t("epf.cardUploadedDate")}:</span> {formatDate(doc.uploadedAt)}</span>
               <span><span className="font-medium text-foreground">{t("epf.cardFileSize")}:</span> {formatFileSize(doc.fileSize)}</span>
               <span><span className="font-medium text-foreground">{t("epf.cardFileType")}:</span> {formatFileType(doc.mimeType)}</span>
@@ -184,12 +202,28 @@ export function EpfDocumentCard({
           {doc ? t("epf.cardReplace") : t("epf.cardUpload")}
         </Button>
 
-        <Button type="button" variant="ghost" size="sm" disabled={!doc?.fileUrl} onClick={() => openPreview(doc?.fileUrl)} aria-label={`${t("epf.cardPreview")} ${labelEn}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!doc?.fileUrl}
+          onClick={() => openPreview(doc?.fileUrl)}
+          aria-label={`${t("epf.cardPreview")} ${labelEn}`}
+          title={!doc?.fileUrl ? t("epf.cardNoFileYet") : undefined}
+        >
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
           {t("epf.cardPreview")}
         </Button>
 
-        <Button type="button" variant="ghost" size="sm" disabled={!doc?.fileUrl || busy} onClick={() => doc && triggerDownload(officerId, doc.id)} aria-label={`${t("epf.cardDownload")} ${labelEn}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!doc?.fileUrl || busy}
+          onClick={() => doc && triggerDownload(officerId, doc.id)}
+          aria-label={`${t("epf.cardDownload")} ${labelEn}`}
+          title={!doc?.fileUrl ? t("epf.cardNoFileYet") : undefined}
+        >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           {t("epf.cardDownload")}
         </Button>
@@ -199,7 +233,15 @@ export function EpfDocumentCard({
           {t("epf.cardDetails")}
         </Button>
 
-        <Button type="button" variant="ghost" size="sm" disabled={!doc} onClick={onOpenHistory} aria-label={`${t("epf.cardHistory")} ${labelEn}`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!doc}
+          onClick={onOpenHistory}
+          aria-label={`${t("epf.cardHistory")} ${labelEn}`}
+          title={!doc ? t("epf.cardNoHistoryYet") : undefined}
+        >
           <History className="h-3.5 w-3.5" aria-hidden="true" />
           {t("epf.cardHistory")}
         </Button>

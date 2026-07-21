@@ -23,6 +23,23 @@ import type { OfficerDocument } from "@/lib/database/query_types";
 import { computeDocumentReadiness, type ReadinessLevel } from "@/lib/intelligence/document_readiness";
 import { computeReviewWorkload } from "@/lib/intelligence/review_workload";
 import type { DocumentReviewStatus } from "@/lib/intelligence/document_review_status";
+import { DICTIONARY, type TranslationKey } from "@/lib/i18n/dictionary";
+
+/**
+ * Phase 49A.2 (§7): resolves a checklist document-type code (e.g. "GP7",
+ * "HOUSE_REGISTRATION") to its Thai display label, reading DICTIONARY
+ * directly rather than a React t() call — this module is pure/non-React
+ * (same reasoning as lib/document/epf_status_copy.ts's precedent for
+ * reading dictionary-adjacent data from a pure module). primaryActionLabelTh
+ * is explicitly Thai-only by its own field name/contract (consumed as a
+ * fixed-language string by three different UI surfaces), so reading the
+ * "th" side specifically here — never re-derived, never guessed — is
+ * consistent with that contract, not a new language decision.
+ */
+function checklistLabelTh(typeCode: string): string | null {
+  const key = `epf.completeness.checklist.${typeCode}` as TranslationKey;
+  return DICTIONARY[key]?.th ?? null;
+}
 
 /** Coarse completeness band for filtering/display — derived purely from CompletenessScore.overallScore, never a separate calculation. */
 export type CompletenessLevel = "complete" | "partial" | "critical";
@@ -135,6 +152,7 @@ export function composeOfficerDocumentIntelligence(input: ComposeOfficerDocument
   }
 
   const primaryAction = pickPrimaryAction(readiness);
+  const primaryActionLabelTh = resolvePrimaryActionLabelTh(primaryAction, readiness.completeness.missingRequiredDocuments);
 
   return {
     officerId: input.officerId,
@@ -150,9 +168,31 @@ export function composeOfficerDocumentIntelligence(input: ComposeOfficerDocument
     unsupportedCount: workload.unsupportedDocuments.length,
     qualityWarningCount,
     primaryAction,
-    primaryActionLabelTh: PRIMARY_ACTION_LABEL_TH[primaryAction],
+    primaryActionLabelTh,
     drillDownQuery: buildDrillDownQueryForOfficer(input.officerId, readiness.level),
   };
+}
+
+/**
+ * Phase 49A.2 (§7): names the ACTUAL missing document when there is exactly
+ * one (e.g. "อัปโหลดทะเบียนบ้าน" instead of the generic "อัปโหลดเอกสารที่ขาด")
+ * — the same fix applied to epf_next_actions_card.tsx, mirrored here since
+ * this contract's primaryActionLabelTh feeds a SEPARATE set of UI surfaces
+ * (Commander Search table, Officer Profile card, e-PF intelligence summary)
+ * that don't go through that component. When 2+ documents are missing, the
+ * label stays the generic phrase — naming an arbitrary "first" one would
+ * misrepresent how many are actually needed; callers that want the full
+ * list already have missingRequiredDocuments for that.
+ */
+function resolvePrimaryActionLabelTh(action: PrimaryAction, missingRequiredDocuments: readonly string[]): string {
+  if (action === "UPLOAD_MISSING" && missingRequiredDocuments.length === 1) {
+    const label = checklistLabelTh(missingRequiredDocuments[0]);
+    // "อัปโหลด" (the same prefix epf_next_actions_card.tsx uses) + the
+    // specific document name — e.g. "อัปโหลดทะเบียนบ้าน", matching spec §7's
+    // exact requested phrasing, not the generic PRIMARY_ACTION_LABEL_TH text.
+    if (label) return `${DICTIONARY["epf.action.uploadMissingNamed"].th}${label}`;
+  }
+  return PRIMARY_ACTION_LABEL_TH[action];
 }
 
 /**

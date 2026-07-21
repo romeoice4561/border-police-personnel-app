@@ -48,7 +48,19 @@ export function EpfNextActionsCard({
       <ul className="mt-3 space-y-2.5">
         {actions.map((action) => {
           const Icon = ACTION_ICON[action.kind];
-          const title = t(action.labelKey as TranslationKey);
+          // Phase 49A.2: an upload_missing action names the ACTUAL missing
+          // document (e.g. "อัปโหลดทะเบียนบ้าน") instead of the generic
+          // "อัปโหลดเอกสารที่ขาด" — critical when 2 such actions render at
+          // once (computeRecommendedActions caps at 2), since the generic
+          // title made them visually indistinguishable. Falls back to the
+          // generic phrasing only if typeCode is somehow absent.
+          const specificDocumentLabel =
+            action.kind === "upload_missing" && action.typeCode
+              ? t(`epf.completeness.checklist.${action.typeCode}` as TranslationKey)
+              : null;
+          const title = specificDocumentLabel
+            ? `${t("epf.action.uploadMissingNamed")}${specificDocumentLabel}`
+            : t(action.labelKey as TranslationKey);
           const titleWithValue =
             action.kind === "verify_pending" && action.value
               ? `${action.value} ${title}`

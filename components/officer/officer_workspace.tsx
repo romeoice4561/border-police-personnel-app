@@ -397,11 +397,11 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
 
       <section className="space-y-4">
         <div className="border-b border-border pb-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">Media</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">{t("officer.media")}</h2>
         </div>
 
         <div className="rounded-2xl border border-border bg-neutral-bg p-4">
-          <h3 className="mb-3 text-sm font-semibold text-foreground">คลังภาพ (Photo Gallery)</h3>
+          <h3 className="mb-3 text-sm font-semibold text-foreground">{t("officer.photoGallery")}</h3>
           <PhotoGallery officerId={officer.officerId} name={officerFullName(officer)} officialPortraitId={officer.officialPortraitId} refreshKey={galleryKey} />
         </div>
       </section>

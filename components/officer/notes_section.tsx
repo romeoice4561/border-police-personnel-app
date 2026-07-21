@@ -5,11 +5,13 @@
  * this always renders the empty state — architecture + UI only.
  */
 import { EditableSectionCard, SectionEmptyState } from "@/components/officer/editable_section_card";
+import { useT } from "@/components/i18n/language_provider";
 
 export function NotesSection() {
+  const { t } = useT();
   return (
-    <EditableSectionCard title="Notes" comingSoon>
-      <SectionEmptyState message="No notes yet." />
+    <EditableSectionCard title={t("officer.notes")}>
+      <SectionEmptyState message={t("officer.notesEmpty")} />
     </EditableSectionCard>
   );
 }

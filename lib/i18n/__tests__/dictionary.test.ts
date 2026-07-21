@@ -89,3 +89,54 @@ test("Thai mode never shows the raw English word 'Commander Intelligence' for th
   assert.notEqual(translate("commander.intelligence.title", "th"), "Commander Intelligence");
   assert.equal(translate("commander.intelligence.title", "th"), "ข้อมูลวิเคราะห์สำหรับผู้บังคับบัญชา");
 });
+
+// Phase 49A.2 — Officer Profile / e-PF localization cleanup.
+
+test("built-in document category labels named in the audit are Thai in TH and English in EN", () => {
+  const cases: Array<[TranslationKey, string, string]> = [
+    ["officer.trainingEditorCourse", "หลักสูตร", "Course"],
+    ["epf.completeness.checklist.HOUSE_REGISTRATION", "ทะเบียนบ้าน", "House Registration"],
+    ["epf.completeness.checklist.NATIONAL_ID", "บัตรประชาชน", "ID Card"],
+  ];
+  for (const [key, th, en] of cases) {
+    assert.equal(translate(key, "th"), th, `${key} TH mismatch`);
+    assert.equal(translate(key, "en"), en, `${key} EN mismatch`);
+  }
+});
+
+test("Achievements no longer resolves to 'Coming Soon' or 'No achievements yet.' in either language", () => {
+  const heading = [translate("officer.achievements", "th"), translate("officer.achievements", "en")];
+  const empty = [translate("officer.achievementsEmpty", "th"), translate("officer.achievementsEmpty", "en")];
+  for (const value of [...heading, ...empty]) {
+    assert.notEqual(value, "Coming Soon");
+    assert.notEqual(value, "No achievements yet.");
+  }
+  assert.equal(translate("officer.achievements", "th"), "ผลงานและความสำเร็จ");
+});
+
+test("e-PF upload-missing-document action prefix + a real checklist label compose into a specific, non-generic Thai title", () => {
+  const prefix = translate("epf.action.uploadMissingNamed", "th");
+  const documentLabel = translate("epf.completeness.checklist.HOUSE_REGISTRATION", "th");
+  const composed = `${prefix}${documentLabel}`;
+  assert.equal(composed, "อัปโหลดทะเบียนบ้าน");
+  assert.notEqual(composed, translate("epf.action.uploadMissing", "th"), "the named action title must differ from the old generic phrasing");
+});
+
+test("new e-PF card keys (expiry date, upload error labels, no-file/no-history reasons) exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "epf.cardExpiryDate",
+    "epf.cardUploadErrorType",
+    "epf.cardUploadErrorSize",
+    "epf.cardUploadErrorGeneric",
+    "epf.cardNoFileYet",
+    "epf.cardNoHistoryYet",
+    "epf.cardPreviewThumbnail",
+    "epf.dashboard.categoriesUsedExplain",
+    "epf.hero.completenessExplain",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0);
+    assert.ok(translate(key, "en").length > 0);
+  }
+});

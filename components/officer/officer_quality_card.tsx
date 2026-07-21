@@ -11,6 +11,7 @@ import { buildQualitySummary } from "@/lib/ui/officer_summary";
 import { bandForScore } from "@/lib/ui/quality";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { QualityBadge } from "@/components/common/quality_badge";
+import { useT } from "@/components/i18n/language_provider";
 
 function ScoreRow({ label, score }: { label: string; score: number | null | undefined }) {
   return (
@@ -24,32 +25,35 @@ function ScoreRow({ label, score }: { label: string; score: number | null | unde
 }
 
 export function OfficerQualityCard({ officer }: { officer: OfficerWithRelations }) {
+  const { t } = useT();
   const summary = buildQualitySummary(officer);
   const band = bandForScore(officer.qualityScore).band;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quality &amp; AI Summary</CardTitle>
+        <CardTitle>{t("officer.qualityAiSummary")}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted">Overall</span>
+          <span className="text-sm text-muted">{t("officer.qualityOverall")}</span>
           <QualityBadge score={officer.qualityScore} />
         </div>
         <div className="space-y-2 border-t border-border pt-3">
-          <ScoreRow label="Quality score" score={officer.qualityScore} />
-          <ScoreRow label="Knowledge score" score={officer.knowledgeScore} />
-          <ScoreRow label="Extraction confidence" score={officer.confidence} />
+          <ScoreRow label={t("officer.qualityScoreLabel")} score={officer.qualityScore} />
+          <ScoreRow label={t("officer.knowledgeScoreLabel")} score={officer.knowledgeScore} />
+          <ScoreRow label={t("officer.extractionConfidenceLabel")} score={officer.confidence} />
         </div>
 
         <div className="rounded-lg border border-border bg-neutral-bg/50 p-3">
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            AI Quality Summary
+            {t("officer.qualityAiSummary")}
           </p>
           <p className="mt-1.5 text-sm leading-relaxed text-foreground">{summary}</p>
-          <p className="sr-only">Quality band: {band}</p>
+          <p className="sr-only">
+            {t("officer.qualityBandSrLabel")}: {band}
+          </p>
         </div>
       </CardBody>
     </Card>

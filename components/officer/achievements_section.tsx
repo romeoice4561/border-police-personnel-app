@@ -1,11 +1,15 @@
 /**
  * AchievementsSection (Phase 21A — Editable Profile Foundation, Part 7;
- * Phase 26B Part 6 Part K — reusable category structure).
+ * Phase 26B Part 6 Part K — reusable category structure; Phase 49A.2 —
+ * localization/UI polish pass).
  *
- * Architecture + UI only. No achievements exist in the schema yet, so this
- * always renders the empty state. Future support (documented, not
- * implemented): images, description, date, category, attachment, admin
- * verification.
+ * Architecture + UI only. No achievements exist in the schema yet (confirmed
+ * against prisma/schema.prisma — no Achievement model, no relation, no
+ * repository, no API route), so this always renders an honest empty state —
+ * never a fabricated "Coming Soon" badge implying imminent availability with
+ * no committed timeline, and never a dead "Add" button with nothing behind
+ * it. Future support (documented, not implemented): images, description,
+ * date, category, attachment, admin verification.
  *
  * Phase 26B Part 6 Part K: the future `category` field is expected to be one
  * of ACHIEVEMENT_CATEGORY_OPTIONS (Royal Decorations / Awards / Certificates
@@ -17,6 +21,7 @@
  */
 import { Trophy } from "lucide-react";
 import { EditableSectionCard, SectionEmptyState } from "@/components/officer/editable_section_card";
+import { useT } from "@/components/i18n/language_provider";
 
 /** Phase 26B Part 6 Part K: the 4 achievement categories the spec lists — documentation only, not yet a real column. */
 export const ACHIEVEMENT_CATEGORY_OPTIONS = ["ROYAL_DECORATION", "AWARD", "CERTIFICATE", "COMMENDATION"] as const;
@@ -42,11 +47,12 @@ export interface FutureAchievement {
 }
 
 export function AchievementsSection() {
+  const { t } = useT();
   return (
-    <EditableSectionCard title="Achievements" comingSoon>
-      <div className="flex flex-col items-center gap-2 py-2">
+    <EditableSectionCard title={t("officer.achievements")}>
+      <div className="flex flex-col items-center gap-2 py-6 text-center">
         <Trophy className="h-8 w-8 text-muted" aria-hidden="true" />
-        <SectionEmptyState message="No achievements yet." />
+        <SectionEmptyState message={t("officer.achievementsEmpty")} />
       </div>
     </EditableSectionCard>
   );

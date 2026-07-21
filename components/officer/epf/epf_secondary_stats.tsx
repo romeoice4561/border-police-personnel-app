@@ -19,9 +19,20 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function StatCard({ icon: Icon, label, value }: { icon: typeof LayoutGrid; label: string; value: string }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  explain,
+}: {
+  icon: typeof LayoutGrid;
+  label: string;
+  value: string;
+  /** Optional clarifying text (spec §8) — shown as a native tooltip when this figure could otherwise be misread against another visible number with a different denominator. */
+  explain?: string;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-3.5 sm:p-4">
+    <div className="rounded-xl border border-border bg-surface p-3.5 sm:p-4" title={explain}>
       <div className="flex items-center gap-2 text-muted">
         <Icon className="h-4 w-4" aria-hidden="true" />
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
@@ -47,7 +58,12 @@ export function EpfSecondaryStats({ stats, storage }: { stats: EpfDashboardStats
   return (
     <div className="space-y-2.5">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-        <StatCard icon={LayoutGrid} label={t("epf.dashboard.categoriesUsed")} value={`${stats.categoriesUsed}/${stats.categoriesTotal}`} />
+        <StatCard
+          icon={LayoutGrid}
+          label={t("epf.dashboard.categoriesUsed")}
+          value={`${stats.categoriesUsed}/${stats.categoriesTotal}`}
+          explain={t("epf.dashboard.categoriesUsedExplain")}
+        />
         <StatCard icon={FileWarning} label={t("epf.dashboard.largestFile")} value={largestLabel} />
         <StatCard icon={ImageIcon} label={t("epf.storage.images")} value={String(storage.imageCount)} />
         <StatCard icon={FileText} label={t("epf.storage.pdfs")} value={String(storage.pdfCount)} />

@@ -50,7 +50,12 @@ export function EpfHeroSummary({
       <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs font-medium text-muted">{t("epf.hero.fileHealth")}</p>
-          <p className="mt-1 text-5xl font-semibold tabular-nums text-foreground">{completeness.percent}%</p>
+          <p className="mt-1 flex items-baseline gap-2">
+            <span className="text-5xl font-semibold tabular-nums text-foreground">{completeness.percent}%</span>
+            <span className="text-sm tabular-nums text-muted" title={t("epf.hero.completenessExplain")}>
+              ({completeness.presentCount}/{completeness.totalCount})
+            </span>
+          </p>
           <div
             className="mt-3 h-2.5 w-56 max-w-full overflow-hidden rounded-full bg-border/60"
             role="progressbar"

@@ -61,6 +61,7 @@ function MissingGroupSection({
                   disabled={isPortrait}
                   onClick={() => onUpload(item.code)}
                   aria-label={`${t("epf.missingPanel.upload")} ${label}`}
+                  title={isPortrait ? t("epf.missingPanel.portraitNotUploadHere") : undefined}
                 >
                   <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                   {t("epf.missingPanel.upload")}

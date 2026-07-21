@@ -508,6 +508,7 @@ export const DICTIONARY = {
   // ── officer.* — Officer Detail / Workspace ──
   "officer.profile": tr("โปรไฟล์", "Profile"),
   "officer.basicInformation": tr("ข้อมูลพื้นฐาน", "Basic Information"),
+  "officer.basicInformationAndContact": tr("ข้อมูลพื้นฐานและการติดต่อ", "Basic Information & Contact"),
   "officer.personalInformation": tr("ข้อมูลส่วนบุคคล", "Personal Information"),
   "officer.contact": tr("ข้อมูลติดต่อ", "Contact"),
   "officer.currentOrganization": tr("หน่วยงานปัจจุบัน", "Current Organization"),
@@ -518,7 +519,12 @@ export const DICTIONARY = {
   "officer.education": tr("การศึกษา", "Education"),
   "officer.documents": tr("เอกสาร", "Documents"),
   "officer.media": tr("สื่อ", "Media"),
-  "officer.achievements": tr("ผลงาน/รางวัล", "Achievements"),
+  "officer.photoGallery": tr("คลังภาพ", "Photo Gallery"),
+  "officer.achievements": tr("ผลงานและความสำเร็จ", "Achievements"),
+  "officer.achievementsEmpty": tr(
+    "ยังไม่มีข้อมูลผลงานหรือรางวัล — ระบบบันทึกผลงานและรางวัลจะเปิดใช้งานในระยะถัดไป",
+    "No achievements or awards recorded yet — achievement recording will be enabled in a future phase."
+  ),
   "officer.qualitySummary": tr("สรุปคุณภาพข้อมูล", "Quality Summary"),
   "officer.editProfile": tr("แก้ไขข้อมูล", "Edit Profile"),
   "officer.saveChanges": tr("บันทึกการแก้ไข", "Save Changes"),
@@ -549,7 +555,13 @@ export const DICTIONARY = {
   "officer.actions": tr("การดำเนินการ", "Actions"),
   "officer.profileCompleteness": tr("ความสมบูรณ์ของโปรไฟล์", "Profile Completeness"),
   "officer.qualityAiSummary": tr("สรุปคุณภาพและ AI", "Quality & AI Summary"),
+  "officer.qualityOverall": tr("ภาพรวม", "Overall"),
+  "officer.qualityScoreLabel": tr("คะแนนคุณภาพข้อมูล", "Quality score"),
+  "officer.knowledgeScoreLabel": tr("คะแนนความรู้", "Knowledge score"),
+  "officer.extractionConfidenceLabel": tr("ความมั่นใจในการดึงข้อมูล", "Extraction confidence"),
+  "officer.qualityBandSrLabel": tr("ระดับคุณภาพ", "Quality band"),
   "officer.notes": tr("บันทึก", "Notes"),
+  "officer.notesEmpty": tr("ยังไม่มีบันทึกเพิ่มเติม", "No notes recorded yet."),
 
   // Officer — Career section
   "officer.career": tr("ประวัติการทำงาน", "Career"),
@@ -607,6 +619,17 @@ export const DICTIONARY = {
   "officer.trainingCourseNameUnavailable": tr("ไม่มีชื่อหลักสูตร", "Course name missing"),
   "officer.trainingUnavailable": tr("ยังไม่สามารถวิเคราะห์ได้", "Not enough data to analyze."),
   "officer.trainingRecommendationsTitle": tr("ข้อเสนอแนะ", "Recommendations"),
+  // Phase 49A.2 — editor field labels (Training/Education editors previously hardcoded these in Thai only, with an English card title).
+  "officer.trainingEditorEmpty": tr("ยังไม่มีข้อมูลหลักสูตรฝึกอบรม — กด \"เพิ่ม\" เพื่อเริ่มกรอก", "No training courses yet — click \"Add\" to start."),
+  "officer.trainingEditorYear": tr("ปี", "Year"),
+  "officer.trainingEditorOrganization": tr("หน่วยจัด", "Organizing Unit"),
+  "officer.trainingEditorCourse": tr("หลักสูตร", "Course"),
+  "officer.trainingEditorNotes": tr("หมายเหตุ", "Notes"),
+  "officer.educationEditorEmpty": tr("ยังไม่มีข้อมูลการศึกษา — กด \"เพิ่ม\" เพื่อเริ่มกรอก", "No education records yet — click \"Add\" to start."),
+  "officer.educationEditorYear": tr("ปี", "Year"),
+  "officer.educationEditorInstitution": tr("สถาบันการศึกษา", "Institution"),
+  "officer.educationEditorDegree": tr("วุฒิการศึกษา", "Degree"),
+  "officer.educationEditorNotes": tr("หมายเหตุ", "Notes"),
 
   // Data-quality flag labels (Phase 45 completion pass) — keyed by
   // TrainingDataQualityFlagCode so the UI can localize instead of trusting
@@ -878,13 +901,24 @@ export const DICTIONARY = {
   "epf.statusDraft": tr("ยังไม่มีเอกสาร", "Draft"),
 
   // Document card
+  "epf.cardUploadErrorType": tr(
+    "ไฟล์ประเภทนี้ไม่รองรับ รองรับเฉพาะ JPG, PNG, WEBP, PDF",
+    "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."
+  ),
+  "epf.cardUploadErrorSize": tr("ไฟล์มีขนาดใหญ่เกินไป", "File too large."),
+  "epf.cardUploadErrorGeneric": tr("อัปโหลดไม่สำเร็จ", "Upload failed."),
+  "epf.cardNoFileYet": tr("ยังไม่มีไฟล์ให้ดูตัวอย่างหรือดาวน์โหลด — อัปโหลดก่อน", "No file to preview or download yet — upload one first."),
+  "epf.cardNoHistoryYet": tr("ยังไม่มีเอกสารในหมวดนี้ จึงยังไม่มีประวัติ", "No document in this slot yet, so there is no history."),
   "epf.cardIssueDate": tr("วันที่ออกเอกสาร", "Issue Date"),
+  "epf.cardExpiryDate": tr("วันหมดอายุ", "Expiry Date"),
   "epf.cardUploadedDate": tr("วันที่อัปโหลด", "Uploaded"),
   "epf.cardFileSize": tr("ขนาดไฟล์", "File Size"),
   "epf.cardFileType": tr("ประเภทไฟล์", "File Type"),
   "epf.cardUploadedBy": tr("อัปโหลดโดย", "Uploaded By"),
   "epf.cardAiReady": tr("พร้อมสำหรับ AI", "AI Ready"),
   "epf.cardPreview": tr("ดูตัวอย่าง", "Preview"),
+  /** Phase 49A.2: the thumbnail's accessible click label — "ดูตัวอย่างเอกสาร {documentName}" (fuller phrasing than the cardPreview button label above, since a screen-reader user hears this with no visual button text alongside it). */
+  "epf.cardPreviewThumbnail": tr("ดูตัวอย่างเอกสาร", "Preview document"),
   "epf.cardDownload": tr("ดาวน์โหลด", "Download"),
   "epf.cardDetails": tr("รายละเอียด", "Details"),
   "epf.cardHistory": tr("ประวัติ", "History"),
@@ -981,6 +1015,11 @@ export const DICTIONARY = {
   "epf.dashboard.title": tr("ภาพรวมแฟ้มประวัติ", "e-PF Overview"),
   "epf.dashboard.totalDocuments": tr("เอกสารทั้งหมด", "Total Documents"),
   "epf.dashboard.categoriesUsed": tr("หมวดหมู่ที่ใช้งาน", "Categories Used"),
+  /** Phase 49A.2 (§8): explains this figure counts DOCUMENT CATEGORIES (e.g. Identity, Education) with at least one file — a different denominator than the completion percentage above, which counts specific recommended DOCUMENTS. Both are real, correct, independent counts; this tooltip only prevents users from misreading them as contradictory. */
+  "epf.dashboard.categoriesUsedExplain": tr(
+    "จำนวนหมวดหมู่เอกสารที่มีไฟล์อย่างน้อย 1 รายการ จากทั้งหมด 9 หมวดหมู่ — คนละตัวเลขกับเปอร์เซ็นต์ความครบถ้วนด้านบนซึ่งนับเอกสารที่แนะนำเป็นรายการ",
+    "Number of document categories with at least one file, out of 9 total categories — a different figure from the completion percentage above, which counts specific recommended documents."
+  ),
   "epf.dashboard.completionPercent": tr("ความสมบูรณ์ของแฟ้ม", "Completion"),
   "epf.dashboard.missingRecommended": tr("เอกสารแนะนำที่ขาด", "Missing Recommended"),
   "epf.dashboard.recentlyUploaded": tr("อัปโหลดล่าสุด", "Recently Uploaded"),
@@ -1012,6 +1051,10 @@ export const DICTIONARY = {
   "epf.missingPanel.title": tr("เอกสารที่แนะนำให้เพิ่มเติม", "Documents Recommended for Completion"),
   "epf.missingPanel.allComplete": tr("เอกสารครบถ้วนตามรายการแนะนำแล้ว", "All recommended documents are on file."),
   "epf.missingPanel.upload": tr("อัปโหลด", "Upload"),
+  "epf.missingPanel.portraitNotUploadHere": tr(
+    "ภาพถ่ายทางการอัปโหลดผ่านส่วนจัดการรูปโปรไฟล์ ไม่ใช่ที่นี่",
+    "The official portrait is uploaded via the profile photo manager, not here."
+  ),
   "epf.missingPanel.groupRequired": tr("เอกสารจำเป็น", "Required Documents"),
   "epf.missingPanel.groupProfessional": tr("เอกสารวิชาชีพ", "Professional Documents"),
   "epf.missingPanel.groupOptional": tr("เอกสารเพิ่มเติม", "Optional Documents"),
@@ -1121,6 +1164,11 @@ export const DICTIONARY = {
   // ── epf.hero.* — Phase 46B Executive Hero Summary ──
   "epf.hero.title": tr("แฟ้มประวัติอิเล็กทรอนิกส์", "Electronic Personnel File"),
   "epf.hero.fileHealth": tr("สถานะความสมบูรณ์ของแฟ้ม", "Officer File Health"),
+  /** Phase 49A.2 (§8): explains the (x/y) fraction shown next to the percent — counts specific recommended DOCUMENTS present, a different denominator than "Categories Used" (which counts CATEGORIES with >=1 file). */
+  "epf.hero.completenessExplain": tr(
+    "จำนวนเอกสารที่มีจากรายการเอกสารแนะนำทั้งหมด — คนละตัวเลขกับ \"หมวดหมู่ที่ใช้งาน\" ซึ่งนับเป็นหมวดหมู่ ไม่ใช่รายเอกสาร",
+    "Documents present out of the full recommended checklist — a different figure from \"Categories Used,\" which counts categories, not individual documents."
+  ),
   "epf.hero.documentCount": tr("จำนวนเอกสาร", "Documents"),
   "epf.hero.storageUsed": tr("พื้นที่จัดเก็บ", "Storage Used"),
   "epf.hero.lastUpdated": tr("อัปเดตล่าสุด", "Last Updated"),
@@ -1153,6 +1201,8 @@ export const DICTIONARY = {
   // Recommended Next Actions
   "epf.nextActions.title": tr("ขั้นตอนที่แนะนำต่อไป", "Recommended Next Actions"),
   "epf.action.uploadMissing": tr("อัปโหลดเอกสารที่ขาด", "Upload missing document"),
+  /** Phase 49A.2: prefix used with a specific checklist document label, e.g. "อัปโหลด" + "ทะเบียนบ้าน" = "อัปโหลดทะเบียนบ้าน" — replaces the generic uploadMissing text whenever the specific document type is known. */
+  "epf.action.uploadMissingNamed": tr("อัปโหลด", "Upload"),
   "epf.action.verifyPending": tr("ตรวจสอบเอกสารที่รอดำเนินการ", "documents awaiting verification"),
   "epf.action.reviewRecent": tr("ตรวจทานเอกสารที่อัปเดตล่าสุด", "Review recently updated document"),
   "epf.action.completeProfile": tr("ดำเนินการให้แฟ้มประวัติสมบูรณ์", "Complete the personnel file"),

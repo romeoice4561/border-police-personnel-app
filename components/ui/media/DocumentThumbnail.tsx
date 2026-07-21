@@ -69,12 +69,21 @@ export interface DocumentThumbnailProps {
   documentTypeCode: string;
   /**
    * Canvas size variant (dimensions from DOCUMENT_CANVAS tokens):
-   * "md" — main card thumbnail: 112×72 (landscape) or 96×120 (portrait A4)
+   * "md" — main card thumbnail: 136×92 (landscape) or 112×140 (portrait A4)
    * "sm" — history row thumbnail: 56×56
    */
   size?: "md" | "sm";
   /** Accessible alt text for the image. Defaults to "Document". */
   altText?: string;
+  /**
+   * Full, already-localized accessible label for the clickable Preview
+   * shortcut (e.g. "ดูตัวอย่างเอกสาร บัตรประจำตัวประชาชน") — required
+   * whenever `onClick` is supplied, since the label must speak the active
+   * UI language (Phase 49A.2: this component previously hardcoded the
+   * English word "Preview" here regardless of language). Ignored when
+   * `onClick` is omitted (the thumbnail is not a button in that case).
+   */
+  previewAriaLabel?: string;
   /** Optional shortcut action, typically Preview. */
   onClick?: () => void;
 }
@@ -91,6 +100,7 @@ export function DocumentThumbnail({
   documentTypeCode,
   size = "md",
   altText = "Document",
+  previewAriaLabel,
   onClick,
 }: DocumentThumbnailProps) {
   const thumbnailUrl = deriveDocumentThumbnailUrl(fileUrl, mimeType);
@@ -205,7 +215,7 @@ export function DocumentThumbnail({
         type="button"
         onClick={onClick}
         className={`${baseClassName} cursor-pointer transition-all duration-300 ease-out hover:scale-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-        aria-label={`Preview ${altText}`}
+        aria-label={previewAriaLabel ?? `Preview ${altText}`}
       >
         {content}
       </button>

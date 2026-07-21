@@ -108,7 +108,7 @@ export function ProfileEditor({ profile, onChange, organizationEngine }: Profile
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Basic Information &amp; Contact</CardTitle>
+        <CardTitle>{t("officer.basicInformationAndContact")}</CardTitle>
       </CardHeader>
       <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="ยศ" htmlFor="edit-rank">

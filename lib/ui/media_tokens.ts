@@ -124,22 +124,25 @@ export function isLandscapeDocumentType(code: string): boolean {
 export const DOCUMENT_THUMBNAIL_RENDER_WIDTH = 480;
 
 /**
- * Canvas dimensions for each document thumbnail variant (Phase 45A refinement:
- * ~25% smaller than the previous card sizes, and ALWAYS object-contain so the
- * whole document shows with no cropping). The card DIMENSIONS are unchanged —
- * only the thumbnail inside is smaller — so the type/badge column gets more
- * breathing room while the document stays fully recognisable.
+ * Canvas dimensions for each document thumbnail variant (Phase 45A
+ * refinement: ALWAYS object-contain so the whole document shows with no
+ * cropping; Phase 49A.2 polish: enlarged back into the spec's requested
+ * ~120–140×88–104 px range — the Phase 45A sizes read as too small/
+ * letterboxed for real users to recognise a document at a glance. The card
+ * DIMENSIONS auto-grow with the thumbnail (flex layout) — no separate
+ * "type/badge column" budget to protect.
  *
  * Aspect ratios are chosen to match each shape so a contained image barely
  * letterboxes:
- *   • LANDSCAPE 112×72 (~3.5:2.25, close to the ID-1 card 1.585:1)
- *   • PORTRAIT  96×120 (5:4-ish A4 crop that reads as a page without going tiny)
+ *   • LANDSCAPE 136×92 (~1.48:1, close to the ID-1 card ratio 1.585:1)
+ *   • PORTRAIT  112×140 (4:5 — a page-like ratio that reads as A4 without
+ *     going oversized)
  */
 export const DOCUMENT_CANVAS = {
-  /** Landscape (ID-card-shaped) main thumbnail — 112×72 px, object-contain. */
-  LANDSCAPE: { w: "w-28", h: "h-[4.5rem]" }, // 112×72 px
-  /** Portrait (A4-shaped) main thumbnail — 96×120 px, object-contain. */
-  PORTRAIT: { w: "w-24", h: "h-[7.5rem]" },  // 96×120 px
+  /** Landscape (ID-card-shaped) main thumbnail — 136×92 px, object-contain. */
+  LANDSCAPE: { w: "w-34", h: "h-23" }, // 136×92 px
+  /** Portrait (A4-shaped) main thumbnail — 112×140 px, object-contain. */
+  PORTRAIT: { w: "w-28", h: "h-35" },  // 112×140 px
   /** History panel thumbnail — 56×56 px. Named "sm". */
   HISTORY: { w: "w-14", h: "h-14" },         // 56×56 px
 } as const;
