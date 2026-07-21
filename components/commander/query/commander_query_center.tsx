@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { CommanderQueryDataset, CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { CommanderQueryFilters, CommanderSortField, DrilldownFilter, NumericFilter } from "@/components/commander/query/types";
 import { matchesSkillFilter } from "@/lib/capability/skill_filter";
+import { matchesDocumentIntelligenceFilters } from "@/lib/integration/navigation/document_filter_matching";
+import { serializeCommanderDocumentFilters } from "@/lib/integration/navigation/drilldown_contract";
+import { DOCUMENT_FILTER_QUERY_KEYS } from "@/lib/integration/navigation/document_filter_types";
 import { CommanderQueryBuilder, type QueryMode } from "@/components/commander/filters/commander_query_builder";
 import { CommanderSearchPresets } from "@/components/commander/filters/commander_search_presets";
 import { CommanderQuerySummary } from "@/components/commander/summary/commander_query_summary";
@@ -87,6 +91,10 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   if (filters.isGpfMember != null && row.isGpfMember !== filters.isGpfMember) return false;
   if (filters.isCooperativeMember != null && row.isCooperativeMember !== filters.isCooperativeMember) return false;
   if (filters.cooperativeName && !(row.cooperativeName ?? "").toLowerCase().includes(filters.cooperativeName.toLowerCase())) return false;
+  // Phase 49A: document-intelligence filters — reads row.documentIntelligence
+  // and row.documentExpiryInfo, both computed ONCE per officer in
+  // toQueryOfficer.ts, never re-derived here.
+  if (!matchesDocumentIntelligenceFilters(row.documentIntelligence, row.documentExpiryInfo, filters)) return false;
   return (
     matchesNumber(row.completedPromotionCycles, filters.completedPromotionCycles) &&
     matchesNumber(row.appointmentCycle, filters.appointmentCycle) &&
@@ -118,16 +126,41 @@ export function CommanderQueryCenter({
   initialFilters,
 }: {
   dataset: CommanderQueryDataset;
-  /** Phase 42: seeds the filter state from a shareable URL (e.g. a Commander Dashboard drill-down link). Applied once on mount only — subsequent in-page filter changes are pure client state, matching the existing convention (no ongoing URL sync). */
+  /** Phase 42: seeds the filter state from a shareable URL (e.g. a Commander Dashboard drill-down link). Every OTHER filter field is still applied once on mount only — pure client state, matching the existing convention. Phase 49A's document-intelligence fields are the one exception: see the URL-sync effect below, which keeps them (and ONLY them) continuously reflected in the URL so reload/back/forward/bookmark all reproduce the exact same document-filtered result, per spec. */
   initialFilters?: CommanderQueryFilters;
 }) {
   const { t } = useT();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [filters, setFilters] = useState<CommanderQueryFilters>(initialFilters ?? {});
   const [mode, setMode] = useState<QueryMode>("personnel");
   const [activePresetId, setActivePresetId] = useState<string | undefined>(undefined);
   const [activeCardLevel, setActiveCardLevel] = useState<string | undefined>(undefined);
   const [drilldown, setDrilldown] = useState<DrilldownFilter | null>(null);
   const [sortBy, setSortBy] = useState<CommanderSortField>(DEFAULT_SORT);
+
+  // Phase 49A (§5): document-intelligence filters are the URL's source of
+  // truth. Every OTHER filter stays pure client state (unchanged, matching
+  // the pre-existing convention) — this effect touches ONLY the 7
+  // document-filter query keys, leaving any other param (promotion,
+  // training, etc.) exactly as the browser already has it. router.replace
+  // (not push) avoids spamming browser history on every keystroke/toggle
+  // while still keeping the address bar and reload/bookmark behavior
+  // accurate; native back/forward across an ACTUAL navigation (e.g.
+  // arriving via a Dashboard drill-down link, then hitting Back) is
+  // unaffected since that's a real history entry Next.js already handles.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const key of DOCUMENT_FILTER_QUERY_KEYS) next.delete(key);
+    const documentParams = serializeCommanderDocumentFilters(filters);
+    for (const [key, value] of Object.entries(documentParams)) next.set(key, value);
+    const nextQuery = next.toString();
+    const currentQuery = searchParams.toString();
+    if (nextQuery !== currentQuery) {
+      router.replace(nextQuery ? `/commander-search?${nextQuery}` : "/commander-search", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes `router`/`searchParams` (stable-enough Next.js APIs; including them causes an update loop since this effect itself changes the URL) — only `filters` should re-trigger sync.
+  }, [filters]);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(DEFAULT_SORT_DIRECTION);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -238,7 +271,7 @@ export function CommanderQueryCenter({
         <CommanderQuerySummary officers={filtered} onDrilldown={setDrilldown} />
         <CommanderQueryCharts officers={filtered} onDrilldown={setDrilldown} />
         <CommanderTimelineCharts officers={filtered} onDrilldown={setDrilldown} />
-        <CommanderResultsTable officers={filtered} />
+        <CommanderResultsTable officers={filtered} documentFiltersActive={DOCUMENT_FILTER_QUERY_KEYS.some((key) => filters[key] !== undefined)} />
       </section>
     </div>
   );

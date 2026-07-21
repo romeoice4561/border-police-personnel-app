@@ -80,6 +80,14 @@ export function describeFiltersTh(filters: CommanderQueryFilters): string[] {
   if (filters.eligibleTwoStepOnly) parts.push("มีสิทธิ์ 2 ขั้น");
   if (filters.mustSkipStepOnly) parts.push("ต้องเว้นขั้น");
   if (filters.missingGp7Only) parts.push("ขาด ก.พ.7");
+  // Phase 49A: document-intelligence filters.
+  if (filters.documentReadiness) parts.push(`ความพร้อมเอกสาร: ${filters.documentReadiness}`);
+  if (filters.documentCompleteness) parts.push(`ความครบถ้วน: ${filters.documentCompleteness}`);
+  if (filters.expiryStatus) parts.push(`สถานะวันหมดอายุ: ${filters.expiryStatus}`);
+  if (filters.pendingOcrReview) parts.push("มีรายการรอตรวจ OCR");
+  if (filters.unsupportedDocument) parts.push("มีเอกสารรูปแบบไม่รองรับ");
+  if (filters.missingRequiredDocument) parts.push("ขาดเอกสารที่จำเป็น");
+  if (filters.qualityWarning) parts.push("มีปัญหาคุณภาพเอกสาร");
   return parts;
 }
 

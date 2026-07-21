@@ -24,6 +24,7 @@ import { resolveOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import { buildOfficerProfileIntelligence } from "@/lib/server/commander_intelligence_service";
 import { composeOfficerIntelligenceViewModel } from "@/lib/officer_intelligence/view_model";
 import { redactOfficerForClient } from "@/lib/officer_profile/officer_financial_redaction";
+import { composeOfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,17 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
     new Date()
   );
 
+  // Phase 49A: composed here too — reuses the SAME already-loaded
+  // officer.documents, zero extra I/O. This is the canonical contract
+  // (lib/integration/documents/document_intelligence_contract.ts) — the
+  // exact same computation Commander Search/Dashboard use, so the Officer
+  // Profile card and Commander Search table can never disagree.
+  const documentIntelligence = composeOfficerDocumentIntelligence({
+    officerId: officer.officerId,
+    officerPk: officer.id,
+    documents: officer.documents,
+  });
+
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm">
@@ -95,6 +107,7 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
         portrait={portrait}
         intelligence={buildOfficerProfileIntelligence(officer)}
         officerIntelligence={officerIntelligence}
+        documentIntelligence={documentIntelligence}
         skillCatalog={skillCatalog}
       />
     </div>

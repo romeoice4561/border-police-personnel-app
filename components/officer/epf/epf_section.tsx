@@ -88,6 +88,8 @@ import { EpfExpiryDashboard } from "@/components/officer/epf/epf_expiry_dashboar
 import { EpfExpiryTimeline } from "@/components/officer/epf/epf_expiry_timeline";
 import { EpfExpiryAlertPanel } from "@/components/officer/epf/epf_expiry_alert_panel";
 import { EpfExpiryReadiness } from "@/components/officer/epf/epf_expiry_readiness";
+import { EpfDocumentIntelligenceSummary } from "@/components/officer/epf/epf_document_intelligence_summary";
+import { composeOfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
 import { useT } from "@/components/i18n/language_provider";
 
 const CATEGORY_ICON: Record<string, LucideIcon> = {
@@ -266,6 +268,23 @@ export function EpfSection({
     [expiryInfo]
   );
 
+  // ── Phase 49A — canonical document intelligence contract, composed here
+  // (client-side, pure — zero I/O) from the SAME `documents` prop every
+  // other card above already reads. officerPk is read off any existing
+  // document row's officerId (the real numeric FK) rather than threaded as
+  // a separate prop — it only labels aggregate entries internally and
+  // never filters/correlates `documents` itself (already scoped to this
+  // one officer by the caller). No reviewStatusByDocumentId is supplied
+  // here (EpfSection has no live extraction-session state to pass) — see
+  // hasSessionOcrData below, which stays false, honestly showing the
+  // "persisted data only" source indicator rather than a fabricated
+  // "session" label. ──
+  const officerPk = documents[0]?.officerId ?? 0;
+  const documentIntelligence = useMemo(
+    () => composeOfficerDocumentIntelligence({ officerId, officerPk, documents }),
+    [officerId, officerPk, documents]
+  );
+
   const handleExpandAll = useCallback(() => {
     setExpandedCategories(new Set(categories.map((c) => c.code)));
   }, [categories]);
@@ -289,6 +308,12 @@ export function EpfSection({
         <EpfEmptyState onUpload={() => setDetailTypeCode(documentTypes[0]?.code ?? null)} />
       ) : (
         <div className="space-y-6">
+          {/* Phase 49A: the canonical document-intelligence summary
+              (readiness level, pending review/quality-warning counts,
+              source indicator) — distinct from the Hero below (which owns
+              completion %/document count/storage/last-updated). */}
+          <EpfDocumentIntelligenceSummary documentIntelligence={documentIntelligence} hasSessionOcrData={false} />
+
           {/* 1. Hero — the ONE place completion %, health verdict, document
               count, storage, and last update are shown. */}
           <EpfHeroSummary stats={dashboardStats} completeness={completeness} health={fileHealth} />

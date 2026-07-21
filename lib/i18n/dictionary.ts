@@ -234,6 +234,23 @@ export const DICTIONARY = {
   "dashboard.retirementColumnYear": tr("ปีเกษียณ พ.ศ.", "Retirement Fiscal Year"),
   "dashboard.retirementColumnRemaining": tr("ระยะเวลาคงเหลือ", "Time Remaining"),
   "dashboard.retirementEmpty": tr("ไม่มีกำลังพลใกล้เกษียณในช่วงนี้", "No officers approaching retirement in this range."),
+
+  // Phase 49A — Production Integration Foundation: Document Readiness dashboard section.
+  "dashboard.documentReadinessTitle": tr("ความพร้อมด้านเอกสารกำลังพล", "Personnel Document Readiness"),
+  "dashboard.documentReadinessReady": tr("เอกสารพร้อมครบ", "Documents Ready"),
+  "dashboard.documentReadinessNeedsReview": tr("ต้องตรวจสอบ", "Needs Review"),
+  "dashboard.documentReadinessIncomplete": tr("เอกสารไม่ครบ", "Incomplete Documents"),
+  "dashboard.documentReadinessBlocked": tr("มีรายการถูกระงับ/ใช้งานไม่ได้", "Blocked / Unusable Records"),
+  "dashboard.documentReadinessExpiringSoon": tr("เอกสารใกล้หมดอายุ", "Documents Expiring Soon"),
+  "dashboard.documentReadinessExpired": tr("เอกสารหมดอายุ", "Expired Documents"),
+  "dashboard.documentReadinessPendingOcr": tr("OCR รอตรวจ", "OCR Pending Review"),
+  "dashboard.documentReadinessUnsupported": tr("เอกสาร PDF ที่ยังไม่รองรับ OCR", "PDFs Not Yet OCR-Supported"),
+  "dashboard.documentReadinessOfOfficers": tr("จากกำลังพลทั้งหมด", "of total officers"),
+  "dashboard.documentReadinessUnavailable": tr(
+    "ยังไม่มีข้อมูลความพร้อมด้านเอกสาร",
+    "Document readiness data is not available yet."
+  ),
+
   "dashboard.overviewTitle": tr("ภาพรวมกำลังพล", "Personnel Overview"),
   "dashboard.dataUnavailable": tr("ข้อมูลไม่เพียงพอสำหรับวิเคราะห์", "Data Unavailable"),
   "dashboard.dataUnavailableHint": tr("ไม่มีข้อมูลวันเกิดที่ใช้คำนวณได้", "No usable date-of-birth data."),
@@ -337,6 +354,19 @@ export const DICTIONARY = {
   "commander.trainingStatus": tr("สถานะหลักสูตร", "Training Status"),
   "commander.showTrainingColumn": tr("แสดงคอลัมน์หลักสูตร", "Show Training Column"),
   "commander.hideTrainingColumn": tr("ซ่อนคอลัมน์หลักสูตร", "Hide Training Column"),
+
+  // Phase 49A — Document Readiness columns (Commander Search results table).
+  "commander.documentReadiness": tr("ความพร้อมเอกสาร", "Document Readiness"),
+  "commander.documentCompleteness": tr("ความครบถ้วน", "Completeness"),
+  "commander.documentMissing": tr("เอกสารที่ขาด", "Missing"),
+  "commander.documentPendingReview": tr("รอตรวจ", "Pending Review"),
+  "commander.documentExpiringSoon": tr("ใกล้หมดอายุ", "Expiring Soon"),
+  "commander.documentExpired": tr("หมดอายุ", "Expired"),
+  "commander.documentQualityWarning": tr("ปัญหาคุณภาพ", "Quality Issue"),
+  "commander.documentNextAction": tr("การดำเนินการถัดไป", "Next Action"),
+  "commander.showDocumentColumns": tr("แสดงคอลัมน์เอกสาร", "Show Document Columns"),
+  "commander.hideDocumentColumns": tr("ซ่อนคอลัมน์เอกสาร", "Hide Document Columns"),
+  "commander.documentNoneMissing": tr("ไม่มี", "None"),
 
   // ── commander.* — Phase 45 completion pass: discoverable training filter group (Task 8) ──
   "commander.trainingFilterGroupTitle": tr("สถานะการฝึกอบรม", "Training Status"),
@@ -605,6 +635,20 @@ export const DICTIONARY = {
   "officer.uploadGp7": tr("อัปโหลด ก.พ.7", "Upload GP7"),
   "officer.manageDocuments": tr("จัดการเอกสาร", "Manage Documents"),
   "officer.manageAchievements": tr("จัดการผลงาน", "Manage Achievements"),
+
+  // Phase 49A — Officer Profile Document Readiness card.
+  "officer.documentReadinessTitle": tr("ความพร้อมด้านเอกสาร", "Document Readiness"),
+  "officer.documentReadinessCompleteness": tr("ความครบถ้วน", "Completeness"),
+  "officer.documentReadinessMissing": tr("เอกสารที่ขาด", "Missing Documents"),
+  "officer.documentReadinessMissingNone": tr("ไม่มีเอกสารที่ขาด", "No missing documents"),
+  "officer.documentReadinessPendingReviews": tr("รอตรวจสอบ", "Pending Reviews"),
+  "officer.documentReadinessExpiry": tr("สรุปวันหมดอายุ", "Expiry Summary"),
+  "officer.documentReadinessExpiringSoon": tr("ใกล้หมดอายุ", "Expiring Soon"),
+  "officer.documentReadinessExpired": tr("หมดอายุแล้ว", "Expired"),
+  "officer.documentReadinessNoExpiry": tr("ไม่มีเอกสารใกล้หรือหมดอายุ", "No documents expiring or expired"),
+  "officer.documentReadinessQualityWarnings": tr("ปัญหาคุณภาพเอกสาร", "Quality Warnings"),
+  "officer.documentReadinessNextAction": tr("การดำเนินการที่แนะนำ", "Recommended Next Action"),
+  "officer.documentReadinessViewEpf": tr("ดูรายละเอียดใน e-PF", "View details in e-PF"),
 
   // Officer — completeness checklist + card titles
   "officer.completeness": tr("ความสมบูรณ์ของโปรไฟล์", "Profile Completeness"),
@@ -1063,6 +1107,16 @@ export const DICTIONARY = {
   "epf.expiry.filterExpiringWithin90": tr("90 วัน", "90 days"),
   "epf.expiry.sortNewestExpiry": tr("วันหมดอายุใหม่สุด", "Newest Expiry"),
   "epf.expiry.sortOldestExpiry": tr("วันหมดอายุเก่าสุด", "Oldest Expiry"),
+
+  // ── epf.intelligence.* — Phase 49A: canonical document intelligence summary ──
+  "epf.intelligence.title": tr("ภาพรวมความพร้อมด้านเอกสาร", "Document Intelligence Overview"),
+  "epf.intelligence.pendingReview": tr("รอตรวจสอบ", "Pending Review"),
+  "epf.intelligence.unsupported": tr("รูปแบบไม่รองรับ OCR", "OCR Unsupported"),
+  "epf.intelligence.qualityWarnings": tr("ปัญหาคุณภาพ", "Quality Warnings"),
+  "epf.intelligence.missingRequired": tr("เอกสารที่ขาด", "Missing Required"),
+  "epf.intelligence.sourcePersisted": tr("ข้อมูลจากเอกสารที่บันทึกแล้ว", "From saved document data"),
+  "epf.intelligence.sourceSession": tr("ข้อมูล OCR ชั่วคราวของเซสชันนี้", "Temporary OCR data for this session"),
+  "epf.intelligence.noOcrYet": tr("ยังไม่มีข้อมูลการประมวลผล OCR", "No OCR processing data yet"),
 
   // ── epf.hero.* — Phase 46B Executive Hero Summary ──
   "epf.hero.title": tr("แฟ้มประวัติอิเล็กทรอนิกส์", "Electronic Personnel File"),

@@ -57,6 +57,8 @@ import { NotesSection } from "@/components/officer/notes_section";
 import { PhotoGallery } from "@/components/officer/photo_gallery";
 import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
+import { OfficerDocumentReadinessCard } from "@/components/officer/officer_document_readiness_card";
+import type { OfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
 import { OfficerIntelligenceCard } from "@/components/intelligence/officer_intelligence_card";
 import { OfficerRestrictedProfile } from "@/components/officer/officer_restricted_profile";
@@ -77,6 +79,8 @@ export interface OfficerWorkspaceProps {
   intelligence: OfficerIntelligenceCardData | null;
   /** Phase 44: the composed Officer Intelligence View Model (Age/Service/Promotion/Retirement/Commander/Profile-Quality) — the single source every Intelligence-driven section on this page reads from. */
   officerIntelligence: OfficerIntelligenceViewModel;
+  /** Phase 49A: the canonical per-officer document-readiness contract, composed once server-side from officer.documents (zero extra I/O) — read by OfficerDocumentReadinessCard here AND by EpfSection's summary, so both agree. */
+  documentIntelligence: OfficerDocumentIntelligence;
   /**
    * Phase 27: the raw org-tree snapshot, fetched server-side. Wrapped into an
    * OrganizationEngine HERE (client-side) rather than accepted as an
@@ -154,7 +158,7 @@ export function OfficerWorkspace(props: OfficerWorkspaceProps) {
  * viewing a colleague's (already excluded by canViewFull, but defense in
  * depth), never sees a working Edit control.
  */
-function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, officerIntelligence, skillCatalog, canEdit, canViewFinancial }: OfficerWorkspaceProps & { canEdit: boolean; canViewFinancial: boolean }) {
+function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intelligence, officerIntelligence, documentIntelligence, skillCatalog, canEdit, canViewFinancial }: OfficerWorkspaceProps & { canEdit: boolean; canViewFinancial: boolean }) {
   const router = useRouter();
   const organizationEngine = useMemo(() => organizationEngineFromTree(orgTree), [orgTree]);
   const workspace = useOfficerWorkspace(officer, organizationEngine);
@@ -305,6 +309,10 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
 
         <div className="space-y-6">
           {intelligence ? <OfficerIntelligenceCard card={intelligence} /> : null}
+          {/* Phase 49A: compact document-readiness glance — detailed evidence
+              stays in e-PF (EpfSection, further down); clicking this card
+              scrolls there rather than duplicating its content here. */}
+          <OfficerDocumentReadinessCard documentIntelligence={documentIntelligence} />
           <ProfileCompletenessCard officer={officer} />
           <ProfileActionsCard editing={editing} onEditProfile={handleStartEditing} canEdit={canEdit} />
         </div>
@@ -377,7 +385,15 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
           through only to derive the "Official Portrait" completeness signal
           (source !== "PLACEHOLDER") — never used to trigger a portrait
           upload from the e-PF section. */}
-      <EpfSection officerId={officer.officerId} documents={officer.documents} portrait={portrait} />
+      {/* Phase 49A: id="epf-section" is the scroll target for
+          OfficerDocumentReadinessCard's click-through (and any future
+          Commander Search drill-down that lands on this profile) — a plain
+          wrapper div rather than a change to EditableSectionCard (shared by
+          every other section; adding an id prop there is unnecessary for
+          one anchor). */}
+      <div id="epf-section">
+        <EpfSection officerId={officer.officerId} documents={officer.documents} portrait={portrait} />
+      </div>
 
       <section className="space-y-4">
         <div className="border-b border-border pb-2">

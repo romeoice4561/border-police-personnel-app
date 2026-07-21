@@ -49,3 +49,22 @@ test("trainingStatus parses independently of promotionEligibilityStatus/retireme
   assert.equal(filters.retirementWithin, "within-1-year");
   assert.equal(filters.trainingStatus, "Expired");
 });
+
+// ── Phase 49A: document-intelligence filters ────────────────────────────────
+
+test("documentReadiness parses and combines with pre-existing filters in the same URL", () => {
+  const filters = filtersFromSearchParams({ documentReadiness: "BLOCKED", trainingStatus: "Expired" });
+  assert.equal(filters.documentReadiness, "BLOCKED");
+  assert.equal(filters.trainingStatus, "Expired");
+});
+
+test("boolean document filters (pendingOcrReview etc.) parse from the '1' sentinel", () => {
+  const filters = filtersFromSearchParams({ pendingOcrReview: "1", missingRequiredDocument: "1" });
+  assert.equal(filters.pendingOcrReview, true);
+  assert.equal(filters.missingRequiredDocument, true);
+});
+
+test("an unrecognized documentReadiness value is silently ignored", () => {
+  const filters = filtersFromSearchParams({ documentReadiness: "BOGUS" });
+  assert.equal(filters.documentReadiness, undefined);
+});

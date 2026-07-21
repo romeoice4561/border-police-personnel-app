@@ -9,12 +9,14 @@
  * view_model.ts's CommanderDashboardViewModel — Action Center, Promotion
  * Intelligence, Promotion Priority Candidates, Birthday Intelligence,
  * Retirement Awareness — each consuming PromotionSummary/AgeSummary/
- * RetirementSummary (via getCommanderDashboardViewModel) rather than
+ * RetirementSummary (via the shared page orchestrator) rather than
  * recalculating promotion/age/retirement/fiscal-year logic on the page.
- * The PRE-EXISTING CommanderDashboardPanel/DashboardKpiSection (personnel
- * totals + officer-card grid) are kept, unchanged, but moved below the new
- * sections and de-emphasized (Task 10: "generic totals must not dominate
- * the page") — see docs/COMMANDER_DASHBOARD_INTELLIGENCE.md.
+ *
+ * Phase 49A.1 — Dataset Consolidation: ONE loadCommanderDashboardPageData()
+ * call owns the single officer-profile load + single CommanderQueryDataset
+ * build; promotion/retirement/birthday, document readiness, legacy KPI panel,
+ * and skill dashboard all compose from that shared result. This page must not
+ * call the fetch-owning dataset/view-model entry points repeatedly.
  */
 import { DashboardWorkspaceHeader } from "@/components/intelligence/dashboard_workspace_header";
 import { DashboardKpiSection } from "@/components/intelligence/dashboard_kpi_section";
@@ -25,21 +27,16 @@ import { DashboardTrainingOverview } from "@/components/intelligence/dashboard_t
 import { DashboardTrainingPriority } from "@/components/intelligence/dashboard_training_priority";
 import { DashboardBirthdayIntelligence } from "@/components/intelligence/dashboard_birthday_intelligence";
 import { DashboardRetirementAwareness } from "@/components/intelligence/dashboard_retirement_awareness";
+import { DashboardDocumentReadiness } from "@/components/intelligence/dashboard_document_readiness";
 import { CommanderDashboardPanel } from "@/components/intelligence/commander_dashboard_panel";
 import { SkillDashboard } from "@/components/intelligence/skill_dashboard";
 import { WorkspaceLayout, WorkspaceSection } from "@/components/workspace/workspace_section";
-import { getCommanderDashboardIntelligence } from "@/lib/server/commander_intelligence_service";
-import { getCommanderDashboardViewModel } from "@/lib/server/commander_dashboard_service";
-import { getSkillDashboardData } from "@/lib/server/skill_dashboard_service";
+import { loadCommanderDashboardPageData } from "@/lib/server/commander_dashboard_page_data";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [dashboard, viewModel, skillDashboard] = await Promise.all([
-    getCommanderDashboardIntelligence(),
-    getCommanderDashboardViewModel(),
-    getSkillDashboardData(),
-  ]);
+  const { dashboard, viewModel, skillDashboard, documentReadinessKpis } = await loadCommanderDashboardPageData();
 
   return (
     <WorkspaceLayout>
@@ -65,6 +62,13 @@ export default async function DashboardPage() {
       <DashboardBirthdayIntelligence birthdays={viewModel.birthdays} />
 
       <DashboardRetirementAwareness retirement={viewModel.retirement} />
+
+      {/* Phase 49A: Document Readiness — Phase 48A-C's OCR/completeness/
+          expiry intelligence, surfaced at the department level. Placed
+          after the promotion/training/retirement sections (personnel
+          readiness first, per existing reading order) and before the
+          de-emphasized legacy KPI block below. */}
+      <DashboardDocumentReadiness kpis={documentReadinessKpis} />
 
       {/* Existing supporting overview metrics — kept, unchanged, but now
           visually secondary (last in reading order) per Task 10: generic

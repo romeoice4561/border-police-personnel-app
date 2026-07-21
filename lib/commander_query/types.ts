@@ -3,6 +3,8 @@ import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import type { OfficerSkillSignal, SkillCatalog } from "@/lib/capability/capability_types";
 import type { PromotionSummary } from "@/lib/intelligence/shared/types";
 import type { TrainingSummary } from "@/lib/intelligence/training/types";
+import type { OfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
+import type { DocumentExpiryInfo } from "@/lib/document/document_expiry";
 
 export type NumericOperator = "exactly" | "at_least" | "more_than" | "less_than";
 
@@ -162,6 +164,23 @@ export interface CommanderQueryOfficer {
    * This is the ONLY portrait field UI components should render.
    */
   officialPortraitUrl: string | null;
+  /**
+   * Phase 49A (Production Integration Foundation): the canonical, per-
+   * officer document-readiness summary — computed ONCE here from the
+   * SAME `officer.documents` already loaded by
+   * loadCommanderOfficerProfiles()'s bulk query (see toQueryOfficer.ts),
+   * never a second per-officer fetch or a re-derivation in a page/
+   * component. See lib/integration/documents/document_intelligence_contract.ts.
+   */
+  documentIntelligence: OfficerDocumentIntelligence;
+  /**
+   * Phase 49A: this officer's active documents' expiry info (from the
+   * SAME already-loaded `documents`) — kept alongside documentIntelligence
+   * (which only carries COUNTS) so Commander Search's expiryStatus filter
+   * can inspect per-document detail (e.g. "critical" = within 30 days)
+   * without a second computation elsewhere.
+   */
+  documentExpiryInfo: DocumentExpiryInfo[];
 }
 
 export interface CommanderQueryOptions {

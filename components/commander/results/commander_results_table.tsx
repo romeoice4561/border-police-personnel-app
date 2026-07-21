@@ -74,6 +74,7 @@ import { overdueOpportunities } from "@/lib/commander_query/promotion_display";
 import { useT } from "@/components/i18n/language_provider";
 import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
 import { TRAINING_STATUS_TONE } from "@/lib/intelligence/training/status_tone";
+import { READINESS_LEVEL_TONE, COMPLETENESS_LEVEL_TONE } from "@/lib/integration/documents/readiness_tone";
 
 /** Phase 43 B5: photo column is 72px wide (matching the Dashboard table); the sticky name column starts right after it. */
 const PHOTO_COL_PX = 72;
@@ -82,20 +83,36 @@ function cell(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
-export function CommanderResultsTable({ officers }: { officers: CommanderQueryOfficer[] }) {
+export function CommanderResultsTable({
+  officers,
+  /** Phase 49A: when the caller's active filters already include a document-intelligence field, the document columns default to visible — per spec §6 ("when document-intelligence filters are active, expose appropriate columns") — the user can still toggle them off/on manually afterward. */
+  documentFiltersActive = false,
+}: {
+  officers: CommanderQueryOfficer[];
+  documentFiltersActive?: boolean;
+}) {
   const { t } = useT();
   // Phase 45 Task 11: the training status column defaults to HIDDEN — the
   // table is already 16 columns wide (Phase 43); a 17th column is opt-in
   // rather than always rendered, per the task's explicit "column visibility
   // may default to hidden if the table is already wide" rule.
   const [showTrainingColumn, setShowTrainingColumn] = useState(false);
+  // Phase 49A: mirrors the training-column toggle exactly, but defaults ON
+  // when document filters are already active (the user just asked to see
+  // this data by filtering on it).
+  const [showDocumentColumns, setShowDocumentColumns] = useState(documentFiltersActive);
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <CardTitle>{t("commander.resultsTable")}</CardTitle>
-        <Button type="button" variant="outline" size="sm" onClick={() => setShowTrainingColumn((prev) => !prev)}>
-          {showTrainingColumn ? t("commander.hideTrainingColumn") : t("commander.showTrainingColumn")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowTrainingColumn((prev) => !prev)}>
+            {showTrainingColumn ? t("commander.hideTrainingColumn") : t("commander.showTrainingColumn")}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowDocumentColumns((prev) => !prev)}>
+            {showDocumentColumns ? t("commander.hideDocumentColumns") : t("commander.showDocumentColumns")}
+          </Button>
+        </div>
       </CardHeader>
       <CardBody className="p-0">
         {officers.length === 0 ? (
@@ -122,6 +139,18 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                   <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 150 }}>{t("commander.governmentServiceYears")}</th>
                   {showTrainingColumn ? (
                     <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 180 }}>{t("commander.trainingStatus")}</th>
+                  ) : null}
+                  {showDocumentColumns ? (
+                    <>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 160 }}>{t("commander.documentReadiness")}</th>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 140 }}>{t("commander.documentCompleteness")}</th>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 180 }}>{t("commander.documentMissing")}</th>
+                      <th scope="col" className="px-3 py-3 text-center font-medium" style={{ minWidth: 100 }}>{t("commander.documentPendingReview")}</th>
+                      <th scope="col" className="px-3 py-3 text-center font-medium" style={{ minWidth: 100 }}>{t("commander.documentExpiringSoon")}</th>
+                      <th scope="col" className="px-3 py-3 text-center font-medium" style={{ minWidth: 100 }}>{t("commander.documentExpired")}</th>
+                      <th scope="col" className="px-3 py-3 text-center font-medium" style={{ minWidth: 100 }}>{t("commander.documentQualityWarning")}</th>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 200 }}>{t("commander.documentNextAction")}</th>
+                    </>
                   ) : null}
                   <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 110 }}>{t("dashboard.priorityColumnAction")}</th>
                 </tr>
@@ -168,6 +197,30 @@ export function CommanderResultsTable({ officers }: { officers: CommanderQueryOf
                         <td className="px-3 py-3">
                           <Badge tone={TRAINING_STATUS_TONE[officer.trainingIntelligence.trainingStatus]}>{officer.trainingIntelligence.displayStatusTh}</Badge>
                         </td>
+                      ) : null}
+                      {showDocumentColumns ? (
+                        <>
+                          <td className="px-3 py-3">
+                            <Badge tone={READINESS_LEVEL_TONE[officer.documentIntelligence.readinessLevel]}>
+                              {officer.documentIntelligence.readinessLabelTh}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-3">
+                            <Badge tone={COMPLETENESS_LEVEL_TONE[officer.documentIntelligence.completenessLevel]}>
+                              {officer.documentIntelligence.completenessScore}%
+                            </Badge>
+                          </td>
+                          <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">
+                            {officer.documentIntelligence.missingRequiredCount > 0
+                              ? officer.documentIntelligence.missingRequiredDocuments.join(", ")
+                              : t("commander.documentNoneMissing")}
+                          </td>
+                          <td className="px-3 py-3 text-center tabular-nums text-muted">{officer.documentIntelligence.pendingReviewCount}</td>
+                          <td className="px-3 py-3 text-center tabular-nums text-muted">{officer.documentIntelligence.expiringSoonCount}</td>
+                          <td className="px-3 py-3 text-center tabular-nums text-muted">{officer.documentIntelligence.expiredCount}</td>
+                          <td className="px-3 py-3 text-center tabular-nums text-muted">{officer.documentIntelligence.qualityWarningCount}</td>
+                          <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">{officer.documentIntelligence.primaryActionLabelTh}</td>
+                        </>
                       ) : null}
                       <td className="px-3 py-3">
                         <Button asChild variant="ghost" size="sm">

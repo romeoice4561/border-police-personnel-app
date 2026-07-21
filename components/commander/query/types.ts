@@ -4,6 +4,7 @@ import type { EligibilityStatus } from "@/lib/promotion/eligibility_policy";
 import type { SkillFilter } from "@/lib/capability/skill_filter";
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
 import type { TrainingStatus } from "@/lib/intelligence/training/types";
+import type { DocumentIntelligenceFilters } from "@/lib/integration/navigation/document_filter_types";
 
 export type CommanderSortField =
   | "rank"
@@ -24,7 +25,7 @@ export interface NumericFilter {
   value: number;
 }
 
-export interface CommanderQueryFilters {
+export interface CommanderQueryFilters extends DocumentIntelligenceFilters {
   rank?: string;
   currentPosition?: string;
   positionLevel?: string;

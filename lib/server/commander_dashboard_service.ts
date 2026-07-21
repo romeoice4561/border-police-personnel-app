@@ -1,68 +1,44 @@
 /**
  * Commander Dashboard server data service (Phase 42 — Commander Dashboard
- * Intelligence; Phase 42 UI refinement adds Official Portrait resolution).
+ * Intelligence; Phase 49A.1 — dataset-accepting pure composers for single-load
+ * orchestration).
  *
- * Loads the SAME dataset Commander Search already computes
- * (`getCommanderQueryDataset()` — includes `promotionIntelligence:
- * PromotionSummary` and `displayServiceDurationTh`/`retirementYearBe` per
- * officer) and composes it into the Commander Dashboard View Model via the
- * pure functions in lib/commander_dashboard/view_model.ts. This service
- * does not calculate promotion eligibility, age, retirement, service, or
- * fiscal-year logic itself — those all come from the Intelligence Engine
- * facades upstream (Promotion/Service/Retirement Intelligence). The one
- * NEW piece of I/O this refinement adds is batch-resolving each officer's
- * Official Portrait via `resolveOfficerPortraitsBatch` — the ONE sanctioned
- * portrait resolver in the codebase (lib/server/officer_portrait_service.ts)
- * — so the Promotion Priority list shows the real Official Portrait,
- * never a gallery thumbnail.
+ * Fetch-owning entry points remain for backward compatibility. The Dashboard
+ * page must use loadCommanderDashboardPageData() so profile/dataset loads
+ * happen exactly once per request.
  */
 import "server-only";
 import { getCommanderQueryDataset } from "@/lib/server/commander_query_service";
-import { composeCommanderDashboardViewModel, type DashboardSourceOfficer } from "@/lib/commander_dashboard/view_model";
 import type { CommanderDashboardViewModel } from "@/lib/commander_dashboard/types";
-import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
+import type { DocumentReadinessDashboardKpis } from "@/lib/integration/commander/document_readiness_dashboard";
+import {
+  buildCommanderDashboardViewModelFromDataset,
+  buildDocumentReadinessDashboardKpisFromDataset,
+  toDashboardSourceOfficer,
+} from "@/lib/commander_dashboard/dataset_composers";
 
-function toSourceOfficer(officer: CommanderQueryOfficer): DashboardSourceOfficer {
-  const promotion = officer.promotionIntelligence;
-  return {
-    officerId: officer.officerId,
-    displayName: officer.displayName,
-    rank: officer.rank,
-    currentPosition: officer.currentPosition,
-    currentUnit: officer.currentUnit,
-    thumbnailUrl: officer.thumbnailUrl,
-    officialPortraitUrl: officer.officialPortraitUrl,
-    dateOfBirth: officer.dateOfBirth,
-    promotionStatus: promotion.promotionStatus,
-    displayStatusTh: promotion.displayStatusTh ?? "",
-    displayEligibleSinceTh: promotion.displayEligibleSinceTh,
-    eligibleDate: promotion.eligibleDate,
-    eligibleFiscalYearBe: promotion.eligibleFiscalYearBe,
-    yearsEligible: promotion.yearsEligible,
-    monthsEligible: promotion.monthsEligible,
-    daysEligible: promotion.daysEligible,
-    overdueYears: promotion.overdueYears,
-    promotionCyclesPassed: promotion.promotionCyclesPassed,
-    priority: promotion.priority,
-    priorityReason: promotion.priorityReason,
-    displayServiceDurationTh: officer.displayServiceDurationTh,
-    retirementYearBe: officer.retirementYearBe,
-    targetPosition: promotion.targetPosition,
-    yearsInPositionLevel: officer.yearsInPositionLevel,
-    positionLevelYearCount: officer.positionLevelYearCount,
-    training: officer.trainingIntelligence,
-  };
-}
+export {
+  buildCommanderDashboardViewModelFromDataset,
+  buildDocumentReadinessDashboardKpisFromDataset,
+  toDashboardSourceOfficer,
+};
 
 /**
- * Builds the full Commander Dashboard View Model from live data. `asOf`
- * defaults to now; the Dashboard page always calls this with no argument —
- * tests call `composeCommanderDashboardViewModel` directly with a fixed
- * `asOf` instead of going through this Prisma-backed entry point.
+ * Fetch-owning entry point. Prefer loadCommanderDashboardPageData on the
+ * Dashboard page.
  */
 export async function getCommanderDashboardViewModel(): Promise<CommanderDashboardViewModel> {
   const asOf = new Date();
   const dataset = await getCommanderQueryDataset();
-  const sourceOfficers = dataset.officers.map((officer) => toSourceOfficer(officer));
-  return composeCommanderDashboardViewModel(sourceOfficers, asOf);
+  return buildCommanderDashboardViewModelFromDataset(dataset, asOf);
+}
+
+/**
+ * Fetch-owning Document Readiness entry point. Prefer the pure
+ * buildDocumentReadinessDashboardKpisFromDataset with a shared dataset on
+ * the Dashboard page.
+ */
+export async function getDocumentReadinessDashboardKpis(): Promise<DocumentReadinessDashboardKpis> {
+  const dataset = await getCommanderQueryDataset();
+  return buildDocumentReadinessDashboardKpisFromDataset(dataset);
 }

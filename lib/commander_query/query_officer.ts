@@ -30,6 +30,8 @@ import { computeServiceSummary } from "@/lib/intelligence/service";
 import { computeAgeSummary } from "@/lib/intelligence/age";
 import { computeTrainingSummary } from "@/lib/intelligence/training";
 import { normalizeCourseName } from "@/lib/intelligence/training/course_normalization";
+import { composeOfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
+import { computeExpiryInfo } from "@/lib/document/document_expiry";
 
 function hasActiveDocument(officer: OfficerWithRelations, typeCode: string): boolean {
   return officer.documents.some((doc) => doc.documentType === typeCode && doc.isActive !== false);
@@ -232,6 +234,17 @@ export function toQueryOfficer(
   // position level (the same target Promotion Intelligence evaluates) —
   // reports NoPolicy/NoData truthfully since no real TrainingPolicy exists yet.
   const trainingIntelligence = computeTrainingSummary(officer.training, promotionIntelligence.targetPosition, asOf);
+  // Phase 49A: computed ONCE here from the same officer.documents already
+  // loaded by loadCommanderOfficerProfiles()'s bulk query — never a
+  // second per-officer fetch, never recomputed separately by the
+  // dashboard/search/table (all three read this same field).
+  const documentIntelligence = composeOfficerDocumentIntelligence({
+    officerId: officer.officerId,
+    officerPk: officer.id,
+    documents: officer.documents,
+    asOf,
+  });
+  const documentExpiryInfo = computeExpiryInfo(officer.documents, asOf);
 
   return {
     officerId: officer.officerId,
@@ -291,5 +304,7 @@ export function toQueryOfficer(
     driveFileId: officer.driveFileId,
     webViewUrl: officer.webViewUrl,
     officialPortraitUrl,
+    documentIntelligence,
+    documentExpiryInfo,
   };
 }
