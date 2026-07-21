@@ -26,15 +26,15 @@ export function useGalleryCategories(): UseQueryResult<AssetCategoryCount[]> {
 }
 
 export function useGalleryAssets(query: GalleryAssetsQuery): UseQueryResult<GalleryAssetsResult> {
-  // Phase 49A.3: when a search keyword is active, do NOT keep previous-page
-  // results as placeholder — that made stale "414" cards linger while the
-  // next query loaded. Category browsing without search still uses
-  // keepPreviousData for smoother pagination.
-  const hasSearch = Boolean(query.search?.trim());
+  // Phase 49A.3A: when search or verified filter is active, do NOT keep
+  // previous-page results as placeholder — that made stale cards linger
+  // (e.g. unverified "414" hits while verified-only loaded). Plain category
+  // browsing still uses keepPreviousData for smoother pagination.
+  const skipPlaceholder = Boolean(query.search?.trim()) || query.verified === true;
   return useQuery({
     queryKey: galleryQueryKeys.assets(query),
     queryFn: () => galleryClient.listAssets(query),
-    placeholderData: hasSearch ? undefined : keepPreviousData,
+    placeholderData: skipPlaceholder ? undefined : keepPreviousData,
   });
 }
 

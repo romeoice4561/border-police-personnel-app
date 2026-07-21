@@ -14,6 +14,7 @@
 
 import { Pencil } from "lucide-react";
 import type { Asset } from "@/lib/gallery/asset_types";
+import { isGalleryAssetVerified } from "@/lib/gallery/asset_search";
 import { cn } from "@/lib/ui/cn";
 import { GalleryImage } from "@/components/ui/media/GalleryImage";
 
@@ -47,8 +48,8 @@ export function GalleryAssetCard({ asset, onOpen, onEdit }: GalleryAssetCardProp
             className="h-full w-full"
           />
 
-          {/* Verified badge */}
-          {asset.verified ? (
+          {/* Verified badge — same canonical predicate as the API filter. */}
+          {isGalleryAssetVerified(asset) ? (
             <span
               className="absolute left-2 top-2 rounded-md bg-good-bg/90 px-1.5 py-0.5 text-[10px] font-semibold text-good"
               aria-label="ยืนยันแล้ว"

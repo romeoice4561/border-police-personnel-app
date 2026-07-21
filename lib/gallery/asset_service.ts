@@ -70,13 +70,17 @@ export class AssetService {
   }
 
   /** Region facets, optionally scoped to a category (drives the Region filter). */
-  regionCounts(category?: AssetCategory): Promise<AssetFacetCount[]> {
+  regionCounts(category?: AssetCategory, opts?: { verified?: boolean }): Promise<AssetFacetCount[]> {
     if (category !== undefined && isReservedCategory(category)) return Promise.resolve([]);
-    return this.repository.regionCounts(category);
+    return this.repository.regionCounts(category, opts);
   }
 
   /** Company facets, optionally scoped to category/region (drives the Company filter). */
-  companyCounts(filter?: { category?: AssetCategory; region?: string }): Promise<AssetFacetCount[]> {
+  companyCounts(filter?: {
+    category?: AssetCategory;
+    region?: string;
+    verified?: boolean;
+  }): Promise<AssetFacetCount[]> {
     if (filter?.category !== undefined && isReservedCategory(filter.category)) return Promise.resolve([]);
     return this.repository.companyCounts(filter);
   }

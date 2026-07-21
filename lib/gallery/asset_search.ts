@@ -1,9 +1,10 @@
 /**
- * Gallery asset search contract (Phase 49A.3).
+ * Gallery asset search contract (Phase 49A.3 / 49A.3A).
  *
  * Deterministic, explainable matching shared by the repository and tests.
- * Numeric organization codes (e.g. "414") require a standalone token match —
- * they must not match "41", "4140", or "1414" via naive substring contains.
+ * Numeric organization codes (e.g. "414") require a standalone token match in
+ * approved organization/path fields — they must not match "41", "4140",
+ * "1414", or a free-text keyword that happens to contain the digits.
  */
 
 /** Normalize whitespace + case for comparison. */
@@ -49,28 +50,79 @@ export interface GallerySearchableFields {
   remarks?: string | null;
 }
 
-function fieldValues(fields: GallerySearchableFields): string[] {
-  const out: string[] = [];
-  for (const key of [
-    "folderName",
-    "relativePath",
-    "region",
-    "company",
-    "battalion",
-    "unitName",
-    "unitNumber",
-    "description",
-    "remarks",
-  ] as const) {
-    const v = fields[key];
-    if (typeof v === "string" && v.trim()) out.push(v);
+/**
+ * Organization / path fields approved for numeric org-code queries.
+ * Editorial free-text (keywords / description / remarks) is excluded so a
+ * mis-tagged keyword like "414" on a ภาค 1 / ตชด.115 card cannot produce a
+ * false hit.
+ */
+export const GALLERY_NUMERIC_SEARCH_FIELDS = [
+  "folderName",
+  "relativePath",
+  "region",
+  "company",
+  "battalion",
+  "unitName",
+  "unitNumber",
+] as const;
+
+/** All default searchable fields for ordinary (non-numeric) text queries. */
+export const GALLERY_TEXT_SEARCH_FIELDS = [
+  ...GALLERY_NUMERIC_SEARCH_FIELDS,
+  "keywords",
+  "description",
+  "remarks",
+] as const;
+
+export type GallerySearchFieldName =
+  | (typeof GALLERY_TEXT_SEARCH_FIELDS)[number];
+
+function keywordValues(keywords: GallerySearchableFields["keywords"]): string[] {
+  if (Array.isArray(keywords)) {
+    return keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0);
   }
-  if (Array.isArray(fields.keywords)) {
-    for (const k of fields.keywords) if (k?.trim()) out.push(k);
-  } else if (typeof fields.keywords === "string" && fields.keywords.trim()) {
-    out.push(...fields.keywords.split(",").map((s) => s.trim()).filter(Boolean));
+  if (typeof keywords === "string" && keywords.trim()) {
+    return keywords.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function valuesForFields(
+  fields: GallerySearchableFields,
+  keys: readonly GallerySearchFieldName[]
+): Array<{ field: GallerySearchFieldName; value: string }> {
+  const out: Array<{ field: GallerySearchFieldName; value: string }> = [];
+  for (const key of keys) {
+    if (key === "keywords") {
+      for (const k of keywordValues(fields.keywords)) out.push({ field: "keywords", value: k });
+      continue;
+    }
+    const v = fields[key];
+    if (typeof v === "string" && v.trim()) out.push({ field: key, value: v });
   }
   return out;
+}
+
+/**
+ * Explains which approved field caused a search hit (for tests / audits).
+ * Returns null when the query does not match.
+ */
+export function explainGallerySearchMatch(
+  fields: GallerySearchableFields,
+  query: string | null | undefined
+): { field: GallerySearchFieldName; value: string } | null {
+  const raw = (query ?? "").trim();
+  if (!raw) return { field: "folderName", value: "" };
+  const numeric = isNumericOrgCodeQuery(raw);
+  const keys = numeric ? GALLERY_NUMERIC_SEARCH_FIELDS : GALLERY_TEXT_SEARCH_FIELDS;
+  const values = valuesForFields(fields, keys);
+  for (const entry of values) {
+    const hit = numeric
+      ? textHasStandaloneNumericToken(entry.value, raw)
+      : textContainsNormalized(entry.value, raw);
+    if (hit) return entry;
+  }
+  return null;
 }
 
 /**
@@ -80,9 +132,20 @@ function fieldValues(fields: GallerySearchableFields): string[] {
 export function assetMatchesSearch(fields: GallerySearchableFields, query: string | null | undefined): boolean {
   const raw = (query ?? "").trim();
   if (!raw) return true;
-  const values = fieldValues(fields);
-  if (isNumericOrgCodeQuery(raw)) {
-    return values.some((v) => textHasStandaloneNumericToken(v, raw));
-  }
-  return values.some((v) => textContainsNormalized(v, raw));
+  return explainGallerySearchMatch(fields, raw) !== null;
+}
+
+/**
+ * Canonical Gallery verification predicate (Phase 49A.3A).
+ *
+ * Source of truth: Asset.verified boolean (Phase 22A metadata editor).
+ * Legacy precedence (documented for future representations):
+ *   1. explicit boolean `verified === true`
+ *   2. otherwise not verified
+ *
+ * Badge, API filter, counts, and tests MUST use this helper (or an equivalent
+ * repository predicate that matches it exactly).
+ */
+export function isGalleryAssetVerified(asset: { verified?: boolean | null }): boolean {
+  return asset.verified === true;
 }

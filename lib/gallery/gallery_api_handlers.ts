@@ -43,11 +43,12 @@ export async function handleGalleryAssets(service: AssetService, params: URLSear
   const q = parsed.data;
 
   // All data access goes through the service — no filtering logic here.
+  const verifiedOpt = q.verified !== undefined ? { verified: q.verified } : undefined;
   const [page, categories, regions, companies] = await Promise.all([
     service.list(q),
     service.categoryCounts(),
-    service.regionCounts(q.category),
-    service.companyCounts({ category: q.category, region: q.region }),
+    service.regionCounts(q.category, verifiedOpt),
+    service.companyCounts({ category: q.category, region: q.region, ...verifiedOpt }),
   ]);
 
   return jsonOk(page.data, {
@@ -69,6 +70,7 @@ export async function handleGalleryAssets(service: AssetService, params: URLSear
       battalion: q.battalion ?? null,
       companyId: q.companyId ?? null,
       search: q.search ?? null,
+      verified: q.verified ?? null,
       match: q.match,
       sortBy: q.sortBy,
       sortOrder: q.sortOrder,

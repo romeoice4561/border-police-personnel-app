@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback, useMemo, type KeyboardEvent, type For
 import { X, ExternalLink, CheckCircle2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { ImageOff } from "lucide-react";
 import type { Asset } from "@/lib/gallery/asset_types";
+import { isGalleryAssetVerified } from "@/lib/gallery/asset_search";
 import { useUpdateAssetMetadata } from "@/lib/gallery/gallery_hooks";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -251,7 +252,7 @@ export function GalleryEditModal({ asset, organizationEngine, onClose }: Gallery
                         <ImageOff className="h-10 w-10 opacity-30" />
                       </div>
                     )}
-                    {asset.verified ? (
+                    {isGalleryAssetVerified(asset) ? (
                       <span
                         className="absolute right-2 top-2 rounded-md bg-good-bg px-1.5 py-0.5 text-[10px] font-semibold text-good"
                         title="ยืนยันแล้ว"

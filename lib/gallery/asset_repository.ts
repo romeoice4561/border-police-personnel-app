@@ -13,6 +13,7 @@
 
 import type { Asset, AssetMetadataPatch, AssetQuery, PaginatedAssets, AssetCategoryCount, AssetFacetCount } from "@/lib/gallery/asset_types";
 import { AssetCategory, isGalleryCategory } from "@/lib/gallery/asset_category";
+import { assetMatchesSearch, isGalleryAssetVerified } from "@/lib/gallery/asset_search";
 import { isBattalionVariantOf } from "@/lib/organization/gallery_battalion_normalization";
 
 /** Read/write contract every Asset repository implements. */
@@ -26,9 +27,13 @@ export interface AssetRepository {
   /** Distinct Gallery categories present, with counts. */
   categoryCounts(): Promise<AssetCategoryCount[]>;
   /** Distinct regions present (optionally within a category), with counts. */
-  regionCounts(category?: AssetCategory): Promise<AssetFacetCount[]>;
+  regionCounts(category?: AssetCategory, opts?: { verified?: boolean }): Promise<AssetFacetCount[]>;
   /** Distinct companies present (optionally within a category/region), with counts. */
-  companyCounts(filter?: { category?: AssetCategory; region?: string }): Promise<AssetFacetCount[]>;
+  companyCounts(filter?: {
+    category?: AssetCategory;
+    region?: string;
+    verified?: boolean;
+  }): Promise<AssetFacetCount[]>;
   /** Total asset count. */
   count(): Promise<number>;
   /**
@@ -77,7 +82,6 @@ export class InMemoryAssetRepository implements AssetRepository {
   }
 
   private matching(query: AssetQuery): Asset[] {
-    const match = query.match ?? "contains";
     return Array.from(this.assets.values()).filter((a) => {
       // Reserved PROFILE assets are never Gallery content — excluded from every
       // list, matching the Prisma repository's DB-level exclusion so both
@@ -93,23 +97,10 @@ export class InMemoryAssetRepository implements AssetRepository {
       // stays findable through the canonical dropdown.
       if (query.battalion && !(a.battalion && isBattalionVariantOf(a.battalion, query.battalion))) return false;
       if (query.companyId !== undefined && (a.companyId ?? null) !== query.companyId) return false;
-      if (query.verified !== undefined && Boolean(a.verified) !== query.verified) return false;
-      if (query.search) {
-        const needle = query.search;
-        const kwJoined = (a.keywords ?? []).join(",");
-        const found =
-          textMatches(a.folderName,   needle, match) ||
-          textMatches(a.relativePath, needle, match) ||
-          textMatches(a.region,       needle, match) ||
-          textMatches(a.company,      needle, match) ||
-          textMatches(a.battalion,    needle, match) ||
-          textMatches(a.unitName,     needle, match) ||
-          textMatches(a.unitNumber,   needle, match) ||
-          textMatches(kwJoined,       needle, match) ||
-          textMatches(a.description,  needle, match) ||
-          textMatches(a.remarks,      needle, match);
-        if (!found) return false;
-      }
+      if (query.verified !== undefined && isGalleryAssetVerified(a) !== query.verified) return false;
+      // Shared search contract (standalone numeric tokens; editorial fields
+      // excluded for numeric org-code queries) — same as PrismaAssetRepository.
+      if (query.search && !assetMatchesSearch(a, query.search)) return false;
       return true;
     });
   }
@@ -150,16 +141,29 @@ export class InMemoryAssetRepository implements AssetRepository {
       .sort((x, y) => y.count - x.count);
   }
 
-  async regionCounts(category?: AssetCategory): Promise<AssetFacetCount[]> {
-    return this.facetCounts((a) => a.region, (a) => category === undefined || a.category === category);
+  async regionCounts(
+    category?: AssetCategory,
+    opts?: { verified?: boolean }
+  ): Promise<AssetFacetCount[]> {
+    return this.facetCounts(
+      (a) => a.region,
+      (a) =>
+        (category === undefined || a.category === category) &&
+        (opts?.verified === undefined || isGalleryAssetVerified(a) === opts.verified)
+    );
   }
 
-  async companyCounts(filter?: { category?: AssetCategory; region?: string }): Promise<AssetFacetCount[]> {
+  async companyCounts(filter?: {
+    category?: AssetCategory;
+    region?: string;
+    verified?: boolean;
+  }): Promise<AssetFacetCount[]> {
     return this.facetCounts(
       (a) => a.company,
       (a) =>
         (filter?.category === undefined || a.category === filter.category) &&
-        (filter?.region === undefined || a.region === filter.region)
+        (filter?.region === undefined || a.region === filter.region) &&
+        (filter?.verified === undefined || isGalleryAssetVerified(a) === filter.verified)
     );
   }
 

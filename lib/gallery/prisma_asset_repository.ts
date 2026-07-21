@@ -24,6 +24,13 @@ import type {
 } from "@/lib/gallery/asset_types";
 import { AssetCategory, isGalleryCategory } from "@/lib/gallery/asset_category";
 import type { AssetRepository } from "@/lib/gallery/asset_repository";
+import {
+  GALLERY_NUMERIC_SEARCH_FIELDS,
+  GALLERY_TEXT_SEARCH_FIELDS,
+  assetMatchesSearch,
+  isGalleryAssetVerified,
+  isNumericOrgCodeQuery,
+} from "@/lib/gallery/asset_search";
 import { battalionQueryVariants } from "@/lib/organization/gallery_battalion_normalization";
 
 /** A persisted Asset row (matches the Prisma Asset model, including Phase 22A columns). */
@@ -199,7 +206,8 @@ export class PrismaAssetRepository implements AssetRepository {
     // canonical dropdown.
     if (query.battalion) where.battalion = { in: [...battalionQueryVariants(query.battalion)], mode: "insensitive" };
     if (query.companyId !== undefined) where.companyId = query.companyId;
-    if (query.verified  !== undefined) where.verified  = query.verified;
+    // Canonical verified predicate — same boolean Asset.verified the badge uses.
+    if (query.verified !== undefined) where.verified = query.verified === true;
     if (query.search) {
       const mode = "insensitive";
       const value = query.search;
@@ -209,21 +217,14 @@ export class PrismaAssetRepository implements AssetRepository {
           : query.match === "startsWith"
             ? { startsWith: value, mode }
             : { contains: value, mode };
-      // Phase 19F+22A: search across all organisational and editorial fields so
-      // users can find assets by company ("414"), battalion ("44"), region
-      // ("ภาค 4"), unit name/number, keywords, description, or remarks.
-      where.OR = [
-        { folderName:   filter },
-        { relativePath: filter },
-        { region:       filter },
-        { company:      filter },
-        { battalion:    filter },
-        { unitName:     filter },
-        { unitNumber:   filter },
-        { keywords:     filter },
-        { description:  filter },
-        { remarks:      filter },
-      ];
+      // Candidate OR only — numeric org codes are refined by assetMatchesSearch
+      // after fetch (standalone token + approved fields). Editorial fields are
+      // omitted from the candidate set for numeric queries so a keyword "414"
+      // cannot pull unrelated units into the working set.
+      const fieldKeys = isNumericOrgCodeQuery(value)
+        ? GALLERY_NUMERIC_SEARCH_FIELDS
+        : GALLERY_TEXT_SEARCH_FIELDS;
+      where.OR = fieldKeys.map((field) => ({ [field]: filter }));
     }
     return where;
   }
@@ -235,13 +236,19 @@ export class PrismaAssetRepository implements AssetRepository {
     const sortBy = query.sortBy ?? "folderName";
     const sortOrder = query.sortOrder ?? "desc";
 
-    // Phase 49A.3: Prisma `contains` is a candidate filter only. Numeric org
-    // codes (e.g. "414") must not match "41"/"4140"/"1414" — apply the shared
-    // token matcher, then paginate the filtered set so counts stay honest.
+    // Phase 49A.3A: filter order is category/org → search candidate → verified
+    // (in where) → shared deterministic search post-filter → sort → count → page.
+    // Prisma `contains` alone cannot express standalone numeric tokens, so when
+    // a search is active we load the bounded filtered set, apply assetMatchesSearch,
+    // then paginate — total always matches the post-filtered rows.
     if (query.search?.trim()) {
-      const { assetMatchesSearch } = await import("@/lib/gallery/asset_search");
       const allRows = await this.db.asset.findMany({ where, orderBy: { [sortBy]: sortOrder } });
-      const filtered = allRows.map(rowToAsset).filter((asset) => assetMatchesSearch(asset, query.search));
+      const filtered = allRows
+        .map(rowToAsset)
+        .filter((asset) => assetMatchesSearch(asset, query.search))
+        .filter((asset) =>
+          query.verified === undefined ? true : isGalleryAssetVerified(asset) === query.verified
+        );
       const total = filtered.length;
       const start = (page - 1) * pageSize;
       return {
@@ -279,16 +286,25 @@ export class PrismaAssetRepository implements AssetRepository {
       .sort((a, b) => b.count - a.count);
   }
 
-  async regionCounts(category?: AssetCategory): Promise<AssetFacetCount[]> {
+  async regionCounts(
+    category?: AssetCategory,
+    opts?: { verified?: boolean }
+  ): Promise<AssetFacetCount[]> {
     const where: Record<string, unknown> = { category: { not: AssetCategory.Profile }, region: { not: null } };
     if (category !== undefined) where.category = category;
+    if (opts?.verified !== undefined) where.verified = opts.verified === true;
     return this.facet("region", where);
   }
 
-  async companyCounts(filter?: { category?: AssetCategory; region?: string }): Promise<AssetFacetCount[]> {
+  async companyCounts(filter?: {
+    category?: AssetCategory;
+    region?: string;
+    verified?: boolean;
+  }): Promise<AssetFacetCount[]> {
     const where: Record<string, unknown> = { category: { not: AssetCategory.Profile }, company: { not: null } };
     if (filter?.category !== undefined) where.category = filter.category;
     if (filter?.region !== undefined) where.region = filter.region;
+    if (filter?.verified !== undefined) where.verified = filter.verified === true;
     return this.facet("company", where);
   }
 
