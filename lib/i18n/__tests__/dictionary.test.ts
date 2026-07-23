@@ -140,3 +140,49 @@ test("new e-PF card keys (expiry date, upload error labels, no-file/no-history r
     assert.ok(translate(key, "en").length > 0);
   }
 });
+
+// Phase 49B — Commander Intelligence Center.
+
+test("Commander Intelligence Center nav/title/KPI keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "nav.commanderIntelligence",
+    "cic.title",
+    "cic.subtitle",
+    "cic.kpi.personnel",
+    "cic.kpi.readyForPromotion",
+    "cic.kpi.promotionOverdue",
+    "cic.kpi.retiringWithin12Months",
+    "cic.kpi.documentsMissing",
+    "cic.kpi.trainingMissing",
+    "cic.kpi.profileIncomplete",
+    "cic.kpi.expiredDocuments",
+    "cic.kpi.criticalOfficers",
+    "cic.kpi.aiReady",
+    "cic.priorityMatrix.title",
+    "cic.priority.critical",
+    "cic.priority.high",
+    "cic.priority.medium",
+    "cic.priority.low",
+    "cic.actionCenter.title",
+    "cic.timeline.title",
+    "cic.table.title",
+    "cic.summary.title",
+    "cic.summary.empty",
+    "cic.export.title",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+  }
+});
+
+test("Commander Intelligence Center title is Thai in TH mode, never falls back to the raw English name", () => {
+  assert.equal(translate("cic.title", "th"), "ศูนย์ข่าวกรองผู้บังคับบัญชา");
+  assert.equal(translate("cic.title", "en"), "Commander Intelligence Center");
+});
+
+test("Commander Intelligence Center zero-state summary wording is Thai-first and localized", () => {
+  assert.equal(translate("cic.summary.empty", "th"), "วันนี้ไม่มีกำลังพลที่ต้องดำเนินการเร่งด่วน");
+  assert.equal(translate("cic.summary.empty", "en"), "No officers require urgent action today.");
+});

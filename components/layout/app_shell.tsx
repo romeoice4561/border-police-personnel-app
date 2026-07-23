@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
@@ -66,6 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
       { href: "/officers", labelKey: "nav.officers", icon: Users, permission: "officers.view", badge: "totalOfficers" },
+      { href: "/commander-intelligence", labelKey: "nav.commanderIntelligence", icon: Radar, permission: "dashboard.view" },
       { href: "/commander-search", labelKey: "nav.commanderSearch", icon: SlidersHorizontal, permission: "commander.search" },
       { href: "/search", labelKey: "nav.search", icon: Search, permission: "search.view" },
       { href: "/statistics", labelKey: "nav.statistics", icon: BarChart3, permission: "statistics.view" },

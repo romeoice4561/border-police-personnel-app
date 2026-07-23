@@ -1326,6 +1326,118 @@ export const DICTIONARY = {
   // ── sidebar.* — Phase 48A.1: enterprise sidebar redesign ──
   "sidebar.collapse": tr("ย่อเมนู", "Collapse sidebar"),
   "sidebar.expand": tr("ขยายเมนู", "Expand sidebar"),
+
+  // ── nav.* — Phase 49B: Commander Intelligence Center ──
+  "nav.commanderIntelligence": tr("ศูนย์ข่าวกรองผู้บังคับบัญชา", "Commander Intelligence"),
+
+  // ── cic.* — Phase 49B: Commander Intelligence Center (decision-support workspace) ──
+  "cic.title": tr("ศูนย์ข่าวกรองผู้บังคับบัญชา", "Commander Intelligence Center"),
+  "cic.subtitle": tr(
+    "ภาพรวมการตัดสินใจสำหรับผู้บังคับบัญชา — สรุปสถานะกำลังพลที่ต้องดำเนินการ โดยไม่ต้องเปิดดูทีละคน",
+    "Decision-support overview — see who needs action without opening every profile."
+  ),
+
+  // KPI cards
+  "cic.kpi.personnel": tr("กำลังพลทั้งหมด", "Personnel"),
+  "cic.kpi.readyForPromotion": tr("พร้อมเลื่อนตำแหน่ง", "Ready for Promotion"),
+  "cic.kpi.promotionOverdue": tr("ค้างการเลื่อนตำแหน่ง", "Promotion Overdue"),
+  "cic.kpi.retiringWithin12Months": tr("ใกล้เกษียณภายใน 12 เดือน", "Retiring within 12 Months"),
+  "cic.kpi.documentsMissing": tr("เอกสารที่ขาด", "Documents Missing"),
+  "cic.kpi.trainingMissing": tr("ขาดการฝึกอบรม", "Training Missing"),
+  "cic.kpi.profileIncomplete": tr("ข้อมูลไม่สมบูรณ์", "Profile Incomplete"),
+  "cic.kpi.expiredDocuments": tr("เอกสารหมดอายุ", "Expired Documents"),
+  "cic.kpi.criticalOfficers": tr("กำลังพลระดับวิกฤต", "Critical Officers"),
+  "cic.kpi.aiReady": tr("พร้อมด้วยข่าวกรอง AI", "AI Ready"),
+  "cic.kpi.trainingMissingNoPolicy": tr("ยังไม่ได้กำหนดนโยบาย", "No Policy Configured"),
+
+  // Priority Matrix
+  "cic.priorityMatrix.title": tr("เมทริกซ์ระดับความสำคัญ", "Commander Priority Matrix"),
+  "cic.priorityMatrix.description": tr(
+    "จัดกลุ่มกำลังพลตามระดับความสำคัญที่คำนวณจากการเลื่อนตำแหน่ง การเกษียณ เอกสาร และการฝึกอบรม",
+    "Officers grouped by priority — computed from promotion, retirement, documents, and training."
+  ),
+  "cic.priority.critical": tr("เร่งด่วน", "Critical"),
+  "cic.priority.high": tr("สูง", "High"),
+  "cic.priority.medium": tr("ปานกลาง", "Medium"),
+  "cic.priority.low": tr("ปกติ", "Normal"),
+  "cic.priorityMatrix.viewAll": tr("ดูทั้งหมด", "View all"),
+  "cic.priorityMatrix.empty": tr("ไม่มีกำลังพลในกลุ่มนี้", "No officers in this bucket."),
+
+  // Action Center
+  "cic.actionCenter.title": tr("ศูนย์ปฏิบัติการ", "Action Center"),
+  "cic.actionCenter.empty": tr("ไม่มีรายการที่ต้องดำเนินการในขณะนี้", "Nothing needs action right now."),
+  "cic.action.approvePromotionCandidates.title": tr("อนุมัติผู้มีสิทธิ์เลื่อนตำแหน่ง", "Approve Promotion Candidates"),
+  "cic.action.approvePromotionCandidates.description": tr(
+    "ตรวจสอบและพิจารณากำลังพลที่ครบคุณสมบัติเลื่อนตำแหน่ง",
+    "Review officers who are eligible for promotion."
+  ),
+  "cic.action.reviewMissingDocuments.title": tr("ตรวจสอบเอกสารที่ขาด", "Review Missing Documents"),
+  "cic.action.reviewMissingDocuments.description": tr(
+    "กำลังพลที่ยังขาดเอกสารสำคัญในแฟ้มประวัติอิเล็กทรอนิกส์",
+    "Officers still missing required documents in their e-PF."
+  ),
+  "cic.action.reviewExpiringIds.title": tr("ตรวจสอบเอกสารใกล้หมดอายุ", "Review Expiring IDs"),
+  "cic.action.reviewExpiringIds.description": tr(
+    "เอกสารที่ใกล้หมดอายุและควรต่ออายุหรือเปลี่ยนใหม่",
+    "Documents expiring soon that should be renewed or replaced."
+  ),
+  "cic.action.reviewMissingTraining.title": tr("ตรวจสอบการฝึกอบรมที่ขาด", "Review Missing Training"),
+  "cic.action.reviewMissingTraining.description": tr(
+    "กำลังพลที่ยังขาดหลักสูตรที่จำเป็นตามนโยบาย",
+    "Officers still missing required training courses."
+  ),
+  "cic.action.reviewIncompleteProfiles.title": tr("ตรวจสอบข้อมูลที่ไม่สมบูรณ์", "Review Incomplete Profiles"),
+  "cic.action.reviewIncompleteProfiles.description": tr(
+    "กำลังพลที่ข้อมูลโปรไฟล์ยังกรอกไม่ครบถ้วน",
+    "Officers whose profile information is still incomplete."
+  ),
+
+  // Commander Timeline
+  "cic.timeline.title": tr("ไทม์ไลน์ผู้บังคับบัญชา", "Commander Timeline"),
+  "cic.timeline.description": tr(
+    "เหตุการณ์ที่กำลังจะเกิดขึ้นภายใน 30 60 และ 90 วันข้างหน้า",
+    "Upcoming events within the next 30, 60, and 90 days."
+  ),
+  "cic.timeline.next30": tr("ภายใน 30 วัน", "Next 30 Days"),
+  "cic.timeline.next60": tr("ภายใน 60 วัน", "Next 60 Days"),
+  "cic.timeline.next90": tr("ภายใน 90 วัน", "Next 90 Days"),
+  "cic.timeline.empty": tr("ไม่มีเหตุการณ์ในช่วงเวลานี้", "No events in this window."),
+  "cic.timeline.kind.birthday": tr("วันเกิด", "Birthday"),
+  "cic.timeline.kind.retirement": tr("เกษียณอายุราชการ", "Retirement"),
+  "cic.timeline.kind.promotionEligibility": tr("ครบคุณสมบัติเลื่อนตำแหน่ง", "Promotion Eligibility"),
+  "cic.timeline.kind.documentExpiry": tr("เอกสารหมดอายุ", "Document Expiry"),
+  "cic.timeline.kind.trainingExpiry": tr("การฝึกอบรมหมดอายุ", "Training Expiry"),
+  "cic.timeline.daysUntilPrefixTh": tr("อีก", "in"),
+  "cic.timeline.daysUntilSuffixTh": tr("วัน", "days"),
+  "cic.timeline.today": tr("วันนี้", "Today"),
+
+  // Executive Table
+  "cic.table.title": tr("ตารางสรุปผู้บังคับบัญชา", "Executive Table"),
+  "cic.table.officer": tr("กำลังพล", "Officer"),
+  "cic.table.rank": tr("ยศ", "Rank"),
+  "cic.table.unit": tr("หน่วย", "Unit"),
+  "cic.table.currentPosition": tr("ตำแหน่งปัจจุบัน", "Current Position"),
+  "cic.table.promotionStatus": tr("สถานะการเลื่อนตำแหน่ง", "Promotion Status"),
+  "cic.table.retirement": tr("การเกษียณ", "Retirement"),
+  "cic.table.readiness": tr("ความพร้อม", "Readiness"),
+  "cic.table.missingDocs": tr("เอกสารที่ขาด", "Missing Docs"),
+  "cic.table.training": tr("การฝึกอบรม", "Training"),
+  "cic.table.priority": tr("ระดับความสำคัญ", "Priority"),
+  "cic.table.nextAction": tr("การดำเนินการถัดไป", "Next Action"),
+  "cic.table.empty": tr("ไม่มีข้อมูลกำลังพล", "No officers to show."),
+  "cic.table.viewProfile": tr("ดูประวัติ", "View profile"),
+
+  // Executive Summary (AI-style summary card, composed entirely from existing engines)
+  "cic.summary.title": tr("สรุปสถานการณ์สำหรับผู้บังคับบัญชา", "Executive Summary"),
+  "cic.summary.empty": tr("วันนี้ไม่มีกำลังพลที่ต้องดำเนินการเร่งด่วน", "No officers require urgent action today."),
+
+  // Export
+  "cic.export.title": tr("ส่งออกรายงาน", "Report Export"),
+  "cic.export.excel": tr("เอกซ์เซล", "Excel"),
+  "cic.export.pdfFutureWork": tr(
+    "การส่งออก PDF ยังไม่รองรับในระบบนี้ — สามารถใช้เอกซ์เซลหรือพิมพ์หน้าจอแทนได้",
+    "PDF export is not yet supported — use Excel or the browser print dialog instead."
+  ),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

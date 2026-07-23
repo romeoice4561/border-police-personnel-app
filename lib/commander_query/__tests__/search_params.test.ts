@@ -68,3 +68,33 @@ test("an unrecognized documentReadiness value is silently ignored", () => {
   const filters = filtersFromSearchParams({ documentReadiness: "BOGUS" });
   assert.equal(filters.documentReadiness, undefined);
 });
+
+// ── Phase 49B: Intelligence Center drill-down URL seeds ─────────────────────
+
+test("readyForPromotion parses from true/1 and seeds the existing boolean filter", () => {
+  assert.equal(filtersFromSearchParams({ readyForPromotion: "true" }).readyForPromotion, true);
+  assert.equal(filtersFromSearchParams({ readyForPromotion: "1" }).readyForPromotion, true);
+  assert.equal(filtersFromSearchParams({ readyForPromotion: "false" }).readyForPromotion, undefined);
+});
+
+test("flagCode and priority parse only allowlisted Intelligence values", () => {
+  assert.equal(filtersFromSearchParams({ flagCode: "PROFILE_INCOMPLETE" }).flagCode, "PROFILE_INCOMPLETE");
+  assert.equal(filtersFromSearchParams({ priority: "critical" }).priority, "critical");
+  assert.equal(filtersFromSearchParams({ flagCode: "NOT_A_FLAG" }).flagCode, undefined);
+  assert.equal(filtersFromSearchParams({ priority: "urgent" }).priority, undefined);
+});
+
+test("Phase 49B KPI drill-down params combine with document/promotion filters", () => {
+  const filters = filtersFromSearchParams({
+    readyForPromotion: "true",
+    flagCode: "PROFILE_INCOMPLETE",
+    priority: "high",
+    promotionEligibilityStatus: "AlreadyEligible",
+    missingRequiredDocument: "1",
+  });
+  assert.equal(filters.readyForPromotion, true);
+  assert.equal(filters.flagCode, "PROFILE_INCOMPLETE");
+  assert.equal(filters.priority, "high");
+  assert.equal(filters.promotionEligibilityStatus, "AlreadyEligible");
+  assert.equal(filters.missingRequiredDocument, true);
+});

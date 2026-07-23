@@ -93,6 +93,7 @@ test("route protection map: /login is public; each route maps to the right capab
   assert.equal(isPublicRoute("/dashboard"), false);
 
   assert.equal(requiredPermissionForRoute("/dashboard"), "dashboard.view");
+  assert.equal(requiredPermissionForRoute("/commander-intelligence"), "dashboard.view");
   assert.equal(requiredPermissionForRoute("/commander-search"), "commander.search");
   assert.equal(requiredPermissionForRoute("/search"), "search.view");
   assert.equal(requiredPermissionForRoute("/statistics"), "statistics.view");
