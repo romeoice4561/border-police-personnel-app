@@ -16,7 +16,10 @@ import { loadOrganizationEngine } from "@/lib/organization/organization_engine_s
 import { loadCommanderOfficerProfiles } from "@/lib/server/commander_intelligence_service";
 import { getSkillCatalog } from "@/lib/server/officer_service";
 import { resolveOfficerPortraitsBatch } from "@/lib/server/officer_portrait_service";
-import { createPersonnelIntelligenceContext } from "@/lib/personnel_intelligence_service/context";
+import {
+  createPersonnelIntelligenceContext,
+  type PersonnelIntelligenceServiceContext,
+} from "@/lib/personnel_intelligence_service/context";
 import {
   createPersonnelIntelligenceService,
   type PersonnelIntelligenceService,
@@ -32,6 +35,8 @@ export type CreatePersonnelIntelligenceServiceDeps = Partial<
 
 export interface PersonnelIntelligenceServiceBundle {
   service: PersonnelIntelligenceService;
+  /** Request-scoped context (Phase 49.6 tool executor reuse). */
+  context: PersonnelIntelligenceServiceContext;
   contextId: string;
   asOfIso: string;
   officerCount: number;
@@ -74,6 +79,7 @@ export async function createPersonnelIntelligenceServiceForRequest(
 
   return {
     service,
+    context,
     contextId: context.contextId,
     asOfIso: context.asOfIso,
     officerCount: dataset.officers.length,
