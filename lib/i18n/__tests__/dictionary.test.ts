@@ -186,3 +186,30 @@ test("Commander Intelligence Center zero-state summary wording is Thai-first and
   assert.equal(translate("cic.summary.empty", "th"), "วันนี้ไม่มีกำลังพลที่ต้องดำเนินการเร่งด่วน");
   assert.equal(translate("cic.summary.empty", "en"), "No officers require urgent action today.");
 });
+
+// Phase 49C — Executive Report Center.
+
+test("Executive Report Center nav/title keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "nav.commanderReports",
+    "reports.title",
+    "reports.subtitle",
+    "reports.export",
+    "reports.excel",
+    "reports.print",
+    "reports.kpiSnapshot",
+    "reports.recommendation",
+    "reports.table",
+    "reports.brief",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+  }
+});
+
+test("Executive Report Center title is Thai-first", () => {
+  assert.equal(translate("reports.title", "th"), "ศูนย์รายงานผู้บริหาร");
+  assert.equal(translate("reports.title", "en"), "Executive Report Center");
+});

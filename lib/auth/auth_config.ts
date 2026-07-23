@@ -98,6 +98,7 @@ export const PUBLIC_ROUTES: readonly string[] = [LOGIN_ROUTE];
 export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Permission; exact?: boolean }> = [
   { prefix: "/dashboard", permission: "dashboard.view" },
   { prefix: "/commander-intelligence", permission: "dashboard.view" },
+  { prefix: "/commander-reports", permission: "dashboard.view" },
   { prefix: "/commander-search", permission: "commander.search" },
   { prefix: "/officers", permission: "officers.view", exact: true },
   { prefix: "/search", permission: "search.view" },

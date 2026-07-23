@@ -1329,6 +1329,31 @@ export const DICTIONARY = {
 
   // ── nav.* — Phase 49B: Commander Intelligence Center ──
   "nav.commanderIntelligence": tr("ศูนย์ข่าวกรองผู้บังคับบัญชา", "Commander Intelligence"),
+  // ── nav.* — Phase 49C: Executive Report Center ──
+  "nav.commanderReports": tr("ศูนย์รายงานผู้บริหาร", "Executive Reports"),
+
+  // ── reports.* — Phase 49C: Executive Reports & Command Briefing Center ──
+  "reports.title": tr("ศูนย์รายงานผู้บริหาร", "Executive Report Center"),
+  "reports.subtitle": tr(
+    "รายงานระดับผู้บังคับบัญชา — สรุป ตาราง และส่งออกจากชุดข้อมูลข่าวกรองชุดเดียว",
+    "Commander-grade reports — summary, tables, and export from one shared intelligence dataset."
+  ),
+  "reports.selectType": tr("ประเภทรายงาน", "Report type"),
+  "reports.filters": tr("ตัวกรองรายงาน", "Report filters"),
+  "reports.export": tr("ส่งออกรายงาน", "Export"),
+  "reports.excel": tr("เอกซ์เซล (CSV)", "Excel (CSV)"),
+  "reports.print": tr("พิมพ์ / บันทึกเป็น PDF", "Print / Save as PDF"),
+  "reports.pdfFutureWork": tr(
+    "รูปแบบพร้อม PDF: ใช้กล่องโต้ตอบพิมพ์ของเบราว์เซอร์ (แนวนอน) แล้วเลือก Save as PDF",
+    "PDF-ready HTML: use the browser Print dialog (Landscape) and Save as PDF."
+  ),
+  "reports.kpiSnapshot": tr("ภาพรวมตัวชี้วัดผู้บริหาร", "Executive KPI snapshot"),
+  "reports.recommendation": tr("ข้อเสนอแนะผู้บริหาร", "Executive recommendation"),
+  "reports.table": tr("ตารางรายงาน", "Report table"),
+  "reports.empty": tr("ไม่มีรายการตามเงื่อนไขรายงานในขอบเขตที่เลือก", "No rows for this report and filter scope."),
+  "reports.brief": tr("สรุปผู้บังคับบัญชา (หนึ่งหน้า)", "Commander Brief"),
+  "reports.summary": tr("สรุป", "Summary"),
+  "reports.actions": tr("รายการที่ต้องดำเนินการ", "Action items"),
 
   // ── cic.* — Phase 49B: Commander Intelligence Center (decision-support workspace) ──
   "cic.title": tr("ศูนย์ข่าวกรองผู้บังคับบัญชา", "Commander Intelligence Center"),
