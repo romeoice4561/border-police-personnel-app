@@ -144,6 +144,25 @@ export interface CommanderQueryOfficer {
    * value. Null when the level is Unknown or undated.
    */
   positionLevelStartYearBe: number | null;
+  /**
+   * Phase 49.8: the Buddhist-Era year the officer started their CURRENT
+   * rank ("เริ่มครองยศปัจจุบัน") — the earliest Timeline row whose `rank`
+   * field EXACTLY matches Officer.rank (query_officer.ts's `rankStartedAt`).
+   * Mirrors positionLevelStartYearBe's exact pattern but for rank instead
+   * of position level. Null whenever no Timeline row's rank exactly
+   * matches — commonly true for un-backfilled rows (Timeline.rank is
+   * nullable; see prisma/schema.prisma) — never a fabricated/derived date,
+   * since no text-fallback classifier for rank exists in this codebase.
+   */
+  rankStartedAtYearBe: number | null;
+  /**
+   * Phase 49.8: the commander-facing YEAR COUNT for how long the officer
+   * has held their CURRENT rank — `currentYearBe - rankStartedAtYearBe`,
+   * mirroring positionLevelYearCount's exact Buddhist-Era calendar-year
+   * subtraction (never an exact elapsed duration, never +1). Null when
+   * rankStartedAtYearBe is unavailable — never a fabricated 0.
+   */
+  yearsInRankCount: number | null;
   /** Commander Promotion UX refinement: exact age as "40 ปี, 11 เดือน" (years + months, no days — matching the requested display precision) — from Age Intelligence (lib/intelligence/age), unmodified. Never decimal. Null when unavailable. */
   displayAgeYearsMonthsTh: string | null;
   appointmentCycle: number | null;

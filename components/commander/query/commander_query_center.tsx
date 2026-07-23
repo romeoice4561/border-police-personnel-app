@@ -86,6 +86,16 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   // Phase 45: Training Intelligence status filter — reads the SAME
   // TrainingSummary every other consumer (Dashboard, Officer Workspace) reads.
   if (filters.trainingStatus && row.trainingIntelligence.trainingStatus !== filters.trainingStatus) return false;
+  // Phase 49.7: exact-year promotion filters — canonical fields only, no
+  // recalculation. positionLevelStartYearBe is the same field the results
+  // table already displays; firstEligibleYearBe reads the PROJECTED first-
+  // eligible year (computable pre-eligibility, unlike eligibleFiscalYearBe).
+  if (filters.positionLevelStartYearBe != null && row.positionLevelStartYearBe !== filters.positionLevelStartYearBe) return false;
+  if (filters.firstEligibleYearBe != null && row.promotionIntelligence.firstEligibleFiscalYearBe !== filters.firstEligibleYearBe) return false;
+  // Phase 49.8: reads the canonical PromotionSummary.confidence field
+  // directly — no local recalculation, no Thai-label matching.
+  if (filters.promotionDataQuality === "assessable" && row.promotionIntelligence.confidence !== "confirmed") return false;
+  if (filters.promotionDataQuality === "not-assessable" && row.promotionIntelligence.confidence === "confirmed") return false;
   // Phase 45.1: Personnel Master Data filters (Task 9 — privacy-safe only).
   if (filters.academyClass != null && row.academyClass !== filters.academyClass) return false;
   if (filters.isGpfMember != null && row.isGpfMember !== filters.isGpfMember) return false;

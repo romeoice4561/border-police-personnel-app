@@ -73,6 +73,12 @@ export interface CommanderQueryFilters extends DocumentIntelligenceFilters {
   retirementWithin?: "within-1-year" | "within-3-years" | "within-5-years";
   /** Phase 45: filters on TrainingSummary.trainingStatus (lib/intelligence/training) — used by the Commander Dashboard's "ขาดหลักสูตร"/Action Center drill-down links and the Commander Search training filter. */
   trainingStatus?: TrainingStatus;
+  /** Phase 49.7: exact Buddhist-Era year the officer started their CURRENT position level — matches CommanderQueryOfficer.positionLevelStartYearBe exactly (the same canonical field the results table's "เริ่มดำรงระดับนี้" column already displays). */
+  positionLevelStartYearBe?: number;
+  /** Phase 49.7: exact Buddhist-Era year the officer FIRST qualifies for their next level — matches CommanderQueryOfficer.promotionIntelligence.firstEligibleFiscalYearBe (the PROJECTED field, computable even before the officer reaches eligibility). */
+  firstEligibleYearBe?: number;
+  /** Phase 49.8: matches CommanderQueryOfficer.promotionIntelligence.confidence exactly — "assessable" is a UI-only convenience meaning confidence === "confirmed"; "not-assessable" means confidence is "incomplete" or "unknown" (canonical field, no local recalculation — see applyFilters in commander_query_center.tsx). */
+  promotionDataQuality?: "assessable" | "not-assessable";
   // ── Phase 45.1: Personnel Master Data filters (Task 9 — privacy-safe only) ──
   /** รุ่น นรต. — matches CommanderQueryOfficer.academyClass exactly. */
   academyClass?: number;

@@ -230,6 +230,11 @@ export function toQueryOfficer(
   // doc comment on CommanderQueryOfficer.
   const positionLevelStartYearBe = positionLevelStart ? toBuddhistEraYear(positionLevelStart.getUTCFullYear()) : null;
   const positionLevelYearCount = yearCountSince(positionLevelStartYearBe, toBuddhistEraYear(asOf.getUTCFullYear()));
+  // Phase 49.8: same pattern as positionLevelStartYearBe/positionLevelYearCount
+  // above, applied to RANK instead of position level — see
+  // CommanderQueryOfficer.rankStartedAtYearBe's doc comment.
+  const rankStartedAtYearBe = rankStartedAt ? toBuddhistEraYear(rankStartedAt.getUTCFullYear()) : null;
+  const yearsInRankCount = yearCountSince(rankStartedAtYearBe, toBuddhistEraYear(asOf.getUTCFullYear()));
   // Phase 45: Training Intelligence, evaluated against the officer's NEXT
   // position level (the same target Promotion Intelligence evaluates) —
   // reports NoPolicy/NoData truthfully since no real TrainingPolicy exists yet.
@@ -263,6 +268,8 @@ export function toQueryOfficer(
     yearsInPosition: yearsSince(positionStartedAt, asOf),
     yearsInPositionLevel,
     positionLevelYearCount,
+    rankStartedAtYearBe,
+    yearsInRankCount,
     completedPromotionCycles: nextLevelEligibility?.completedPromotionCycles ?? null,
     appointmentCycle,
     governmentServiceYears,

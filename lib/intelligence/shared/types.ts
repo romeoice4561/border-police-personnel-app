@@ -12,6 +12,7 @@
 
 import type { DurationYMD } from "@/lib/personnel_calendar";
 import type { ExactDuration } from "@/lib/intelligence/shared/date_types";
+import type { MissingEvidenceKey } from "@/lib/promotion/eligibility_policy";
 
 /** A summary is either computed successfully, or explicitly "not available" (e.g. missing date of birth) — never a silently-wrong zero. */
 export interface IntelligenceSummaryBase {
@@ -144,6 +145,25 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
   /** Buddhist-Era fiscal year containing eligibleDate. */
   eligibleFiscalYearBe: number | null;
 
+  /**
+   * Phase 49.7: ISO date (YYYY-MM-DD) of the officer's first eligible
+   * fiscal year for their next level — PROJECTED FORWARD from the tenure
+   * policy's requirement (appointmentCycle + requiredCycles) whenever that
+   * projection is computable, regardless of whether the officer has reached
+   * it yet. Unlike `eligibleDate` (historical-only, null until eligibility
+   * is actually reached), this field answers "when WILL/did this officer
+   * first qualify" — the field the Officer Profile and Commander Search
+   * need to show "ครบคุณสมบัติครั้งแรก: พ.ศ. 2574" for an officer who is not
+   * yet eligible. Null only when the projection itself is not computable
+   * (Unknown position level, no configured policy, or no appointmentCycle
+   * evidence) — never fabricated. Always anchored to 1 January of the
+   * eligible Gregorian year, same precision-limit rationale as eligibleDate
+   * (Timeline.appointmentCycle is a year, not a full date).
+   */
+  firstEligibleDate: string | null;
+  /** Buddhist-Era fiscal year containing firstEligibleDate. */
+  firstEligibleFiscalYearBe: number | null;
+
   /** Exact time elapsed since eligibleDate, as of asOf — years/months/days, never a decimal. Null when eligibleDate is null. */
   yearsEligible: number | null;
   monthsEligible: number | null;
@@ -164,6 +184,25 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
   /** Thai label for promotionStatus, e.g. "ครบคุณสมบัติปีนี้" — see PROMOTION_STATUS_DISPLAY_TH. */
   displayStatusTh: string | null;
 
+  /**
+   * Phase 49.7: the configured PROMOTION_POLICIES.minYearsInPositionLevel
+   * for `targetLevel` — read directly from the policy table, never
+   * recomputed. Null when no policy is configured for the target (Unknown
+   * level, or a target with no minYearsInPositionLevel requirement).
+   */
+  requiredTenureYears: number | null;
+  /**
+   * Phase 49.7: "ดำรงระดับตำแหน่งปัจจุบันครบ 7 วาระ" — the SAME missing-
+   * requirement label the eligibility engine already produces for the
+   * MIN_CYCLES_IN_LEVEL blocker (lib/promotion/eligibility_policy.ts),
+   * surfaced here so the Officer Profile/Commander Search can show WHY an
+   * officer is not yet eligible without re-deriving the sentence. Null when
+   * the officer is already eligible or the blocker is a different kind
+   * (training/documents/rank/service — see `blockers`-equivalent fields
+   * upstream) or eligibility is Unknown.
+   */
+  waitingReasonTh: string | null;
+
   /** 0-100 commander-facing priority score — see lib/intelligence/promotion's computePromotionPriority. Higher = should be reviewed sooner. Null when promotionStatus is Unknown (nothing to prioritize). */
   priority: number | null;
   /**
@@ -176,6 +215,35 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
    * is non-null, regardless of `available`.
    */
   priorityReason: string | null;
+
+  // --- Phase 49.8: data confidence ---------------------------------------
+
+  /**
+   * Phase 49.8: closed, deterministic (non-AI) classification of how much
+   * of this PromotionSummary rests on confirmed structured evidence versus
+   * a gap. Never a numeric/ML confidence score.
+   *   - confirmed: both currentRankStartedAt and (when applicable) the
+   *     position-level start date come from explicit structured Timeline
+   *     evidence — no gap contributed to this result.
+   *   - derived: at least one contributing field came from an approved
+   *     centralized fallback rather than a direct exact match (reserved
+   *     for a future fallback; today's engine has no rank-tenure fallback,
+   *     so this value is not yet reachable from the rank path — see
+   *     missingEvidence for what's actually missing when not "confirmed").
+   *   - incomplete: eligibility could not be fully assessed because
+   *     mandatory tenure evidence (rank-start or position-level-start) is
+   *     missing — mirrors promotionStatus === "Unknown" when the gap is
+   *     evidence-related (never set merely because promotionStatus is
+   *     Unknown due to an unclassifiable position level).
+   *   - unknown: the promotion path itself could not be resolved (e.g. no
+   *     current position level, no configured policy) — mirrors
+   *     promotionStatus === "Unknown" for non-evidence reasons.
+   */
+  confidence: "confirmed" | "derived" | "incomplete" | "unknown";
+  /** Thai sentence explaining `confidence` when it is not "confirmed" — e.g. "ไม่พบวันที่เริ่มครองยศปัจจุบัน". Null when confidence is "confirmed". */
+  confidenceReasonTh: string | null;
+  /** Stable keys naming every piece of missing evidence (see MissingEvidenceKey in lib/promotion/eligibility_policy.ts) — empty array when confidence is "confirmed". */
+  missingEvidence: MissingEvidenceKey[];
 }
 
 /**

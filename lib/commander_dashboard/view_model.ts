@@ -157,7 +157,17 @@ export function buildPromotionPriorityCandidates(
       displayServiceDurationTh: officer.displayServiceDurationTh,
       retirementYearBe: officer.retirementYearBe,
       displayRetirementYearTh: officer.retirementYearBe != null ? `พ.ศ. ${officer.retirementYearBe}` : null,
-      displayTargetQualificationTh: officer.targetPosition != null ? `ครบขึ้น ${officer.targetPosition}` : null,
+      // Phase 49.7 fix: this previously fired whenever a target level
+      // existed on the officer, regardless of whether they had actually
+      // reached eligibility — a "Waiting" officer with a high priority
+      // score (e.g. from retirement proximity) could appear in this list
+      // and incorrectly display "ครบขึ้น {target}" as if already qualified
+      // (the same root-cause pattern as the reported Officer Profile
+      // defect). Now gated on the officer genuinely being eligible.
+      displayTargetQualificationTh:
+        (officer.promotionStatus === "EligibleThisYear" || officer.promotionStatus === "AlreadyEligible") && officer.targetPosition != null
+          ? `ครบขึ้น ${officer.targetPosition}`
+          : null,
       displayYearsAtLevelTh: officer.positionLevelYearCount != null ? `${officer.positionLevelYearCount} ปี` : null,
       priority: officer.priority,
       priorityReason: officer.priorityReason,

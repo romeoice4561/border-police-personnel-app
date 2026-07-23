@@ -101,6 +101,20 @@ export function serializeOfficerDetail(officer: CommanderQueryOfficer): OfficerI
     flagCodes: [...officer.flagCodes],
     recommendedActionsTh,
     birthdayIso: officer.dateOfBirth ? officer.dateOfBirth.toISOString().slice(0, 10) : null,
+    // Phase 49.7: canonical promotion ground-truth — explicit field copies
+    // from PromotionSummary, same as every other field on this DTO.
+    targetPositionLevel: officer.promotionIntelligence.targetPosition,
+    currentPositionLevelStartYearBe: officer.positionLevelStartYearBe,
+    requiredTenureYears: officer.promotionIntelligence.requiredTenureYears,
+    firstEligibleYearBe: officer.promotionIntelligence.firstEligibleFiscalYearBe,
+    firstEligibleDate: officer.promotionIntelligence.firstEligibleDate,
+    waitingReasonTh: officer.promotionIntelligence.waitingReasonTh,
+    // Phase 49.8: canonical rank-tenure + data-confidence fields.
+    currentRankStartedAtYearBe: officer.rankStartedAtYearBe,
+    yearsInRank: officer.yearsInRankCount,
+    promotionConfidence: officer.promotionIntelligence.confidence,
+    promotionConfidenceReasonTh: officer.promotionIntelligence.confidenceReasonTh,
+    promotionMissingEvidence: [...officer.promotionIntelligence.missingEvidence],
   };
 }
 

@@ -173,6 +173,32 @@ export function PromotionEligibilityFilter({
           </select>
         </div>
       </fieldset>
+
+      {/* Phase 49.7: exact-year filters — canonical fields (positionLevelStartYearBe / firstEligibleFiscalYearBe), no calculation in this component. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-xs font-medium text-muted">
+          {t("commander.positionLevelStartYear")}
+          <input
+            type="number"
+            inputMode="numeric"
+            className={controlClass}
+            placeholder={t("commander.yearsPlaceholder")}
+            value={value.positionLevelStartYearBe ?? ""}
+            onChange={(e) => set("positionLevelStartYearBe", e.target.value === "" ? undefined : Number(e.target.value))}
+          />
+        </label>
+        <label className="space-y-1 text-xs font-medium text-muted">
+          {t("commander.firstEligibleYear")}
+          <input
+            type="number"
+            inputMode="numeric"
+            className={controlClass}
+            placeholder={t("commander.yearsPlaceholder")}
+            value={value.firstEligibleYearBe ?? ""}
+            onChange={(e) => set("firstEligibleYearBe", e.target.value === "" ? undefined : Number(e.target.value))}
+          />
+        </label>
+      </div>
     </div>
   );
 }

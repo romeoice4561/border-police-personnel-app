@@ -27,7 +27,7 @@
  * Master data in -> Intelligence summary out. No UI, no I/O.
  */
 
-import { evaluateNextLevelEligibility, type EligibilityOfficer, type LevelEligibilityResult } from "@/lib/promotion/eligibility_policy";
+import { evaluateNextLevelEligibility, policyForTargetLevel, type EligibilityOfficer, type LevelEligibilityResult, type MissingEvidenceKey } from "@/lib/promotion/eligibility_policy";
 import { normalizePositionLevel, nextPositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { yearBEToGregorian } from "@/lib/officer_profile/thai_date";
 import { utcDate } from "@/lib/personnel_calendar";
@@ -87,6 +87,16 @@ function classifyStatus(
 ): PromotionEligibilityStatus {
   if (!level) return "Unknown";
 
+  // Phase 49.8: mandatory tenure evidence (rank-start or position-level-start
+  // date) is missing — this is NEVER eligible now (evaluateWithPolicy already
+  // guarantees eligibleNow is false whenever evidenceIncomplete is true), and
+  // it must not be reported as a confirmed "Waiting"/"NotEligible" either —
+  // both would imply the system KNOWS the officer falls short, when in fact
+  // it simply cannot assess. Checked before the training/documents/generic
+  // branches so an evidence gap is never silently reclassified as a
+  // different, more specific-sounding blocker.
+  if (level.evidenceIncomplete) return "Unknown";
+
   const missingCodes = level.missingRequirements.map((requirement) => requirement.code);
   const blockedByTraining = missingCodes.some((code) => code.startsWith("TRAINING_"));
   const blockedByDocuments = missingCodes.some((code) => code.startsWith("DOCUMENT_"));
@@ -125,6 +135,24 @@ function computeEligibleDate(level: LevelEligibilityResult | null): Date | null 
 }
 
 /**
+ * Phase 49.7: the officer's FIRST eligible date, projected forward from the
+ * tenure policy regardless of whether they have reached it yet — unlike
+ * computeEligibleDate above (historical-only, null pre-eligibility). Reads
+ * the SAME `promotionCycle.eligibleCycle` the appointment-cycle engine
+ * already computes (lib/promotion_cycle/engine.ts's
+ * `eligibleCycle = appointmentCycle + requiredCycles`, computed
+ * unconditionally, not gated on eligibleNow) — no new arithmetic, just no
+ * longer discarding a value the engine already produced. Null when the
+ * projection itself has no evidence (no policy/level, no appointmentCycle),
+ * matching computeEligibleDate's "no fabricated date" rule exactly.
+ */
+function computeFirstEligibleDate(level: LevelEligibilityResult | null): Date | null {
+  if (!level?.promotionCycle?.eligibleCycle) return null;
+  const eligibleGregorianYear = yearBEToGregorian(level.promotionCycle.eligibleCycle);
+  return utcDate(eligibleGregorianYear, 1, 1);
+}
+
+/**
  * Estimated number of promotion (appointment-cycle) rounds passed since the
  * officer's `appointmentCycle` began — reuses
  * `promotionCycle.completedPromotionCycles`
@@ -137,6 +165,48 @@ function computeEligibleDate(level: LevelEligibilityResult | null): Date | null 
  */
 function computePromotionCyclesPassed(level: LevelEligibilityResult | null): number | null {
   return level?.promotionCycle?.completedPromotionCycles ?? null;
+}
+
+/** Thai sentence for each MissingEvidenceKey — the ONE place these are worded, reused by confidenceReasonTh below. Deliberately closed to the same key set as eligibility_policy.ts's MissingEvidenceKey. */
+const MISSING_EVIDENCE_LABEL_TH: Record<MissingEvidenceKey, string> = {
+  current_rank_start_date: "ไม่พบวันที่เริ่มครองยศปัจจุบัน",
+  current_position_level_start_date: "ไม่พบวันที่เริ่มดำรงระดับตำแหน่งปัจจุบัน",
+  promotion_policy: "ไม่มีเกณฑ์การเลื่อนตำแหน่งที่กำหนดไว้",
+  training_data: "ไม่มีข้อมูลการฝึกอบรม",
+  document_data: "ไม่มีข้อมูลเอกสาร",
+  retirement_data: "ไม่มีข้อมูลวันเกิด",
+};
+
+/**
+ * Phase 49.8: deterministic, non-AI confidence classification — see
+ * PromotionSummary.confidence's doc comment for the full meaning of each
+ * value. Reads ONLY level.evidenceIncomplete/missingEvidence (already
+ * computed by evaluateWithPolicy) — no new evidence-detection logic here.
+ */
+function computeConfidence(level: LevelEligibilityResult | null): {
+  confidence: PromotionSummary["confidence"];
+  confidenceReasonTh: string | null;
+  missingEvidence: MissingEvidenceKey[];
+} {
+  if (!level) return { confidence: "unknown", confidenceReasonTh: null, missingEvidence: [] };
+  if (level.evidenceIncomplete) {
+    const missingEvidence = level.missingEvidence;
+    const confidenceReasonTh = missingEvidence.map((key) => MISSING_EVIDENCE_LABEL_TH[key]).join(" ") || null;
+    return { confidence: "incomplete", confidenceReasonTh, missingEvidence };
+  }
+  return { confidence: "confirmed", confidenceReasonTh: null, missingEvidence: [] };
+}
+
+/**
+ * Phase 49.7: "ดำรงระดับตำแหน่งปัจจุบันครบ N วาระ" — the tenure-shortfall
+ * missing-requirement label the engine already computed (MIN_CYCLES_IN_LEVEL,
+ * lib/promotion/eligibility_policy.ts), reused verbatim. Null when the
+ * officer is already eligible or blocked by something else.
+ */
+function computeWaitingReasonTh(level: LevelEligibilityResult | null): string | null {
+  if (!level || level.eligibleNow) return null;
+  const tenureBlocker = level.missingRequirements.find((requirement) => requirement.code === "MIN_CYCLES_IN_LEVEL");
+  return tenureBlocker?.label ?? null;
 }
 
 /**
@@ -225,6 +295,8 @@ export function computePromotionSummary(
 
   const eligibleDate = computeEligibleDate(level);
   const eligibleFiscalYearBe = eligibleDate ? fiscalYearBeForDate(eligibleDate) : null;
+  const firstEligibleDate = computeFirstEligibleDate(level);
+  const firstEligibleFiscalYearBe = firstEligibleDate ? fiscalYearBeForDate(firstEligibleDate) : null;
 
   const durationResult = computeExactDuration(eligibleDate, asOf, "MISSING_SERVICE_START_DATE");
   const eligibleDuration = durationResult.available ? durationResult.duration : null;
@@ -237,6 +309,9 @@ export function computePromotionSummary(
 
   const yearsEligibleWhole = eligibleDuration ? eligibleDuration.years : null;
   const promotionCyclesPassed = computePromotionCyclesPassed(level);
+  const requiredTenureYears = target ? policyForTargetLevel(target)?.minYearsInPositionLevel ?? null : null;
+  const waitingReasonTh = computeWaitingReasonTh(level);
+  const { confidence, confidenceReasonTh, missingEvidence } = computeConfidence(level);
 
   const { priority, priorityReason } = computePromotionPriority(
     promotionStatus,
@@ -266,6 +341,8 @@ export function computePromotionSummary(
 
     eligibleDate: eligibleDate ? eligibleDate.toISOString().slice(0, 10) : null,
     eligibleFiscalYearBe,
+    firstEligibleDate: firstEligibleDate ? firstEligibleDate.toISOString().slice(0, 10) : null,
+    firstEligibleFiscalYearBe,
 
     yearsEligible: yearsEligibleWhole,
     monthsEligible: eligibleDuration ? eligibleDuration.months : null,
@@ -279,6 +356,13 @@ export function computePromotionSummary(
         (promotionCyclesPassed != null ? ` ผ่านรอบแต่งตั้งประมาณ ${promotionCyclesPassed} รอบ` : "")
       : null,
     displayStatusTh: PROMOTION_STATUS_DISPLAY_TH[promotionStatus],
+
+    requiredTenureYears,
+    waitingReasonTh,
+
+    confidence,
+    confidenceReasonTh,
+    missingEvidence,
 
     priority,
     priorityReason,

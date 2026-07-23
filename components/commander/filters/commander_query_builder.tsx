@@ -242,6 +242,23 @@ function PersonnelFilters({
           </select>
         </label>
 
+        {/* Phase 49.8: compact "คุณภาพข้อมูลการเลื่อนตำแหน่ง" filter — reads
+            the canonical PromotionSummary.confidence field, never a local
+            recalculation. "ประเมินได้" = confidence === "confirmed";
+            "ไม่สามารถประเมินได้" = confidence is "incomplete"/"unknown". */}
+        <label className="space-y-1 text-xs font-medium text-muted">
+          {t("commander.dataQualityFilterGroupTitle")}
+          <select
+            className={controlClass}
+            value={value.promotionDataQuality ?? ""}
+            onChange={(e) => set("promotionDataQuality", (e.target.value || undefined) as CommanderQueryFilters["promotionDataQuality"])}
+          >
+            <option value="">{t("commander.anyDataQuality")}</option>
+            <option value="assessable">{t("commander.assessable")}</option>
+            <option value="not-assessable">{t("commander.notAssessable")}</option>
+          </select>
+        </label>
+
         {/* Task A3: retirement-within horizon — reads officer.retirementYear (Retirement/Personnel Calendar), the same field the Dashboard drill-down and retirement timeline chart already use. */}
         <label className="space-y-1 text-xs font-medium text-muted">
           {t("commander.retirementYear")}

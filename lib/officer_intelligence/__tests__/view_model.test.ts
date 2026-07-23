@@ -408,3 +408,148 @@ test("27. same officer receives an identical TrainingSummary via composeOfficerI
   const vm2 = composeOfficerIntelligenceViewModel(o, ORG_LABELS, null, ASOF);
   assert.deepEqual(vm1.training, vm2.training);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 49.7 — Promotion Ground-Truth Fix: qualificationTextTh no longer
+// fires merely because a target level exists (E — UI/view-model mapping).
+// ---------------------------------------------------------------------------
+
+test("28. qualificationTextTh is null while an officer is NOT yet eligible — never 'ครบขึ้น {target}' before eligibility", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officer({
+      currentPosition: "รอง ผบ.ร้อย ตชด.414",
+      timeline: [
+        {
+          id: 1,
+          officerId: 1,
+          sequence: 0,
+          year: "2567",
+          yearBE: 2567,
+          appointmentCycle: 2567,
+          position: "รอง ผบ.ร้อย ตชด.414",
+          positionLevel: "รองสารวัตร",
+          rank: "ร.ต.ท.",
+          unit: "กก.ตชด.41",
+          isPresent: true,
+        },
+      ],
+    }),
+    ORG_LABELS,
+    null,
+    ASOF // BE 2569 — well before the corrected first-eligible year 2574.
+  );
+  assert.equal(vm.promotion.targetPositionTh, "สารวัตร");
+  assert.equal(vm.promotion.qualificationTextTh, null, "must not claim qualification is complete before eligibility");
+  assert.notEqual(vm.promotion.displayStatusTh, "มีคุณสมบัติครบมาแล้ว");
+});
+
+test("29. qualificationTextTh IS 'ครบขึ้น {target}' once the officer is genuinely eligible", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officer({
+      currentPosition: "รองสารวัตร",
+      timeline: [{ id: 1, officerId: 1, sequence: 0, year: "2555", yearBE: 2555, appointmentCycle: 2555, position: "รองสารวัตร", positionLevel: "รองสารวัตร", unit: "กก.ตชด.41", rank: "รองสารวัตร", isPresent: true }],
+    }),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.promotion.qualificationTextTh, "ครบขึ้น สารวัตร");
+});
+
+test("30. firstEligibleYearBe is the PROJECTED year (2574), computable even though the officer is not yet eligible", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officer({
+      currentPosition: "รอง ผบ.ร้อย ตชด.414",
+      timeline: [
+        {
+          id: 1,
+          officerId: 1,
+          sequence: 0,
+          year: "2567",
+          yearBE: 2567,
+          appointmentCycle: 2567,
+          position: "รอง ผบ.ร้อย ตชด.414",
+          positionLevel: "รองสารวัตร",
+          rank: "ร.ต.ท.",
+          unit: "กก.ตชด.41",
+          isPresent: true,
+        },
+      ],
+    }),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.promotion.firstEligibleYearBe, 2574);
+  assert.equal(vm.promotion.requiredTenureYears, 7);
+  assert.ok(vm.promotion.waitingReasonTh);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 49.8 — Rank Tenure & Data Confidence: Officer Profile / downstream mapping.
+// ---------------------------------------------------------------------------
+
+test("31. profile shows rank tenure fields when the current rank has confirmed structured evidence", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officer({
+      rank: "ร.ต.ท.",
+      currentPosition: "รอง ผบ.ร้อย ตชด.414",
+      timeline: [
+        {
+          id: 1,
+          officerId: 1,
+          sequence: 0,
+          year: "2557",
+          yearBE: 2557,
+          appointmentCycle: 2557,
+          position: "รอง ผบ.ร้อย ตชด.414",
+          positionLevel: "รองสารวัตร",
+          rank: "ร.ต.ท.",
+          unit: "กก.ตชด.41",
+          isPresent: true,
+        },
+      ],
+    }),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.promotion.currentRankStartedAtYearBe, 2557);
+  assert.ok(vm.promotion.yearsInCurrentRank != null && vm.promotion.yearsInCurrentRank > 0);
+  assert.equal(vm.promotion.confidence, "confirmed");
+});
+
+test("32. profile shows the missing-rank reason and Unknown status when current-rank evidence is unresolved — no false eligible badge", () => {
+  const vm = composeOfficerIntelligenceViewModel(
+    officer({
+      rank: "ร.ต.ท.",
+      currentPosition: "รอง ผบ.ร้อย ตชด.414",
+      timeline: [
+        {
+          id: 1,
+          officerId: 1,
+          sequence: 0,
+          year: "2557",
+          yearBE: 2557,
+          appointmentCycle: 2557,
+          position: "รอง ผบ.ร้อย ตชด.414",
+          positionLevel: "รองสารวัตร",
+          rank: "ร.ต.ต.", // Different rank on record — no exact match for current "ร.ต.ท.".
+          unit: "กก.ตชด.41",
+          isPresent: true,
+        },
+      ],
+    }),
+    ORG_LABELS,
+    null,
+    ASOF
+  );
+  assert.equal(vm.promotion.currentRankStartedAtYearBe, null);
+  assert.equal(vm.promotion.yearsInCurrentRank, null);
+  assert.equal(vm.promotion.confidence, "incomplete");
+  assert.equal(vm.promotion.confidenceReasonTh, "ไม่พบวันที่เริ่มครองยศปัจจุบัน");
+  assert.ok(vm.promotion.missingEvidence.includes("current_rank_start_date"));
+  assert.equal(vm.promotion.status, "Unknown");
+  // No false "already qualified" text for an officer whose eligibility cannot even be assessed.
+  assert.equal(vm.promotion.qualificationTextTh, null);
+});

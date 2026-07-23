@@ -42,7 +42,9 @@ test("PROMOTION_TARGET_LEVELS lists the configured targets, lowest → highest, 
 });
 
 test("eligible_now: appointment cycle meets required cycles for next level", () => {
-  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2565, yearsInRank: 4 }), "สารวัตร", ASOF);
+  // สารวัตร policy: minYearsInPositionLevel 7 (Phase 49.7 fix) — appointmentCycle
+  // 2562 + 7 = eligibleCycle 2569 = currentCycle 2569 -> eligible this cycle.
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2562, yearsInRank: 7 }), "สารวัตร", ASOF);
   assert.equal(result.status, "eligible_now");
   assert.equal(result.eligibleNow, true);
   assert.equal(result.monthsUntilEligible, 0);
@@ -51,7 +53,8 @@ test("eligible_now: appointment cycle meets required cycles for next level", () 
 });
 
 test("overdue: eligible and past the first eligible cycle", () => {
-  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2564, yearsInRank: 7 }), "สารวัตร", ASOF);
+  // appointmentCycle 2561 + 7 = eligibleCycle 2568; currentCycle 2569 -> overdue by 1 cycle.
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2561, yearsInRank: 8 }), "สารวัตร", ASOF);
   assert.equal(result.status, "overdue");
   assert.equal(result.eligibleNow, true);
   assert.equal(result.overdueYears, 2);
@@ -77,7 +80,8 @@ test("appointment cycle drives police promotion eligibility independently from y
 });
 
 test("eligible_soon: one appointment cycle short of eligibility", () => {
-  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2566, yearsInRank: 5 }), "สารวัตร", ASOF);
+  // appointmentCycle 2563 + 7 = eligibleCycle 2570; currentCycle 2569 -> 1 cycle short.
+  const result = evaluateLevelEligibility(officer({ appointmentCycle: 2563, yearsInRank: 6 }), "สารวัตร", ASOF);
   assert.equal(result.status, "eligible_soon");
   assert.equal(result.eligibleNow, false);
   assert.equal(result.monthsUntilEligible, 12);
@@ -87,7 +91,7 @@ test("not_eligible: far short of required cycles", () => {
   const result = evaluateLevelEligibility(officer({ appointmentCycle: 2568, yearsInRank: 1 }), "สารวัตร", ASOF);
   assert.equal(result.status, "not_eligible");
   assert.equal(result.eligibleNow, false);
-  assert.equal(result.monthsUntilEligible, 36);
+  assert.equal(result.monthsUntilEligible, 72);
   assert.ok(result.missingRequirements.some((r) => r.code === "MIN_CYCLES_IN_LEVEL"));
   assert.ok(result.missingRequirements.some((r) => r.code === "MIN_YEARS_IN_RANK"));
 });

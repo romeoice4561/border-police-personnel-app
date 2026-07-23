@@ -98,3 +98,77 @@ test("Phase 49B KPI drill-down params combine with document/promotion filters", 
   assert.equal(filters.promotionEligibilityStatus, "AlreadyEligible");
   assert.equal(filters.missingRequiredDocument, true);
 });
+
+// ── Phase 49.7: canonical current/target position-level + exact-year URL drill-downs ──
+
+test("currentPositionLevel query param maps onto the existing positionLevel filter field (canonical current-level dropdown's own field, no separate predicate)", () => {
+  const filters = filtersFromSearchParams({ currentPositionLevel: "รองสารวัตร" });
+  assert.equal(filters.positionLevel, "รองสารวัตร");
+});
+
+test("targetPositionLevel query param maps onto the existing toPositionLevel filter field", () => {
+  const filters = filtersFromSearchParams({ targetPositionLevel: "สารวัตร" });
+  assert.equal(filters.toPositionLevel, "สารวัตร");
+});
+
+test("every real (non-Unknown) POSITION_LEVELS value parses for both currentPositionLevel and targetPositionLevel", () => {
+  const levels = ["รองสารวัตร", "สารวัตร", "รองผู้กำกับการ", "ผู้กำกับการ", "รองผู้บังคับการ", "ผู้บังคับการ", "รองผู้บัญชาการ"];
+  for (const level of levels) {
+    assert.equal(filtersFromSearchParams({ currentPositionLevel: level }).positionLevel, level);
+    assert.equal(filtersFromSearchParams({ targetPositionLevel: level }).toPositionLevel, level);
+  }
+});
+
+test("an unrecognized currentPositionLevel/targetPositionLevel value (typo, garbage, 'Unknown') is silently ignored — never a fabricated filter", () => {
+  assert.equal(filtersFromSearchParams({ currentPositionLevel: "not-a-real-level" }).positionLevel, undefined);
+  assert.equal(filtersFromSearchParams({ currentPositionLevel: "Unknown" }).positionLevel, undefined);
+  assert.equal(filtersFromSearchParams({ targetPositionLevel: "not-a-real-level" }).toPositionLevel, undefined);
+});
+
+test("REGRESSION: this test fails against the old (pre-fix) behavior — a current-level drill-down URL param must actually narrow Commander Search, not be silently unrecognized", () => {
+  // The previously-attempted 'fromPositionLevel' URL parameter was NEVER
+  // read by filtersFromSearchParams — passing it produced a filters object
+  // completely unaffected by position level, matching the reported symptom
+  // "the attempted current-position-level filter did not reduce the
+  // Commander Search result set." The canonical replacement name
+  // (currentPositionLevel) must actually populate the filter.
+  const oldUnsupportedParam = filtersFromSearchParams({ fromPositionLevel: "รองสารวัตร" });
+  assert.equal(oldUnsupportedParam.positionLevel, undefined, "the old unsupported param name must not silently work by accident");
+  assert.equal(oldUnsupportedParam.fromPositionLevel, undefined, "filtersFromSearchParams must not pass through arbitrary raw query keys");
+
+  const newSupportedParam = filtersFromSearchParams({ currentPositionLevel: "รองสารวัตร" });
+  assert.equal(newSupportedParam.positionLevel, "รองสารวัตร", "the canonical param name must actually populate the filter");
+});
+
+test("positionLevelStartYearBe query param parses a positive integer Buddhist-Era year", () => {
+  assert.equal(filtersFromSearchParams({ positionLevelStartYearBe: "2567" }).positionLevelStartYearBe, 2567);
+});
+
+test("firstEligibleYearBe query param parses a positive integer Buddhist-Era year", () => {
+  assert.equal(filtersFromSearchParams({ firstEligibleYearBe: "2574" }).firstEligibleYearBe, 2574);
+});
+
+test("non-numeric or malformed year values are ignored, never coerced to NaN/0", () => {
+  assert.equal(filtersFromSearchParams({ positionLevelStartYearBe: "not-a-year" }).positionLevelStartYearBe, undefined);
+  assert.equal(filtersFromSearchParams({ firstEligibleYearBe: "25.74" }).firstEligibleYearBe, undefined);
+  assert.equal(filtersFromSearchParams({ firstEligibleYearBe: "" }).firstEligibleYearBe, undefined);
+});
+
+test("all Phase 49.7 promotion drill-down params combine correctly in one URL, reproducing the reported officer's scenario as a shareable link", () => {
+  const filters = filtersFromSearchParams({
+    currentPositionLevel: "รองสารวัตร",
+    targetPositionLevel: "สารวัตร",
+    firstEligibleYearBe: "2574",
+    promotionEligibilityStatus: "Waiting",
+  });
+  assert.equal(filters.positionLevel, "รองสารวัตร");
+  assert.equal(filters.toPositionLevel, "สารวัตร");
+  assert.equal(filters.firstEligibleYearBe, 2574);
+  assert.equal(filters.promotionEligibilityStatus, "Waiting");
+});
+
+test("unrelated/unknown query parameters never alter filter state (no accidental field pollution)", () => {
+  const filters = filtersFromSearchParams({ currentPositionLevel: "รองสารวัตร", someRandomParam: "xyz", another: "123" });
+  assert.equal(Object.keys(filters).length, 1, "only the recognized field should be set");
+  assert.equal(filters.positionLevel, "รองสารวัตร");
+});

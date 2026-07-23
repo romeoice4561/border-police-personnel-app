@@ -368,6 +368,18 @@ export const DICTIONARY = {
   "commander.hideDocumentColumns": tr("ซ่อนคอลัมน์เอกสาร", "Hide Document Columns"),
   "commander.documentNoneMissing": tr("ไม่มี", "None"),
 
+  // Phase 49.8 — Rank Tenure & Data Confidence columns (Commander Search results table).
+  "commander.rankStartYear": tr("เริ่มครองยศ", "Rank Since"),
+  "commander.dataConfidence": tr("ความน่าเชื่อถือ", "Data Confidence"),
+  "commander.showRankConfidenceColumns": tr("แสดงคอลัมน์ยศและความน่าเชื่อถือ", "Show Rank/Confidence Columns"),
+  "commander.hideRankConfidenceColumns": tr("ซ่อนคอลัมน์ยศและความน่าเชื่อถือ", "Hide Rank/Confidence Columns"),
+  "commander.confidenceConfirmed": tr("ยืนยันจากข้อมูลโครงสร้าง", "Confirmed"),
+  "commander.confidenceIncomplete": tr("ข้อมูลไม่ครบถ้วน", "Incomplete"),
+  "commander.dataQualityFilterGroupTitle": tr("คุณภาพข้อมูลการเลื่อนตำแหน่ง", "Promotion Data Quality"),
+  "commander.assessable": tr("ประเมินได้", "Assessable"),
+  "commander.notAssessable": tr("ไม่สามารถประเมินได้", "Not Assessable"),
+  "commander.anyDataQuality": tr("ทุกระดับ", "Any"),
+
   // ── commander.* — Phase 45 completion pass: discoverable training filter group (Task 8) ──
   "commander.trainingFilterGroupTitle": tr("สถานะการฝึกอบรม", "Training Status"),
   "commander.trainingFilterAll": tr("ทั้งหมด", "All"),

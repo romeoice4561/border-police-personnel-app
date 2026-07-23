@@ -28,8 +28,17 @@
  *                                  the deprecated yearsInPositionLevel exact
  *                                  duration and NOT a promotion-cycle count).
  *   - ระดับเป้าหมาย:               promotionIntelligence.targetPosition.
- *   - ปีที่ครบครั้งแรก:             promotionIntelligence.eligibleFiscalYearBe
- *                                  (Buddhist Era — never Gregorian).
+ *   - ปีที่ครบครั้งแรก:             promotionIntelligence.firstEligibleFiscalYearBe
+ *                                  (Buddhist Era — never Gregorian). Phase
+ *                                  49.7 fix: was eligibleFiscalYearBe, which
+ *                                  stays null until the officer is ALREADY
+ *                                  eligible — this column showed "—" for
+ *                                  every not-yet-eligible officer even
+ *                                  though the engine could project their
+ *                                  first eligible year. firstEligibleFiscalYearBe
+ *                                  is the SAME projection regardless of
+ *                                  eligibleNow, computed by the same engine
+ *                                  (no new calculation here).
  *   - รอการแต่งตั้งมาแล้ว:          overdueYears - 1 (whole missed promotion
  *                                  opportunities: eligible since FY2568,
  *                                  current FY2569 -> overdueYears=2 ->
@@ -77,6 +86,14 @@ import { TRAINING_STATUS_TONE } from "@/lib/intelligence/training/status_tone";
 import { READINESS_LEVEL_TONE, COMPLETENESS_LEVEL_TONE } from "@/lib/integration/documents/readiness_tone";
 import { localizedReadinessLabel } from "@/lib/integration/documents/localize_document_intelligence";
 
+/** Phase 49.8: PromotionSummary.confidence -> Badge tone. "confirmed" intentionally has no badge shown in the table (see the confidence column's cell) — only non-confirmed states need a visual flag. */
+const CONFIDENCE_TONE: Record<"confirmed" | "derived" | "incomplete" | "unknown", "good" | "warning" | "serious" | "neutral"> = {
+  confirmed: "good",
+  derived: "warning",
+  incomplete: "warning",
+  unknown: "neutral",
+};
+
 /** Phase 43 B5: photo column is 72px wide (matching the Dashboard table); the sticky name column starts right after it. */
 const PHOTO_COL_PX = 72;
 
@@ -102,6 +119,9 @@ export function CommanderResultsTable({
   // when document filters are already active (the user just asked to see
   // this data by filtering on it).
   const [showDocumentColumns, setShowDocumentColumns] = useState(documentFiltersActive);
+  // Phase 49.8: rank tenure + data confidence — opt-in, mirroring the
+  // training/document toggles exactly (the table is already wide).
+  const [showRankConfidenceColumns, setShowRankConfidenceColumns] = useState(false);
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
@@ -112,6 +132,9 @@ export function CommanderResultsTable({
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setShowDocumentColumns((prev) => !prev)}>
             {showDocumentColumns ? t("commander.hideDocumentColumns") : t("commander.showDocumentColumns")}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowRankConfidenceColumns((prev) => !prev)}>
+            {showRankConfidenceColumns ? t("commander.hideRankConfidenceColumns") : t("commander.showRankConfidenceColumns")}
           </Button>
         </div>
       </CardHeader>
@@ -140,6 +163,13 @@ export function CommanderResultsTable({
                   <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 150 }}>{t("commander.governmentServiceYears")}</th>
                   {showTrainingColumn ? (
                     <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 180 }}>{t("commander.trainingStatus")}</th>
+                  ) : null}
+                  {showRankConfidenceColumns ? (
+                    <>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 160 }}>{t("commander.rankStartYear")}</th>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 130 }}>{t("commander.yearsInRank")}</th>
+                      <th scope="col" className="px-3 py-3 font-medium" style={{ minWidth: 160 }}>{t("commander.dataConfidence")}</th>
+                    </>
                   ) : null}
                   {showDocumentColumns ? (
                     <>
@@ -198,6 +228,17 @@ export function CommanderResultsTable({
                         <td className="px-3 py-3">
                           <Badge tone={TRAINING_STATUS_TONE[officer.trainingIntelligence.trainingStatus]}>{officer.trainingIntelligence.displayStatusTh}</Badge>
                         </td>
+                      ) : null}
+                      {showRankConfidenceColumns ? (
+                        <>
+                          <td className="px-3 py-3 tabular-nums text-muted">{officer.rankStartedAtYearBe != null ? `พ.ศ. ${officer.rankStartedAtYearBe}` : "—"}</td>
+                          <td className="px-3 py-3 text-muted">{officer.yearsInRankCount != null ? `${officer.yearsInRankCount} ปี` : "—"}</td>
+                          <td className="px-3 py-3">
+                            <Badge tone={CONFIDENCE_TONE[promotion.confidence]}>
+                              {promotion.confidence === "confirmed" ? t("commander.confidenceConfirmed") : promotion.confidenceReasonTh ?? t("commander.confidenceIncomplete")}
+                            </Badge>
+                          </td>
+                        </>
                       ) : null}
                       {showDocumentColumns ? (
                         <>

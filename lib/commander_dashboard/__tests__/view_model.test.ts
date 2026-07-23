@@ -112,6 +112,18 @@ test("Unknown promotion data is counted truthfully, never silently folded into a
   assert.equal(counts.EligibleThisYear, 0);
 });
 
+test("Phase 49.8: an officer with unresolved MANDATORY rank-tenure evidence is counted under Unknown, never Waiting/NotEligible/AlreadyEligible — Dashboard promotion counts stay canonical with zero code changes here (classifyStatus routes evidence gaps to Unknown upstream)", () => {
+  const officers = [
+    officer({ officerId: "A", promotionStatus: "Unknown", displayStatusTh: "ไม่สามารถประเมินได้" }),
+    officer({ officerId: "B", promotionStatus: "Waiting" }),
+  ];
+  const counts = countPromotionStatuses(officers);
+  assert.equal(counts.Unknown, 1);
+  assert.equal(counts.Waiting, 1);
+  assert.equal(counts.AlreadyEligible, 0);
+  assert.equal(counts.EligibleThisYear, 0);
+});
+
 test("Unknown-status officers are excluded from the priority candidate list even if priority were somehow set", () => {
   // Per PromotionSummary's contract, priority is null when status is Unknown —
   // this test verifies the list-builder honors null exclusion regardless.
@@ -483,6 +495,22 @@ test("target-qualification label is null when targetPosition is unavailable", ()
   const officers = [officer({ officerId: "A", promotionStatus: "Waiting", priority: 10, targetPosition: null })];
   const candidates = buildPromotionPriorityCandidates(officers);
   assert.equal(candidates[0].displayTargetQualificationTh, null);
+});
+
+test("Phase 49.7 fix: target-qualification label is null for a Waiting officer even when targetPosition IS available — a target level existing is not the same as qualification being complete", () => {
+  // A Waiting officer can still have priority != null (e.g. retirement
+  // proximity raises priority even while blocked on tenure) — this is the
+  // exact scenario that previously leaked "ครบขึ้น {target}" onto an
+  // officer who had not actually reached eligibility.
+  const officers = [officer({ officerId: "A", promotionStatus: "Waiting", priority: 15, targetPosition: "สารวัตร" })];
+  const candidates = buildPromotionPriorityCandidates(officers);
+  assert.equal(candidates[0].displayTargetQualificationTh, null);
+});
+
+test("Phase 49.7 fix: target-qualification label IS shown for EligibleThisYear, not only AlreadyEligible", () => {
+  const officers = [officer({ officerId: "A", promotionStatus: "EligibleThisYear", priority: 60, targetPosition: "สารวัตร" })];
+  const candidates = buildPromotionPriorityCandidates(officers);
+  assert.equal(candidates[0].displayTargetQualificationTh, "ครบขึ้น สารวัตร");
 });
 
 test("'ดำรงตำแหน่งระดับนี้มา' shows the commander-facing YEAR COUNT at the CURRENT position level, not a promotion-cycle count", () => {

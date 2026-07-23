@@ -103,6 +103,22 @@ export type EligibilityStatus =
   | "overdue"
   | "not_eligible";
 
+/**
+ * Phase 49.8: stable, serializable keys naming WHICH canonical evidence is
+ * missing — never long Thai display text (the UI translates these; see
+ * lib/intelligence/promotion/missing_evidence_labels.ts). Reused across
+ * PromotionSummary/DTOs/tool output so every consumer names gaps the same
+ * way. Deliberately closed and small — one key per canonical evidence
+ * source this engine actually depends on, not a generic error-code list.
+ */
+export type MissingEvidenceKey =
+  | "current_rank_start_date"
+  | "current_position_level_start_date"
+  | "promotion_policy"
+  | "training_data"
+  | "document_data"
+  | "retirement_data";
+
 export interface LevelEligibilityResult {
   targetLevel: PositionLevel;
   status: EligibilityStatus;
@@ -117,6 +133,17 @@ export interface LevelEligibilityResult {
   recommendedActions: PromotionNextStep[];
   score: number;
   maxScore: number;
+  /**
+   * Phase 49.8: true when at least one MANDATORY tenure requirement
+   * (position-level or rank) could not be evaluated because its start-date
+   * evidence is missing — distinct from a requirement that WAS evaluated
+   * and found short. When true, `eligibleNow`/`overdueYears`/`status` must
+   * never report a confirmed positive result (see classifyStatus) — the
+   * honest answer is "not assessable," not "not eligible."
+   */
+  evidenceIncomplete: boolean;
+  /** Stable keys for every piece of missing evidence that blocked a full assessment. Empty when evidenceIncomplete is false. */
+  missingEvidence: MissingEvidenceKey[];
 }
 
 /** How far ahead (in months) still counts as "eligible soon" rather than "not eligible". */
@@ -127,9 +154,19 @@ export const ELIGIBLE_SOON_HORIZON_MONTHS = 12;
  * DATA: tune a number here and every consumer's eligibility shifts with no
  * code change. Tenure minimums are placeholders a commander can adjust; the
  * ENGINE never assumes any particular value.
+ *
+ * Phase 49.7: `minYearsInPositionLevel` for รอง สว. → สารวัตร corrected from
+ * 4 to 7 — confirmed by a reported officer whose position-level start date
+ * (1 ก.พ. 2567) and profile were used to trace the exact policy value that
+ * produced an incorrect "already eligible" result 3 years early (should be
+ * eligible in BE 2574, not 2571 — see the regression tests in
+ * lib/intelligence/promotion/__tests__/promotion_intelligence.test.ts and
+ * lib/promotion/__tests__/eligibility_policy.test.ts). Every OTHER level's
+ * minYearsInPositionLevel is UNCHANGED — no other level's rule was reported
+ * or confirmed incorrect, so none was touched (see docs/CHANGELOG.md).
  */
 export const PROMOTION_POLICIES: readonly PromotionPolicy[] = [
-  { targetLevel: "สารวัตร", minYearsInPositionLevel: 4, minYearsInRank: 4 },
+  { targetLevel: "สารวัตร", minYearsInPositionLevel: 7, minYearsInRank: 4 },
   { targetLevel: "รองผู้กำกับการ", minYearsInPositionLevel: 4, minYearsInRank: 4 },
   { targetLevel: "ผู้กำกับการ", minYearsInPositionLevel: 4, minYearsInRank: 4 },
   { targetLevel: "รองผู้บังคับการ", minYearsInPositionLevel: 4, minYearsInRank: 3 },
@@ -220,6 +257,8 @@ export function evaluateLevelEligibility(
       recommendedActions: [],
       score: 0,
       maxScore: 0,
+      evidenceIncomplete: false,
+      missingEvidence: [],
     };
   }
   return evaluateWithPolicy(officer, policy, asOf);
@@ -246,6 +285,8 @@ export function evaluateWithPolicy(
     recommendedActions: [],
     score: 0,
     maxScore: 0,
+    evidenceIncomplete: false,
+    missingEvidence: [],
   };
 
   // The target must be exactly one level above the officer's current level —
@@ -323,10 +364,24 @@ export function evaluateWithPolicy(
       ? Math.max(0, policy.minGovernmentServiceYears - officer.governmentServiceYears)
       : 0;
 
+  // Phase 49.8: a tenure check can fail for two DIFFERENT reasons — a real,
+  // confirmed shortfall (the officer genuinely hasn't held the level/rank
+  // long enough) or missing start-date EVIDENCE (we simply don't know how
+  // long they've held it). Both used to collapse into the same
+  // `tenureBlocked = true` -> "not eligible"/"waiting" result. They are now
+  // tracked separately: `evidenceIncomplete`/`missingEvidence` let
+  // classifyStatus() (lib/intelligence/promotion/index.ts) route an
+  // evidence gap to "Unknown"/"not assessable" instead of a confirmed
+  // negative result, per the same "no fabricated eligibility" principle
+  // Phase 49.7 already applied to eligibleDate.
   let tenureBlocked = false;
+  let evidenceIncomplete = false;
+  const missingEvidence: MissingEvidenceKey[] = [];
   if (policy.minYearsInPositionLevel != null) {
     if (cycle?.appointmentCycle == null) {
       tenureBlocked = true;
+      evidenceIncomplete = true;
+      missingEvidence.push("current_position_level_start_date");
       missing.push({
         code: "MISSING_APPOINTMENT_CYCLE",
         label: "ต้องมีรอบแต่งตั้ง (วาระ) ใน Career Timeline",
@@ -343,14 +398,26 @@ export function evaluateWithPolicy(
       actions.push({ code: "WAIT_LEVEL_CYCLES", label: "รอให้ครบวาระการดำรงระดับตำแหน่ง" });
     }
   }
-  if (policy.minYearsInRank != null && (officer.yearsInRank == null || rankShortfall == null || rankShortfall > 0)) {
-    tenureBlocked = true;
-    missing.push({
-      code: "MIN_YEARS_IN_RANK",
-      label: `ดำรงยศปัจจุบันครบ ${policy.minYearsInRank} ปี`,
-      detail: officer.yearsInRank == null ? "ไม่มีข้อมูล" : `ปัจจุบัน ${officer.yearsInRank} ปี`,
-    });
-    actions.push({ code: "WAIT_RANK_TENURE", label: "รอให้ครบระยะเวลาการดำรงยศ" });
+  if (policy.minYearsInRank != null) {
+    if (officer.yearsInRank == null) {
+      tenureBlocked = true;
+      evidenceIncomplete = true;
+      missingEvidence.push("current_rank_start_date");
+      missing.push({
+        code: "MIN_YEARS_IN_RANK_UNKNOWN",
+        label: `ไม่พบวันที่เริ่มครองยศปัจจุบัน — ไม่สามารถประเมินระยะเวลาดำรงยศครบ ${policy.minYearsInRank} ปี ได้`,
+        detail: "ไม่มีข้อมูล",
+      });
+      actions.push({ code: "ADD_RANK_HISTORY", label: "เพิ่มข้อมูลวันที่เริ่มครองยศใน Career Timeline" });
+    } else if (rankShortfall != null && rankShortfall > 0) {
+      tenureBlocked = true;
+      missing.push({
+        code: "MIN_YEARS_IN_RANK",
+        label: `ดำรงยศปัจจุบันครบ ${policy.minYearsInRank} ปี`,
+        detail: `ปัจจุบัน ${officer.yearsInRank} ปี`,
+      });
+      actions.push({ code: "WAIT_RANK_TENURE", label: "รอให้ครบระยะเวลาการดำรงยศ" });
+    }
   }
   if (serviceShortfallYears > 0) {
     tenureBlocked = true;
@@ -383,7 +450,14 @@ export function evaluateWithPolicy(
 
   // Overdue: eligible now AND has held the current level beyond the required
   // minimum by ≥ 1 full year (they've been promotable but not advanced).
-  const overdueYears = cycle && cycle.overdueCycles > 0 ? cycle.overdueCycles : 0;
+  // Phase 49.8 fix: this previously read `cycle.overdueCycles` unconditionally
+  // — the position-level appointment-cycle engine has no knowledge of OTHER
+  // blockers (rank tenure, missing evidence, training/documents), so an
+  // officer blocked by a real rank shortfall or missing rank-start evidence
+  // could still show a non-zero overdueYears purely from the position-level
+  // cycle math, contradicting eligibleNow: false. overdueYears must never be
+  // positive unless the officer is ACTUALLY eligible now.
+  const overdueYears = eligibleNow && cycle && cycle.overdueCycles > 0 ? cycle.overdueCycles : 0;
 
   let status: EligibilityStatus;
   if (eligibleNow) {
@@ -405,6 +479,8 @@ export function evaluateWithPolicy(
     recommendedActions: actions,
     score: engineResult?.score ?? 0,
     maxScore: engineResult?.maxScore ?? 0,
+    evidenceIncomplete,
+    missingEvidence,
   };
 }
 

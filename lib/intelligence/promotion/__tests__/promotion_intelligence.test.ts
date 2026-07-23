@@ -44,14 +44,15 @@ function baseOfficer(overrides: Partial<EligibilityOfficer> = {}): EligibilityOf
   };
 }
 
-// สารวัตร policy: minYearsInPositionLevel: 4, minYearsInRank: 4 (from
-// lib/promotion/eligibility_policy.ts's PROMOTION_POLICIES). appointmentCycle
-// is a Buddhist-Era year; asOf 2569 BE = 2026 CE.
+// สารวัตร policy: minYearsInPositionLevel: 7 (Phase 49.7 fix — was 4),
+// minYearsInRank: 4 (from lib/promotion/eligibility_policy.ts's
+// PROMOTION_POLICIES). appointmentCycle is a Buddhist-Era year; asOf 2569
+// BE = 2026 CE.
 const ASOF_2026 = utcDate(2026, 7, 17); // currentPromotionCycle = 2569 BE (year, no fiscal-year offset per lib/promotion_cycle/engine.ts).
 
-test("eligible today: appointmentCycle 4 cycles ago, exactly eligibleNow this cycle", () => {
-  // appointmentCycle 2565 + requiredCycles 4 = eligibleCycle 2569 = currentCycle 2569 -> eligible this cycle.
-  const officer = baseOfficer({ appointmentCycle: 2565, yearsInRank: 4, yearsInPositionLevel: 4 });
+test("eligible today: appointmentCycle 7 cycles ago, exactly eligibleNow this cycle", () => {
+  // appointmentCycle 2562 + requiredCycles 7 = eligibleCycle 2569 = currentCycle 2569 -> eligible this cycle.
+  const officer = baseOfficer({ appointmentCycle: 2562, yearsInRank: 7, yearsInPositionLevel: 7 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
   assert.equal(summary.available, true);
   assert.equal(summary.eligibleNow, true);
@@ -61,15 +62,15 @@ test("eligible today: appointmentCycle 4 cycles ago, exactly eligibleNow this cy
 });
 
 test("eligible this year (EligibleThisYear) matches the current fiscal year exactly", () => {
-  const officer = baseOfficer({ appointmentCycle: 2565, yearsInRank: 4, yearsInPositionLevel: 4 });
+  const officer = baseOfficer({ appointmentCycle: 2562, yearsInRank: 7, yearsInPositionLevel: 7 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
   assert.equal(summary.promotionStatus, "EligibleThisYear");
   assert.equal(summary.displayStatusTh, PROMOTION_STATUS_DISPLAY_TH.EligibleThisYear);
 });
 
 test("already eligible: eligible in a PRIOR fiscal year, still waiting (AlreadyEligible)", () => {
-  // appointmentCycle 2560 + 4 = eligibleCycle 2564; currentCycle 2569 -> overdueCycles = 2569-2564+1 = 6, eligible long ago.
-  const officer = baseOfficer({ appointmentCycle: 2560, yearsInRank: 6, yearsInPositionLevel: 9 });
+  // appointmentCycle 2557 + 7 = eligibleCycle 2564; currentCycle 2569 -> overdueCycles = 2569-2564+1 = 6, eligible long ago.
+  const officer = baseOfficer({ appointmentCycle: 2557, yearsInRank: 6, yearsInPositionLevel: 12 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
   assert.equal(summary.eligibleNow, true);
   assert.equal(summary.promotionStatus, "AlreadyEligible");
@@ -130,13 +131,13 @@ test("no data: missing appointmentCycle on an otherwise-known level -> not eligi
 });
 
 test("boundary date: appointmentCycle exactly requiredCycles years ago is eligible THIS cycle", () => {
-  // appointmentCycle 2565 + 4 = 2569 = currentCycle exactly -> this is the boundary.
+  // appointmentCycle 2562 + 7 = 2569 = currentCycle exactly -> this is the boundary.
   // lib/promotion_cycle/engine.ts's overdueCycles is defined as
   // (currentCycle - eligibleCycle + 1) once eligible, so the FIRST eligible
   // cycle itself already reports overdueCycles = 1 ("this is cycle #1 of
   // being eligible") — eligibility_policy.ts only escalates status to
   // "overdue" once overdueCycles > 1, so status here is still EligibleThisYear.
-  const officer = baseOfficer({ appointmentCycle: 2565, yearsInRank: 4, yearsInPositionLevel: 4 });
+  const officer = baseOfficer({ appointmentCycle: 2562, yearsInRank: 7, yearsInPositionLevel: 7 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
   assert.equal(summary.eligibleNow, true);
   assert.equal(summary.overdueYears, 1);
@@ -153,15 +154,15 @@ test("boundary date: appointmentCycle one cycle short of requiredCycles is NOT y
 });
 
 test("eligible date is the FIRST historical date, not today or the current year — anchored to 1 Jan of the eligible Gregorian year", () => {
-  const officer = baseOfficer({ appointmentCycle: 2560, yearsInRank: 10, yearsInPositionLevel: 10 });
+  const officer = baseOfficer({ appointmentCycle: 2557, yearsInRank: 10, yearsInPositionLevel: 12 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
-  // eligibleCycle = 2560 + 4 = 2564 BE -> Gregorian 2021 -> 2021-01-01.
+  // eligibleCycle = 2557 + 7 = 2564 BE -> Gregorian 2021 -> 2021-01-01.
   assert.equal(summary.eligibleDate, "2021-01-01");
   assert.equal(summary.eligibleFiscalYearBe, 2564);
 });
 
 test("years/months/days eligible are exact — never decimal — and match the elapsed calendar duration from eligibleDate to asOf", () => {
-  const officer = baseOfficer({ appointmentCycle: 2560, yearsInRank: 10, yearsInPositionLevel: 10 });
+  const officer = baseOfficer({ appointmentCycle: 2557, yearsInRank: 10, yearsInPositionLevel: 12 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
   // eligibleDate 2021-01-01 -> asOf 2026-07-17 is exactly 5 years, 6 months, 16 days.
   assert.equal(summary.yearsEligible, 5);
@@ -212,23 +213,23 @@ test("top-of-scope level (no next level configured) reports Unknown, not a crash
 });
 
 test("commander-ready: who became eligible this year — filterable via promotionStatus === EligibleThisYear", () => {
-  const thisYear = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2565, yearsInRank: 4, yearsInPositionLevel: 4 }), ASOF_2026);
-  const longAgo = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2555, yearsInRank: 14, yearsInPositionLevel: 14 }), ASOF_2026);
+  const thisYear = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2562, yearsInRank: 7, yearsInPositionLevel: 7 }), ASOF_2026);
+  const longAgo = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2552, yearsInRank: 17, yearsInPositionLevel: 17 }), ASOF_2026);
   assert.equal(thisYear.promotionStatus, "EligibleThisYear");
   assert.equal(longAgo.promotionStatus, "AlreadyEligible");
 });
 
 test("commander-ready: who has waited longest — sortable via yearsEligible", () => {
-  const waitedLess = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2563, yearsInRank: 6, yearsInPositionLevel: 6 }), ASOF_2026);
-  const waitedMore = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2555, yearsInRank: 14, yearsInPositionLevel: 14 }), ASOF_2026);
+  const waitedLess = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2560, yearsInRank: 9, yearsInPositionLevel: 9 }), ASOF_2026);
+  const waitedMore = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2552, yearsInRank: 17, yearsInPositionLevel: 17 }), ASOF_2026);
   assert.ok((waitedMore.yearsEligible ?? 0) > (waitedLess.yearsEligible ?? 0));
 });
 
 test("commander-ready: who should be prioritized first — sortable via priority", () => {
-  const lowUrgency = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2565, yearsInRank: 4, yearsInPositionLevel: 4, retirementRemainingMonths: 240 }), ASOF_2026);
+  const lowUrgency = computePromotionSummary(baseCard(), baseOfficer({ appointmentCycle: 2562, yearsInRank: 7, yearsInPositionLevel: 7, retirementRemainingMonths: 240 }), ASOF_2026);
   const highUrgency = computePromotionSummary(
     baseCard(),
-    baseOfficer({ appointmentCycle: 2555, yearsInRank: 14, yearsInPositionLevel: 14, retirementRemainingMonths: 3 }),
+    baseOfficer({ appointmentCycle: 2552, yearsInRank: 17, yearsInPositionLevel: 17, retirementRemainingMonths: 3 }),
     ASOF_2026
   );
   assert.ok((highUrgency.priority ?? 0) > (lowUrgency.priority ?? 0));

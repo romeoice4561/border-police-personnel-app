@@ -16,6 +16,7 @@
 
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
 import type { TrainingSummary } from "@/lib/intelligence/training/types";
+import type { MissingEvidenceKey } from "@/lib/promotion/eligibility_policy";
 
 export interface OfficerIntelligenceViewModel {
   /** ISO timestamp this view model was composed. */
@@ -56,12 +57,19 @@ export interface OfficerIntelligenceViewModel {
   promotion: {
     available: boolean;
     targetPositionTh: string | null;
+    /** "ครบขึ้น {target}" — set ONLY when the officer is ALREADY eligible (promotion.eligibleNow). Null while waiting, blocked, or Unknown — a target level being computable is NOT the same as qualification being complete (Phase 49.7 fix: this previously fired whenever a target level existed, regardless of eligibility). Never render this as a generic "target exists" badge. */
     qualificationTextTh: string | null;
     /** Raw status enum — for badge-tone lookup only (PROMOTION_STATUS_TONE); never rendered directly as text. */
     status: PromotionEligibilityStatus;
     displayStatusTh: string | null;
+    /** Buddhist-Era fiscal year the officer FIRST qualifies for their next level — PROJECTED, computed even before the officer reaches it (PromotionSummary.firstEligibleFiscalYearBe). Null only when the projection is not computable (Unknown level, no policy, no appointmentCycle evidence). */
     firstEligibleYearBe: number | null;
+    /** ISO date matching firstEligibleYearBe — projected, same precision-limit rationale as PromotionSummary.firstEligibleDate (anchored to 1 January of the eligible Gregorian year). */
     firstEligibleDate: string | null;
+    /** PROMOTION_POLICIES.minYearsInPositionLevel for the target level — from PromotionSummary.requiredTenureYears, never recomputed. Null when no policy is configured. */
+    requiredTenureYears: number | null;
+    /** "ดำรงระดับตำแหน่งปัจจุบันครบ N วาระ" — from PromotionSummary.waitingReasonTh, the engine's own missing-requirement label. Null when already eligible or blocked by something else. */
+    waitingReasonTh: string | null;
     /** Whole promotion opportunities already missed since first becoming eligible — same "รอการแต่งตั้งมาแล้ว" semantics as Commander Search (overdueYears - 1, floored at 0). */
     waitingYears: number | null;
     /** Which numbered eligibility year THIS fiscal year is — bare number from PromotionSummary.overdueYears, never calculated from today's date. */
@@ -71,6 +79,18 @@ export interface OfficerIntelligenceViewModel {
     promotionCyclesPassed: number | null;
     /** Thai descriptions of unmet requirements (training/documents), when any. */
     blockers: string[];
+
+    /** Buddhist-Era year the officer started their CURRENT rank ("เริ่มครองยศปัจจุบัน") — CommanderQueryOfficer.rankStartedAtYearBe, never recomputed. Null when no Timeline row's rank exactly matches the current rank. */
+    currentRankStartedAtYearBe: number | null;
+    /** Whole-year commander-facing YEAR COUNT at the current rank ("อายุในยศ") — CommanderQueryOfficer.yearsInRankCount. Null when currentRankStartedAtYearBe is unavailable — never a fabricated 0. */
+    yearsInCurrentRank: number | null;
+
+    /** Deterministic, non-AI confidence classification — see PromotionSummary.confidence's doc comment for the full meaning of each value. */
+    confidence: "confirmed" | "derived" | "incomplete" | "unknown";
+    /** Thai sentence explaining `confidence` when not "confirmed" — from PromotionSummary.confidenceReasonTh. Null when confidence is "confirmed". */
+    confidenceReasonTh: string | null;
+    /** Stable keys naming every piece of missing evidence — from PromotionSummary.missingEvidence. Empty when confidence is "confirmed". */
+    missingEvidence: MissingEvidenceKey[];
   };
 
   retirement: {

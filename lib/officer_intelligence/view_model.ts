@@ -167,11 +167,41 @@ export function composeOfficerIntelligenceViewModel(
     promotion: {
       available: promotion.available,
       targetPositionTh: promotion.targetPosition,
-      qualificationTextTh: promotion.targetPosition ? `ครบขึ้น ${promotion.targetPosition}` : null,
+      // Phase 49.7 fix: this NO LONGER unconditionally reads "ครบขึ้น
+      // {target}" whenever a target level exists — that text asserted
+      // qualification was already complete merely because a next level was
+      // computable, regardless of eligibleNow (the exact root cause of the
+      // reported "ครบขึ้น สารวัตร" defect). It now mirrors the canonical
+      // PromotionSummary.eligibleNow: only an ALREADY-eligible officer gets
+      // the "ครบขึ้น" phrasing; otherwise this is null and the UI must use
+      // displayStatusTh + waitingReasonTh + firstEligibleYearBe instead (see
+      // OfficerPromotionIntelligenceCard's structured, non-JSX-calculated
+      // display).
+      qualificationTextTh: promotion.eligibleNow && promotion.targetPosition ? `ครบขึ้น ${promotion.targetPosition}` : null,
       status: promotion.promotionStatus,
       displayStatusTh: promotion.displayStatusTh ?? PROMOTION_STATUS_DISPLAY_TH[promotion.promotionStatus] ?? null,
-      firstEligibleYearBe: promotion.eligibleFiscalYearBe,
-      firstEligibleDate: promotion.eligibleDate,
+      // Phase 49.7 fix: firstEligibleYearBe/firstEligibleDate now read the
+      // PROJECTED field (PromotionSummary.firstEligibleFiscalYearBe /
+      // firstEligibleDate), which is computable even before the officer
+      // reaches eligibility — the historical-only eligibleFiscalYearBe/
+      // eligibleDate fields stayed null pre-eligibility, which is why the
+      // Officer Profile could never show "ครบคุณสมบัติครั้งแรก: พ.ศ. 2574"
+      // for an officer who has not yet qualified.
+      firstEligibleYearBe: promotion.firstEligibleFiscalYearBe,
+      firstEligibleDate: promotion.firstEligibleDate,
+      requiredTenureYears: promotion.requiredTenureYears,
+      waitingReasonTh: promotion.waitingReasonTh,
+      // Phase 49.8: rank tenure — same query_officer.ts-computed fields the
+      // Commander read model already carries (rankStartedAtYearBe/
+      // yearsInRankCount), never recalculated here.
+      currentRankStartedAtYearBe: queryOfficer.rankStartedAtYearBe,
+      yearsInCurrentRank: queryOfficer.yearsInRankCount,
+      // Phase 49.8: deterministic, non-AI confidence classification — read
+      // directly from PromotionSummary.confidence/confidenceReasonTh/
+      // missingEvidence, never recomputed.
+      confidence: promotion.confidence,
+      confidenceReasonTh: promotion.confidenceReasonTh,
+      missingEvidence: promotion.missingEvidence,
       waitingYears: missedOpportunities,
       eligibilityYearNumber: promotion.overdueYears && promotion.overdueYears > 0 ? promotion.overdueYears : null,
       yearsInCurrentLevel: queryOfficer.positionLevelYearCount,

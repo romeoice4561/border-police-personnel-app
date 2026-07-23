@@ -20,6 +20,7 @@ import type { OfficerFlagCode, OfficerPriority } from "@/lib/intelligence/types"
 import type { PromotionEligibilityStatus } from "@/lib/intelligence/shared/types";
 import type { TrainingStatus } from "@/lib/intelligence/training/types";
 import { parseCommanderDocumentFilters } from "@/lib/integration/navigation/drilldown_contract";
+import { RANKED_POSITION_LEVELS } from "@/lib/commander_query/position_level";
 
 const PROMOTION_ELIGIBILITY_STATUSES: readonly PromotionEligibilityStatus[] = [
   "EligibleThisYear",
@@ -100,6 +101,47 @@ export function filtersFromSearchParams(params: Record<string, string | string[]
   const priority = params.priority;
   if (typeof priority === "string" && (OFFICER_PRIORITIES as readonly string[]).includes(priority)) {
     filters.priority = priority as OfficerPriority;
+  }
+
+  // Phase 49.7: canonical current/target position-level drill-down params —
+  // named unambiguously (not "fromPositionLevel", which read as "transition
+  // source" rather than "current level" to a caller unfamiliar with the
+  // promotion-search filter panel's internal field names). Maps onto the
+  // SAME filter fields the manual UI dropdowns already set (`positionLevel`
+  // for current level, `toPositionLevel` for target) — no new filter-
+  // matching logic, no duplicate predicate. Only real, non-Unknown
+  // POSITION_LEVELS values are accepted; anything else is silently ignored
+  // (never a confusing partial/garbage filter).
+  const currentPositionLevel = params.currentPositionLevel;
+  if (typeof currentPositionLevel === "string" && (RANKED_POSITION_LEVELS as readonly string[]).includes(currentPositionLevel)) {
+    filters.positionLevel = currentPositionLevel;
+  }
+
+  const targetPositionLevel = params.targetPositionLevel;
+  if (typeof targetPositionLevel === "string" && (RANKED_POSITION_LEVELS as readonly string[]).includes(targetPositionLevel)) {
+    filters.toPositionLevel = targetPositionLevel;
+  }
+
+  // Phase 49.7: exact-Buddhist-year promotion drill-downs — canonical
+  // fields only (CommanderQueryOfficer.positionLevelStartYearBe /
+  // promotionIntelligence.firstEligibleFiscalYearBe), parsed as a plain
+  // positive integer. A non-numeric or malformed value is ignored rather
+  // than coerced to NaN/0 (which would silently match nothing or the wrong
+  // rows).
+  const positionLevelStartYearBe = params.positionLevelStartYearBe;
+  if (typeof positionLevelStartYearBe === "string" && /^\d+$/.test(positionLevelStartYearBe)) {
+    filters.positionLevelStartYearBe = Number(positionLevelStartYearBe);
+  }
+
+  const firstEligibleYearBe = params.firstEligibleYearBe;
+  if (typeof firstEligibleYearBe === "string" && /^\d+$/.test(firstEligibleYearBe)) {
+    filters.firstEligibleYearBe = Number(firstEligibleYearBe);
+  }
+
+  // Phase 49.8: promotion data-quality drill-down — canonical field only.
+  const promotionDataQuality = params.promotionDataQuality;
+  if (promotionDataQuality === "assessable" || promotionDataQuality === "not-assessable") {
+    filters.promotionDataQuality = promotionDataQuality;
   }
 
   return filters;

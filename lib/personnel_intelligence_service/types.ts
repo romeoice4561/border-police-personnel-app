@@ -139,6 +139,33 @@ export interface OfficerIntelligenceDetailDto extends OfficerIntelligenceSummary
   flagCodes: string[];
   recommendedActionsTh: string[];
   birthdayIso: string | null;
+  /**
+   * Phase 49.7: canonical promotion ground-truth fields — read directly
+   * from CommanderQueryOfficer.promotionIntelligence (PromotionSummary),
+   * never recomputed. `firstEligibleYearBe`/`firstEligibleDate` are the
+   * PROJECTED first-eligible year/date (computable even before the officer
+   * reaches eligibility — distinct from the historical-only eligibleDate
+   * the tool never exposed before this phase).
+   */
+  targetPositionLevel: string | null;
+  currentPositionLevelStartYearBe: number | null;
+  requiredTenureYears: number | null;
+  firstEligibleYearBe: number | null;
+  firstEligibleDate: string | null;
+  waitingReasonTh: string | null;
+  /**
+   * Phase 49.8: canonical rank-tenure + data-confidence fields — read
+   * directly from CommanderQueryOfficer.rankStartedAtYearBe/yearsInRankCount
+   * and PromotionSummary.confidence/confidenceReasonTh/missingEvidence,
+   * never recomputed. `confidence`/`missingEvidence` let a tool consumer
+   * distinguish "genuinely not eligible" from "cannot assess due to missing
+   * evidence" — see lib/promotion/eligibility_policy.ts's MissingEvidenceKey.
+   */
+  currentRankStartedAtYearBe: number | null;
+  yearsInRank: number | null;
+  promotionConfidence: "confirmed" | "derived" | "incomplete" | "unknown";
+  promotionConfidenceReasonTh: string | null;
+  promotionMissingEvidence: string[];
 }
 
 export interface PromotionSummaryDto {
