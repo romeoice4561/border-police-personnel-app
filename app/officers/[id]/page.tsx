@@ -14,9 +14,7 @@
  * fetch after a successful save.
  */
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getOfficerProfile, getSkillCatalog } from "@/lib/server/officer_service";
 import { getKnownUnits } from "@/lib/server/unit_service";
 import { loadOrganizationEngine } from "@/lib/organization/organization_engine_server";
@@ -27,7 +25,7 @@ import { redactOfficerForClient } from "@/lib/officer_profile/officer_financial_
 import { composeOfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
-import { Button } from "@/components/ui/button";
+import { OfficersBackLink } from "@/components/officer/officers_back_link";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -79,12 +77,7 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/officers">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to officers
-        </Link>
-      </Button>
+      <OfficersBackLink />
 
       {/* OrganizationEngine is a class instance and cannot cross the Server
           -> Client Component boundary (RSC only serializes plain objects).

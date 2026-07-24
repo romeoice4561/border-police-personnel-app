@@ -15,7 +15,7 @@
 
 import type { ResolvedOfficerPortrait } from "@/lib/server/officer_portrait_service";
 import type { OfficerIntelligenceViewModel } from "@/lib/officer_intelligence/types";
-import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
+import { buildPromotionPresentation } from "@/lib/officer_intelligence/promotion_presentation";
 import { formatOfficerInformalIdentity } from "@/lib/officer_profile/informal_identity";
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import type { Timeline } from "@/lib/database/query_types";
@@ -84,9 +84,11 @@ export function OfficerIntelligenceHeader({
   currentTimelineRow: Timeline | null;
   onPortraitChanged?: () => void;
 }) {
-  const { identity, age, service, retirement, promotion } = viewModel;
+  const { identity, age, service, retirement } = viewModel;
   // Hero stays Thai-primary (same convention as nearby KPI labels); formatter supports EN for tests/dictionary use.
   const informalIdentity = formatOfficerInformalIdentity({ nickname, academyClass }, "th");
+  // Same presentation object as OfficerPromotionIntelligenceCard — no arithmetic here.
+  const promotionPresentation = buildPromotionPresentation(viewModel);
 
   return (
     <header className="rounded-2xl border border-border bg-surface p-4">
@@ -141,21 +143,17 @@ export function OfficerIntelligenceHeader({
         </div>
       </div>
 
-      {/* KPI summary grid — Task 3: อายุปัจจุบัน, อายุราชการ, ปีเกษียณอายุราชการ, ดำรงตำแหน่งระดับนี้มา, คุณสมบัติ, สถานะ. */}
+      {/* KPI summary grid — age/service/retirement + promotion presentation (Phase 49.12). */}
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-3 xl:grid-cols-6">
         <KpiCell label="อายุปัจจุบัน" value={age.available ? age.displayAgeTh : null} />
         <KpiCell label="อายุราชการ" value={service.available ? service.displayServiceDurationTh : null} />
         <KpiCell label="ปีเกษียณอายุราชการ" value={retirement.available ? `พ.ศ. ${retirement.retirementYearBe}` : null} />
-        <KpiCell label="ดำรงตำแหน่งระดับนี้มา" value={service.yearsInCurrentPositionLevel != null ? `${service.yearsInCurrentPositionLevel} ปี` : null} />
-        <KpiCell label="คุณสมบัติ" value={promotion.available ? promotion.qualificationTextTh : null} />
+        <KpiCell label="ดำรงระดับนี้มา" value={promotionPresentation.headerTenureLabelTh} />
+        <KpiCell label="คุณสมบัติ" value={promotionPresentation.headerQualificationTh} />
         <div className="min-w-0">
           <dt className="text-[11px] uppercase tracking-wide text-muted">สถานะ</dt>
           <dd className="mt-0.5">
-            {promotion.available && promotion.displayStatusTh ? (
-              <Badge tone={PROMOTION_STATUS_TONE[promotion.status]}>{promotion.displayStatusTh}</Badge>
-            ) : (
-              <span className="text-sm text-muted">{UNAVAILABLE}</span>
-            )}
+            <Badge tone={promotionPresentation.headerStatusTone}>{promotionPresentation.headerStatusLabelTh}</Badge>
           </dd>
         </div>
       </dl>

@@ -33,6 +33,7 @@ import { PortraitHistoryPanel } from "@/components/officer/portrait_history_pane
 import { PhotoModal } from "@/components/officer/photo_modal";
 import { PortraitCropDialog, type CroppedPortraitResult } from "@/components/officer/portrait_crop_dialog";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/i18n/language_provider";
 import type { PortraitSource } from "@/lib/server/officer_portrait_service";
 import {
   ALLOWED_PORTRAIT_MIME,
@@ -61,6 +62,7 @@ const ACCEPT = Object.keys(ALLOWED_PORTRAIT_MIME).join(",");
 
 export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, webViewUrl, source, onChanged }: PortraitManagerProps) {
   const router = useRouter();
+  const { t } = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickedSource, setPickedSource] = useState<{ file: File; url: string; mimeType: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +71,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const hasPortrait = Boolean(thumbnailUrl);
+  const uploadLabel = hasPortrait ? t("officer.replacePortrait") : t("officer.uploadPortrait");
 
   // Release the object URL when the crop source changes/unmounts.
   useEffect(() => {
@@ -186,28 +189,28 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
           size="sm"
           disabled={busy}
           onClick={() => fileInputRef.current?.click()}
-          aria-label={hasPortrait ? "Replace portrait" : "Upload portrait"}
+          aria-label={uploadLabel}
         >
           {hasPortrait ? <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
-          {hasPortrait ? "Replace Portrait" : "Upload Portrait"}
+          {uploadLabel}
         </Button>
 
         {hasPortrait ? (
           <>
             <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setPreviewFull(true)}>
               <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Preview Full Size
+              {t("officer.previewFullSize")}
             </Button>
             <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={onRemove}>
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
-              Remove Portrait
+              {t("officer.removePortrait")}
             </Button>
           </>
         ) : null}
 
         <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setHistoryOpen(true)}>
           <History className="h-3.5 w-3.5" aria-hidden="true" />
-          History
+          {t("officer.portraitHistory")}
         </Button>
       </div>
 
