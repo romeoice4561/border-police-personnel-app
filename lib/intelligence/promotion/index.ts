@@ -50,9 +50,9 @@ function fiscalYearBeForDate(date: Date): number {
  * lib/promotion_cycle/display.ts ("ครบคุณสมบัติ", "ครบขึ้น...", "รอบแต่งตั้ง").
  */
 export const PROMOTION_STATUS_DISPLAY_TH: Record<PromotionEligibilityStatus, string> = {
-  EligibleThisYear: "ครบคุณสมบัติปีนี้",
+  EligibleThisYear: "ครบคุณสมบัติในปีนี้",
   AlreadyEligible: "มีคุณสมบัติครบมาแล้ว",
-  Waiting: "รอครบคุณสมบัติ",
+  Waiting: "ยังไม่ครบคุณสมบัติ",
   MissingTraining: "ขาดคุณสมบัติด้านการฝึกอบรม",
   MissingDocuments: "ขาดเอกสารประกอบการพิจารณา",
   RetirementRestricted: "ใกล้เกษียณอายุราชการ",
@@ -195,15 +195,105 @@ function computeConfidence(level: LevelEligibilityResult | null): {
 }
 
 /**
- * Phase 49.7: "ดำรงระดับตำแหน่งปัจจุบันครบ N วาระ" — the tenure-shortfall
- * missing-requirement label the engine already computed (MIN_CYCLES_IN_LEVEL,
- * lib/promotion/eligibility_policy.ts), reused verbatim. Null when the
- * officer is already eligible or blocked by something else.
+ * Phase 49.7/49.10: tenure-shortfall label from MIN_CYCLES_IN_LEVEL (now
+ * year-based, no "วาระ"). Null when already eligible or blocked by something else.
  */
 function computeWaitingReasonTh(level: LevelEligibilityResult | null): string | null {
   if (!level || level.eligibleNow) return null;
   const tenureBlocker = level.missingRequirements.find((requirement) => requirement.code === "MIN_CYCLES_IN_LEVEL");
   return tenureBlocker?.label ?? null;
+}
+
+function calendarYearBeFromDate(date: Date): number {
+  return toBuddhistEraYear(date.getUTCFullYear());
+}
+
+function yearsHeldApprox(eligibilityOfficer: EligibilityOfficer, requiredTenureYears: number | null): number | null {
+  if (eligibilityOfficer.yearsInPositionLevel != null) {
+    return Math.max(0, Math.floor(eligibilityOfficer.yearsInPositionLevel));
+  }
+  if (eligibilityOfficer.appointmentCycle != null && requiredTenureYears != null) {
+    // Fall back: years since appointment cycle toward the requirement, floored.
+    return null;
+  }
+  return null;
+}
+
+function computeRemainingTenureYears(
+  eligibleNow: boolean,
+  monthsUntilEligible: number | null,
+  evidenceIncomplete: boolean
+): number | null {
+  if (evidenceIncomplete) return null;
+  if (eligibleNow) return 0;
+  if (monthsUntilEligible == null) return null;
+  return Math.max(0, Math.ceil(monthsUntilEligible / 12));
+}
+
+function computeDisplayRemainingTenureTh(
+  status: PromotionEligibilityStatus,
+  remainingTenureYears: number | null,
+  eligibleNow: boolean
+): string | null {
+  if (status === "Unknown") return "ประเมินไม่ได้";
+  if (eligibleNow) return "ครบเกณฑ์แล้ว";
+  if (remainingTenureYears == null) return null;
+  if (remainingTenureYears <= 0) return "ครบเกณฑ์แล้ว";
+  return `ประมาณ ${remainingTenureYears} ปี`;
+}
+
+/**
+ * Phase 49.10: clear commander-facing reason (never uses "วาระ").
+ */
+function computeDisplayReasonTh(input: {
+  status: PromotionEligibilityStatus;
+  eligibleNow: boolean;
+  currentLevel: string | null;
+  targetLevel: string | null;
+  requiredTenureYears: number | null;
+  firstEligibleYearBe: number | null;
+  overdueYears: number | null;
+  remainingTenureYears: number | null;
+  yearsHeld: number | null;
+  confidenceReasonTh: string | null;
+  waitingReasonTh: string | null;
+}): string | null {
+  const {
+    status,
+    eligibleNow,
+    currentLevel,
+    targetLevel,
+    requiredTenureYears,
+    firstEligibleYearBe,
+    overdueYears,
+    remainingTenureYears,
+    yearsHeld,
+    confidenceReasonTh,
+    waitingReasonTh,
+  } = input;
+
+  if (status === "Unknown") return confidenceReasonTh;
+
+  if (eligibleNow && overdueYears != null && overdueYears > 0 && firstEligibleYearBe != null) {
+    return `ครบคุณสมบัติตั้งแต่ พ.ศ. ${firstEligibleYearBe} และรอการพิจารณามาแล้ว ${overdueYears} ปี`;
+  }
+
+  if (eligibleNow && requiredTenureYears != null && currentLevel && targetLevel && firstEligibleYearBe != null) {
+    return `ดำรงระดับ${currentLevel}ครบเกณฑ์ ${requiredTenureYears} ปีแล้ว มีคุณสมบัติด้านระยะเวลาสำหรับการพิจารณาเลื่อนเป็น${targetLevel}ใน พ.ศ. ${firstEligibleYearBe}`;
+  }
+
+  if (
+    !eligibleNow &&
+    requiredTenureYears != null &&
+    currentLevel &&
+    yearsHeld != null &&
+    remainingTenureYears != null &&
+    remainingTenureYears > 0
+  ) {
+    return `ดำรงระดับ${currentLevel}มาแล้ว ${yearsHeld} ปี จากเกณฑ์ ${requiredTenureYears} ปี เหลืออีกประมาณ ${remainingTenureYears} ปี`;
+  }
+
+  return waitingReasonTh ?? confidenceReasonTh;
 }
 
 /**
@@ -293,6 +383,7 @@ export function computePromotionSummary(
   const eligibleDate = computeEligibleDate(level);
   const eligibleFiscalYearBe = eligibleDate ? fiscalYearBeForDate(eligibleDate) : null;
   const firstEligibleDate = computeFirstEligibleDate(level);
+  const firstEligibleYearBe = firstEligibleDate ? calendarYearBeFromDate(firstEligibleDate) : null;
   const firstEligibleFiscalYearBe = firstEligibleDate ? fiscalYearBeForDate(firstEligibleDate) : null;
 
   const durationResult = computeExactDuration(eligibleDate, asOf, "MISSING_SERVICE_START_DATE");
@@ -310,6 +401,28 @@ export function computePromotionSummary(
   const waitingReasonTh = computeWaitingReasonTh(level);
   const { confidence, confidenceReasonTh, missingEvidence } = computeConfidence(level);
 
+  const eligibleNow = level?.eligibleNow ?? card.promotionResult?.eligible ?? false;
+  const remainingTenureYears = computeRemainingTenureYears(
+    eligibleNow,
+    level?.monthsUntilEligible ?? null,
+    level?.evidenceIncomplete ?? false
+  );
+  const displayRemainingTenureTh = computeDisplayRemainingTenureTh(promotionStatus, remainingTenureYears, eligibleNow);
+  const yearsHeld = yearsHeldApprox(eligibilityOfficer, requiredTenureYears);
+  const displayReasonTh = computeDisplayReasonTh({
+    status: promotionStatus,
+    eligibleNow,
+    currentLevel: currentLevel === UNKNOWN_POSITION_LEVEL ? null : currentLevel,
+    targetLevel: level?.targetLevel ?? target ?? null,
+    requiredTenureYears,
+    firstEligibleYearBe,
+    overdueYears: level?.overdueYears ?? null,
+    remainingTenureYears,
+    yearsHeld,
+    confidenceReasonTh,
+    waitingReasonTh,
+  });
+
   const { priority, priorityReason } = computePromotionPriority(
     promotionStatus,
     yearsEligibleWhole,
@@ -322,7 +435,7 @@ export function computePromotionSummary(
   return {
     // Phase 40A compatibility — unchanged meaning, now actually computed.
     status: card.promotionStatus,
-    eligibleNow: level?.eligibleNow ?? card.promotionResult?.eligible ?? false,
+    eligibleNow,
     monthsUntilEligible: level?.monthsUntilEligible ?? null,
     overdueYears: level?.overdueYears ?? null,
     eligibleYearOrdinal: level != null && level.eligibleYearOrdinal > 0 ? level.eligibleYearOrdinal : null,
@@ -340,6 +453,7 @@ export function computePromotionSummary(
     eligibleDate: eligibleDate ? eligibleDate.toISOString().slice(0, 10) : null,
     eligibleFiscalYearBe,
     firstEligibleDate: firstEligibleDate ? firstEligibleDate.toISOString().slice(0, 10) : null,
+    firstEligibleYearBe,
     firstEligibleFiscalYearBe,
 
     yearsEligible: yearsEligibleWhole,
@@ -356,6 +470,9 @@ export function computePromotionSummary(
           : "")
       : null,
     displayStatusTh: PROMOTION_STATUS_DISPLAY_TH[promotionStatus],
+    displayReasonTh,
+    remainingTenureYears,
+    displayRemainingTenureTh,
 
     requiredTenureYears,
     waitingReasonTh,

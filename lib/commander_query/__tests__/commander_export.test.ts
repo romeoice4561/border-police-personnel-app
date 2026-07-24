@@ -11,6 +11,7 @@ function fakeOfficer(overrides: Partial<CommanderQueryOfficer> = {}): CommanderQ
     displayStatusTh: "มีคุณสมบัติครบมาแล้ว",
     targetPosition: "ผู้กำกับการ",
     eligibleFiscalYearBe: 2568,
+    firstEligibleYearBe: 2568,
     overdueYears: 1,
     eligibleYearOrdinal: 2,
   } as PromotionSummary;

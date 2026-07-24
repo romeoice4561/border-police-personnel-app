@@ -207,7 +207,7 @@ export function CommanderResultsTable({
                       <td className="px-3 py-3 tabular-nums text-muted">{cell(officer.positionLevelStartYearBe)}</td>
                       <td className="px-3 py-3 text-muted">{officer.positionLevelYearCount != null ? `${officer.positionLevelYearCount} ปี` : "—"}</td>
                       <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">{cell(promotion.targetPosition)}</td>
-                      <td className="px-3 py-3 tabular-nums text-muted">{cell(promotion.eligibleFiscalYearBe)}</td>
+                      <td className="px-3 py-3 tabular-nums text-muted">{cell(promotion.firstEligibleYearBe)}</td>
                       <td className="px-3 py-3 text-muted">{missedOpportunities != null ? `${missedOpportunities} ปี` : "—"}</td>
                       <td className="px-3 py-3">
                         <Badge tone={PROMOTION_STATUS_TONE[promotion.promotionStatus]}>{promotion.displayStatusTh}</Badge>

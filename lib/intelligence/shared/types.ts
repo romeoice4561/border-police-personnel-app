@@ -171,8 +171,26 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
    * (Timeline.appointmentCycle is a year, not a full date).
    */
   firstEligibleDate: string | null;
-  /** Buddhist-Era fiscal year containing firstEligibleDate. */
+  /**
+   * Phase 49.10: calendar Buddhist-Era YEAR of firstEligibleDate
+   * (`toBuddhistEraYear(date.getUTCFullYear())`) — the value Officer Profile /
+   * Commander Search "ครบคุณสมบัติครั้งแรก" / "ปีที่ครบครั้งแรก" must show.
+   * Distinct from `firstEligibleFiscalYearBe` (Thai FY Oct–Sep), which must
+   * never be substituted into those labels.
+   */
+  firstEligibleYearBe: number | null;
+  /** Buddhist-Era fiscal year (1 Oct – 30 Sep) containing firstEligibleDate — separate from calendar firstEligibleYearBe. */
   firstEligibleFiscalYearBe: number | null;
+  /**
+   * Phase 49.10: commander-facing reason sentence (no "วาระ") explaining
+   * tenure progress / eligibility / overdue wait. Null when Unknown with no
+   * better explanation.
+   */
+  displayReasonTh: string | null;
+  /** Whole years still needed before tenure eligibility (approx). Null when already eligible, unknown, or not computable. */
+  remainingTenureYears: number | null;
+  /** "ประมาณ N ปี" | "ครบเกณฑ์แล้ว" | "ประเมินไม่ได้" — Profile "เหลืออีก" field. */
+  displayRemainingTenureTh: string | null;
 
   /** Exact time elapsed since eligibleDate, as of asOf — years/months/days, never a decimal. Null when eligibleDate is null. */
   yearsEligible: number | null;
@@ -191,7 +209,7 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
 
   /** "ครบคุณสมบัติครั้งแรกเมื่อ 11 สิงหาคม 2567" */
   displayEligibleSinceTh: string | null;
-  /** Thai label for promotionStatus, e.g. "ครบคุณสมบัติปีนี้" — see PROMOTION_STATUS_DISPLAY_TH. */
+  /** Thai label for promotionStatus, e.g. "ครบคุณสมบัติในปีนี้" — see PROMOTION_STATUS_DISPLAY_TH. */
   displayStatusTh: string | null;
 
   /**
@@ -202,14 +220,10 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
    */
   requiredTenureYears: number | null;
   /**
-   * Phase 49.7: "ดำรงระดับตำแหน่งปัจจุบันครบ 7 วาระ" — the SAME missing-
-   * requirement label the eligibility engine already produces for the
-   * MIN_CYCLES_IN_LEVEL blocker (lib/promotion/eligibility_policy.ts),
-   * surfaced here so the Officer Profile/Commander Search can show WHY an
-   * officer is not yet eligible without re-deriving the sentence. Null when
-   * the officer is already eligible or the blocker is a different kind
-   * (training/documents/rank/service — see `blockers`-equivalent fields
-   * upstream) or eligibility is Unknown.
+   * Phase 49.7/49.10: year-based tenure shortfall label from MIN_CYCLES_IN_LEVEL
+   * (e.g. "ดำรงระดับตำแหน่งปัจจุบันครบ 7 ปี") — never "วาระ". Prefer
+   * `displayReasonTh` for Profile. Null when already eligible or blocked by
+   * a different requirement kind, or eligibility is Unknown.
    */
   waitingReasonTh: string | null;
 

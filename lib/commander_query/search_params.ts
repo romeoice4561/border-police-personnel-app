@@ -124,7 +124,7 @@ export function filtersFromSearchParams(params: Record<string, string | string[]
 
   // Phase 49.7: exact-Buddhist-year promotion drill-downs — canonical
   // fields only (CommanderQueryOfficer.positionLevelStartYearBe /
-  // promotionIntelligence.firstEligibleFiscalYearBe), parsed as a plain
+  // promotionIntelligence.firstEligibleYearBe — calendar Buddhist year), parsed as a plain
   // positive integer. A non-numeric or malformed value is ignored rather
   // than coerced to NaN/0 (which would silently match nothing or the wrong
   // rows).

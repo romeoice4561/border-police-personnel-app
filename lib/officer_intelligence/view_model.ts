@@ -181,17 +181,18 @@ export function composeOfficerIntelligenceViewModel(
       qualificationTextTh: promotion.eligibleNow && promotion.targetPosition ? `ครบขึ้น ${promotion.targetPosition}` : null,
       status: promotion.promotionStatus,
       displayStatusTh: promotion.displayStatusTh ?? PROMOTION_STATUS_DISPLAY_TH[promotion.promotionStatus] ?? null,
-      // Phase 49.7 fix: firstEligibleYearBe/firstEligibleDate now read the
-      // PROJECTED field (PromotionSummary.firstEligibleFiscalYearBe /
-      // firstEligibleDate), which is computable even before the officer
-      // reaches eligibility — the historical-only eligibleFiscalYearBe/
-      // eligibleDate fields stayed null pre-eligibility, which is why the
-      // Officer Profile could never show "ครบคุณสมบัติครั้งแรก: พ.ศ. 2574"
-      // for an officer who has not yet qualified.
-      firstEligibleYearBe: promotion.firstEligibleFiscalYearBe,
+      // Phase 49.10: calendar Buddhist year of first eligibility — never the
+      // Thai fiscal year (firstEligibleFiscalYearBe), which previously made
+      // Oct–Dec anniversaries display as พ.ศ. N+1 (e.g. 2570 instead of 2569).
+      firstEligibleYearBe: promotion.firstEligibleYearBe,
+      displayFirstEligibleYearTh:
+        promotion.firstEligibleYearBe != null ? `พ.ศ. ${promotion.firstEligibleYearBe}` : null,
       firstEligibleDate: promotion.firstEligibleDate,
       requiredTenureYears: promotion.requiredTenureYears,
       waitingReasonTh: promotion.waitingReasonTh,
+      displayReasonTh: promotion.displayReasonTh,
+      remainingTenureYears: promotion.remainingTenureYears,
+      displayRemainingTenureTh: promotion.displayRemainingTenureTh,
       // Phase 49.8: rank tenure — same query_officer.ts-computed fields the
       // Commander read model already carries (rankStartedAtYearBe/
       // yearsInRankCount), never recalculated here.

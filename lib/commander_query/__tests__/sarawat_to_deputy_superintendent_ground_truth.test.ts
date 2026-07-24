@@ -231,7 +231,7 @@ test("15. Commander Search firstEligibleYearBe=2569 finds the fixture", () => {
   const result = toQueryOfficer(reportedOfficer(), asOf, ORG_LABELS, null);
   const filters = filtersFromSearchParams({ firstEligibleYearBe: "2569" });
   assert.equal(filters.firstEligibleYearBe, 2569);
-  assert.equal(result.promotionIntelligence.firstEligibleFiscalYearBe, filters.firstEligibleYearBe);
+  assert.equal(result.promotionIntelligence.firstEligibleYearBe, filters.firstEligibleYearBe);
 });
 
 test("16. Reports/tools serialize the same PromotionSummary semantics", () => {

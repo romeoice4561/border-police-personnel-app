@@ -1,31 +1,8 @@
 /**
- * OfficerPromotionIntelligenceCard (Phase 44 — Officer Intelligence
- * Workspace, Task 4; Phase 49.7 — structured re-display; Phase 49.8 — rank
- * tenure + data-confidence fields).
+ * OfficerPromotionIntelligenceCard (Phase 44 / 49.7 / 49.8 / 49.10).
  *
- * The one primary Promotion Intelligence presentation on the profile page —
- * replaces the legacy PromotionCycleSection (lib/promotion_cycle/*, a
- * separate/older display system with its own English-mixed labels and
- * "เกินกำหนด" cycle semantics distinct from Phase 41's PromotionSummary).
  * Every value is read directly from OfficerIntelligenceViewModel.promotion —
- * no calculation happens here. Never shows Priority Score or algorithm
- * internals (task rule) and never implies automatic appointment
- * entitlement (explicit disclaimer note at the bottom).
- *
- * Phase 49.7: the previous single "คุณสมบัติ: {qualificationTextTh}" field
- * could read as an unconditional success badge. Replaced with THREE
- * distinct, unambiguous presentations selected by `promotion.status`/
- * `promotion.available` — waiting, already-eligible, and not-assessable.
- *
- * Phase 49.8: the not-assessable branch now shows the REAL reason
- * (`promotion.confidenceReasonTh`, e.g. "ไม่พบวันที่เริ่มครองยศปัจจุบัน")
- * instead of a single hardcoded position-level-only sentence — a missing
- * RANK-tenure evidence gap (the root cause this phase fixes) gets its own
- * accurate wording, not a position-level-worded placeholder. Also adds rank
- * tenure fields ("เริ่มครองยศปัจจุบัน"/"อายุในยศ") and a compact
- * "ความน่าเชื่อถือของข้อมูล" confidence indicator when confidence is not
- * "confirmed" (silently omitted when confirmed — no need to announce
- * "everything is fine" on every card).
+ * no promotion arithmetic happens here. Disclaimer retained at the bottom.
  */
 import type { OfficerIntelligenceViewModel } from "@/lib/officer_intelligence/types";
 import { PROMOTION_STATUS_TONE } from "@/lib/intelligence/promotion/status_tone";
@@ -56,6 +33,7 @@ export function OfficerPromotionIntelligenceCard({ viewModel }: { viewModel: Off
 
   const isUnknown = !promotion.available || promotion.status === "Unknown";
   const isAlreadyEligible = promotion.status === "EligibleThisYear" || promotion.status === "AlreadyEligible";
+  const reasonTh = promotion.displayReasonTh ?? promotion.waitingReasonTh ?? promotion.confidenceReasonTh;
 
   return (
     <Card>
@@ -77,23 +55,18 @@ export function OfficerPromotionIntelligenceCard({ viewModel }: { viewModel: Off
           <>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="ระดับตำแหน่งปัจจุบัน" value={identity.positionLevel} />
+              <Field label="เป้าหมาย" value={promotion.targetPositionTh} />
               <Field
                 label="เริ่มดำรงระดับนี้"
                 value={viewModel.service.currentPositionLevelStartYearBe != null ? `พ.ศ. ${viewModel.service.currentPositionLevelStartYearBe}` : null}
               />
-              <Field label="อายุในระดับตำแหน่ง" value={promotion.yearsInCurrentLevel != null ? `${promotion.yearsInCurrentLevel} ปี` : null} />
-              <Field label="ยศปัจจุบัน" value={identity.rank} />
               <Field
-                label="เริ่มครองยศปัจจุบัน"
-                value={promotion.currentRankStartedAtYearBe != null ? `พ.ศ. ${promotion.currentRankStartedAtYearBe}` : null}
+                label="ดำรงระดับมาแล้ว"
+                value={promotion.yearsInCurrentLevel != null ? `${promotion.yearsInCurrentLevel} ปี` : null}
               />
-              <Field label="อายุในยศ" value={promotion.yearsInCurrentRank != null ? `${promotion.yearsInCurrentRank} ปี` : null} />
-              <Field label="เป้าหมาย" value={promotion.targetPositionTh} />
-              <Field label="เกณฑ์ระยะเวลา" value={promotion.requiredTenureYears != null ? `${promotion.requiredTenureYears} ปี` : null} />
-              <Field
-                label="ครบคุณสมบัติครั้งแรก"
-                value={promotion.firstEligibleYearBe != null ? `พ.ศ. ${promotion.firstEligibleYearBe}` : null}
-              />
+              <Field label="เกณฑ์ขั้นต่ำ" value={promotion.requiredTenureYears != null ? `${promotion.requiredTenureYears} ปี` : null} />
+              <Field label="เหลืออีก" value={promotion.displayRemainingTenureTh} />
+              <Field label="ครบคุณสมบัติครั้งแรก" value={promotion.displayFirstEligibleYearTh} />
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted">สถานะ</dt>
                 <dd className="mt-0.5">
@@ -107,7 +80,10 @@ export function OfficerPromotionIntelligenceCard({ viewModel }: { viewModel: Off
               {isAlreadyEligible ? (
                 <>
                   <Field label="รอการแต่งตั้งมาแล้ว" value={promotion.displayWaitingTh} />
-                  <Field label="รอบการแต่งตั้ง" value={promotion.eligibilityYearNumber != null ? `รอบที่ ${promotion.eligibilityYearNumber}` : null} />
+                  <Field
+                    label="รอบการแต่งตั้ง"
+                    value={promotion.eligibilityYearNumber != null ? `รอบที่ ${promotion.eligibilityYearNumber}` : null}
+                  />
                 </>
               ) : null}
               {promotion.confidence !== "confirmed" ? (
@@ -115,10 +91,10 @@ export function OfficerPromotionIntelligenceCard({ viewModel }: { viewModel: Off
               ) : null}
             </dl>
 
-            {!isAlreadyEligible && promotion.waitingReasonTh ? (
+            {reasonTh ? (
               <div className="rounded-lg border border-border bg-neutral-bg px-3 py-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">เหตุผล</p>
-                <p className="mt-0.5 text-sm text-foreground">{promotion.waitingReasonTh}</p>
+                <p className="mt-0.5 text-sm text-foreground">{reasonTh}</p>
               </div>
             ) : null}
 

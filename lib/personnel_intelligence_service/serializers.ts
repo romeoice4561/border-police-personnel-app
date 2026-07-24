@@ -106,7 +106,7 @@ export function serializeOfficerDetail(officer: CommanderQueryOfficer): OfficerI
     targetPositionLevel: officer.promotionIntelligence.targetPosition,
     currentPositionLevelStartYearBe: officer.positionLevelStartYearBe,
     requiredTenureYears: officer.promotionIntelligence.requiredTenureYears,
-    firstEligibleYearBe: officer.promotionIntelligence.firstEligibleFiscalYearBe,
+    firstEligibleYearBe: officer.promotionIntelligence.firstEligibleYearBe,
     firstEligibleDate: officer.promotionIntelligence.firstEligibleDate,
     waitingReasonTh: officer.promotionIntelligence.waitingReasonTh,
     // Phase 49.8: canonical rank-tenure + data-confidence fields.

@@ -350,13 +350,13 @@ test("D2. URL-parsed targetPositionLevel matches the officer's real promotionInt
   assert.equal(urlFilters.toPositionLevel, result.promotionIntelligence.targetPosition);
 });
 
-test("D3. URL-parsed firstEligibleYearBe matches the officer's real projected firstEligibleFiscalYearBe", () => {
+test("D3. URL-parsed firstEligibleYearBe matches the officer's real projected calendar firstEligibleYearBe", () => {
   const asOf = utcDate(2026, 7, 20);
   const result = toQueryOfficer(reportedOfficer(), asOf, ORG_LABELS, null);
   const urlFilters = filtersFromSearchParams({ firstEligibleYearBe: "2574" });
 
-  assert.equal(result.promotionIntelligence.firstEligibleFiscalYearBe, 2574);
-  assert.equal(urlFilters.firstEligibleYearBe, result.promotionIntelligence.firstEligibleFiscalYearBe);
+  assert.equal(result.promotionIntelligence.firstEligibleYearBe, 2574);
+  assert.equal(urlFilters.firstEligibleYearBe, result.promotionIntelligence.firstEligibleYearBe);
 });
 
 test("D4. a bookmarked/shared URL reproducing the reported officer's exact scenario narrows to fields that genuinely match that officer, not an unrelated one", () => {
@@ -395,11 +395,11 @@ test("D4. a bookmarked/shared URL reproducing the reported officer's exact scena
   const reportedMatches =
     reported.positionLevel === urlFilters.positionLevel &&
     reported.promotionIntelligence.targetPosition === urlFilters.toPositionLevel &&
-    reported.promotionIntelligence.firstEligibleFiscalYearBe === urlFilters.firstEligibleYearBe;
+    reported.promotionIntelligence.firstEligibleYearBe === urlFilters.firstEligibleYearBe;
   const unrelatedMatches =
     unrelated.positionLevel === urlFilters.positionLevel &&
     unrelated.promotionIntelligence.targetPosition === urlFilters.toPositionLevel &&
-    unrelated.promotionIntelligence.firstEligibleFiscalYearBe === urlFilters.firstEligibleYearBe;
+    unrelated.promotionIntelligence.firstEligibleYearBe === urlFilters.firstEligibleYearBe;
 
   assert.equal(reportedMatches, true, "the reported officer's own fields must satisfy the URL-parsed filter");
   assert.equal(unrelatedMatches, false, "an officer already AT สารวัตร (different current level) must not match a รองสารวัตร current-level filter");

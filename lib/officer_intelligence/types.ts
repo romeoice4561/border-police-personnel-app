@@ -62,14 +62,25 @@ export interface OfficerIntelligenceViewModel {
     /** Raw status enum — for badge-tone lookup only (PROMOTION_STATUS_TONE); never rendered directly as text. */
     status: PromotionEligibilityStatus;
     displayStatusTh: string | null;
-    /** Buddhist-Era fiscal year the officer FIRST qualifies for their next level — PROJECTED, computed even before the officer reaches it (PromotionSummary.firstEligibleFiscalYearBe). Null only when the projection is not computable (Unknown level, no policy, no appointmentCycle evidence). */
+    /**
+     * Calendar Buddhist-Era year of first eligibility — from
+     * PromotionSummary.firstEligibleYearBe (NOT firstEligibleFiscalYearBe).
+     */
     firstEligibleYearBe: number | null;
-    /** ISO date matching firstEligibleYearBe — projected, same precision-limit rationale as PromotionSummary.firstEligibleDate (anchored to 1 January of the eligible Gregorian year). */
+    /** "พ.ศ. NNNN" — preformatted firstEligibleYearBe for Profile display. */
+    displayFirstEligibleYearTh: string | null;
+    /** ISO date of first eligibility — PromotionSummary.firstEligibleDate. */
     firstEligibleDate: string | null;
     /** PROMOTION_POLICIES.minYearsInPositionLevel for the target level — from PromotionSummary.requiredTenureYears, never recomputed. Null when no policy is configured. */
     requiredTenureYears: number | null;
-    /** "ดำรงระดับตำแหน่งปัจจุบันครบ N วาระ" — from PromotionSummary.waitingReasonTh, the engine's own missing-requirement label. Null when already eligible or blocked by something else. */
+    /** Engine tenure shortfall label (year-based) — PromotionSummary.waitingReasonTh. Prefer displayReasonTh for Profile. */
     waitingReasonTh: string | null;
+    /** Phase 49.10: commander-facing reason — PromotionSummary.displayReasonTh. */
+    displayReasonTh: string | null;
+    /** Approx whole years remaining — PromotionSummary.remainingTenureYears. */
+    remainingTenureYears: number | null;
+    /** Profile "เหลืออีก" text — PromotionSummary.displayRemainingTenureTh. */
+    displayRemainingTenureTh: string | null;
     /** Whole promotion opportunities already missed since first becoming eligible — same as PromotionSummary.overdueYears when > 0 (first eligible cycle = null, not 0). */
     waitingYears: number | null;
     /**

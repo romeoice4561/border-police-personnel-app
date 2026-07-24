@@ -440,7 +440,7 @@ export function evaluateWithPolicy(
       missingEvidence.push("current_position_level_start_date");
       missing.push({
         code: "MISSING_APPOINTMENT_CYCLE",
-        label: "ต้องมีรอบแต่งตั้ง (วาระ) ใน Career Timeline",
+        label: "ต้องมีรอบแต่งตั้งใน Career Timeline",
         detail: "ไม่มีข้อมูล",
       });
       actions.push({ code: "ADD_APPOINTMENT_CYCLE", label: "เพิ่มรอบแต่งตั้งใน Career Timeline" });
@@ -448,10 +448,10 @@ export function evaluateWithPolicy(
       tenureBlocked = true;
       missing.push({
         code: "MIN_CYCLES_IN_LEVEL",
-        label: `ดำรงระดับตำแหน่งปัจจุบันครบ ${policy.minYearsInPositionLevel} วาระ`,
-        detail: `รอบแต่งตั้ง ${cycle.appointmentCycle}, ครบเกณฑ์วาระ ${cycle.eligibleCycle}`,
+        label: `ดำรงระดับตำแหน่งปัจจุบันครบ ${policy.minYearsInPositionLevel} ปี`,
+        detail: `รอบแต่งตั้ง ${cycle.appointmentCycle}, ครบเกณฑ์ปี ${cycle.eligibleCycle}`,
       });
-      actions.push({ code: "WAIT_LEVEL_CYCLES", label: "รอให้ครบวาระการดำรงระดับตำแหน่ง" });
+      actions.push({ code: "WAIT_LEVEL_CYCLES", label: "รอให้ครบระยะเวลาดำรงระดับตำแหน่ง" });
     }
   }
   if (policy.minYearsInRank != null) {

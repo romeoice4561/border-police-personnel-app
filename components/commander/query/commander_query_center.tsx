@@ -91,7 +91,7 @@ function applyFilters(row: CommanderQueryOfficer, filters: CommanderQueryFilters
   // table already displays; firstEligibleYearBe reads the PROJECTED first-
   // eligible year (computable pre-eligibility, unlike eligibleFiscalYearBe).
   if (filters.positionLevelStartYearBe != null && row.positionLevelStartYearBe !== filters.positionLevelStartYearBe) return false;
-  if (filters.firstEligibleYearBe != null && row.promotionIntelligence.firstEligibleFiscalYearBe !== filters.firstEligibleYearBe) return false;
+  if (filters.firstEligibleYearBe != null && row.promotionIntelligence.firstEligibleYearBe !== filters.firstEligibleYearBe) return false;
   // Phase 49.8: reads the canonical PromotionSummary.confidence field
   // directly — no local recalculation, no Thai-label matching.
   if (filters.promotionDataQuality === "assessable" && row.promotionIntelligence.confidence !== "confirmed") return false;
