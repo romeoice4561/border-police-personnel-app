@@ -99,6 +99,7 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Perm
   { prefix: "/dashboard", permission: "dashboard.view" },
   { prefix: "/commander-intelligence", permission: "dashboard.view" },
   { prefix: "/commander-reports", permission: "dashboard.view" },
+  { prefix: "/commander-promotion", permission: "dashboard.view" },
   { prefix: "/commander-search", permission: "commander.search" },
   { prefix: "/officers", permission: "officers.view", exact: true },
   { prefix: "/search", permission: "search.view" },

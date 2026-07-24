@@ -1348,6 +1348,28 @@ export const DICTIONARY = {
   "nav.commanderIntelligence": tr("ศูนย์ข่าวกรองผู้บังคับบัญชา", "Commander Intelligence"),
   // ── nav.* — Phase 49C: Executive Report Center ──
   "nav.commanderReports": tr("ศูนย์รายงานผู้บริหาร", "Executive Reports"),
+  "nav.commanderPromotion": tr("ศูนย์เลื่อนระดับตำแหน่ง", "Promotion Intelligence"),
+
+  // ── cpi.* — Phase 50: Commander Promotion Intelligence Dashboard ──
+  "cpi.title": tr("ศูนย์เลื่อนระดับตำแหน่ง", "Promotion Intelligence Center"),
+  "cpi.subtitle": tr(
+    "แดชบอร์ดผู้บังคับบัญชา — ความพร้อมเลื่อนระดับจากชุดข้อมูลข่าวกรองชุดเดียว",
+    "Commander dashboard — promotion readiness from one shared intelligence dataset."
+  ),
+  "cpi.bannerTitle": tr("สรุปข่าวกรองการเลื่อนระดับ", "Promotion Intelligence Summary"),
+  "cpi.tableTitle": tr("ตารางความพร้อมเลื่อนระดับ", "Promotion Readiness Table"),
+  "cpi.exportExcel": tr("เอกซ์เซล (CSV)", "Excel (CSV)"),
+  "cpi.print": tr("พิมพ์ / บันทึกเป็น PDF", "Print / Save as PDF"),
+  "cpi.clearFilters": tr("ล้างตัวกรอง", "Clear all"),
+  "cpi.viewAll": tr("ดูทั้งหมด", "View all"),
+  "cpi.noMatch": tr("ไม่พบกำลังพลตามตัวกรอง", "No officers match the current filters."),
+  "cpi.resetFilters": tr("รีเซ็ตตัวกรอง", "Reset filters"),
+  "cpi.selected": tr("เลือกรายการ", "Selected"),
+  "cpi.copyNames": tr("คัดลอกชื่อ", "Copy names"),
+  "cpi.copyIds": tr("คัดลอกรหัส", "Copy IDs"),
+  "cpi.exportSelected": tr("ส่งออกรายการที่เลือก", "Export selected"),
+  "cpi.printSelected": tr("พิมพ์รายการที่เลือก", "Print selected"),
+  "cpi.records": tr("รายการ", "records"),
 
   // ── reports.* — Phase 49C: Executive Reports & Command Briefing Center ──
   "reports.title": tr("ศูนย์รายงานผู้บริหาร", "Executive Report Center"),
