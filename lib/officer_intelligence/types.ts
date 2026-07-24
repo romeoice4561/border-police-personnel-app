@@ -70,9 +70,15 @@ export interface OfficerIntelligenceViewModel {
     requiredTenureYears: number | null;
     /** "ดำรงระดับตำแหน่งปัจจุบันครบ N วาระ" — from PromotionSummary.waitingReasonTh, the engine's own missing-requirement label. Null when already eligible or blocked by something else. */
     waitingReasonTh: string | null;
-    /** Whole promotion opportunities already missed since first becoming eligible — same "รอการแต่งตั้งมาแล้ว" semantics as Commander Search (overdueYears - 1, floored at 0). */
+    /** Whole promotion opportunities already missed since first becoming eligible — same as PromotionSummary.overdueYears when > 0 (first eligible cycle = null, not 0). */
     waitingYears: number | null;
-    /** Which numbered eligibility year THIS fiscal year is — bare number from PromotionSummary.overdueYears, never calculated from today's date. */
+    /**
+     * Presentation text for the "รอการแต่งตั้งมาแล้ว" field — "ครบคุณสมบัติในปีนี้"
+     * when already eligible in the first cycle (waitingYears null), otherwise
+     * "N ปี". Never computed in JSX.
+     */
+    displayWaitingTh: string | null;
+    /** Which numbered eligibility year THIS fiscal year is — bare number from PromotionSummary.eligibleYearOrdinal (1 = first eligible cycle), never from overdueYears. */
     eligibilityYearNumber: number | null;
     /** Whole years at the CURRENT position level (Timeline-derived) — distinct from promotionCyclesPassed, never confused with it. */
     yearsInCurrentLevel: number | null;

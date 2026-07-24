@@ -122,6 +122,7 @@ export function composeOfficerIntelligenceViewModel(
   const promotion = queryOfficer.promotionIntelligence;
 
   const missedOpportunities = overdueOpportunities(promotion.overdueYears);
+  const eligibilityYearNumber = promotion.eligibleYearOrdinal;
   const hasGp7 = queryOfficer.hasGp7;
   const hasTraining = queryOfficer.hasTraining;
   const hasDocuments = queryOfficer.hasDocuments;
@@ -203,7 +204,13 @@ export function composeOfficerIntelligenceViewModel(
       confidenceReasonTh: promotion.confidenceReasonTh,
       missingEvidence: promotion.missingEvidence,
       waitingYears: missedOpportunities,
-      eligibilityYearNumber: promotion.overdueYears && promotion.overdueYears > 0 ? promotion.overdueYears : null,
+      displayWaitingTh:
+        promotion.eligibleNow && missedOpportunities == null
+          ? "ครบคุณสมบัติในปีนี้"
+          : missedOpportunities != null
+            ? `รอการแต่งตั้งมาแล้ว ${missedOpportunities} ปี`
+            : null,
+      eligibilityYearNumber,
       yearsInCurrentLevel: queryOfficer.positionLevelYearCount,
       promotionCyclesPassed: promotion.promotionCyclesPassed,
       blockers,

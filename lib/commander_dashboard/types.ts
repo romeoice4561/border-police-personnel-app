@@ -49,10 +49,8 @@ export interface PromotionCandidateViewModel {
   /**
    * "ปีนี้เป็นปีที่ N" — which numbered year of eligibility this is (1 = the
    * officer's first eligible year). Sourced directly from
-   * PromotionSummary.overdueYears (already computed by the Promotion
-   * Intelligence engine as `currentCycle - eligibleCycle + 1` once
-   * eligible — no new calculation here). Null when the officer is not yet
-   * eligible (overdueYears is 0/not applicable).
+   * PromotionSummary.eligibleYearOrdinal — no new calculation here. Null
+   * when the officer is not yet eligible.
    */
   promotionYearOrdinal: number | null;
   promotionCyclesPassed: number | null;

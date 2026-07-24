@@ -147,6 +147,7 @@ function buildEligibilityOfficer(
     documentCodes: officer.documents.filter((d) => d.isActive !== false).map((d) => d.documentType),
     twoStepCount: countTwoStep(officer.salaryHistory),
     appointmentCycle: appointmentCycleForPositionLevel(officer, positionLevel),
+    positionLevelStartedAt: positionLevelStartedAt(officer, positionLevel),
   };
 }
 

@@ -39,23 +39,16 @@
  *                                  is the SAME projection regardless of
  *                                  eligibleNow, computed by the same engine
  *                                  (no new calculation here).
- *   - รอการแต่งตั้งมาแล้ว:          overdueYears - 1 (whole missed promotion
- *                                  opportunities: eligible since FY2568,
- *                                  current FY2569 -> overdueYears=2 ->
- *                                  1 missed opportunity/"1 ปี"), floored at
- *                                  0, computed from the ALREADY-COMPUTED
- *                                  promotionIntelligence.overdueYears field
- *                                  — a presentation-only reinterpretation,
- *                                  not a new eligibility calculation. Label
- *                                  renamed from the legacy "เกินกำหนด" per
- *                                  Phase 43 (clearer, does not imply
- *                                  misconduct); the old i18n key/internal
- *                                  filter field name is unchanged for
- *                                  compatibility.
+ *   - รอการแต่งตั้งมาแล้ว:          PromotionSummary.overdueYears when > 0
+ *                                  (completed waiting years; first eligible
+ *                                  cycle = 0 → display "—"). Via
+ *                                  overdueOpportunities() — identity since
+ *                                  Phase 49.9 (no local −1). Label renamed
+ *                                  from legacy "เกินกำหนด" per Phase 43.
  *   - สถานะ:                      promotionIntelligence.displayStatusTh
  *                                  (the existing PROMOTION_STATUS_DISPLAY_TH
  *                                  mapping), as a Badge.
- *   - ปีนี้เป็นปีที่:               promotionIntelligence.overdueYears,
+ *   - ปีนี้เป็นปีที่:               promotionIntelligence.eligibleYearOrdinal,
  *                                  displayed as a bare number — never
  *                                  calculated from today's date.
  *   - ปีเกษียณอายุราชการ:          retirementYearBe (Buddhist Era only).
@@ -220,7 +213,11 @@ export function CommanderResultsTable({
                         <Badge tone={PROMOTION_STATUS_TONE[promotion.promotionStatus]}>{promotion.displayStatusTh}</Badge>
                       </td>
                       <td className="px-3 py-3 text-center font-medium text-foreground">
-                        {promotion.overdueYears && promotion.overdueYears > 0 ? promotion.overdueYears : <span className="text-muted">—</span>}
+                        {promotion.eligibleYearOrdinal != null && promotion.eligibleYearOrdinal > 0 ? (
+                          promotion.eligibleYearOrdinal
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-3 tabular-nums text-muted">{officer.retirementYearBe != null ? `พ.ศ. ${officer.retirementYearBe}` : "—"}</td>
                       <td className="whitespace-normal wrap-break-word px-3 py-3 text-muted">{cell(officer.displayServiceDurationTh)}</td>

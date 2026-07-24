@@ -106,7 +106,7 @@ export function OfficerPromotionIntelligenceCard({ viewModel }: { viewModel: Off
               </div>
               {isAlreadyEligible ? (
                 <>
-                  <Field label="รอการแต่งตั้งมาแล้ว" value={promotion.waitingYears != null ? `${promotion.waitingYears} ปี` : null} />
+                  <Field label="รอการแต่งตั้งมาแล้ว" value={promotion.displayWaitingTh} />
                   <Field label="รอบการแต่งตั้ง" value={promotion.eligibilityYearNumber != null ? `รอบที่ ${promotion.eligibilityYearNumber}` : null} />
                 </>
               ) : null}

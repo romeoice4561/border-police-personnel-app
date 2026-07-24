@@ -37,7 +37,7 @@ export interface PersonnelIntelligenceFilters {
   searchText?: string;
   /** Ready-for-promotion convenience (eligibleNow / EligibleThisYear / AlreadyEligible). */
   readyForPromotion?: boolean;
-  /** overdueYears > 0 */
+  /** overdueYears > 0 (completed waiting years; first eligible cycle = 0) */
   promotionOverdue?: boolean;
 }
 

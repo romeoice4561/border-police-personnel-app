@@ -126,7 +126,17 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
   /** @deprecated Phase 40A field — true for both EligibleThisYear/AlreadyEligible-style outcomes. Use promotionStatus for the specific reason. */
   eligibleNow: boolean;
   monthsUntilEligible: number | null;
+  /**
+   * Completed waiting years after first becoming eligible (not a year ordinal).
+   * First eligible cycle = 0; after one completed appointment cycle = 1.
+   * Null when eligibility is not computable. Distinct from `eligibleYearOrdinal`.
+   */
   overdueYears: number | null;
+  /**
+   * One-based eligibility-year ordinal (ปีที่ N / รอบที่ N).
+   * First eligible cycle = 1; second = 2. Null when not eligible / not computable.
+   */
+  eligibleYearOrdinal: number | null;
   targetLevel: string | null;
 
   // --- Phase 41: Promotion Intelligence -----------------------------------
@@ -170,12 +180,12 @@ export interface PromotionSummary extends IntelligenceSummaryBase {
   daysEligible: number | null;
 
   /**
-   * Estimated number of Thai police promotion (appointment-cycle) rounds the
-   * officer has passed through since becoming eligible — an APPROXIMATION
-   * (one calendar year ≈ one cycle; see lib/promotion_cycle's documented
-   * assumption), not a count of actual historical promotion-board rounds
-   * (which the schema does not record). Never fabricated as certainty —
-   * `available: false`/null when appointmentCycle is unknown.
+   * Missed appointment cycles / completed waiting cycles since becoming
+   * eligible — same numeric meaning as `overdueYears` (first eligible cycle
+   * = 0; after one completed cycle = 1). An APPROXIMATION (one Buddhist-Era
+   * labeled year ≈ one cycle; see lib/promotion_cycle), not a count of
+   * actual historical promotion-board rounds. Null when not yet eligible or
+   * appointmentCycle is unknown. Distinct from `eligibleYearOrdinal`.
    */
   promotionCyclesPassed: number | null;
 

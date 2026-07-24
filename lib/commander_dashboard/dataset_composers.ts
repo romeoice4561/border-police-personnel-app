@@ -32,6 +32,7 @@ export function toDashboardSourceOfficer(officer: CommanderQueryOfficer): Dashbo
     monthsEligible: promotion.monthsEligible,
     daysEligible: promotion.daysEligible,
     overdueYears: promotion.overdueYears,
+    eligibleYearOrdinal: promotion.eligibleYearOrdinal,
     promotionCyclesPassed: promotion.promotionCyclesPassed,
     priority: promotion.priority,
     priorityReason: promotion.priorityReason,

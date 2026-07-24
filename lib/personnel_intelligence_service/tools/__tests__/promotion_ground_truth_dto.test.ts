@@ -22,6 +22,7 @@ function waitingPromotion(overrides: Partial<PromotionSummary> = {}): PromotionS
     eligibleNow: false,
     monthsUntilEligible: 84,
     overdueYears: 0,
+    eligibleYearOrdinal: null,
     targetLevel: "สารวัตร",
     currentRank: "ร.ต.ท.",
     currentPosition: "รองสารวัตร",
@@ -206,4 +207,40 @@ test("F5. tool registry still has exactly nine tools — no new tool, no removed
       "search_officers",
     ]
   );
+});
+
+test("F11. Phase 49.9: สารวัตร → รองผู้กำกับการ DTO exposes requiredTenureYears=5, firstEligibleYearBe=2569, overdueYears=0 in first cycle waitingYears sense", () => {
+  const o = officer("sarawat-officer", {
+    positionLevel: "สารวัตร",
+    positionLevelStartYearBe: 2564,
+    positionLevelYearCount: 5,
+    promotionIntelligence: waitingPromotion({
+      targetLevel: "รองผู้กำกับการ",
+      currentPosition: "สารวัตร",
+      targetRank: "รองผู้กำกับการ",
+      targetPosition: "รองผู้กำกับการ",
+      promotionStatus: "EligibleThisYear",
+      status: "eligible",
+      eligibleNow: true,
+      monthsUntilEligible: 0,
+      overdueYears: 0,
+      eligibleYearOrdinal: 1,
+      promotionCyclesPassed: 0,
+      firstEligibleDate: "2026-02-16",
+      firstEligibleFiscalYearBe: 2569,
+      eligibleDate: "2026-02-16",
+      eligibleFiscalYearBe: 2569,
+      requiredTenureYears: 5,
+      waitingReasonTh: null,
+      displayStatusTh: "ครบคุณสมบัติปีนี้",
+    }),
+  });
+  const { service } = makeBundle("commander", [o]);
+  const detail = service.getOfficerIntelligence("sarawat-officer");
+  assert.equal(detail.requiredTenureYears, 5);
+  assert.equal(detail.firstEligibleYearBe, 2569);
+  assert.equal(detail.firstEligibleDate, "2026-02-16");
+  assert.notEqual(detail.firstEligibleYearBe, 2568);
+  assert.equal(detail.promotionStatus, "EligibleThisYear");
+  assertNoSensitiveKeys(detail);
 });

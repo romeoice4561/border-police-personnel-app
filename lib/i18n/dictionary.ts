@@ -325,9 +325,9 @@ export const DICTIONARY = {
   "commander.yearsInLevel": tr("จำนวนปีในระดับนี้", "Years in Level"),
   /** "ปีที่ครบครั้งแรก" — the Buddhist-Era fiscal year the officer FIRST became eligible (PromotionSummary.eligibleFiscalYearBe). Distinct from the deprecated commander.eligibleSince (a cycle-count field). */
   "commander.firstEligibleYear": tr("ปีที่ครบครั้งแรก", "First Eligible Year"),
-  /** Phase 43: user-facing label changed from "เกินกำหนด" to "รอการแต่งตั้งมาแล้ว" — clearer, does not imply misconduct. Internal key name (commander.overdueYears) and filter-field compatibility unchanged. Value: whole promotion opportunities already missed (PromotionSummary.overdueYears - 1, floored at 0; e.g. first eligible 2568, current fiscal year 2569 = 1 missed opportunity). Distinct from the deprecated commander.eligibleOverdue. */
+  /** Phase 43/49.9: "รอการแต่งตั้งมาแล้ว" — completed waiting years from PromotionSummary.overdueYears (first eligible cycle = 0 → blank; after one cycle = 1). Distinct from commander.eligibilityYear (eligibleYearOrdinal) and the deprecated commander.eligibleOverdue. */
   "commander.overdueYears": tr("รอการแต่งตั้งมาแล้ว", "Waiting for Appointment"),
-  /** "ปีนี้เป็นปีที่" — which numbered eligibility year this is (PromotionSummary.overdueYears, displayed as a bare number). */
+  /** "ปีนี้เป็นปีที่" — which numbered eligibility year this is (PromotionSummary.eligibleYearOrdinal, displayed as a bare number). */
   "commander.eligibilityYear": tr("ปีนี้เป็นปีที่", "Eligibility Year"),
   "commander.qualificationStatus": tr("สถานะ", "Status"),
   "commander.resultDistribution": tr("การกระจายผลลัพธ์", "Result Distribution"),

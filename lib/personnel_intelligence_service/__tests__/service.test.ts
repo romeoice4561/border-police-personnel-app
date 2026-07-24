@@ -44,6 +44,7 @@ function fakePromotion(partial: Partial<PromotionSummary> = {}): PromotionSummar
     eligibleNow: false,
     monthsUntilEligible: null,
     overdueYears: null,
+    eligibleYearOrdinal: null,
     targetLevel: null,
     currentRank: null,
     currentPosition: null,

@@ -55,8 +55,16 @@ export interface DashboardSourceOfficer {
   yearsEligible: number | null;
   monthsEligible: number | null;
   daysEligible: number | null;
-  /** Which numbered eligibility-year this is (1 = first eligible year) — from PromotionSummary.overdueYears, unchanged/unmodified. */
+  /**
+   * Completed waiting years after eligibility (first cycle = 0) — from
+   * PromotionSummary.overdueYears. Not the year ordinal.
+   */
   overdueYears: number | null;
+  /**
+   * One-based eligibility-year ordinal (1 = first eligible year) — from
+   * PromotionSummary.eligibleYearOrdinal. Distinct from overdueYears.
+   */
+  eligibleYearOrdinal: number | null;
   promotionCyclesPassed: number | null;
   priority: number | null;
   priorityReason: string | null;
@@ -132,7 +140,8 @@ export function buildPromotionPriorityCandidates(
 
   return limited.map((officer) => {
     const firstEligibleCycleDate = computeFirstEligibleCycleDate(officer.eligibleFiscalYearBe);
-    const promotionYearOrdinal = officer.overdueYears != null && officer.overdueYears > 0 ? officer.overdueYears : null;
+    const promotionYearOrdinal =
+      officer.eligibleYearOrdinal != null && officer.eligibleYearOrdinal > 0 ? officer.eligibleYearOrdinal : null;
 
     return {
       officerId: officer.officerId,

@@ -143,7 +143,7 @@ test("8. first eligible year — Buddhist Era, from PromotionSummary", () => {
   assert.ok(vm.promotion.firstEligibleYearBe! > 2500); // sanity: Buddhist Era, not Gregorian
 });
 
-test("9. waiting duration — overdueYears - 1, floored at 0/null", () => {
+test("9. waiting duration — completed waiting years from overdueYears (null when 0)", () => {
   const vm = composeOfficerIntelligenceViewModel(
     officer({
       currentPosition: "รองสารวัตร",

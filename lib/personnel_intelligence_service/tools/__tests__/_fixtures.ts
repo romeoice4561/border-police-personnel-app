@@ -36,6 +36,7 @@ function fakePromotion(): PromotionSummary {
     eligibleNow: false,
     monthsUntilEligible: null,
     overdueYears: null,
+    eligibleYearOrdinal: null,
     targetLevel: null,
     currentRank: null,
     currentPosition: null,

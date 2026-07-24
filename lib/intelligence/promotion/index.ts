@@ -128,8 +128,10 @@ function classifyStatus(
  * This is documented, not silently approximated.
  */
 function computeEligibleDate(level: LevelEligibilityResult | null): Date | null {
-  if (!level?.promotionCycle?.eligibleCycle) return null;
-  if (!level.eligibleNow) return null;
+  if (!level?.eligibleNow) return null;
+  // Prefer exact Timeline-derived first-eligible date when day/month evidence exists.
+  if (level.exactFirstEligibleDate) return level.exactFirstEligibleDate;
+  if (!level.promotionCycle?.eligibleCycle) return null;
   const eligibleGregorianYear = yearBEToGregorian(level.promotionCycle.eligibleCycle);
   return utcDate(eligibleGregorianYear, 1, 1);
 }
@@ -137,34 +139,29 @@ function computeEligibleDate(level: LevelEligibilityResult | null): Date | null 
 /**
  * Phase 49.7: the officer's FIRST eligible date, projected forward from the
  * tenure policy regardless of whether they have reached it yet — unlike
- * computeEligibleDate above (historical-only, null pre-eligibility). Reads
- * the SAME `promotionCycle.eligibleCycle` the appointment-cycle engine
- * already computes (lib/promotion_cycle/engine.ts's
- * `eligibleCycle = appointmentCycle + requiredCycles`, computed
- * unconditionally, not gated on eligibleNow) — no new arithmetic, just no
- * longer discarding a value the engine already produced. Null when the
- * projection itself has no evidence (no policy/level, no appointmentCycle),
- * matching computeEligibleDate's "no fabricated date" rule exactly.
+ * computeEligibleDate above (historical-only, null pre-eligibility).
+ *
+ * Phase 49.9: when LevelEligibilityResult.exactFirstEligibleDate is present
+ * (`addYears(positionLevelStartedAt, minYears)` from the eligibility engine),
+ * that exact calendar date is preferred over the Jan-1 appointment-cycle
+ * year anchor. Falls back to eligibleCycle year when only year evidence exists.
  */
 function computeFirstEligibleDate(level: LevelEligibilityResult | null): Date | null {
+  if (level?.exactFirstEligibleDate) return level.exactFirstEligibleDate;
   if (!level?.promotionCycle?.eligibleCycle) return null;
   const eligibleGregorianYear = yearBEToGregorian(level.promotionCycle.eligibleCycle);
   return utcDate(eligibleGregorianYear, 1, 1);
 }
 
 /**
- * Estimated number of promotion (appointment-cycle) rounds passed since the
- * officer's `appointmentCycle` began — reuses
- * `promotionCycle.completedPromotionCycles`
- * (lib/promotion_cycle/engine.ts), which is itself an APPROXIMATION: one
- * calendar year (Buddhist-Era labeled) stands in for "one appointment
- * cycle" because the schema has no record of actual historical
- * promotion-board rounds. Never presented as exact — see the doc comment
- * on PromotionSummary.promotionCyclesPassed and
- * docs/Personnel_Intelligence_Architecture.md's Phase 41 section.
+ * Missed appointment cycles since becoming eligible — equals
+ * `yearsAfterEligibility` / `overdueYears` (first eligible cycle = 0).
+ * Distinct from the engine's `completedPromotionCycles` (years since the
+ * appointment cycle began) and from `eligibleYearOrdinal` (1-based year).
  */
 function computePromotionCyclesPassed(level: LevelEligibilityResult | null): number | null {
-  return level?.promotionCycle?.completedPromotionCycles ?? null;
+  if (!level?.eligibleNow || level.promotionCycle?.yearsAfterEligibility == null) return null;
+  return level.promotionCycle.yearsAfterEligibility;
 }
 
 /** Thai sentence for each MissingEvidenceKey — the ONE place these are worded, reused by confidenceReasonTh below. Deliberately closed to the same key set as eligibility_policy.ts's MissingEvidenceKey. */
@@ -328,6 +325,7 @@ export function computePromotionSummary(
     eligibleNow: level?.eligibleNow ?? card.promotionResult?.eligible ?? false,
     monthsUntilEligible: level?.monthsUntilEligible ?? null,
     overdueYears: level?.overdueYears ?? null,
+    eligibleYearOrdinal: level != null && level.eligibleYearOrdinal > 0 ? level.eligibleYearOrdinal : null,
     targetLevel: level?.targetLevel ?? target ?? null,
 
     available: true,
@@ -353,7 +351,9 @@ export function computePromotionSummary(
     displayEligibleSinceTh: eligibleDate
       ? `ครบคุณสมบัติครั้งแรกเมื่อ ${formatFullThaiDateTh(eligibleDate)} (ปีงบประมาณที่ครบ ${eligibleFiscalYearBe}) ` +
         `มีคุณสมบัติครบมาแล้ว ${formatExactDurationTh(eligibleDuration)}` +
-        (promotionCyclesPassed != null ? ` ผ่านรอบแต่งตั้งประมาณ ${promotionCyclesPassed} รอบ` : "")
+        (promotionCyclesPassed != null && promotionCyclesPassed > 0
+          ? ` ผ่านรอบแต่งตั้งประมาณ ${promotionCyclesPassed} รอบ`
+          : "")
       : null,
     displayStatusTh: PROMOTION_STATUS_DISPLAY_TH[promotionStatus],
 

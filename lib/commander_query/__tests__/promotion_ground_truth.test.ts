@@ -185,7 +185,8 @@ test("B3. year after the eligible year: still eligible, now reported as overdue 
   const asOf = utcDate(2032, 7, 20); // BE 2575.
   const result = toQueryOfficer(reportedOfficer(), asOf, ORG_LABELS, null);
   assert.equal(result.promotionIntelligence.eligibleNow, true);
-  assert.equal(result.promotionIntelligence.overdueYears, 2);
+  assert.equal(result.promotionIntelligence.overdueYears, 1);
+  assert.equal(result.promotionIntelligence.eligibleYearOrdinal, 2);
 });
 
 test("B4. Buddhist-Era year formatting: firstEligibleFiscalYearBe is always > 2500 (BE, never Gregorian)", () => {

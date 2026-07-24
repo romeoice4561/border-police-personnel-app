@@ -54,7 +54,9 @@ function officerRow(officer: CommanderQueryOfficer): string[] {
     promotion.eligibleFiscalYearBe != null ? String(promotion.eligibleFiscalYearBe) : "",
     missedOpportunities != null ? `${missedOpportunities} ปี` : "",
     promotion.displayStatusTh ?? "",
-    promotion.overdueYears && promotion.overdueYears > 0 ? String(promotion.overdueYears) : "",
+    promotion.eligibleYearOrdinal != null && promotion.eligibleYearOrdinal > 0
+      ? String(promotion.eligibleYearOrdinal)
+      : "",
     officer.retirementYearBe != null ? `พ.ศ. ${officer.retirementYearBe}` : "",
     officer.displayServiceDurationTh ?? "",
   ];

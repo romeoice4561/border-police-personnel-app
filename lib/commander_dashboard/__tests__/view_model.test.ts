@@ -60,6 +60,7 @@ function officer(overrides: Partial<DashboardSourceOfficer> = {}): DashboardSour
     monthsEligible: null,
     daysEligible: null,
     overdueYears: null,
+    eligibleYearOrdinal: null,
     promotionCyclesPassed: null,
     priority: null,
     priorityReason: null,
@@ -419,16 +420,41 @@ test("first eligible cycle date is null when eligibleFiscalYearBe is unavailable
   assert.equal(candidates[0].displayEligibleFiscalYearTh, null);
 });
 
-test("promotion year ordinal ('ปีนี้เป็นปีที่ N') is sourced directly from overdueYears, never recalculated", () => {
-  const officers = [officer({ officerId: "A", promotionStatus: "AlreadyEligible", priority: 75, overdueYears: 2 })];
+test("promotion year ordinal ('ปีนี้เป็นปีที่ N') is sourced directly from eligibleYearOrdinal, never recalculated", () => {
+  const officers = [
+    officer({
+      officerId: "A",
+      promotionStatus: "AlreadyEligible",
+      priority: 75,
+      overdueYears: 1,
+      eligibleYearOrdinal: 2,
+    }),
+  ];
   const candidates = buildPromotionPriorityCandidates(officers);
   assert.equal(candidates[0].promotionYearOrdinal, 2);
 });
 
-test("promotion year ordinal is null when the officer is not yet eligible (overdueYears is 0)", () => {
-  const officers = [officer({ officerId: "A", promotionStatus: "Waiting", priority: 10, overdueYears: 0 })];
+test("promotion year ordinal is null when the officer is not yet eligible (eligibleYearOrdinal null)", () => {
+  const officers = [
+    officer({ officerId: "A", promotionStatus: "Waiting", priority: 10, overdueYears: 0, eligibleYearOrdinal: null }),
+  ];
   const candidates = buildPromotionPriorityCandidates(officers);
   assert.equal(candidates[0].promotionYearOrdinal, null);
+});
+
+test("first eligible cycle: overdueYears=0 does not invent a year-ordinal of 1 from overdueYears", () => {
+  const officers = [
+    officer({
+      officerId: "A",
+      promotionStatus: "EligibleThisYear",
+      priority: 50,
+      overdueYears: 0,
+      eligibleYearOrdinal: 1,
+    }),
+  ];
+  const candidates = buildPromotionPriorityCandidates(officers);
+  assert.equal(candidates[0].promotionYearOrdinal, 1);
+  assert.equal(officers[0].overdueYears, 0);
 });
 
 test("promotion cycle label is compact ('รอบที่ N'), not the verbose sentence form", () => {

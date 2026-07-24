@@ -50,6 +50,7 @@ import {
   type PositionLevel,
 } from "@/lib/commander_query/position_level";
 import { currentPromotionCycle, evaluatePromotionCycle, type PromotionCycleResult } from "@/lib/promotion_cycle";
+import { addYears, compareDates } from "@/lib/personnel_calendar";
 
 /**
  * A promotion policy for advancing INTO `targetLevel`. Every requirement is
@@ -95,6 +96,12 @@ export interface EligibilityOfficer {
   documentCodes: readonly string[];
   twoStepCount: number;
   appointmentCycle?: number | null;
+  /**
+   * Exact effective start date of the current position level (Timeline-derived).
+   * When present, position-level tenure also requires `asOf >= addYears(start, minYears)`.
+   * Year-only Timeline rows typically resolve to 1 January of that BE year.
+   */
+  positionLevelStartedAt?: Date | null;
 }
 
 export type EligibilityStatus =
@@ -126,9 +133,25 @@ export interface LevelEligibilityResult {
   eligibleNow: boolean;
   /** Whole months until the officer's tenure requirements are met (0 when already met; null when unknowable, e.g. a non-tenure blocker). */
   monthsUntilEligible: number | null;
-  /** Whole years the officer has been eligible but not advanced (0 unless status is overdue). */
+  /**
+   * Completed waiting years after first becoming eligible — NOT a year ordinal.
+   * First eligible cycle = 0; after one full completed appointment cycle = 1.
+   * Always 0 when not eligible. Distinct from `eligibleYearOrdinal`.
+   */
   overdueYears: number;
+  /**
+   * One-based eligibility-year ordinal (ปีที่ N / รอบที่ N).
+   * First eligible cycle = 1; second = 2. Always 0 when not eligible.
+   * Sourced from PromotionCycleResult.overdueCycles (engine 1-based ordinal).
+   */
+  eligibleYearOrdinal: number;
   promotionCycle: PromotionCycleResult | null;
+  /**
+   * Exact first-eligible calendar date when `positionLevelStartedAt` + policy
+   * years are known (`addYears(start, minYearsInPositionLevel)`). Null when
+   * only the appointment-cycle year projection is available.
+   */
+  exactFirstEligibleDate: Date | null;
   missingRequirements: PromotionRequirement[];
   recommendedActions: PromotionNextStep[];
   score: number;
@@ -161,13 +184,18 @@ export const ELIGIBLE_SOON_HORIZON_MONTHS = 12;
  * produced an incorrect "already eligible" result 3 years early (should be
  * eligible in BE 2574, not 2571 — see the regression tests in
  * lib/intelligence/promotion/__tests__/promotion_intelligence.test.ts and
- * lib/promotion/__tests__/eligibility_policy.test.ts). Every OTHER level's
- * minYearsInPositionLevel is UNCHANGED — no other level's rule was reported
- * or confirmed incorrect, so none was touched (see docs/CHANGELOG.md).
+ * lib/promotion/__tests__/eligibility_policy.test.ts).
+ *
+ * Phase 49.9: `minYearsInPositionLevel` for สารวัตร → รองผู้กำกับการ
+ * corrected from 4 to 5 — confirmed by a reported profile that showed
+ * required tenure 4 / first eligible 2568 / overdue 1 for a สารวัตร start
+ * in พ.ศ. 2564 (canonical: 5 years → first eligible พ.ศ. 2569, overdue 0 /
+ * รอบที่ 1 in the first eligible cycle). Every OTHER level's
+ * minYearsInPositionLevel is UNCHANGED unless explicitly confirmed wrong.
  */
 export const PROMOTION_POLICIES: readonly PromotionPolicy[] = [
   { targetLevel: "สารวัตร", minYearsInPositionLevel: 7, minYearsInRank: 4 },
-  { targetLevel: "รองผู้กำกับการ", minYearsInPositionLevel: 4, minYearsInRank: 4 },
+  { targetLevel: "รองผู้กำกับการ", minYearsInPositionLevel: 5, minYearsInRank: 4 },
   { targetLevel: "ผู้กำกับการ", minYearsInPositionLevel: 4, minYearsInRank: 4 },
   { targetLevel: "รองผู้บังคับการ", minYearsInPositionLevel: 4, minYearsInRank: 3 },
   { targetLevel: "ผู้บังคับการ", minYearsInPositionLevel: 4, minYearsInRank: 3 },
@@ -252,7 +280,9 @@ export function evaluateLevelEligibility(
       eligibleNow: false,
       monthsUntilEligible: null,
       overdueYears: 0,
+      eligibleYearOrdinal: 0,
       promotionCycle: null,
+      exactFirstEligibleDate: null,
       missingRequirements: [],
       recommendedActions: [],
       score: 0,
@@ -279,7 +309,16 @@ export function evaluateWithPolicy(
   const normalizedTarget = policy.targetLevel as PositionLevel;
   const currentLevel = normalizePositionLevel(officer.positionLevel);
 
-  const base: Omit<LevelEligibilityResult, "status" | "eligibleNow" | "monthsUntilEligible" | "overdueYears" | "promotionCycle"> = {
+  const base: Omit<
+    LevelEligibilityResult,
+    | "status"
+    | "eligibleNow"
+    | "monthsUntilEligible"
+    | "overdueYears"
+    | "eligibleYearOrdinal"
+    | "promotionCycle"
+    | "exactFirstEligibleDate"
+  > = {
     targetLevel: normalizedTarget,
     missingRequirements: [],
     recommendedActions: [],
@@ -308,7 +347,9 @@ export function evaluateWithPolicy(
       eligibleNow: false,
       monthsUntilEligible: null,
       overdueYears: 0,
+      eligibleYearOrdinal: 0,
       promotionCycle: null,
+      exactFirstEligibleDate: null,
     };
   }
 
@@ -350,13 +391,28 @@ export function evaluateWithPolicy(
   const missing: PromotionRequirement[] = engineResult ? [...engineResult.missingRequirements] : [];
   const actions: PromotionNextStep[] = engineResult ? [...engineResult.suggestedNextSteps] : [];
 
+  // Exact calendar first-eligible date when Timeline day/month/year is known.
+  // Year-only rows resolve to 1 January of that BE year via toEffectiveDate.
+  const exactFirstEligibleDate =
+    officer.positionLevelStartedAt != null && policy.minYearsInPositionLevel != null
+      ? addYears(officer.positionLevelStartedAt, policy.minYearsInPositionLevel)
+      : null;
+  const exactDatePending =
+    exactFirstEligibleDate != null && compareDates(asOf, exactFirstEligibleDate) < 0;
+
   const levelShortfall =
     policy.minYearsInPositionLevel != null
       ? cycle?.appointmentCycle == null
         ? null
-        : cycle.eligibleNow
+        : cycle.eligibleNow && !exactDatePending
           ? 0
-          : Math.max(0, ((cycle.eligibleCycle ?? currentPromotionCycle(asOf)) - currentPromotionCycle(asOf)) * 12)
+          : exactDatePending && exactFirstEligibleDate
+            ? Math.max(
+                0,
+                (exactFirstEligibleDate.getUTCFullYear() - asOf.getUTCFullYear()) * 12 +
+                  (exactFirstEligibleDate.getUTCMonth() - asOf.getUTCMonth())
+              )
+            : Math.max(0, ((cycle.eligibleCycle ?? currentPromotionCycle(asOf)) - currentPromotionCycle(asOf)) * 12)
       : 0;
   const rankShortfall = monthsShortfall(officer.yearsInRank, policy.minYearsInRank);
   const serviceShortfallYears =
@@ -388,7 +444,7 @@ export function evaluateWithPolicy(
         detail: "ไม่มีข้อมูล",
       });
       actions.push({ code: "ADD_APPOINTMENT_CYCLE", label: "เพิ่มรอบแต่งตั้งใน Career Timeline" });
-    } else if (!cycle.eligibleNow) {
+    } else if (!cycle.eligibleNow || exactDatePending) {
       tenureBlocked = true;
       missing.push({
         code: "MIN_CYCLES_IN_LEVEL",
@@ -448,20 +504,22 @@ export function evaluateWithPolicy(
   const anyUnknown = [levelShortfall, rankShortfall].some((m) => m == null);
   const monthsUntilEligible = eligibleNow ? 0 : anyUnknown || engineBlocked ? null : shortfalls.length > 0 ? Math.max(...shortfalls) : null;
 
-  // Overdue: eligible now AND has held the current level beyond the required
-  // minimum by ≥ 1 full year (they've been promotable but not advanced).
-  // Phase 49.8 fix: this previously read `cycle.overdueCycles` unconditionally
-  // — the position-level appointment-cycle engine has no knowledge of OTHER
-  // blockers (rank tenure, missing evidence, training/documents), so an
-  // officer blocked by a real rank shortfall or missing rank-start evidence
-  // could still show a non-zero overdueYears purely from the position-level
-  // cycle math, contradicting eligibleNow: false. overdueYears must never be
-  // positive unless the officer is ACTUALLY eligible now.
-  const overdueYears = eligibleNow && cycle && cycle.overdueCycles > 0 ? cycle.overdueCycles : 0;
+  // Phase 49.9 semantic split:
+  //   - overdueYears = completed waiting years (yearsAfterEligibility):
+  //     first eligible cycle = 0; after one completed cycle = 1.
+  //   - eligibleYearOrdinal = one-based year/cycle ordinal (engine overdueCycles):
+  //     first eligible cycle = 1; second = 2.
+  // Never copy the engine's 1-based overdueCycles into overdueYears — that
+  // conflated "ปีที่ 1" with "รอมาแล้ว 1 ปี". Also: never report a positive
+  // overdueYears / ordinal unless the officer is ACTUALLY eligible now
+  // (cycle math alone can ignore other blockers).
+  const overdueYears =
+    eligibleNow && cycle && cycle.yearsAfterEligibility != null ? cycle.yearsAfterEligibility : 0;
+  const eligibleYearOrdinal = eligibleNow && cycle && cycle.overdueCycles > 0 ? cycle.overdueCycles : 0;
 
   let status: EligibilityStatus;
   if (eligibleNow) {
-    status = cycle && cycle.overdueCycles > 1 ? "overdue" : "eligible_now";
+    status = overdueYears > 0 ? "overdue" : "eligible_now";
   } else if (monthsUntilEligible != null && monthsUntilEligible <= ELIGIBLE_SOON_HORIZON_MONTHS) {
     status = "eligible_soon";
   } else {
@@ -474,7 +532,9 @@ export function evaluateWithPolicy(
     eligibleNow,
     monthsUntilEligible,
     overdueYears,
+    eligibleYearOrdinal,
     promotionCycle: cycle,
+    exactFirstEligibleDate,
     missingRequirements: missing,
     recommendedActions: actions,
     score: engineResult?.score ?? 0,
