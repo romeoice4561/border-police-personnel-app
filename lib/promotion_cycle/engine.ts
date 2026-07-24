@@ -3,8 +3,21 @@ import type { PromotionCycleInput, PromotionCyclePolicy, PromotionCycleResult } 
 
 export const DEFAULT_PROMOTION_CYCLE_POLICY: PromotionCyclePolicy = { requiredCycles: 4 };
 
+/**
+ * Canonical Buddhist appointment / assessment year for promotion-cycle math.
+ * Calendar BE year of `now` (not Thai fiscal Oct–Sep). Oct–Dec of พ.ศ. 2569
+ * remains appointment year 2569.
+ */
 export function currentPromotionCycle(now: Date = new Date()): number {
   return yearGregorianToBE(now.getUTCFullYear());
+}
+
+/**
+ * Phase 49.11: first appointment year at which position-level tenure is met.
+ * `startYearBe + requiredYears` — no extra +1, no exact-day anniversary.
+ */
+export function firstEligibleAppointmentYearBe(startYearBe: number, requiredYears: number): number {
+  return startYearBe + requiredYears;
 }
 
 export function appointmentCycleFromDate(date: Date | null | undefined): number | null {

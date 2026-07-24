@@ -50,7 +50,7 @@ import {
   type PositionLevel,
 } from "@/lib/commander_query/position_level";
 import { currentPromotionCycle, evaluatePromotionCycle, type PromotionCycleResult } from "@/lib/promotion_cycle";
-import { addYears, compareDates } from "@/lib/personnel_calendar";
+import { addYears } from "@/lib/personnel_calendar";
 
 /**
  * A promotion policy for advancing INTO `targetLevel`. Every requirement is
@@ -98,7 +98,9 @@ export interface EligibilityOfficer {
   appointmentCycle?: number | null;
   /**
    * Exact effective start date of the current position level (Timeline-derived).
-   * When present, position-level tenure also requires `asOf >= addYears(start, minYears)`.
+   * Retained as historical/metadata for exactFirstEligibleDate display.
+   * Phase 49.11: does NOT gate annual appointment-year eligibility — that uses
+   * appointmentCycle + requiredCycles (Buddhist appointment years) only.
    * Year-only Timeline rows typically resolve to 1 January of that BE year.
    */
   positionLevelStartedAt?: Date | null;
@@ -147,9 +149,9 @@ export interface LevelEligibilityResult {
   eligibleYearOrdinal: number;
   promotionCycle: PromotionCycleResult | null;
   /**
-   * Exact first-eligible calendar date when `positionLevelStartedAt` + policy
-   * years are known (`addYears(start, minYearsInPositionLevel)`). Null when
-   * only the appointment-cycle year projection is available.
+   * Exact calendar anniversary of first eligibility when day/month evidence
+   * exists (`addYears(start, minYears)`). Historical/metadata only —
+   * Phase 49.11: must NOT block annual appointment-year eligibleNow.
    */
   exactFirstEligibleDate: Date | null;
   missingRequirements: PromotionRequirement[];
@@ -192,10 +194,17 @@ export const ELIGIBLE_SOON_HORIZON_MONTHS = 12;
  * in พ.ศ. 2564 (canonical: 5 years → first eligible พ.ศ. 2569, overdue 0 /
  * รอบที่ 1 in the first eligible cycle). Every OTHER level's
  * minYearsInPositionLevel is UNCHANGED unless explicitly confirmed wrong.
+ *
+ * Phase 49.11: สารวัตร → รองผู้กำกับการ annual appointment eligibility is
+ * governed by position-level appointment years only. `minYearsInRank` was
+ * removed from this target so a later rank change (e.g. พ.ต.ท. in พ.ศ. 2568)
+ * cannot postpone a 2564→2569 position-level qualification. Rank start remains
+ * visible as Profile metadata via rankStartedAtYearBe. Other targets keep
+ * their existing minYearsInRank requirements until separately confirmed.
  */
 export const PROMOTION_POLICIES: readonly PromotionPolicy[] = [
   { targetLevel: "สารวัตร", minYearsInPositionLevel: 7, minYearsInRank: 4 },
-  { targetLevel: "รองผู้กำกับการ", minYearsInPositionLevel: 5, minYearsInRank: 4 },
+  { targetLevel: "รองผู้กำกับการ", minYearsInPositionLevel: 5 },
   { targetLevel: "ผู้กำกับการ", minYearsInPositionLevel: 4, minYearsInRank: 4 },
   { targetLevel: "รองผู้บังคับการ", minYearsInPositionLevel: 4, minYearsInRank: 3 },
   { targetLevel: "ผู้บังคับการ", minYearsInPositionLevel: 4, minYearsInRank: 3 },
@@ -391,28 +400,22 @@ export function evaluateWithPolicy(
   const missing: PromotionRequirement[] = engineResult ? [...engineResult.missingRequirements] : [];
   const actions: PromotionNextStep[] = engineResult ? [...engineResult.suggestedNextSteps] : [];
 
-  // Exact calendar first-eligible date when Timeline day/month/year is known.
-  // Year-only rows resolve to 1 January of that BE year via toEffectiveDate.
+  // Exact calendar anniversary — retained for history/display metadata only.
+  // Phase 49.11: annual appointment-year eligibility is gated solely by
+  // evaluatePromotionCycle (appointmentCycle + requiredCycles vs current BE
+  // appointment year). Exact day/month must not postpone eligibleNow.
   const exactFirstEligibleDate =
     officer.positionLevelStartedAt != null && policy.minYearsInPositionLevel != null
       ? addYears(officer.positionLevelStartedAt, policy.minYearsInPositionLevel)
       : null;
-  const exactDatePending =
-    exactFirstEligibleDate != null && compareDates(asOf, exactFirstEligibleDate) < 0;
 
   const levelShortfall =
     policy.minYearsInPositionLevel != null
       ? cycle?.appointmentCycle == null
         ? null
-        : cycle.eligibleNow && !exactDatePending
+        : cycle.eligibleNow
           ? 0
-          : exactDatePending && exactFirstEligibleDate
-            ? Math.max(
-                0,
-                (exactFirstEligibleDate.getUTCFullYear() - asOf.getUTCFullYear()) * 12 +
-                  (exactFirstEligibleDate.getUTCMonth() - asOf.getUTCMonth())
-              )
-            : Math.max(0, ((cycle.eligibleCycle ?? currentPromotionCycle(asOf)) - currentPromotionCycle(asOf)) * 12)
+          : Math.max(0, ((cycle.eligibleCycle ?? currentPromotionCycle(asOf)) - currentPromotionCycle(asOf)) * 12)
       : 0;
   const rankShortfall = monthsShortfall(officer.yearsInRank, policy.minYearsInRank);
   const serviceShortfallYears =
@@ -444,7 +447,7 @@ export function evaluateWithPolicy(
         detail: "ไม่มีข้อมูล",
       });
       actions.push({ code: "ADD_APPOINTMENT_CYCLE", label: "เพิ่มรอบแต่งตั้งใน Career Timeline" });
-    } else if (!cycle.eligibleNow || exactDatePending) {
+    } else if (!cycle.eligibleNow) {
       tenureBlocked = true;
       missing.push({
         code: "MIN_CYCLES_IN_LEVEL",

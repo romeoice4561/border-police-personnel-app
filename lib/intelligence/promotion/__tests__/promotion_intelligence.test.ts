@@ -61,11 +61,12 @@ test("eligible today: appointmentCycle 7 cycles ago, exactly eligibleNow this cy
   assert.equal(summary.eligibleFiscalYearBe, 2569);
 });
 
-test("eligible this year (EligibleThisYear) matches the current fiscal year exactly", () => {
+test("eligible this year (EligibleThisYear) matches the current appointment year exactly", () => {
   const officer = baseOfficer({ appointmentCycle: 2562, yearsInRank: 7, yearsInPositionLevel: 7 });
   const summary = computePromotionSummary(baseCard(), officer, ASOF_2026);
   assert.equal(summary.promotionStatus, "EligibleThisYear");
   assert.equal(summary.displayStatusTh, PROMOTION_STATUS_DISPLAY_TH.EligibleThisYear);
+  assert.equal(summary.firstEligibleYearBe, 2569);
 });
 
 test("already eligible: eligible in a PRIOR fiscal year, still waiting (AlreadyEligible)", () => {

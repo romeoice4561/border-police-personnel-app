@@ -31,6 +31,7 @@ import { evaluateNextLevelEligibility, policyForTargetLevel, type EligibilityOff
 import { normalizePositionLevel, nextPositionLevel, UNKNOWN_POSITION_LEVEL } from "@/lib/commander_query/position_level";
 import { yearBEToGregorian } from "@/lib/officer_profile/thai_date";
 import { utcDate } from "@/lib/personnel_calendar";
+import { currentPromotionCycle } from "@/lib/promotion_cycle";
 import { computeExactDuration, formatExactDurationTh } from "@/lib/intelligence/shared/exact_duration";
 import { formatFullThaiDateTh, toBuddhistEraYear } from "@/lib/intelligence/shared/thai_date";
 import type { OfficerIntelligenceCard } from "@/lib/intelligence/types";
@@ -82,8 +83,8 @@ export const PROMOTION_STATUS_DISPLAY_TH: Record<PromotionEligibilityStatus, str
  */
 function classifyStatus(
   level: LevelEligibilityResult | null,
-  eligibleFiscalYearBe: number | null,
-  currentFiscalYearBe: number
+  firstEligibleYearBe: number | null,
+  appointmentYearBe: number
 ): PromotionEligibilityStatus {
   if (!level) return "Unknown";
 
@@ -102,7 +103,10 @@ function classifyStatus(
   const blockedByDocuments = missingCodes.some((code) => code.startsWith("DOCUMENT_"));
 
   if (level.eligibleNow) {
-    if (eligibleFiscalYearBe != null && eligibleFiscalYearBe === currentFiscalYearBe) return "EligibleThisYear";
+    // Phase 49.11: EligibleThisYear compares Buddhist appointment years, not
+    // Thai fiscal years (Oct anniversary must not push status into
+    // AlreadyEligible / next FY).
+    if (firstEligibleYearBe != null && firstEligibleYearBe === appointmentYearBe) return "EligibleThisYear";
     return "AlreadyEligible";
   }
   if (blockedByTraining) return "MissingTraining";
@@ -127,30 +131,34 @@ function classifyStatus(
  * "eligible as of this Buddhist-Era year," never a fabricated day/month.
  * This is documented, not silently approximated.
  */
+/**
+ * Appointment-year anchor for the first eligible Buddhist year (1 Jan of that
+ * Gregorian year). Exact day/month anniversary remains on
+ * level.exactFirstEligibleDate as metadata and must not drive year labels.
+ */
+function appointmentYearAnchorDate(eligibleCycleBe: number): Date {
+  return utcDate(yearBEToGregorian(eligibleCycleBe), 1, 1);
+}
+
 function computeEligibleDate(level: LevelEligibilityResult | null): Date | null {
   if (!level?.eligibleNow) return null;
-  // Prefer exact Timeline-derived first-eligible date when day/month evidence exists.
-  if (level.exactFirstEligibleDate) return level.exactFirstEligibleDate;
-  if (!level.promotionCycle?.eligibleCycle) return null;
-  const eligibleGregorianYear = yearBEToGregorian(level.promotionCycle.eligibleCycle);
-  return utcDate(eligibleGregorianYear, 1, 1);
+  if (!level.promotionCycle?.eligibleCycle) {
+    return level.exactFirstEligibleDate;
+  }
+  return appointmentYearAnchorDate(level.promotionCycle.eligibleCycle);
 }
 
 /**
- * Phase 49.7: the officer's FIRST eligible date, projected forward from the
- * tenure policy regardless of whether they have reached it yet — unlike
- * computeEligibleDate above (historical-only, null pre-eligibility).
- *
- * Phase 49.9: when LevelEligibilityResult.exactFirstEligibleDate is present
- * (`addYears(positionLevelStartedAt, minYears)` from the eligibility engine),
- * that exact calendar date is preferred over the Jan-1 appointment-cycle
- * year anchor. Falls back to eligibleCycle year when only year evidence exists.
+ * Phase 49.7/49.11: projected first-eligible appointment year as a date
+ * anchor (1 Jan of eligibleCycle). Exact anniversary
+ * (level.exactFirstEligibleDate) is kept on the eligibility result for
+ * history but is not used for firstEligibleYearBe / EligibleThisYear.
  */
 function computeFirstEligibleDate(level: LevelEligibilityResult | null): Date | null {
-  if (level?.exactFirstEligibleDate) return level.exactFirstEligibleDate;
-  if (!level?.promotionCycle?.eligibleCycle) return null;
-  const eligibleGregorianYear = yearBEToGregorian(level.promotionCycle.eligibleCycle);
-  return utcDate(eligibleGregorianYear, 1, 1);
+  if (level?.promotionCycle?.eligibleCycle) {
+    return appointmentYearAnchorDate(level.promotionCycle.eligibleCycle);
+  }
+  return level?.exactFirstEligibleDate ?? null;
 }
 
 /**
@@ -279,7 +287,7 @@ function computeDisplayReasonTh(input: {
   }
 
   if (eligibleNow && requiredTenureYears != null && currentLevel && targetLevel && firstEligibleYearBe != null) {
-    return `ดำรงระดับ${currentLevel}ครบเกณฑ์ ${requiredTenureYears} ปีแล้ว มีคุณสมบัติด้านระยะเวลาสำหรับการพิจารณาเลื่อนเป็น${targetLevel}ใน พ.ศ. ${firstEligibleYearBe}`;
+    return `ดำรงระดับ${currentLevel}ครบเกณฑ์ ${requiredTenureYears} ปีแล้ว จึงมีคุณสมบัติด้านระยะเวลาสำหรับการพิจารณาเลื่อนเป็น${targetLevel}ในรอบ พ.ศ. ${firstEligibleYearBe}`;
   }
 
   if (
@@ -378,13 +386,22 @@ export function computePromotionSummary(
   const target = currentLevel === UNKNOWN_POSITION_LEVEL ? null : nextPositionLevel(currentLevel);
   const level = target ? evaluateNextLevelEligibility(eligibilityOfficer, asOf) : null;
 
-  const currentFiscalYearBe = fiscalYearBeForDate(asOf);
+  // Phase 49.11: Buddhist appointment/assessment year (calendar BE), not Thai FY.
+  const appointmentYearBe = currentPromotionCycle(asOf);
 
   const eligibleDate = computeEligibleDate(level);
   const eligibleFiscalYearBe = eligibleDate ? fiscalYearBeForDate(eligibleDate) : null;
   const firstEligibleDate = computeFirstEligibleDate(level);
-  const firstEligibleYearBe = firstEligibleDate ? calendarYearBeFromDate(firstEligibleDate) : null;
-  const firstEligibleFiscalYearBe = firstEligibleDate ? fiscalYearBeForDate(firstEligibleDate) : null;
+  // Canonical first-eligible appointment year = eligibleCycle (startYear + requiredYears).
+  const firstEligibleYearBe =
+    level?.promotionCycle?.eligibleCycle ?? (firstEligibleDate ? calendarYearBeFromDate(firstEligibleDate) : null);
+  // Fiscal year of the exact anniversary metadata (may differ from calendar year for Oct–Dec).
+  const exactAnniversary = level?.exactFirstEligibleDate ?? null;
+  const firstEligibleFiscalYearBe = exactAnniversary
+    ? fiscalYearBeForDate(exactAnniversary)
+    : firstEligibleDate
+      ? fiscalYearBeForDate(firstEligibleDate)
+      : null;
 
   const durationResult = computeExactDuration(eligibleDate, asOf, "MISSING_SERVICE_START_DATE");
   const eligibleDuration = durationResult.available ? durationResult.duration : null;
@@ -393,7 +410,7 @@ export function computePromotionSummary(
   const hasMissingTraining = missingCodes.some((code) => code.startsWith("TRAINING_"));
   const hasMissingDocuments = missingCodes.some((code) => code.startsWith("DOCUMENT_"));
 
-  const promotionStatus = classifyStatus(level, eligibleFiscalYearBe, currentFiscalYearBe);
+  const promotionStatus = classifyStatus(level, firstEligibleYearBe, appointmentYearBe);
 
   const yearsEligibleWhole = eligibleDuration ? eligibleDuration.years : null;
   const promotionCyclesPassed = computePromotionCyclesPassed(level);

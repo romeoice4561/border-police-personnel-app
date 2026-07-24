@@ -113,22 +113,24 @@ test("1. requiredTenureYears serializes as 5", () => {
   assert.equal(result.promotionIntelligence.requiredTenureYears, 5);
 });
 
-test("2. start 16 Feb 2564 → first eligible date 16 Feb 2569", () => {
+test("2. start 16 Feb 2564 → first eligible appointment year anchor 1 Jan 2569", () => {
   const asOf = utcDate(2026, 7, 20);
   const result = toQueryOfficer(reportedOfficer(), asOf, ORG_LABELS, null);
-  assert.equal(result.promotionIntelligence.firstEligibleDate, "2026-02-16");
+  // Phase 49.11: appointment-year anchor (not exact anniversary day/month).
+  assert.equal(result.promotionIntelligence.firstEligibleDate, "2026-01-01");
+  assert.equal(result.promotionIntelligence.firstEligibleYearBe, 2569);
 });
 
-test("3. day before 16 Feb 2569 → not eligible, overdueYears=0, no false cycle advancement", () => {
+test("3. day before exact anniversary in BE 2569 → still eligible (appointment-year rule)", () => {
   const asOf = utcDate(2026, 2, 15);
   const result = toQueryOfficer(reportedOfficer(), asOf, ORG_LABELS, null);
-  assert.equal(result.promotionIntelligence.eligibleNow, false);
+  assert.equal(result.promotionIntelligence.eligibleNow, true);
   assert.equal(result.promotionIntelligence.overdueYears, 0);
-  assert.equal(result.promotionIntelligence.eligibleYearOrdinal, null);
-  assert.equal(result.promotionIntelligence.promotionCyclesPassed, null);
+  assert.equal(result.promotionIntelligence.eligibleYearOrdinal, 1);
+  assert.equal(result.promotionIntelligence.promotionCyclesPassed, 0);
   const vm = composeOfficerIntelligenceViewModel(reportedOfficer(), ORG_LABELS, null, asOf);
-  assert.equal(vm.promotion.eligibilityYearNumber, null);
-  assert.notEqual(vm.promotion.displayWaitingTh, "ครบคุณสมบัติในปีนี้");
+  assert.equal(vm.promotion.eligibilityYearNumber, 1);
+  assert.equal(vm.promotion.displayWaitingTh, "ครบคุณสมบัติในปีนี้");
 });
 
 test("4. on 16 Feb 2569 → eligible", () => {

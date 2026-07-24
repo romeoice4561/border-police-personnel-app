@@ -140,10 +140,10 @@ test("1. สารวัตร → รองผู้กำกับการ re
   assert.equal(policyForTargetLevel("สารวัตร")?.minYearsInPositionLevel, 7);
 });
 
-test("2–4. exact 16 Feb 2564 → first eligible 16 Feb 2569; as-of 24 Jul 2569 eligible", () => {
+test("2–4. exact 16 Feb 2564 → first eligible year 2569; as-of 24 Jul 2569 eligible", () => {
   const q = toQueryOfficer(exactStartOfficer(), ASOF_24_JUL_2569, ORG, null);
   const p = q.promotionIntelligence;
-  assert.equal(p.firstEligibleDate, "2026-02-16");
+  assert.equal(p.firstEligibleDate, "2026-01-01");
   assert.equal(p.firstEligibleYearBe, 2569);
   assert.equal(p.eligibleNow, true);
   assert.equal(p.requiredTenureYears, 5);
@@ -182,22 +182,23 @@ test("11. year-only start 2564 still produces firstEligibleYearBe = 2569", () =>
   assert.equal(q.promotionIntelligence.eligibleNow, true);
 });
 
-test("12. Oct anniversary: calendar firstEligibleYearBe=2569 even when fiscal year is 2570", () => {
+test("12. Oct anniversary: appointment-year eligible in 2569; fiscal metadata may be 2570; Profile shows 2569", () => {
   const q = toQueryOfficer(octoberStartOfficer(), ASOF_24_JUL_2569, ORG, null);
   const p = q.promotionIntelligence;
-  assert.equal(p.firstEligibleDate, "2026-10-01");
-  assert.equal(p.firstEligibleYearBe, 2569, "calendar BE year of 1 Oct 2026");
-  assert.equal(p.firstEligibleFiscalYearBe, 2570, "Thai FY for Oct+ dates");
+  assert.equal(p.firstEligibleDate, "2026-01-01", "appointment-year anchor");
+  assert.equal(p.firstEligibleYearBe, 2569);
+  assert.equal(p.firstEligibleFiscalYearBe, 2570, "exact Oct anniversary fiscal metadata retained");
   const vm = composeOfficerIntelligenceViewModel(octoberStartOfficer(), ORG, null, ASOF_24_JUL_2569);
   assert.equal(vm.promotion.firstEligibleYearBe, 2569);
   assert.notEqual(vm.promotion.firstEligibleYearBe, 2570);
-  // Exact anniversary not yet reached in July — waiting is allowed, but not with 2570 label.
-  assert.equal(p.eligibleNow, false);
-  assert.equal(vm.promotion.displayStatusTh, "ยังไม่ครบคุณสมบัติ");
+  // Phase 49.11: exact anniversary must not postpone appointment-year eligibility.
+  assert.equal(p.eligibleNow, true);
+  assert.equal(vm.promotion.displayStatusTh, "ครบคุณสมบัติในปีนี้");
+  assert.notEqual(vm.promotion.displayStatusTh, "ยังไม่ครบคุณสมบัติ");
   assert.notEqual(vm.promotion.displayStatusTh, "รอครบคุณสมบัติ");
 });
 
-test("UI failure regression: start 2564 + tenure 5 + required 5 must never yield firstEligible 2570 + รอครบคุณสมบัติ when anniversary is in calendar 2569", () => {
+test("UI failure regression: start 2564 + tenure 5 + required 5 must never yield firstEligible 2570 + waiting in 2569", () => {
   for (const source of [exactStartOfficer(), yearOnlyStartOfficer(), octoberStartOfficer()]) {
     const q = toQueryOfficer(source, ASOF_24_JUL_2569, ORG, null);
     const vm = composeOfficerIntelligenceViewModel(source, ORG, null, ASOF_24_JUL_2569);
@@ -206,7 +207,10 @@ test("UI failure regression: start 2564 + tenure 5 + required 5 must never yield
     assert.equal(q.promotionIntelligence.requiredTenureYears, 5);
     assert.equal(vm.promotion.firstEligibleYearBe, 2569);
     assert.notEqual(vm.promotion.firstEligibleYearBe, 2570);
+    assert.equal(q.promotionIntelligence.eligibleNow, true);
+    assert.equal(vm.promotion.displayStatusTh, "ครบคุณสมบัติในปีนี้");
     assert.notEqual(vm.promotion.displayStatusTh, "รอครบคุณสมบัติ");
+    assert.notEqual(vm.promotion.displayStatusTh, "ยังไม่ครบคุณสมบัติ");
   }
 });
 
