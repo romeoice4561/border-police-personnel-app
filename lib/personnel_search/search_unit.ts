@@ -1,9 +1,10 @@
 /**
  * Unit lookup — summary only; never dumps every officer.
+ * Matches officers by resolved internal FK (from Entity Resolver), never by public code alone.
  */
 import type { CommanderQueryOfficer } from "@/lib/commander_query/types";
 import type { PersonnelSearchUnitItem } from "@/lib/personnel_search/contracts";
-import type { NormalizedUnitRef } from "@/lib/personnel_search/types";
+import type { ResolvedEntity } from "@/lib/personnel_entities/contracts";
 import { rankSeniority } from "@/lib/personnel_search/ranking";
 
 function isPromotionReady(o: CommanderQueryOfficer): boolean {
@@ -24,23 +25,28 @@ function isIncomplete(o: CommanderQueryOfficer): boolean {
   return c === "incomplete" || c === "unknown" || o.flagCodes.includes("PROFILE_INCOMPLETE");
 }
 
-function matchesUnit(officer: CommanderQueryOfficer, unit: NormalizedUnitRef): boolean {
-  if (unit.level === "company" && unit.number != null) {
-    return officer.companyId === unit.number || String(officer.companyId) === String(unit.number);
+/** Filter officers to a resolved organization entity (internal ids only). */
+export function filterOfficersByResolvedOrg(
+  officers: CommanderQueryOfficer[],
+  entity: ResolvedEntity
+): CommanderQueryOfficer[] {
+  const id = entity.internalNumericId;
+  if (id == null) return [];
+  if (entity.type === "company") {
+    return officers.filter((o) => o.companyId === id);
   }
-  if (unit.level === "division" && unit.number != null) {
-    return officer.battalionId === unit.number;
+  if (entity.type === "division") {
+    return officers.filter((o) => o.battalionId === id);
   }
-  if (unit.level === "region" && unit.number != null) {
-    return officer.regionId === unit.number;
+  if (entity.type === "region") {
+    return officers.filter((o) => o.regionId === id);
   }
-  return false;
+  return [];
 }
 
 function pickCommander(members: CommanderQueryOfficer[]): CommanderQueryOfficer | null {
   if (members.length === 0) return null;
   const ranked = [...members].sort((a, b) => rankSeniority(b.rank) - rankSeniority(a.rank));
-  // Prefer positions that look like unit command.
   const cmd = ranked.find((o) => /ผบ\.|ผู้บังคับ|ผู้กำกับการ|สารวัตรใหญ่/i.test(o.currentPosition ?? ""));
   return cmd ?? ranked[0] ?? null;
 }
@@ -54,26 +60,33 @@ function pickDeputies(members: CommanderQueryOfficer[], commanderId: string | nu
     .map((o) => `${o.rank} ${o.firstName} ${o.lastName}`.trim());
 }
 
+/**
+ * Build a unit summary from a ResolvedEntity (publicCode + internalNumericId).
+ */
 export function searchUnit(
   officers: CommanderQueryOfficer[],
-  unit: NormalizedUnitRef
+  entity: ResolvedEntity
 ): PersonnelSearchUnitItem | null {
-  const members = officers.filter((o) => matchesUnit(o, unit));
+  if (entity.type !== "company" && entity.type !== "division" && entity.type !== "region") {
+    return null;
+  }
+
+  const members = filterOfficersByResolvedOrg(officers, entity);
   if (members.length === 0) return null;
 
   const commander = pickCommander(members);
   const promotionReadyCount = members.filter(isPromotionReady).length;
   const retirementNearCount = members.filter(isNearRetirement).length;
   const incompleteDataCount = members.filter(isIncomplete).length;
-
-  // "Police count" ≈ officers with a police-style rank abbreviation.
   const policeCount = members.filter((o) => /พ\.?ต\.?|ร\.?ต\.?|ด\.?ต\.?|ส\.?ต\.?/.test(o.rank)).length;
+  const publicCode = entity.publicCode ?? "";
 
   return {
     kind: "unit",
-    level: unit.level,
-    key: unit.key,
-    labelTh: unit.labelTh,
+    level: entity.type === "division" ? "division" : entity.type === "region" ? "region" : "company",
+    key: `${entity.type}:${publicCode}`,
+    labelTh: entity.displayName,
+    publicCode,
     commanderName: commander ? `${commander.rank} ${commander.firstName} ${commander.lastName}`.trim() : null,
     deputyNames: pickDeputies(members, commander?.officerId ?? null),
     officerCount: members.length,

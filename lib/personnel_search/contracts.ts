@@ -60,6 +60,11 @@ export interface PersonnelSearchRequest {
   disclosureLevel?: DisclosureLevel;
   /** Hard cap on list items (disambiguation / lists). */
   limit?: number;
+  /**
+   * Zero-based offset into the ranked result list (Phase 51.1 pagination).
+   * Ignored for unit summaries, help, and single exact person matches.
+   */
+  offset?: number;
   /** ISO timestamp override for tests. */
   nowIso?: string;
 }
@@ -85,9 +90,14 @@ export interface PersonnelSearchPersonItem {
   nickname: string | null;
   currentPosition: string | null;
   unitLabel: string;
-  regionId: number | null;
-  divisionId: number | null;
-  companyId: number | null;
+  /**
+   * Public organization codes for clients. Internal DB FKs are not exposed.
+   */
+  organizationPublic: {
+    regionCode: string | null;
+    divisionCode: string | null;
+    companyCode: string | null;
+  };
   academyClass: number | null;
   matchKind: MatchKind;
   matchScore: number;
@@ -113,6 +123,8 @@ export interface PersonnelSearchUnitItem {
   level: UnitLevel;
   key: string;
   labelTh: string;
+  /** Public organization code (e.g. "414") — never an internal FK. */
+  publicCode: string;
   commanderName: string | null;
   deputyNames: string[];
   officerCount: number;

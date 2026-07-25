@@ -8,12 +8,24 @@ import type { PromotionSummary } from "@/lib/intelligence/shared/types";
 import type { TrainingSummary } from "@/lib/intelligence/training/types";
 import type { OfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
 import { ROLE_PERMISSIONS } from "@/lib/auth/roles";
+import type { OrgTree } from "@/lib/organization/org_tree";
 import { searchPersonnel } from "@/lib/personnel_search/gateway";
 import { resolveSearchIntent } from "@/lib/personnel_search/intent";
 import { normalizeUnitQuery } from "@/lib/personnel_search/normalizer";
 import { maskOfficerId, resolveFieldAccess } from "@/lib/personnel_search/permission";
 import { compareForDisambiguation, scorePersonMatch } from "@/lib/personnel_search/ranking";
 import { needsDisambiguation, searchPersons } from "@/lib/personnel_search/search_person";
+
+/** Internal ids ≠ public codes (Phase 51.1A). */
+const TEST_ORG_TREE: OrgTree = {
+  headquarters: [],
+  regions: [{ id: 100, code: "4", nameTh: "ภาค 4", headquartersId: null }],
+  battalions: [{ id: 200, code: "41", nameTh: "กก.ตชด.41", regionId: 100 }],
+  companies: [
+    { id: 57, code: "414", nameTh: "ร้อย ตชด.414", battalionId: 200 },
+    { id: 58, code: "415", nameTh: "ร้อย ตชด.415", battalionId: 200 },
+  ],
+};
 
 function promo(partial: Partial<PromotionSummary> = {}): PromotionSummary {
   return {
@@ -109,9 +121,9 @@ function officer(id: string, overrides: Partial<CommanderQueryOfficer> = {}, pro
     currentPosition: "สารวัตร",
     positionLevel: "สารวัตร",
     currentUnit: "กก.ตชด.41",
-    regionId: 4,
-    battalionId: 41,
-    companyId: 414,
+    regionId: 100,
+    battalionId: 200,
+    companyId: 57,
     companyLabel: "ร้อย ตชด.414",
     yearsInRank: 5,
     yearsInPosition: 5,
@@ -274,9 +286,9 @@ describe("personnel_search permissions + contracts", () => {
 
   it("returns unit summary without dumping officers", () => {
     const officers = [
-      officer("ภาค4/1", { companyId: 414, rank: "พ.ต.ท.", currentPosition: "ผบ.ร้อย", firstName: "ก", lastName: "หนึ่ง" }),
-      officer("ภาค4/2", { companyId: 414, firstName: "ข", lastName: "สอง" }, { promotionStatus: "AlreadyEligible", displayStatusTh: "ครบคุณสมบัติมาแล้ว" }),
-      officer("ภาค4/3", { companyId: 999, firstName: "ค", lastName: "สาม" }),
+      officer("ภาค4/1", { companyId: 57, rank: "พ.ต.ท.", currentPosition: "ผบ.ร้อย", firstName: "ก", lastName: "หนึ่ง" }),
+      officer("ภาค4/2", { companyId: 57, firstName: "ข", lastName: "สอง" }, { promotionStatus: "AlreadyEligible", displayStatusTh: "ครบคุณสมบัติมาแล้ว" }),
+      officer("ภาค4/3", { companyId: 58, firstName: "ค", lastName: "สาม" }),
     ];
     const result = searchPersonnel(
       {
@@ -286,7 +298,7 @@ describe("personnel_search permissions + contracts", () => {
         disclosureLevel: 1,
         nowIso: "2026-07-24T00:00:00.000Z",
       },
-      { dataset: dataset(officers) }
+      { dataset: dataset(officers), organizationTree: TEST_ORG_TREE }
     );
     assert.equal(result.intent, "UNIT_LOOKUP");
     assert.equal(result.resultType, "unit_summary");
@@ -296,6 +308,31 @@ describe("personnel_search permissions + contracts", () => {
     if (result.items[0].kind === "unit") {
       assert.equal(result.items[0].officerCount, 2);
       assert.equal(result.items[0].promotionReadyCount, 1);
+      assert.equal(result.items[0].publicCode, "414");
+    }
+  });
+
+  it("resolves public company aliases to the same unit (internal id ≠ public code)", () => {
+    const officers = [
+      officer("ภาค4/1", { companyId: 57, currentPosition: "ผบ.ร้อย" }),
+      officer("ภาค4/2", { companyId: 57 }),
+    ];
+    const aliases = ["414", "ร้อย414", "ร้อย 414", "ตชด414", "ตชด.414", "กองร้อย414"];
+    for (const query of aliases) {
+      const result = searchPersonnel(
+        {
+          query,
+          client: "web",
+          permissions: ROLE_PERMISSIONS.commander,
+          nowIso: "2026-07-24T00:00:00.000Z",
+        },
+        { dataset: dataset(officers), organizationTree: TEST_ORG_TREE }
+      );
+      assert.equal(result.resultType, "unit_summary", query);
+      assert.equal(result.totalCount, 2, query);
+      if (result.items[0]?.kind === "unit") {
+        assert.equal(result.items[0].publicCode, "414", query);
+      }
     }
   });
 

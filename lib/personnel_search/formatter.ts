@@ -39,7 +39,12 @@ export function formatPersonItem(
   match: RankedPersonMatch,
   level: DisclosureLevel,
   access: FieldAccess,
-  ctx: SearchPermissionContext
+  ctx: SearchPermissionContext,
+  organizationPublic: {
+    regionCode: string | null;
+    divisionCode: string | null;
+    companyCode: string | null;
+  } = { regionCode: null, divisionCode: null, companyCode: null }
 ): PersonnelSearchPersonItem {
   const { officer } = match;
   const enrichment = filterContactEnrichment(match.enrichment, access, ctx, officer.officerId);
@@ -53,9 +58,7 @@ export function formatPersonItem(
     nickname: enrichment.nickname ?? null,
     currentPosition: officer.currentPosition,
     unitLabel: officer.companyLabel || officer.currentUnit || "—",
-    regionId: officer.regionId,
-    divisionId: officer.battalionId,
-    companyId: officer.companyId,
+    organizationPublic,
     academyClass: officer.academyClass,
     matchKind: match.matchKind,
     matchScore: match.matchScore,
