@@ -14,6 +14,10 @@ export const CALLBACK = {
   MENU_HELP: "mh",
   PAGE_NEXT: "nx",
   PAGE_PREV: "pv",
+  /** Unbound UX — Phase 51.3 */
+  BIND_CONNECT: "bc",
+  BIND_HELP: "bh",
+  BIND_ADMIN: "ba",
   /** Action by index from last result: ax:0 */
   action: (index: number) => `ax:${index}`,
   /** Clarification suggestion by index: cx:0 */
@@ -29,6 +33,7 @@ export type ParsedCallback =
   | { kind: "action"; index: number }
   | { kind: "clarify"; index: number }
   | { kind: "disambiguate"; index: number }
+  | { kind: "bind"; action: "connect" | "help" | "admin" }
   | { kind: "unknown"; raw: string };
 
 export function parseCallbackData(data: string | undefined): ParsedCallback {
@@ -56,6 +61,12 @@ export function parseCallbackData(data: string | undefined): ParsedCallback {
       return { kind: "page", direction: "next" };
     case CALLBACK.PAGE_PREV:
       return { kind: "page", direction: "prev" };
+    case CALLBACK.BIND_CONNECT:
+      return { kind: "bind", action: "connect" };
+    case CALLBACK.BIND_HELP:
+      return { kind: "bind", action: "help" };
+    case CALLBACK.BIND_ADMIN:
+      return { kind: "bind", action: "admin" };
     default:
       break;
   }

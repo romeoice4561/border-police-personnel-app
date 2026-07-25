@@ -10,11 +10,16 @@
  * Pure interface — no I/O, no React.
  */
 
-import type { AuthResult } from "@/lib/auth/types";
+import type { AuthResult, AuthUser } from "@/lib/auth/types";
 
 export interface AuthBackend {
   /** Verifies credentials and returns the authenticated user, or a stable error code. */
   authenticate(username: string, password: string): Promise<AuthResult>;
+  /**
+   * Resolve a user by canonical AuthUser.id (Phase 51.3 Telegram binding).
+   * Optional for backends that have not implemented directory lookup yet.
+   */
+  getUserById?(id: string): Promise<AuthUser | null>;
   /** Optional server-side sign-out hook (mock backend is a no-op; a real backend revokes the session). */
   signOut?(): Promise<void>;
 }

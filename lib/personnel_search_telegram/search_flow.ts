@@ -1,19 +1,15 @@
 /**
- * Search flow — maps Telegram intents to Personnel Search API calls (Phase 51.2).
+ * Search execution helpers — calls Personnel Search API only (Phase 51.2 / 51.3).
  */
 
+import type { IntelligenceActor } from "@/lib/personnel_intelligence_service/permissions";
 import type { PersonnelSearchApiUnitScope } from "@/lib/personnel_search_api/contracts";
-import type { SearchAction } from "@/lib/personnel_search/contracts";
-import {
-  disambiguationQueriesFromResult,
-  extractUnitContextFromResult,
-  formatApiErrorText,
-  formatPersonnelSearchResultText,
-} from "@/lib/personnel_search_telegram/formatter";
+import type { PersonnelSearchResult, SearchAction } from "@/lib/personnel_search/contracts";
+import { formatApiErrorText, formatPersonnelSearchResultText } from "@/lib/personnel_search_telegram/formatter";
 import { buildResultKeyboard } from "@/lib/personnel_search_telegram/keyboard";
 import type {
+  BoundTelegramApiClient,
   RenderedSearchView,
-  TelegramApiClient,
   TelegramSearchSession,
 } from "@/lib/personnel_search_telegram/types";
 
@@ -22,32 +18,40 @@ function unitScopeFromSession(session: TelegramSearchSession): PersonnelSearchAp
   if (!org) return undefined;
   if (org.level === "company") return { companyCode: org.publicCode };
   if (org.level === "division") return { divisionCode: org.publicCode };
-  return { regionCode: org.publicCode };
+  if (org.level === "region") return { regionCode: org.publicCode };
+  return undefined;
 }
 
-function queryForAction(action: SearchAction, session: TelegramSearchSession): {
-  query: string;
-  unitScope?: PersonnelSearchApiUnitScope;
-} {
+function extractUnitContextFromResult(result: PersonnelSearchResult) {
+  const unit = result.items.find((i) => i.kind === "unit");
+  if (!unit || unit.kind !== "unit" || !unit.publicCode) return null;
+  return {
+    level: unit.level,
+    publicCode: unit.publicCode,
+    displayName: unit.labelTh,
+  };
+}
+
+function disambiguationQueriesFromResult(result: PersonnelSearchResult): string[] {
+  return result.items
+    .filter((i): i is Extract<typeof i, { kind: "person" }> => i.kind === "person")
+    .slice(0, 8)
+    .map((i) => i.fullName || i.officerId);
+}
+
+function queryForAction(
+  action: SearchAction,
+  session: TelegramSearchSession
+): { query: string; unitScope?: PersonnelSearchApiUnitScope } {
   const publicCode =
-    (typeof action.payload.publicCode === "string" && action.payload.publicCode) ||
-    session.conversationContext.organization?.publicCode ||
-    "";
+    typeof action.payload.publicCode === "string" ? action.payload.publicCode : undefined;
+  const intentHint =
+    typeof action.payload.intentHint === "string" ? action.payload.intentHint : undefined;
+  const queryHint = typeof action.payload.queryHint === "string" ? action.payload.queryHint : undefined;
 
   const unitScope: PersonnelSearchApiUnitScope | undefined = publicCode
-    ? action.payload.unitKey?.toString().startsWith("division:")
-      ? { divisionCode: publicCode }
-      : action.payload.unitKey?.toString().startsWith("region:")
-        ? { regionCode: publicCode }
-        : { companyCode: publicCode }
+    ? { companyCode: publicCode }
     : unitScopeFromSession(session);
-
-  const intentHint = typeof action.payload.intentHint === "string" ? action.payload.intentHint : "";
-  const queryHint = typeof action.payload.queryHint === "string" ? action.payload.queryHint : "";
-
-  if (action.type === "open_dashboard") {
-    return { query: "help", unitScope };
-  }
 
   if (queryHint) return { query: queryHint, unitScope };
 
@@ -68,8 +72,8 @@ function queryForAction(action: SearchAction, session: TelegramSearchSession): {
 }
 
 export async function executePersonnelSearch(args: {
-  apiClient: TelegramApiClient;
-  auth: { username: string; password: string };
+  apiClient: BoundTelegramApiClient;
+  actor: IntelligenceActor;
   session: TelegramSearchSession;
   query: string;
   cursor?: string;
@@ -87,7 +91,7 @@ export async function executePersonnelSearch(args: {
       limit: args.pageLimit,
       unitScope,
     },
-    args.auth
+    args.actor
   );
 
   if (!response.ok) {
@@ -104,7 +108,6 @@ export async function executePersonnelSearch(args: {
 
   let cursorStack = args.session.cursorStack;
   if (args.navigatingNext) {
-    // Push the cursor we navigated FROM (previous page marker).
     const fromCursor = args.session.lastCursor;
     cursorStack = fromCursor != null ? [...args.session.cursorStack, fromCursor] : [...args.session.cursorStack, ""];
   } else if (!args.cursor) {
@@ -142,40 +145,53 @@ export async function executePersonnelSearch(args: {
 }
 
 export async function executeActionFollowUp(args: {
-  apiClient: TelegramApiClient;
-  auth: { username: string; password: string };
+  apiClient: BoundTelegramApiClient;
+  actor: IntelligenceActor;
   session: TelegramSearchSession;
   actionIndex: number;
   pageLimit: number;
   appBaseUrl: string | null;
+  /** Optional secure handoff URL builder for dashboard/profile. */
+  resolveDeepLink?: (href: string) => Promise<string | null>;
 }): Promise<RenderedSearchView> {
   const action = args.session.lastActions[args.actionIndex];
   if (!action) {
     return {
-      message: { text: "ปุ่มนี้หมดอายุแล้ว — กดเมนูหลักแล้วค้นหาใหม่", parse_mode: "HTML" },
+      message: { text: "รายการนี้หมดอายุแล้ว กรุณาค้นหาใหม่", parse_mode: "HTML" },
       sessionPatch: {},
       result: null,
     };
   }
 
-  if (action.type === "open_dashboard") {
-    const href = typeof action.payload.href === "string" ? action.payload.href : "/commander-promotion";
-    const url = args.appBaseUrl ? `${args.appBaseUrl.replace(/\/$/, "")}${href}` : href;
-    return {
-      message: {
-        text: `📊 Dashboard\nเปิดในเว็บ: ${url}`,
-        parse_mode: "HTML",
-      },
-      sessionPatch: {},
-      result: null,
-    };
-  }
+  if (action.type === "open_dashboard" || (action.type === "open_profile" && typeof action.payload.href === "string")) {
+    const href =
+      action.type === "open_dashboard"
+        ? typeof action.payload.href === "string"
+          ? action.payload.href
+          : "/commander-promotion"
+        : (action.payload.href as string);
 
-  if (action.type === "open_profile" && typeof action.payload.href === "string") {
-    const href = action.payload.href;
-    const url = args.appBaseUrl ? `${args.appBaseUrl.replace(/\/$/, "")}${href}` : href;
+    if (!href.startsWith("/") || href.startsWith("//") || href.includes("://")) {
+      return {
+        message: { text: "ลิงก์ไม่ได้รับอนุญาต", parse_mode: "HTML" },
+        sessionPatch: {},
+        result: null,
+      };
+    }
+
+    let url: string;
+    if (args.resolveDeepLink) {
+      const handoff = await args.resolveDeepLink(href);
+      url = handoff ?? (args.appBaseUrl ? `${args.appBaseUrl.replace(/\/$/, "")}/login` : "/login");
+    } else if (args.appBaseUrl) {
+      url = `${args.appBaseUrl.replace(/\/$/, "")}${href}`;
+    } else {
+      url = href;
+    }
+
+    const label = action.type === "open_dashboard" ? "📊 Dashboard" : "👤 โปรไฟล์";
     return {
-      message: { text: `👤 โปรไฟล์\n${url}`, parse_mode: "HTML" },
+      message: { text: `${label}\nเปิดในเว็บ: ${url}`, parse_mode: "HTML", disable_web_page_preview: true },
       sessionPatch: {},
       result: null,
     };
@@ -184,7 +200,7 @@ export async function executeActionFollowUp(args: {
   const { query, unitScope } = queryForAction(action, args.session);
   return executePersonnelSearch({
     apiClient: args.apiClient,
-    auth: args.auth,
+    actor: args.actor,
     session: args.session,
     query,
     unitScope,

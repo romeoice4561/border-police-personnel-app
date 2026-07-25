@@ -1,8 +1,9 @@
 /**
- * Telegram Commander Experience — shared types (Phase 51.2).
+ * Telegram Commander Experience — shared types (Phase 51.2 / 51.3).
  * Presentation-only; no search / ranking / permission logic.
  */
 
+import type { IntelligenceActor } from "@/lib/personnel_intelligence_service/permissions";
 import type { PersonnelSearchApiResponse } from "@/lib/personnel_search_api/contracts";
 import type { PersonnelSearchResult, SearchAction } from "@/lib/personnel_search/contracts";
 import type { PersonnelSearchApiUnitScope } from "@/lib/personnel_search_api/contracts";
@@ -16,7 +17,7 @@ export type TelegramChatMode =
   | "awaiting_training_search"
   | "awaiting_document_search";
 
-/** Temporary conversation context — Telegram layer only, not persisted. */
+/** Temporary conversation context — Telegram layer only. */
 export interface TelegramConversationContext {
   organization?: {
     level: "region" | "division" | "company";
@@ -29,10 +30,8 @@ export interface TelegramSearchSession {
   chatId: number;
   telegramUserId: number;
   mode: TelegramChatMode;
-  /** Last successful search query (for pagination / follow-ups). */
   lastQuery: string | null;
   lastCursor: string | null;
-  /** Stack of cursors for Previous navigation (opaque API cursors). */
   cursorStack: string[];
   lastNextCursor: string | null;
   lastResultType: string | null;
@@ -44,45 +43,33 @@ export interface TelegramSearchSession {
   updatedAtIso: string;
 }
 
-export interface TelegramInlineButton {
-  text: string;
-  callback_data: string;
-}
-
-export interface TelegramInlineKeyboard {
-  inline_keyboard: TelegramInlineButton[][];
-}
-
-export interface TelegramOutgoingMessage {
-  text: string;
-  reply_markup?: TelegramInlineKeyboard;
-  parse_mode?: "HTML";
-}
-
-/** Minimal Telegram Update shapes we handle. */
-export interface TelegramUser {
+export interface TelegramUserRef {
   id: number;
-  is_bot?: boolean;
-  first_name?: string;
   username?: string;
+  first_name?: string;
+  last_name?: string;
+  is_bot?: boolean;
+  language_code?: string;
 }
 
-export interface TelegramChat {
+export interface TelegramChatRef {
   id: number;
   type: string;
+  title?: string;
+  username?: string;
 }
 
 export interface TelegramMessage {
   message_id: number;
-  from?: TelegramUser;
-  chat: TelegramChat;
-  text?: string;
   date: number;
+  chat: TelegramChatRef;
+  from?: TelegramUserRef;
+  text?: string;
 }
 
 export interface TelegramCallbackQuery {
   id: string;
-  from: TelegramUser;
+  from: TelegramUserRef;
   message?: TelegramMessage;
   data?: string;
 }
@@ -91,6 +78,27 @@ export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
   callback_query?: TelegramCallbackQuery;
+  edited_message?: TelegramMessage;
+}
+
+export interface TelegramInlineButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+}
+
+/** @deprecated Alias — prefer TelegramInlineButton */
+export type TelegramInlineKeyboardButton = TelegramInlineButton;
+
+export interface TelegramInlineKeyboard {
+  inline_keyboard: TelegramInlineButton[][];
+}
+
+export interface TelegramOutgoingMessage {
+  text: string;
+  parse_mode?: "HTML" | "Markdown" | "MarkdownV2";
+  reply_markup?: TelegramInlineKeyboard;
+  disable_web_page_preview?: boolean;
 }
 
 export interface TelegramSearchApiCall {
@@ -102,10 +110,14 @@ export interface TelegramSearchApiCall {
   intentHint?: string;
 }
 
-export type TelegramApiClient = (
+/** Bound principal API client — no shared Basic Auth for human searches. */
+export type BoundTelegramApiClient = (
   call: TelegramSearchApiCall,
-  auth: { username: string; password: string }
+  actor: IntelligenceActor
 ) => Promise<PersonnelSearchApiResponse>;
+
+/** @deprecated Alias kept for Phase 51.2 call sites during migration. */
+export type TelegramApiClient = BoundTelegramApiClient;
 
 export type TelegramSender = (chatId: number, message: TelegramOutgoingMessage) => Promise<void>;
 

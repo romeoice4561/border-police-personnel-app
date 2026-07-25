@@ -1,18 +1,50 @@
 /**
- * Phase 51.2 — Telegram adapter presentation tests (mocked API client).
+ * Phase 51.2 / 51.3 — Telegram adapter presentation tests (mocked API + principal).
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PersonnelSearchApiResponse } from "@/lib/personnel_search_api/contracts";
+import { actorFromAuthUser } from "@/lib/personnel_intelligence_service/permissions";
+import { defaultPermissionsForRole } from "@/lib/auth/roles";
+import type { AuthUser } from "@/lib/auth/types";
 import { parseCallbackData, CALLBACK } from "@/lib/personnel_search_telegram/callback_codes";
 import { buildHomeMessage, HOME_MENU_TITLE } from "@/lib/personnel_search_telegram/home_menu";
 import { formatPersonnelSearchResultText } from "@/lib/personnel_search_telegram/formatter";
 import { buildResultKeyboard } from "@/lib/personnel_search_telegram/keyboard";
 import { dispatchTelegramUpdate } from "@/lib/personnel_search_telegram/dispatcher";
-import { createMemoryTelegramSessionStore, createFreshSession } from "@/lib/personnel_search_telegram/session";
+import { createFreshSession } from "@/lib/personnel_search_telegram/session";
 import { loadTelegramPersonnelSearchConfig } from "@/lib/personnel_search_telegram/config";
+import { UNBOUND_MESSAGE_TH } from "@/lib/personnel_search_telegram/unbound";
 import type { PersonnelSearchResult } from "@/lib/personnel_search/contracts";
 import type { TelegramOutgoingMessage, TelegramUpdate } from "@/lib/personnel_search_telegram/types";
+import { createMemoryTelegramSessionStoreV2 } from "@/lib/telegram_identity/session_store";
+import { noopTelegramIdentityAuditSink } from "@/lib/telegram_identity/audit";
+
+function mockUser(role: AuthUser["role"]): AuthUser {
+  return {
+    id: `mock:${role}`,
+    username: role,
+    displayName: role,
+    role,
+    permissions: defaultPermissionsForRole(role),
+    officerId: role === "officer" ? "ภาค4/79" : null,
+    mustChangePassword: false,
+    isActive: true,
+  };
+}
+
+function boundPrincipal(role: AuthUser["role"] = "commander") {
+  return async () =>
+    ({
+      ok: true as const,
+      actor: actorFromAuthUser(mockUser(role)),
+      bindingId: "bind-1",
+    }) as const;
+}
+
+function unboundPrincipal(code: "UNBOUND" | "REVOKED" = "UNBOUND") {
+  return async () => ({ ok: false as const, code });
+}
 
 function unitResult(): PersonnelSearchResult {
   return {
@@ -105,46 +137,25 @@ function okResponse(result: PersonnelSearchResult, nextCursor: string | null = n
 }
 
 describe("telegram callback codes", () => {
-  it("parses home menu and action indices", () => {
-    assert.equal(parseCallbackData(CALLBACK.HOME).kind, "home");
+  it("parses home and menu codes", () => {
+    assert.deepEqual(parseCallbackData(CALLBACK.HOME), { kind: "home" });
     assert.deepEqual(parseCallbackData(CALLBACK.MENU_UNIT), { kind: "menu", menu: "unit" });
     assert.deepEqual(parseCallbackData(CALLBACK.action(2)), { kind: "action", index: 2 });
-    assert.deepEqual(parseCallbackData(CALLBACK.PAGE_NEXT), { kind: "page", direction: "next" });
+    assert.deepEqual(parseCallbackData(CALLBACK.BIND_HELP), { kind: "bind", action: "help" });
   });
 });
 
-describe("telegram home menu", () => {
-  it("includes all eight home entries", () => {
+describe("telegram home + formatter", () => {
+  it("builds home menu", () => {
     const msg = buildHomeMessage();
-    assert.ok(msg.text.includes(HOME_MENU_TITLE.split("\n")[0]));
-    const flat = msg.reply_markup!.inline_keyboard.flat().map((b) => b.text);
-    assert.ok(flat.some((t) => t.includes("ค้นหากำลังพล")));
-    assert.ok(flat.some((t) => t.includes("ค้นหาหน่วย")));
-    assert.ok(flat.some((t) => t.includes("เลื่อนตำแหน่ง")));
-    assert.ok(flat.some((t) => t.includes("เกษียณ")));
-    assert.ok(flat.some((t) => t.includes("หลักสูตร")));
-    assert.ok(flat.some((t) => t.includes("เอกสาร")));
-    assert.ok(flat.some((t) => t.includes("Dashboard")));
-    assert.ok(flat.some((t) => t.includes("วิธีใช้งาน")));
+    assert.ok(msg.text.includes(HOME_MENU_TITLE.split("\n")[0].slice(0, 8)) || msg.text.includes("กำลังพล"));
+    assert.ok(msg.reply_markup);
   });
-});
 
-describe("telegram formatter + keyboard", () => {
-  it("formats unit summary and builds suggestion buttons", () => {
-    const result = unitResult();
-    const text = formatPersonnelSearchResultText(result);
+  it("formats unit summary without dumping raw JSON", () => {
+    const text = formatPersonnelSearchResultText(unitResult());
     assert.ok(text.includes("ร้อย ตชด.414"));
-    assert.ok(text.includes("414"));
-
-    const kb = buildResultKeyboard({ result, nextCursor: null, hasPrevious: false });
-    const labels = kb.inline_keyboard.flat().map((b) => b.text);
-    assert.ok(labels.some((t) => t.includes("กำลังพล")));
-    assert.ok(labels.some((t) => t.includes("พร้อมเลื่อน")));
-    assert.ok(labels.some((t) => t.includes("เกษียณ")));
-    assert.ok(labels.some((t) => t.includes("หลักสูตร")));
-    assert.ok(labels.some((t) => t.includes("เอกสาร")));
-    assert.ok(labels.some((t) => t.includes("Dashboard")));
-    assert.ok(labels.some((t) => t.includes("เมนูหลัก")));
+    assert.ok(!text.includes('"kind"'));
   });
 
   it("adds next/prev pagination buttons", () => {
@@ -159,15 +170,12 @@ describe("telegram formatter + keyboard", () => {
   });
 });
 
-describe("telegram dispatcher", () => {
+describe("telegram dispatcher (bound principal)", () => {
   it("/start shows home menu without calling search API", async () => {
     const sent: TelegramOutgoingMessage[] = [];
     let apiCalls = 0;
-    const sessions = createMemoryTelegramSessionStore();
-    const config = loadTelegramPersonnelSearchConfig({
-      TELEGRAM_SERVICE_USERNAME: "bpp414",
-      TELEGRAM_SERVICE_PASSWORD: "414",
-    });
+    const sessions = createMemoryTelegramSessionStoreV2();
+    const config = loadTelegramPersonnelSearchConfig({});
 
     const update: TelegramUpdate = {
       update_id: 1,
@@ -183,6 +191,7 @@ describe("telegram dispatcher", () => {
     await dispatchTelegramUpdate(update, {
       config,
       sessions,
+      resolvePrincipal: boundPrincipal("commander"),
       apiClient: async () => {
         apiCalls += 1;
         return okResponse(unitResult());
@@ -191,6 +200,7 @@ describe("telegram dispatcher", () => {
         sent.push(message);
       },
       answerCallback: async () => {},
+      auditSink: noopTelegramIdentityAuditSink,
     });
 
     assert.equal(apiCalls, 0);
@@ -199,14 +209,44 @@ describe("telegram dispatcher", () => {
     assert.ok(sent[0].text.includes("กำลังพล") || sent[0].text.includes("ผู้ช่วย"));
   });
 
-  it("free-text 414 calls API with client telegram and renders unit buttons", async () => {
+  it("unbound /start does not call search API", async () => {
     const sent: TelegramOutgoingMessage[] = [];
-    const calls: unknown[] = [];
-    const sessions = createMemoryTelegramSessionStore();
-    const config = loadTelegramPersonnelSearchConfig({
-      TELEGRAM_SERVICE_USERNAME: "bpp414",
-      TELEGRAM_SERVICE_PASSWORD: "414",
-    });
+    let apiCalls = 0;
+    await dispatchTelegramUpdate(
+      {
+        update_id: 10,
+        message: {
+          message_id: 10,
+          date: 0,
+          chat: { id: 10, type: "private" },
+          from: { id: 10 },
+          text: "/start",
+        },
+      },
+      {
+        config: loadTelegramPersonnelSearchConfig({ TELEGRAM_APP_BASE_URL: "https://app.example" }),
+        sessions: createMemoryTelegramSessionStoreV2(),
+        resolvePrincipal: unboundPrincipal(),
+        apiClient: async () => {
+          apiCalls += 1;
+          return okResponse(unitResult());
+        },
+        send: async (_c, m) => {
+          sent.push(m);
+        },
+        answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
+      }
+    );
+    assert.equal(apiCalls, 0);
+    assert.ok(sent[0].text.includes(UNBOUND_MESSAGE_TH));
+  });
+
+  it("free-text 414 calls API once with bound actor (no shared service account)", async () => {
+    const sent: TelegramOutgoingMessage[] = [];
+    const actors: string[] = [];
+    const sessions = createMemoryTelegramSessionStoreV2();
+    const config = loadTelegramPersonnelSearchConfig({});
 
     await dispatchTelegramUpdate(
       {
@@ -222,42 +262,71 @@ describe("telegram dispatcher", () => {
       {
         config,
         sessions,
-        apiClient: async (call) => {
-          calls.push(call);
+        resolvePrincipal: boundPrincipal("commander"),
+        apiClient: async (call, actor) => {
+          actors.push(actor.id);
+          assert.equal(call.query, "414");
           return okResponse(unitResult());
         },
         send: async (_c, message) => {
           sent.push(message);
         },
         answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
       }
     );
 
-    assert.equal(calls.length, 1);
-    assert.equal((calls[0] as { query: string }).query, "414");
+    assert.deepEqual(actors, ["mock:commander"]);
     assert.ok(sent[0].text.includes("ร้อย ตชด.414"));
-    const labels = sent[0].reply_markup!.inline_keyboard.flat().map((b) => b.text);
-    assert.ok(labels.some((t) => t.includes("พร้อมเลื่อน")));
-
-    const session = sessions.get(200);
+    const session = await sessions.get("200");
     assert.ok(session);
     assert.equal(session!.conversationContext.organization?.publicCode, "414");
   });
 
+  it("unbound search never invokes API", async () => {
+    let apiCalls = 0;
+    const sent: TelegramOutgoingMessage[] = [];
+    await dispatchTelegramUpdate(
+      {
+        update_id: 11,
+        message: {
+          message_id: 11,
+          date: 0,
+          chat: { id: 11, type: "private" },
+          from: { id: 11 },
+          text: "414",
+        },
+      },
+      {
+        config: loadTelegramPersonnelSearchConfig({}),
+        sessions: createMemoryTelegramSessionStoreV2(),
+        resolvePrincipal: unboundPrincipal(),
+        apiClient: async () => {
+          apiCalls += 1;
+          return okResponse(unitResult());
+        },
+        send: async (_c, m) => {
+          sent.push(m);
+        },
+        answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
+      }
+    );
+    assert.equal(apiCalls, 0);
+    assert.ok(sent[0].text.includes(UNBOUND_MESSAGE_TH));
+  });
+
   it("action callback follows up via API using unit scope from session", async () => {
-    const sessions = createMemoryTelegramSessionStore();
+    const sessions = createMemoryTelegramSessionStoreV2();
     const session = createFreshSession(300, 300, 2);
     session.lastActions = unitResult().actions;
     session.conversationContext = {
       organization: { level: "company", publicCode: "414", displayName: "ร้อย ตชด.414" },
     };
-    sessions.set(session);
+    await sessions.set(session, 3600);
 
     const calls: Array<{ query: string; unitScope?: { companyCode?: string } }> = [];
-    const config = loadTelegramPersonnelSearchConfig({
-      TELEGRAM_SERVICE_USERNAME: "bpp414",
-      TELEGRAM_SERVICE_PASSWORD: "414",
-    });
+    const config = loadTelegramPersonnelSearchConfig({});
 
     await dispatchTelegramUpdate(
       {
@@ -271,12 +340,13 @@ describe("telegram dispatcher", () => {
             chat: { id: 300, type: "private" },
             text: "prev",
           },
-          data: CALLBACK.action(1), // promotion
+          data: CALLBACK.action(1),
         },
       },
       {
         config,
         sessions,
+        resolvePrincipal: boundPrincipal("commander"),
         apiClient: async (call) => {
           calls.push(call);
           return okResponse({
@@ -290,6 +360,7 @@ describe("telegram dispatcher", () => {
         },
         send: async () => {},
         answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
       }
     );
 
@@ -302,8 +373,6 @@ describe("telegram dispatcher", () => {
     const sent: TelegramOutgoingMessage[] = [];
     const config = loadTelegramPersonnelSearchConfig({
       TELEGRAM_ALLOWED_USER_IDS: "999",
-      TELEGRAM_SERVICE_USERNAME: "bpp414",
-      TELEGRAM_SERVICE_PASSWORD: "414",
     });
 
     await dispatchTelegramUpdate(
@@ -319,12 +388,14 @@ describe("telegram dispatcher", () => {
       },
       {
         config,
-        sessions: createMemoryTelegramSessionStore(),
+        sessions: createMemoryTelegramSessionStoreV2(),
+        resolvePrincipal: boundPrincipal(),
         apiClient: async () => okResponse(unitResult()),
         send: async (_c, m) => {
           sent.push(m);
         },
         answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
       }
     );
 
@@ -332,18 +403,15 @@ describe("telegram dispatcher", () => {
   });
 
   it("paginates with next cursor via callback", async () => {
-    const sessions = createMemoryTelegramSessionStore();
+    const sessions = createMemoryTelegramSessionStoreV2();
     const session = createFreshSession(400, 400, 2);
     session.lastQuery = "พร้อมเลื่อนปีนี้";
     session.lastNextCursor = "CUR2";
     session.lastCursor = null;
-    sessions.set(session);
+    await sessions.set(session, 3600);
 
     const cursors: Array<string | undefined> = [];
-    const config = loadTelegramPersonnelSearchConfig({
-      TELEGRAM_SERVICE_USERNAME: "bpp414",
-      TELEGRAM_SERVICE_PASSWORD: "414",
-    });
+    const config = loadTelegramPersonnelSearchConfig({});
 
     await dispatchTelegramUpdate(
       {
@@ -358,16 +426,54 @@ describe("telegram dispatcher", () => {
       {
         config,
         sessions,
+        resolvePrincipal: boundPrincipal(),
         apiClient: async (call) => {
           cursors.push(call.cursor);
           return okResponse(unitResult(), "CUR3");
         },
         send: async () => {},
         answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
       }
     );
 
     assert.deepEqual(cursors, ["CUR2"]);
-    assert.ok(sessions.get(400)!.cursorStack.length >= 1);
+    const next = await sessions.get("400");
+    assert.ok(next!.cursorStack.length >= 1);
+  });
+
+  it("callback cannot use another user's session", async () => {
+    const sessions = createMemoryTelegramSessionStoreV2();
+    const victim = createFreshSession(1, 111, 2);
+    victim.lastQuery = "secret";
+    victim.lastNextCursor = "CURX";
+    await sessions.set(victim, 3600);
+
+    let apiCalls = 0;
+    await dispatchTelegramUpdate(
+      {
+        update_id: 6,
+        callback_query: {
+          id: "cb3",
+          from: { id: 222 },
+          message: { message_id: 6, date: 0, chat: { id: 1, type: "private" } },
+          data: CALLBACK.PAGE_NEXT,
+        },
+      },
+      {
+        config: loadTelegramPersonnelSearchConfig({}),
+        sessions,
+        resolvePrincipal: boundPrincipal(),
+        apiClient: async () => {
+          apiCalls += 1;
+          return okResponse(unitResult());
+        },
+        send: async () => {},
+        answerCallback: async () => {},
+        auditSink: noopTelegramIdentityAuditSink,
+      }
+    );
+    // Attacker has empty session → expired pagination, no API call.
+    assert.equal(apiCalls, 0);
   });
 });

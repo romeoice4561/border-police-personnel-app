@@ -1,5 +1,5 @@
 /**
- * Telegram Commander Experience — public surface (Phase 51.2).
+ * Telegram Commander Experience — public surface (Phase 51.2 / 51.3).
  */
 export * from "@/lib/personnel_search_telegram/types";
 export * from "@/lib/personnel_search_telegram/config";
@@ -10,5 +10,6 @@ export * from "@/lib/personnel_search_telegram/formatter";
 export * from "@/lib/personnel_search_telegram/keyboard";
 export * from "@/lib/personnel_search_telegram/search_flow";
 export * from "@/lib/personnel_search_telegram/dispatcher";
-export * from "@/lib/personnel_search_telegram/api_client";
+export { createBoundPersonnelSearchApiClient } from "@/lib/personnel_search_telegram/api_client";
 export * from "@/lib/personnel_search_telegram/handler";
+export * from "@/lib/personnel_search_telegram/unbound";

@@ -72,9 +72,23 @@ export class MockAuthBackend implements AuthBackend {
     return { ok: true, user: toAuthUser(cred) };
   }
 
+  async getUserById(id: string): Promise<AuthUser | null> {
+    const cred = MOCK_CREDENTIALS.find((c) => `mock:${c.username}` === id);
+    return cred ? toAuthUser(cred) : null;
+  }
+
   async signOut(): Promise<void> {
     // No server session to revoke in the mock backend.
   }
+}
+
+/** Lookup helper for Telegram principal resolution (Phase 51.3). */
+export async function getAuthUserById(id: string): Promise<AuthUser | null> {
+  const backend = getAuthBackend();
+  if (typeof backend.getUserById === "function") {
+    return backend.getUserById(id);
+  }
+  return null;
 }
 
 let backend: AuthBackend = new MockAuthBackend();

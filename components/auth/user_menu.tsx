@@ -12,7 +12,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LogOut, ChevronDown, UserRound } from "lucide-react";
+import Link from "next/link";
+import { LogOut, ChevronDown, UserRound, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -97,6 +98,15 @@ export function UserMenu() {
               </p>
             </div>
           </div>
+          <Link
+            href="/settings/integrations/telegram"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-neutral-bg focus:outline-none focus-visible:bg-neutral-bg"
+          >
+            <MessageCircle className="h-4 w-4 text-muted" aria-hidden="true" />
+            เชื่อมต่อ Telegram
+          </Link>
           <button
             type="button"
             role="menuitem"

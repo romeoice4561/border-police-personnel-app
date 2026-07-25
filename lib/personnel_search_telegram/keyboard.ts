@@ -62,14 +62,10 @@ export function buildResultKeyboard(args: {
     const picks = args.result.items
       .filter((i) => i.kind === "person")
       .slice(0, 8)
-      .map((item, i) => {
-        if (item.kind !== "person") return null;
-        return {
-          text: `${i + 1}. ${item.rank} ${item.fullName}`.slice(0, 64),
-          callback_data: CALLBACK.disambiguate(i),
-        };
-      })
-      .filter((b): b is TelegramInlineButton => b != null);
+      .map((item, i): TelegramInlineButton => ({
+        text: `${i + 1}. ${item.rank} ${item.fullName}`.slice(0, 64),
+        callback_data: CALLBACK.disambiguate(i),
+      }));
     rows.push(...chunkButtons(picks, 1));
   }
 

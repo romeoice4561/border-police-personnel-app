@@ -1238,3 +1238,85 @@ model OfficerSkillCertificate {
   @@index([officerSkillId])
   @@index([expiryDate])
 }
+
+// ── Phase 51.3 — Telegram identity binding & durable bot state ─────────────
+// App principals remain AuthUser ids from the AuthBackend (e.g. mock:bpp414).
+// No second role system; telegramUsername is metadata only (never authorization).
+
+enum TelegramBindingStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  REVOKED
+  DISABLED
+}
+
+/// Binding of Telegram numeric user id → existing AuthUser.id
+model TelegramIdentityBinding {
+  id                String                @id @default(cuid())
+  telegramUserId    String                @unique
+  appUserId         String
+  status            TelegramBindingStatus
+  telegramUsername  String?
+  telegramFirstName String?
+  createdAt         DateTime              @default(now())
+  verifiedAt        DateTime?
+  revokedAt         DateTime?
+  lastUsedAt        DateTime?
+  disabledAt        DateTime?
+
+  @@index([appUserId, status])
+  @@index([status])
+  @@map("telegram_identity_binding")
+}
+
+/// Short-lived, single-use binding tokens (store hash only).
+model TelegramBindingToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  appUserId  String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([appUserId])
+  @@index([expiresAt])
+  @@map("telegram_binding_token")
+}
+
+/// Durable Telegram conversation session (safe interaction state only).
+model TelegramBotSession {
+  telegramUserId String   @id
+  chatId         String
+  payloadJson    String
+  schemaVersion  Int      @default(1)
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("telegram_bot_session")
+}
+
+/// Webhook update_id deduplication with TTL.
+model TelegramProcessedUpdate {
+  updateId  String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("telegram_processed_update")
+}
+
+/// Short-lived Web handoff after Telegram dashboard/profile actions.
+model TelegramWebHandoff {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  appUserId   String
+  destination String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@map("telegram_web_handoff")
+}

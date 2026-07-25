@@ -1,6 +1,7 @@
 /**
- * In-memory Telegram conversation session (Phase 51.2).
- * Not persisted — process-local only. Fine for development / single-instance.
+ * Telegram conversation session helpers (Phase 51.2 / 51.3).
+ * Durable storage lives in lib/telegram_identity/session_store (Prisma or memory).
+ * The sync Map helpers below remain for lightweight unit fixtures only.
  */
 
 import type { TelegramChatMode, TelegramSearchSession } from "@/lib/personnel_search_telegram/types";

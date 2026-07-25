@@ -1,24 +1,22 @@
 /**
- * Calls the Secure Personnel Search API boundary (Phase 51.2).
- * Uses handlePersonnelSearchRequest — same path as POST /api/personnel-search.
- * No Gateway / repository imports.
+ * Calls Personnel Search API as a resolved Telegram principal (Phase 51.3).
+ * No shared Basic Auth for human searches.
  */
 
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/auth_config";
 import type { PersonnelSearchApiResponse } from "@/lib/personnel_search_api/contracts";
 import { handlePersonnelSearchRequest } from "@/lib/personnel_search_api/handler";
-import type { TelegramApiClient, TelegramSearchApiCall } from "@/lib/personnel_search_telegram/types";
-
-function basicHeader(username: string, password: string): string {
-  return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
-}
+import type {
+  BoundTelegramApiClient,
+  TelegramSearchApiCall,
+} from "@/lib/personnel_search_telegram/types";
 
 /**
- * Default client: invoke the Personnel Search API handler with service credentials.
+ * Invoke the Personnel Search API handler with an injected actor
+ * (from Telegram identity binding). Role/scope come from AuthUser only.
  */
-export const createPersonnelSearchApiClient = (): TelegramApiClient => {
-  return async (call, auth) => {
+export function createBoundPersonnelSearchApiClient(): BoundTelegramApiClient {
+  return async (call, actor) => {
     const body: Record<string, unknown> = {
       query: call.query,
       client: "telegram",
@@ -31,15 +29,13 @@ export const createPersonnelSearchApiClient = (): TelegramApiClient => {
 
     const request = new NextRequest("http://localhost/api/personnel-search", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: basicHeader(auth.username, auth.password),
-        cookie: `${SESSION_COOKIE_NAME}=1`,
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
 
-    const response = await handlePersonnelSearchRequest(request);
+    const response = await handlePersonnelSearchRequest(request, {
+      resolveActor: async () => actor,
+    });
     return (await response.json()) as PersonnelSearchApiResponse;
   };
-};
+}
