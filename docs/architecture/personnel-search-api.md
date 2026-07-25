@@ -160,7 +160,7 @@ curl -X POST http://localhost:3000/api/personnel-search \
 
 There is **no** authentication bypass query parameter.
 
-## Integration contract (Telegram / LINE — future)
+## Integration contract (Telegram / LINE)
 
 Adapters should:
 
@@ -169,7 +169,8 @@ Adapters should:
 3. Map `result.actions` / relative `href`s to platform buttons  
 4. Never re-implement search ranking or permission logic  
 
-Phase 51.2 should implement the Telegram adapter only; this API stays presentation-free.
+Phase 51.2 Telegram adapter: `lib/personnel_search_telegram/` + `POST /api/telegram/webhook`
+(see `docs/architecture/personnel-search-telegram.md`).
 
 ## Entity resolution (Phase 51.1A)
 
