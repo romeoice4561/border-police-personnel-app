@@ -1,7 +1,6 @@
 /**
- * Telegram update dispatcher (Phase 51.2 / 51.3).
- * Routes messages / callbacks → binding / search flow / home menu.
- * Presentation only — no permission or search logic.
+ * Telegram update dispatcher (Phase 51.2–51.4).
+ * Commander Mobile Intelligence — presentation only.
  */
 
 import type { IntelligenceActor } from "@/lib/personnel_intelligence_service/permissions";
@@ -12,16 +11,32 @@ import type { TelegramSessionStoreV2 } from "@/lib/telegram_identity/session_sto
 import { parseCallbackData } from "@/lib/personnel_search_telegram/callback_codes";
 import type { TelegramPersonnelSearchConfig } from "@/lib/personnel_search_telegram/config";
 import { isTelegramUserAllowed } from "@/lib/personnel_search_telegram/config";
-import { buildHomeMessage } from "@/lib/personnel_search_telegram/home_menu";
+import { COMMANDER_QUERIES, unitLookupQuery } from "@/lib/personnel_search_telegram/commander_queries";
+import {
+  favoriteKey,
+  normalizeFavorites,
+  queryForFavorite,
+  removeFavorite,
+  upsertFavorite,
+} from "@/lib/personnel_search_telegram/favorites";
+import {
+  buildFavoritesMessage,
+  buildHomeMessage,
+  buildQuickActionsMessage,
+  buildRecentMessage,
+  buildSettingsMessage,
+} from "@/lib/personnel_search_telegram/home_menu";
 import {
   createFreshSession,
   modePrompt,
+  normalizeSession,
   touchSession,
 } from "@/lib/personnel_search_telegram/session";
 import {
   executeActionFollowUp,
   executePersonnelSearch,
 } from "@/lib/personnel_search_telegram/search_flow";
+import { parseCommanderShortcut } from "@/lib/personnel_search_telegram/shortcuts";
 import {
   buildBindAdminMessage,
   buildBindHelpMessage,
@@ -87,7 +102,7 @@ async function persistSession(
   deps: TelegramDispatcherDeps,
   session: TelegramSearchSession
 ): Promise<void> {
-  await deps.sessions.set(session, deps.config.sessionTtlSeconds);
+  await deps.sessions.set(normalizeSession(session), deps.config.sessionTtlSeconds);
 }
 
 async function loadSession(
@@ -105,7 +120,7 @@ async function loadSession(
       });
       return createFreshSession(chatId, telegramUserId, deps.config.defaultDisclosureLevel);
     }
-    return { ...existing, chatId };
+    return normalizeSession({ ...existing, chatId });
   }
   return createFreshSession(chatId, telegramUserId, deps.config.defaultDisclosureLevel);
 }
@@ -135,6 +150,35 @@ async function resolveActor(
 ): Promise<ResolveTelegramPrincipalResult> {
   const resolve = deps.resolvePrincipal ?? defaultResolvePrincipal;
   return resolve(String(telegramUserId));
+}
+
+async function showHome(
+  deps: TelegramDispatcherDeps,
+  session: TelegramSearchSession,
+  actor: IntelligenceActor,
+  chatId: number,
+  telegramUserId: number
+): Promise<void> {
+  let next = touchSession(session, { mode: "idle" });
+  // Refresh Today card from unit context with a single API call when possible.
+  const org = next.conversationContext.organization;
+  if (org?.publicCode) {
+    const view = await executePersonnelSearch({
+      apiClient: deps.apiClient,
+      actor,
+      session: next,
+      query: unitLookupQuery(org.publicCode),
+      pageLimit: deps.config.pageLimit,
+      recentLabelTh: org.displayName,
+    });
+    next = touchSession(next, { ...view.sessionPatch, mode: "idle" });
+    await persistSession(deps, next);
+    await deps.send(chatId, buildHomeMessage(next, next.lastUnitSnapshot));
+    return;
+  }
+  await persistSession(deps, next);
+  await deps.send(chatId, buildHomeMessage(next));
+  void telegramUserId;
 }
 
 async function handleMessage(update: TelegramUpdate, deps: TelegramDispatcherDeps): Promise<void> {
@@ -172,27 +216,7 @@ async function handleMessage(update: TelegramUpdate, deps: TelegramDispatcherDep
       );
       return;
     }
-    session = touchSession(session, { mode: "idle" });
-    await persistSession(deps, session);
-    await deps.send(chatId, buildHomeMessage());
-    return;
-  }
-
-  if (/^\/menu\b/i.test(text) || text === "เมนู") {
-    const principal = await resolveActor(deps, userId);
-    if (!principal.ok) {
-      await deps.send(
-        chatId,
-        buildUnboundMessage({
-          appBaseUrl: deps.config.appBaseUrl,
-          variant: failureVariant(principal.code),
-        })
-      );
-      return;
-    }
-    session = touchSession(session, { mode: "idle" });
-    await persistSession(deps, session);
-    await deps.send(chatId, buildHomeMessage());
+    await showHome(deps, session, principal.actor, chatId, userId);
     return;
   }
 
@@ -212,8 +236,43 @@ async function handleMessage(update: TelegramUpdate, deps: TelegramDispatcherDep
     return;
   }
 
+  if (/^\/menu\b/i.test(text) || text === "เมนู") {
+    await showHome(deps, session, principal.actor, chatId, userId);
+    return;
+  }
+
+  const shortcut = parseCommanderShortcut(text);
+  if (shortcut.kind === "home") {
+    await showHome(deps, session, principal.actor, chatId, userId);
+    return;
+  }
+  if (shortcut.kind === "dashboard") {
+    await handleDashboard(deps, session, principal.actor, chatId);
+    return;
+  }
+  if (shortcut.kind === "favorites") {
+    await persistSession(deps, session);
+    await deps.send(chatId, buildFavoritesMessage(session));
+    return;
+  }
+  if (shortcut.kind === "recent") {
+    await persistSession(deps, session);
+    await deps.send(chatId, buildRecentMessage(session));
+    return;
+  }
+  if (shortcut.kind === "settings") {
+    await deps.send(chatId, buildSettingsMessage(deps.config.appBaseUrl));
+    return;
+  }
+  if (shortcut.kind === "query") {
+    await runSearch(deps, session, principal.actor, chatId, userId, shortcut.query, {
+      recentLabelTh: shortcut.labelTh,
+    });
+    return;
+  }
+
   if (/^\/help\b/i.test(text) || text === "help" || text === "วิธีใช้งาน") {
-    await runSearch(deps, session, principal.actor, chatId, userId, "help");
+    await runSearch(deps, session, principal.actor, chatId, userId, COMMANDER_QUERIES.help);
     return;
   }
 
@@ -242,10 +301,15 @@ async function handleStartBinding(
     );
     await persistSession(deps, session);
     await deps.send(chatId, {
-      text: "เชื่อมต่อบัญชีสำเร็จแล้ว\nคุณสามารถค้นหากำลังพลได้ตามสิทธิ์ของบัญชีในระบบ",
+      text: "เชื่อมต่อบัญชีสำเร็จแล้ว",
       parse_mode: "HTML",
-      reply_markup: buildHomeMessage().reply_markup,
     });
+    const principal = await resolveActor(deps, userId);
+    if (principal.ok) {
+      await showHome(deps, session, principal.actor, chatId, userId);
+    } else {
+      await deps.send(chatId, buildHomeMessage(session));
+    }
   } catch (error) {
     const code =
       error && typeof error === "object" && "code" in error
@@ -270,7 +334,7 @@ async function runSearch(
   chatId: number,
   telegramUserId: number,
   query: string,
-  extra?: { cursor?: string; navigatingNext?: boolean }
+  extra?: { cursor?: string; navigatingNext?: boolean; recentLabelTh?: string }
 ): Promise<void> {
   await recordTelegramIdentityAudit(deps.auditSink, {
     type: "search_requested",
@@ -285,10 +349,40 @@ async function runSearch(
     cursor: extra?.cursor,
     pageLimit: deps.config.pageLimit,
     navigatingNext: extra?.navigatingNext,
+    recentLabelTh: extra?.recentLabelTh,
   });
   const next = touchSession(session, view.sessionPatch);
   await persistSession(deps, next);
   await deps.send(chatId, view.message);
+}
+
+async function handleDashboard(
+  deps: TelegramDispatcherDeps,
+  session: TelegramSearchSession,
+  actor: IntelligenceActor,
+  chatId: number
+): Promise<void> {
+  const createHandoff = deps.createHandoff ?? defaultCreateHandoff;
+  let url: string | null = null;
+  try {
+    const { rawToken } = await createHandoff({
+      appUserId: actor.id,
+      destination: "/commander-promotion",
+      auditSink: deps.auditSink,
+    });
+    const base = deps.config.appBaseUrl?.replace(/\/$/, "") ?? "";
+    url = base ? `${base}/api/auth/telegram-handoff?token=${encodeURIComponent(rawToken)}` : null;
+  } catch {
+    url = deps.config.appBaseUrl
+      ? `${deps.config.appBaseUrl.replace(/\/$/, "")}/login`
+      : "/login";
+  }
+  await persistSession(deps, touchSession(session, { mode: "idle" }));
+  await deps.send(chatId, {
+    text: `📊 Dashboard\nเปิดในเว็บ: ${url ?? "/login"}`,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
 }
 
 async function handleCallback(update: TelegramUpdate, deps: TelegramDispatcherDeps): Promise<void> {
@@ -333,14 +427,95 @@ async function handleCallback(update: TelegramUpdate, deps: TelegramDispatcherDe
   let session = await loadSession(deps, chatId, userId);
 
   if (parsed.kind === "home") {
-    session = touchSession(session, { mode: "idle" });
-    await persistSession(deps, session);
-    await deps.send(chatId, buildHomeMessage());
+    await showHome(deps, session, principal.actor, chatId, userId);
     return;
   }
 
   if (parsed.kind === "menu") {
     await handleMenu(parsed.menu, session, deps, chatId, principal.actor, userId);
+    return;
+  }
+
+  if (parsed.kind === "quick") {
+    await handleQuick(parsed.action, session, deps, chatId, principal.actor, userId);
+    return;
+  }
+
+  if (parsed.kind === "fav_add") {
+    if (parsed.target === "unit") {
+      const org = session.conversationContext.organization;
+      if (!org) {
+        await deps.send(chatId, { text: "ยังไม่มีหน่วยในบริบท — ค้นหาหน่วยก่อน", parse_mode: "HTML" });
+        return;
+      }
+      const favorites = upsertFavorite(session, {
+        kind: org.level,
+        labelTh: org.displayName,
+        publicCode: org.publicCode,
+        savedAtIso: new Date().toISOString(),
+      });
+      session = touchSession(session, { favorites });
+      await persistSession(deps, session);
+      await deps.send(chatId, { text: `⭐ บันทึกหน่วยโปรดแล้ว: ${org.displayName}`, parse_mode: "HTML" });
+      return;
+    }
+    if (!session.lastPersonOfficerId || !session.lastPersonLabelTh) {
+      await deps.send(chatId, { text: "ยังไม่มีกำลังพลในบริบท — ค้นหาบุคคลก่อน", parse_mode: "HTML" });
+      return;
+    }
+    const favorites = upsertFavorite(session, {
+      kind: "officer",
+      labelTh: session.lastPersonLabelTh,
+      officerId: session.lastPersonOfficerId,
+      savedAtIso: new Date().toISOString(),
+    });
+    session = touchSession(session, { favorites });
+    await persistSession(deps, session);
+    await deps.send(chatId, {
+      text: `⭐ บันทึกกำลังพลโปรดแล้ว: ${session.lastPersonLabelTh}`,
+      parse_mode: "HTML",
+    });
+    return;
+  }
+
+  if (parsed.kind === "favorite_open") {
+    const fav = normalizeFavorites(session.favorites)[parsed.index];
+    if (!fav) {
+      await deps.send(chatId, { text: "รายการนี้หมดอายุแล้ว กรุณาค้นหาใหม่", parse_mode: "HTML" });
+      return;
+    }
+    const query = queryForFavorite(fav);
+    if (!query) {
+      await deps.send(chatId, { text: "ไม่สามารถเปิดรายการโปรดนี้ได้", parse_mode: "HTML" });
+      return;
+    }
+    await runSearch(deps, session, principal.actor, chatId, userId, query, {
+      recentLabelTh: fav.labelTh,
+    });
+    return;
+  }
+
+  if (parsed.kind === "favorite_remove") {
+    const fav = normalizeFavorites(session.favorites)[parsed.index];
+    if (!fav) {
+      await deps.send(chatId, { text: "รายการนี้หมดอายุแล้ว กรุณาค้นหาใหม่", parse_mode: "HTML" });
+      return;
+    }
+    session = touchSession(session, { favorites: removeFavorite(session, favoriteKey(fav)) });
+    await persistSession(deps, session);
+    await deps.send(chatId, buildFavoritesMessage(session));
+    return;
+  }
+
+  if (parsed.kind === "recent_open") {
+    const item = (session.recentSearches ?? [])[parsed.index];
+    if (!item) {
+      await deps.send(chatId, { text: "รายการนี้หมดอายุแล้ว กรุณาค้นหาใหม่", parse_mode: "HTML" });
+      return;
+    }
+    await runSearch(deps, session, principal.actor, chatId, userId, item.query, {
+      recentLabelTh: item.labelTh,
+    });
     return;
   }
 
@@ -356,7 +531,6 @@ async function handleCallback(update: TelegramUpdate, deps: TelegramDispatcherDe
       });
       return;
     }
-
     if (session.cursorStack.length === 0 || !session.lastQuery) {
       await deps.send(chatId, { text: "รายการนี้หมดอายุแล้ว กรุณาค้นหาใหม่", parse_mode: "HTML" });
       return;
@@ -430,8 +604,82 @@ async function handleCallback(update: TelegramUpdate, deps: TelegramDispatcherDe
   await deps.send(chatId, { text: "ไม่เข้าใจคำสั่งปุ่ม", parse_mode: "HTML" });
 }
 
+async function handleQuick(
+  action:
+    | "promotion"
+    | "retirement"
+    | "training"
+    | "documents"
+    | "quality"
+    | "my_company"
+    | "my_division"
+    | "my_region",
+  session: TelegramSearchSession,
+  deps: TelegramDispatcherDeps,
+  chatId: number,
+  actor: IntelligenceActor,
+  telegramUserId: number
+): Promise<void> {
+  const org = session.conversationContext.organization;
+  switch (action) {
+    case "promotion":
+      await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.promotion, {
+        recentLabelTh: "เลื่อนตำแหน่ง",
+      });
+      return;
+    case "retirement":
+      await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.retirement, {
+        recentLabelTh: "เกษียณ",
+      });
+      return;
+    case "training":
+      await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.training, {
+        recentLabelTh: "หลักสูตร",
+      });
+      return;
+    case "documents":
+      await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.documents, {
+        recentLabelTh: "เอกสาร",
+      });
+      return;
+    case "quality":
+      await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.dataQuality, {
+        recentLabelTh: "คุณภาพข้อมูล",
+      });
+      return;
+    case "my_company":
+    case "my_division":
+    case "my_region": {
+      if (!org?.publicCode) {
+        await deps.send(chatId, {
+          text: "ยังไม่มีหน่วยในบริบท — ค้นหาหน่วยหรือเลือกจาก Favorites",
+          parse_mode: "HTML",
+        });
+        return;
+      }
+      await runSearch(deps, session, actor, chatId, telegramUserId, unitLookupQuery(org.publicCode), {
+        recentLabelTh: org.displayName,
+      });
+      return;
+    }
+  }
+}
+
 async function handleMenu(
-  menu: "search" | "unit" | "promotion" | "retirement" | "training" | "documents" | "dashboard" | "help",
+  menu:
+    | "search"
+    | "unit"
+    | "promotion"
+    | "retirement"
+    | "training"
+    | "documents"
+    | "quality"
+    | "dashboard"
+    | "help"
+    | "favorites"
+    | "recent"
+    | "settings"
+    | "quick",
   session: TelegramSearchSession,
   deps: TelegramDispatcherDeps,
   chatId: number,
@@ -439,47 +687,73 @@ async function handleMenu(
   telegramUserId: number
 ): Promise<void> {
   if (menu === "dashboard") {
-    const createHandoff = deps.createHandoff ?? defaultCreateHandoff;
-    let url: string | null = null;
-    try {
-      const { rawToken } = await createHandoff({
-        appUserId: actor.id,
-        destination: "/commander-promotion",
-        auditSink: deps.auditSink,
-      });
-      const base = deps.config.appBaseUrl?.replace(/\/$/, "") ?? "";
-      url = base ? `${base}/api/auth/telegram-handoff?token=${encodeURIComponent(rawToken)}` : null;
-    } catch {
-      url = deps.config.appBaseUrl
-        ? `${deps.config.appBaseUrl.replace(/\/$/, "")}/login`
-        : "/login";
-    }
-    await persistSession(deps, touchSession(session, { mode: "idle" }));
-    await deps.send(chatId, {
-      text: `📊 Dashboard\nเปิดในเว็บ: ${url ?? "/login"}`,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
+    await handleDashboard(deps, session, actor, chatId);
+    return;
+  }
+  if (menu === "favorites") {
+    await persistSession(deps, session);
+    await deps.send(chatId, buildFavoritesMessage(session));
+    return;
+  }
+  if (menu === "recent") {
+    await persistSession(deps, session);
+    await deps.send(chatId, buildRecentMessage(session));
+    return;
+  }
+  if (menu === "settings") {
+    await deps.send(chatId, buildSettingsMessage(deps.config.appBaseUrl));
+    return;
+  }
+  if (menu === "quick") {
+    await persistSession(deps, session);
+    await deps.send(chatId, buildQuickActionsMessage(session));
+    return;
+  }
+  if (menu === "help") {
+    await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.help);
+    return;
+  }
+  if (menu === "promotion") {
+    await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.promotion, {
+      recentLabelTh: "เลื่อนตำแหน่ง",
     });
     return;
   }
-
-  if (menu === "help") {
-    await runSearch(deps, session, actor, chatId, telegramUserId, "help");
+  if (menu === "retirement") {
+    await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.retirement, {
+      recentLabelTh: "เกษียณ",
+    });
+    return;
+  }
+  if (menu === "training") {
+    await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.training, {
+      recentLabelTh: "หลักสูตร",
+    });
+    return;
+  }
+  if (menu === "documents") {
+    await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.documents, {
+      recentLabelTh: "เอกสาร",
+    });
+    return;
+  }
+  if (menu === "quality") {
+    await runSearch(deps, session, actor, chatId, telegramUserId, COMMANDER_QUERIES.dataQuality, {
+      recentLabelTh: "คุณภาพข้อมูล",
+    });
     return;
   }
 
   const modeMap = {
     search: "awaiting_free_search",
     unit: "awaiting_unit_search",
-    promotion: "awaiting_promotion_search",
-    retirement: "awaiting_retirement_search",
-    training: "awaiting_training_search",
-    documents: "awaiting_document_search",
   } as const;
 
-  const mode = modeMap[menu];
-  await persistSession(deps, touchSession(session, { mode }));
-  await deps.send(chatId, { text: modePrompt(mode) ?? "พิมพ์คำค้น", parse_mode: "HTML" });
+  const mode = modeMap[menu as "search" | "unit"];
+  if (mode) {
+    await persistSession(deps, touchSession(session, { mode }));
+    await deps.send(chatId, { text: modePrompt(mode) ?? "พิมพ์คำค้น", parse_mode: "HTML" });
+  }
 }
 
 function extractSearchableToken(suggestion: string): string | null {

@@ -1,12 +1,15 @@
 /**
- * Search execution helpers — calls Personnel Search API only (Phase 51.2 / 51.3).
+ * Search execution helpers — calls Personnel Search API only (Phase 51.2–51.4).
  */
 
 import type { IntelligenceActor } from "@/lib/personnel_intelligence_service/permissions";
 import type { PersonnelSearchApiUnitScope } from "@/lib/personnel_search_api/contracts";
 import type { PersonnelSearchResult, SearchAction } from "@/lib/personnel_search/contracts";
+import { COMMANDER_QUERIES, unitLookupQuery } from "@/lib/personnel_search_telegram/commander_queries";
+import { extractUnitSnapshotFromResult } from "@/lib/personnel_search_telegram/commander_cards";
 import { formatApiErrorText, formatPersonnelSearchResultText } from "@/lib/personnel_search_telegram/formatter";
 import { buildResultKeyboard } from "@/lib/personnel_search_telegram/keyboard";
+import { pushRecentSearch } from "@/lib/personnel_search_telegram/recent";
 import type {
   BoundTelegramApiClient,
   RenderedSearchView,
@@ -57,15 +60,20 @@ function queryForAction(
 
   switch (intentHint) {
     case "PROMOTION_SEARCH":
-      return { query: "ครบคุณสมบัติมาแล้ว", unitScope };
+      return { query: COMMANDER_QUERIES.promotion, unitScope };
     case "RETIREMENT_SEARCH":
-      return { query: "ใกล้เกษียณ", unitScope };
+      return { query: COMMANDER_QUERIES.retirement, unitScope };
     case "TRAINING_SEARCH":
-      return { query: "ขาดหลักสูตร", unitScope };
+      return { query: COMMANDER_QUERIES.training, unitScope };
     case "DOCUMENT_SEARCH":
-      return { query: "ขาดเอกสาร", unitScope };
+      return { query: COMMANDER_QUERIES.documents, unitScope };
+    case "DATA_QUALITY_SEARCH":
+      return { query: COMMANDER_QUERIES.dataQuality, unitScope };
     case "UNIT_LOOKUP":
-      return { query: publicCode ? `ร้อย${publicCode}` : session.lastQuery ?? "help", unitScope };
+      return {
+        query: publicCode ? unitLookupQuery(publicCode) : session.lastQuery ?? COMMANDER_QUERIES.help,
+        unitScope,
+      };
     default:
       return { query: action.labelTh, unitScope };
   }
@@ -79,8 +87,9 @@ export async function executePersonnelSearch(args: {
   cursor?: string;
   unitScope?: PersonnelSearchApiUnitScope;
   pageLimit: number;
-  /** When true, push current cursor onto stack before navigating next. */
   navigatingNext?: boolean;
+  /** Optional label for recent list. */
+  recentLabelTh?: string;
 }): Promise<RenderedSearchView> {
   const unitScope = args.unitScope ?? unitScopeFromSession(args.session);
   const response = await args.apiClient(
@@ -104,12 +113,14 @@ export async function executePersonnelSearch(args: {
 
   const { result, meta } = response;
   const unitCtx = extractUnitContextFromResult(result);
+  const unitSnapshot = extractUnitSnapshotFromResult(result);
   const text = formatPersonnelSearchResultText(result);
 
   let cursorStack = args.session.cursorStack;
   if (args.navigatingNext) {
     const fromCursor = args.session.lastCursor;
-    cursorStack = fromCursor != null ? [...args.session.cursorStack, fromCursor] : [...args.session.cursorStack, ""];
+    cursorStack =
+      fromCursor != null ? [...args.session.cursorStack, fromCursor] : [...args.session.cursorStack, ""];
   } else if (!args.cursor) {
     cursorStack = [];
   }
@@ -120,11 +131,22 @@ export async function executePersonnelSearch(args: {
     hasPrevious: cursorStack.length > 0,
   });
 
+  const person = result.items.find((i) => i.kind === "person");
+  const recentSearches =
+    args.cursor || args.navigatingNext
+      ? args.session.recentSearches
+      : pushRecentSearch(args.session, {
+          query: args.query,
+          labelTh: args.recentLabelTh,
+          resultType: result.resultType,
+        });
+
   return {
     message: {
       text,
       parse_mode: "HTML",
       reply_markup: keyboard,
+      disable_web_page_preview: true,
     },
     sessionPatch: {
       mode: "idle",
@@ -139,6 +161,14 @@ export async function executePersonnelSearch(args: {
       conversationContext: unitCtx
         ? { organization: unitCtx }
         : args.session.conversationContext,
+      recentSearches,
+      lastUnitSnapshot: unitSnapshot ?? args.session.lastUnitSnapshot,
+      lastPersonOfficerId:
+        person && person.kind === "person" ? person.officerId : args.session.lastPersonOfficerId,
+      lastPersonLabelTh:
+        person && person.kind === "person"
+          ? `${person.rank} ${person.fullName}`.trim()
+          : args.session.lastPersonLabelTh,
     },
     result,
   };
@@ -151,7 +181,6 @@ export async function executeActionFollowUp(args: {
   actionIndex: number;
   pageLimit: number;
   appBaseUrl: string | null;
-  /** Optional secure handoff URL builder for dashboard/profile. */
   resolveDeepLink?: (href: string) => Promise<string | null>;
 }): Promise<RenderedSearchView> {
   const action = args.session.lastActions[args.actionIndex];
@@ -205,5 +234,6 @@ export async function executeActionFollowUp(args: {
     query,
     unitScope,
     pageLimit: args.pageLimit,
+    recentLabelTh: action.labelTh,
   });
 }

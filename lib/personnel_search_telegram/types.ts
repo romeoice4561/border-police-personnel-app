@@ -1,5 +1,5 @@
 /**
- * Telegram Commander Experience — shared types (Phase 51.2 / 51.3).
+ * Telegram Commander Experience — shared types (Phase 51.2 / 51.3 / 51.4).
  * Presentation-only; no search / ranking / permission logic.
  */
 
@@ -15,7 +15,8 @@ export type TelegramChatMode =
   | "awaiting_promotion_search"
   | "awaiting_retirement_search"
   | "awaiting_training_search"
-  | "awaiting_document_search";
+  | "awaiting_document_search"
+  | "awaiting_quality_search";
 
 /** Temporary conversation context — Telegram layer only. */
 export interface TelegramConversationContext {
@@ -24,6 +25,36 @@ export interface TelegramConversationContext {
     publicCode: string;
     displayName: string;
   };
+}
+
+/** Session-only favorite — safe public refs, never full personnel records. */
+export interface TelegramFavoriteRef {
+  kind: "company" | "division" | "region" | "officer";
+  labelTh: string;
+  publicCode?: string;
+  /** Opaque officer id as returned by the API (display / reopen query). */
+  officerId?: string;
+  savedAtIso: string;
+}
+
+export interface TelegramRecentSearch {
+  query: string;
+  labelTh: string;
+  resultType: string | null;
+  atIso: string;
+}
+
+/** Counts from last unit_summary API response — for home Today card. */
+export interface UnitIntelligenceSnapshot {
+  publicCode: string;
+  labelTh: string;
+  level: "region" | "division" | "company";
+  commanderName: string | null;
+  officerCount: number;
+  promotionReadyCount: number;
+  retirementNearCount: number;
+  incompleteDataCount: number;
+  capturedAtIso: string;
 }
 
 export interface TelegramSearchSession {
@@ -41,6 +72,13 @@ export interface TelegramSearchSession {
   conversationContext: TelegramConversationContext;
   disclosureLevel: 1 | 2 | 3;
   updatedAtIso: string;
+  /** Phase 51.4 — session-only */
+  favorites: TelegramFavoriteRef[];
+  recentSearches: TelegramRecentSearch[];
+  lastUnitSnapshot: UnitIntelligenceSnapshot | null;
+  /** Last person officerId for favorite toggle (from API). */
+  lastPersonOfficerId: string | null;
+  lastPersonLabelTh: string | null;
 }
 
 export interface TelegramUserRef {

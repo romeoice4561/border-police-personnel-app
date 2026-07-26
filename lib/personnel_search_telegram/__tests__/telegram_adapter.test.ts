@@ -148,7 +148,7 @@ describe("telegram callback codes", () => {
 describe("telegram home + formatter", () => {
   it("builds home menu", () => {
     const msg = buildHomeMessage();
-    assert.ok(msg.text.includes(HOME_MENU_TITLE.split("\n")[0].slice(0, 8)) || msg.text.includes("กำลังพล"));
+    assert.ok(msg.text.includes(HOME_MENU_TITLE) || msg.text.includes("Today"));
     assert.ok(msg.reply_markup);
   });
 
@@ -206,7 +206,7 @@ describe("telegram dispatcher (bound principal)", () => {
     assert.equal(apiCalls, 0);
     assert.equal(sent.length, 1);
     assert.ok(sent[0].reply_markup);
-    assert.ok(sent[0].text.includes("กำลังพล") || sent[0].text.includes("ผู้ช่วย"));
+    assert.ok(sent[0].text.includes("Personnel Intelligence") || sent[0].text.includes("Today"));
   });
 
   it("unbound /start does not call search API", async () => {
@@ -365,7 +365,7 @@ describe("telegram dispatcher (bound principal)", () => {
     );
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].query, "ครบคุณสมบัติมาแล้ว");
+    assert.equal(calls[0].query, "พร้อมเลื่อนปีนี้");
     assert.equal(calls[0].unitScope?.companyCode, "414");
   });
 

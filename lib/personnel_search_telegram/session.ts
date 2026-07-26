@@ -60,6 +60,23 @@ export function createFreshSession(
     conversationContext: {},
     disclosureLevel,
     updatedAtIso: new Date().toISOString(),
+    favorites: [],
+    recentSearches: [],
+    lastUnitSnapshot: null,
+    lastPersonOfficerId: null,
+    lastPersonLabelTh: null,
+  };
+}
+
+/** Ensure Phase 51.4 fields exist when loading older session payloads. */
+export function normalizeSession(session: TelegramSearchSession): TelegramSearchSession {
+  return {
+    ...session,
+    favorites: Array.isArray(session.favorites) ? session.favorites : [],
+    recentSearches: Array.isArray(session.recentSearches) ? session.recentSearches : [],
+    lastUnitSnapshot: session.lastUnitSnapshot ?? null,
+    lastPersonOfficerId: session.lastPersonOfficerId ?? null,
+    lastPersonLabelTh: session.lastPersonLabelTh ?? null,
   };
 }
 
@@ -88,6 +105,8 @@ export function modePrompt(mode: TelegramChatMode): string | null {
       return "พิมพ์เงื่อนไขหลักสูตร เช่น ขาดหลักสูตร หรือ หลักสูตรสืบสวน";
     case "awaiting_document_search":
       return "พิมพ์เงื่อนไขเอกสาร เช่น ขาดเอกสาร";
+    case "awaiting_quality_search":
+      return "พิมพ์เงื่อนไขคุณภาพข้อมูล เช่น ข้อมูลไม่ครบ";
     default:
       return null;
   }

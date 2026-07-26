@@ -1,5 +1,5 @@
 /**
- * Builds Telegram Inline Keyboards from API actions / pagination (Phase 51.2).
+ * Builds Telegram Inline Keyboards from API actions / pagination (Phase 51.2 / 51.4).
  */
 
 import type { SearchAction } from "@/lib/personnel_search/contracts";
@@ -22,13 +22,13 @@ const ACTION_EMOJI: Partial<Record<SearchAction["type"], string>> = {
 
 function actionLabel(action: SearchAction): string {
   const emoji = ACTION_EMOJI[action.type] ?? "▪️";
-  // Prefer short Thai labels; map known unit suggestion labels to home-menu style.
   const th = action.labelTh;
   if (th.includes("กำลังพล") || th.includes("ดูกำลังพล")) return `${emoji} กำลังพล`;
-  if (th.includes("พร้อมเลื่อน") || th.includes("เลื่อน")) return `${emoji} พร้อมเลื่อน`;
-  if (th.includes("เกษียณ")) return `${emoji} เกษียณ`;
-  if (th.includes("หลักสูตร")) return `${emoji} หลักสูตร`;
-  if (th.includes("เอกสาร")) return `${emoji} เอกสาร`;
+  if (th.includes("พร้อมเลื่อน") || th.includes("เลื่อน")) return `${emoji} Promotion`;
+  if (th.includes("เกษียณ")) return `${emoji} Retirement`;
+  if (th.includes("หลักสูตร")) return `${emoji} Training`;
+  if (th.includes("เอกสาร")) return `${emoji} Documents`;
+  if (th.includes("ไทม์ไลน์") || th.toLowerCase().includes("timeline")) return `${emoji} Timeline`;
   if (th.toLowerCase().includes("dashboard") || th.includes("แดชบอร์ด")) return `${emoji} Dashboard`;
   return `${emoji} ${th}`.slice(0, 64);
 }
@@ -48,7 +48,6 @@ export function buildResultKeyboard(args: {
 }): TelegramInlineKeyboard {
   const rows: TelegramInlineButton[][] = [];
 
-  // Clarification suggestions → selection buttons
   if (args.result.clarification?.suggestionsTh?.length) {
     const clarifyButtons = args.result.clarification.suggestionsTh.slice(0, 6).map((text, i) => ({
       text: text.slice(0, 64),
@@ -57,7 +56,6 @@ export function buildResultKeyboard(args: {
     rows.push(...chunkButtons(clarifyButtons, 1));
   }
 
-  // Disambiguation person picks
   if (args.result.resultType === "person_disambiguation") {
     const picks = args.result.items
       .filter((i) => i.kind === "person")
@@ -69,7 +67,6 @@ export function buildResultKeyboard(args: {
     rows.push(...chunkButtons(picks, 1));
   }
 
-  // API actions → inline buttons (unit suggestions etc.)
   if (args.result.actions.length > 0 && args.result.resultType !== "person_disambiguation") {
     const actionButtons = args.result.actions.slice(0, 8).map((action, i) => ({
       text: actionLabel(action),
@@ -78,12 +75,21 @@ export function buildResultKeyboard(args: {
     rows.push(...chunkButtons(actionButtons, 2));
   }
 
-  // Pagination
+  if (args.result.resultType === "unit_summary") {
+    rows.push([{ text: "⭐ บันทึกหน่วยโปรด", callback_data: CALLBACK.FAV_ADD_UNIT }]);
+  }
+  if (args.result.resultType === "person") {
+    rows.push([{ text: "⭐ บันทึกกำลังพลโปรด", callback_data: CALLBACK.FAV_ADD_PERSON }]);
+  }
+
   const nav: TelegramInlineButton[] = [];
   if (args.hasPrevious) nav.push({ text: "⬅️ ก่อนหน้า", callback_data: CALLBACK.PAGE_PREV });
   if (args.nextCursor) nav.push({ text: "ถัดไป ➡️", callback_data: CALLBACK.PAGE_NEXT });
   if (nav.length) rows.push(nav);
 
-  rows.push([{ text: "🏠 เมนูหลัก", callback_data: CALLBACK.HOME }]);
+  rows.push([
+    { text: "🏠 เมนูหลัก", callback_data: CALLBACK.HOME },
+    { text: "⚡ Quick", callback_data: CALLBACK.MENU_QUICK },
+  ]);
   return { inline_keyboard: rows };
 }

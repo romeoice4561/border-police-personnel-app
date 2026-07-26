@@ -1,4 +1,4 @@
-# Telegram Commander Experience (Phase 51.2 / 51.3)
+# Telegram Commander Experience (Phase 51.2 / 51.3 / 51.4)
 
 Presentation-only Telegram client for the Personnel Intelligence Platform.
 
@@ -8,16 +8,27 @@ Presentation-only Telegram client for the Personnel Intelligence Platform.
 Telegram Update
   → POST /api/telegram/webhook
     → secret-token validation + body limits + update_id dedupe
-    → Dispatcher
+    → Dispatcher (Commander Mobile Intelligence)
     → Telegram identity binding → application principal
     → Durable session store (per Telegram user id)
     → Personnel Search API (injected actor, client=telegram)
     → Personnel Search Gateway + permission filter
-    → Formatter + inline keyboard
+    → Commander cards / formatter + inline keyboard
     → Telegram Bot API
 ```
 
 The Telegram layer does **not** implement search, ranking, permissions, entity resolution, promotion/retirement logic, or repository access.
+
+## Phase 51.4 — Commander Mobile Intelligence
+
+Home dashboard shows **Personnel Intelligence / Today** using counts from the last `unit_summary` API snapshot when available (never computed in Telegram).
+
+Buttons: Search · Promotion · Retirement · Training · Documents · Data Quality · Dashboard · Favorites · Recent · Settings · Unit · Quick Actions.
+
+- **Cards** — unit / person / list intelligence cards format API items only
+- **Favorites / Recent** — session-only (max 20 / 10); public codes & query strings
+- **Shortcuts** — `/414`, `/41`, `/promotion`, `/retirement`, `/training`, `/documents`, `/dashboard`, …
+- **Notification contracts** — `lib/personnel_search_telegram/notification_contracts.ts` (no scheduling)
 
 ## Trust boundaries (Phase 51.3)
 

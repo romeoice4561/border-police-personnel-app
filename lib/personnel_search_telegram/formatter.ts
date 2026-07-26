@@ -1,5 +1,5 @@
 /**
- * Formats PersonnelSearchResult for Telegram messages (Phase 51.2).
+ * Formats PersonnelSearchResult for Telegram (Phase 51.2 / 51.4).
  * Presentation only — does not recompute search fields.
  */
 
@@ -10,6 +10,12 @@ import type {
   PersonnelSearchUnitItem,
 } from "@/lib/personnel_search/contracts";
 import type { PersonnelSearchApiResponse } from "@/lib/personnel_search_api/contracts";
+import {
+  formatListEntryLine,
+  formatListIntelligenceCard,
+  formatPersonIntelligenceCard,
+  formatUnitIntelligenceCard,
+} from "@/lib/personnel_search_telegram/commander_cards";
 
 function escapeHtml(value: string): string {
   return value
@@ -18,57 +24,37 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function formatUnit(item: PersonnelSearchUnitItem): string {
-  const lines = [
-    `<b>${escapeHtml(item.labelTh)}</b>`,
-    `รหัสหน่วย: <code>${escapeHtml(item.publicCode)}</code>`,
-    `กำลังพล: ${item.officerCount} นาย (นายตำรวจ ${item.policeCount})`,
-  ];
-  if (item.commanderName) lines.push(`ผู้บังคับหน่วย: ${escapeHtml(item.commanderName)}`);
-  if (item.deputyNames.length > 0) {
-    lines.push(`รอง: ${item.deputyNames.map(escapeHtml).join(", ")}`);
+function formatItem(item: PersonnelSearchItem, index: number, resultType: string): string {
+  if (item.kind === "unit") return formatUnitIntelligenceCard(item);
+  if (item.kind === "person") {
+    if (resultType === "person") return formatPersonIntelligenceCard(item);
+    return formatPersonBrief(item, index);
   }
-  lines.push(`พร้อมเลื่อน: ${item.promotionReadyCount}`);
-  lines.push(`ใกล้เกษียณ: ${item.retirementNearCount}`);
-  lines.push(`ข้อมูลไม่ครบ: ${item.incompleteDataCount}`);
-  return lines.join("\n");
-}
-
-function formatPerson(item: PersonnelSearchPersonItem, index?: number): string {
-  const prefix = index != null ? `${index}. ` : "";
-  const lines = [
-    `${prefix}<b>${escapeHtml(item.rank)} ${escapeHtml(item.fullName)}</b>`,
-    item.nickname ? `ชื่อเล่น: ${escapeHtml(item.nickname)}` : null,
-    item.currentPosition ? `ตำแหน่ง: ${escapeHtml(item.currentPosition)}` : null,
-    `หน่วย: ${escapeHtml(item.unitLabel)}`,
-    `รหัส: <code>${escapeHtml(item.officerIdDisplay)}</code>`,
-  ];
-  if (item.intelligence?.promotionStatusTh) {
-    lines.push(`เลื่อนระดับ: ${escapeHtml(item.intelligence.promotionStatusTh)}`);
-  }
-  return lines.filter(Boolean).join("\n");
-}
-
-function formatListEntry(item: Extract<PersonnelSearchItem, { kind: "list_entry" }>, index: number): string {
-  return [
-    `${index}. <b>${escapeHtml(item.rank)} ${escapeHtml(item.fullName)}</b>`,
-    `หน่วย: ${escapeHtml(item.unitLabel)}`,
-    escapeHtml(item.summaryTh),
-    `รหัส: <code>${escapeHtml(item.officerIdDisplay)}</code>`,
-  ].join("\n");
-}
-
-function formatItem(item: PersonnelSearchItem, index: number): string {
-  if (item.kind === "unit") return formatUnit(item);
-  if (item.kind === "person") return formatPerson(item, index);
-  if (item.kind === "list_entry") return formatListEntry(item, index);
-  if (item.kind === "help") return item.linesTh.map(escapeHtml).join("\n");
+  if (item.kind === "list_entry") return formatListEntryLine(item, index);
+  if (item.kind === "help") return item.linesTh.map((l) => `• ${escapeHtml(l)}`).join("\n");
   return "";
 }
 
+function formatPersonBrief(item: PersonnelSearchPersonItem, index: number): string {
+  const lines = [
+    `${index}. <b>${escapeHtml(item.rank)} ${escapeHtml(item.fullName)}</b>`,
+    `   ${escapeHtml(item.unitLabel)}`,
+  ];
+  if (item.intelligence?.promotionStatusTh) {
+    lines.push(`   📈 ${escapeHtml(item.intelligence.promotionStatusTh)}`);
+  }
+  return lines.join("\n");
+}
+
 export function formatPersonnelSearchResultText(result: PersonnelSearchResult): string {
-  const header = intentHeader(result);
-  const parts: string[] = [header];
+  const listCard = formatListIntelligenceCard(result);
+  const parts: string[] = [];
+
+  if (listCard) {
+    parts.push(listCard);
+  } else {
+    parts.push(intentHeader(result));
+  }
 
   if (result.clarification) {
     parts.push("");
@@ -82,12 +68,12 @@ export function formatPersonnelSearchResultText(result: PersonnelSearchResult): 
 
   result.items.forEach((item, i) => {
     parts.push("");
-    parts.push(formatItem(item, i + 1));
+    parts.push(formatItem(item, i + 1, result.resultType));
   });
 
-  if (result.totalCount > result.items.length) {
+  if (result.totalCount > result.items.length && result.resultType !== "unit_summary") {
     parts.push("");
-    parts.push(`แสดง ${result.items.length} จาก ${result.totalCount} รายการ`);
+    parts.push(`แสดง ${result.items.length} จาก ${result.totalCount}`);
   }
 
   return parts.join("\n").trim();
@@ -96,36 +82,47 @@ export function formatPersonnelSearchResultText(result: PersonnelSearchResult): 
 function intentHeader(result: PersonnelSearchResult): string {
   switch (result.resultType) {
     case "unit_summary":
-      return "🏢 <b>สรุปหน่วย</b>";
+      return "🏢 <b>Unit Intelligence</b>";
     case "person":
-      return "👤 <b>ข้อมูลกำลังพล</b>";
+      return "👤 <b>Person Intelligence</b>";
     case "person_disambiguation":
       return "👥 <b>พบหลายรายชื่อ — โปรดเลือก</b>";
     case "promotion_list":
-      return "📈 <b>การเลื่อนตำแหน่ง</b>";
+      return "📈 <b>Promotion</b>";
     case "retirement_list":
-      return "👴 <b>การเกษียณ</b>";
+      return "👴 <b>Retirement</b>";
     case "training_list":
-      return "🎓 <b>หลักสูตร</b>";
+      return "🎓 <b>Training</b>";
     case "document_list":
-      return "📄 <b>เอกสาร</b>";
+      return "📄 <b>Documents</b>";
     case "contact_list":
-      return "📞 <b>ผู้ติดต่อ</b>";
+      return "📞 <b>Contacts</b>";
     case "data_quality_list":
-      return "📋 <b>คุณภาพข้อมูล</b>";
+      return "📋 <b>Data Quality</b>";
     case "help":
       return "❓ <b>วิธีใช้งาน</b>";
     case "empty":
       return "🔎 <b>ผลการค้นหา</b>";
     case "error":
-      return "🚫 <b>ไม่สามารถค้นหาได้</b>";
+      return "🚫 <b>ไม่สามารถแสดงผลได้</b>";
     default:
       return "🔎 <b>ผลการค้นหา</b>";
   }
 }
 
 export function formatApiErrorText(response: Extract<PersonnelSearchApiResponse, { ok: false }>): string {
-  return `ไม่สามารถค้นหาได้ (${escapeHtml(response.error.code)})\n${escapeHtml(response.error.message)}`;
+  // Friendly Thai — never expose stack traces or internal details beyond a short code.
+  const code = response.error.code;
+  if (code === "FORBIDDEN" || code === "UNAUTHENTICATED") {
+    return "ไม่มีสิทธิ์ดำเนินการนี้";
+  }
+  if (code === "RATE_LIMITED") {
+    return "คำขอมากเกินไป กรุณาลองใหม่ในภายหลัง";
+  }
+  if (code === "INVALID_REQUEST" || code === "QUERY_TOO_LONG") {
+    return "คำค้นไม่ถูกต้อง กรุณาลองใหม่";
+  }
+  return "ไม่สามารถแสดงผลได้ในขณะนี้ กรุณาลองใหม่";
 }
 
 export function extractUnitContextFromResult(

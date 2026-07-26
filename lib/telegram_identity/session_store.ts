@@ -26,6 +26,17 @@ function isSafeSession(value: unknown): value is TelegramSearchSession {
   );
 }
 
+function withSessionDefaults(session: TelegramSearchSession): TelegramSearchSession {
+  return {
+    ...session,
+    favorites: Array.isArray(session.favorites) ? session.favorites : [],
+    recentSearches: Array.isArray(session.recentSearches) ? session.recentSearches : [],
+    lastUnitSnapshot: session.lastUnitSnapshot ?? null,
+    lastPersonOfficerId: session.lastPersonOfficerId ?? null,
+    lastPersonLabelTh: session.lastPersonLabelTh ?? null,
+  };
+}
+
 /** Development / test in-memory store — NOT multi-instance production-ready. */
 export function createMemoryTelegramSessionStoreV2(): TelegramSessionStoreV2 {
   const map = new Map<string, { session: TelegramSearchSession; expiresAt: number }>();
@@ -37,11 +48,11 @@ export function createMemoryTelegramSessionStoreV2(): TelegramSessionStoreV2 {
         map.delete(telegramUserId);
         return null;
       }
-      return row.session;
+      return withSessionDefaults(row.session);
     },
     async set(session, ttlSeconds) {
       map.set(String(session.telegramUserId), {
-        session,
+        session: withSessionDefaults(session),
         expiresAt: Date.now() + ttlSeconds * 1000,
       });
     },
@@ -82,7 +93,7 @@ export function createPrismaTelegramSessionStore(): TelegramSessionStoreV2 {
           await db.telegramBotSession.delete({ where: { telegramUserId } }).catch(() => {});
           return null;
         }
-        return parsed;
+        return withSessionDefaults(parsed);
       } catch {
         await db.telegramBotSession.delete({ where: { telegramUserId } }).catch(() => {});
         return null;
@@ -92,7 +103,7 @@ export function createPrismaTelegramSessionStore(): TelegramSessionStoreV2 {
       const { createDatabaseClient } = await import("@/lib/database/database");
       const db = createDatabaseClient();
       const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
-      const payloadJson = JSON.stringify(sanitizeSessionForStorage(session));
+      const payloadJson = JSON.stringify(sanitizeSessionForStorage(withSessionDefaults(session)));
       await db.telegramBotSession.upsert({
         where: { telegramUserId: String(session.telegramUserId) },
         create: {
