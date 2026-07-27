@@ -1,49 +1,34 @@
 /**
- * Commander Intelligence Center (Phase 49B).
+ * Commander Intelligence Center — Workforce Intelligence workspace (Phase 52.2).
  *
- * Server component: ONE loadCommanderIntelligenceCenterPageData() call —
- * reusing the exact same officer-profile load + CommanderQueryDataset build
- * Commander Dashboard already performs — composes every section below. No
- * business logic is duplicated here; every KPI/matrix/action/timeline/table
- * value was already computed by lib/commander_intelligence_center/
- * build_view_model.ts from existing Promotion/Retirement/Training/Document
- * Intelligence engines.
+ * Server component: ONE loadCommanderWorkforcePageData({ filters }) call.
+ * All UI metrics come from CommanderWorkforceViewModel — no intelligence recalculation.
+ * Legacy Phase 49B/50 CIC lives at /commander-intelligence/legacy.
  */
-import { CicWorkspaceHeader } from "@/components/commander/intelligence_center/cic_workspace_header";
-import { CicKpiSection } from "@/components/commander/intelligence_center/cic_kpi_section";
-import { CicExecutiveSummary } from "@/components/commander/intelligence_center/cic_executive_summary";
-import { CicPriorityMatrix } from "@/components/commander/intelligence_center/cic_priority_matrix";
-import { CicActionCenter } from "@/components/commander/intelligence_center/cic_action_center";
-import { CicTimeline } from "@/components/commander/intelligence_center/cic_timeline";
-import { CicExecutiveTable } from "@/components/commander/intelligence_center/cic_executive_table";
-import { CicExportBar } from "@/components/commander/intelligence_center/cic_export_bar";
-import { WorkspaceLayout, WorkspaceSection } from "@/components/workspace/workspace_section";
-import { loadCommanderIntelligenceCenterPageData } from "@/lib/server/commander_intelligence_center_page_data";
+import { WorkspaceLayout } from "@/components/workspace/workspace_section";
+import { CommanderWorkforcePage } from "@/components/commander-workforce/commander-workforce-page";
+import { loadCommanderWorkforcePageData } from "@/lib/server/commander_workforce_page_data";
+import {
+  parseWorkforceFiltersFromSearchParams,
+  searchParamsRecordToURLSearchParams,
+} from "@/lib/commander_workforce/url_filters";
 
 export const dynamic = "force-dynamic";
 
-export default async function CommanderIntelligencePage() {
-  const { center } = await loadCommanderIntelligenceCenterPageData();
+export default async function CommanderIntelligencePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolved = await searchParams;
+  const filters = parseWorkforceFiltersFromSearchParams(
+    searchParamsRecordToURLSearchParams(resolved)
+  );
+  const { viewModel } = await loadCommanderWorkforcePageData({ filters });
 
   return (
     <WorkspaceLayout className="min-w-0">
-      <CicWorkspaceHeader />
-
-      <CicKpiSection kpis={center.kpis} />
-
-      <CicExecutiveSummary summary={center.executiveSummary} />
-
-      <CicPriorityMatrix buckets={center.priorityMatrix} />
-
-      <CicActionCenter items={center.actionCenter} />
-
-      <CicTimeline buckets={center.timeline} />
-
-      <WorkspaceSection className="min-w-0">
-        <CicExecutiveTable rows={center.executiveTable} />
-      </WorkspaceSection>
-
-      <CicExportBar center={center} />
+      <CommanderWorkforcePage viewModel={viewModel} />
     </WorkspaceLayout>
   );
 }

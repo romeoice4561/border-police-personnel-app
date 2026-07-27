@@ -275,7 +275,7 @@ test("shared filter helper + export metadata", () => {
     recordCount: filtered.length,
   });
   assert.match(csv, /Commander Promotion Intelligence Report/);
-  assert.match(csv, /ครบคุณสมบัติในปีนี้/);
+  assert.match(csv, /พร้อมเลื่อนปีนี้/);
   assert.match(csv, /ทดสอบ a/);
   assert.ok(csv.startsWith("\uFEFF") || csv.charCodeAt(0) === 0xfeff || csv.includes("ทดสอบ"));
 });

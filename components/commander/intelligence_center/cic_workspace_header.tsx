@@ -18,7 +18,8 @@ export function CicWorkspaceHeader() {
       subtitle={t("cic.subtitle")}
       breadcrumb={[
         { label: t("dashboard.breadcrumbHome"), href: "/dashboard" },
-        { label: t("cic.title") },
+        { label: "ศูนย์บัญชาการกำลังพล", href: "/commander-intelligence" },
+        { label: `${t("cic.title")} (รุ่นเดิม)` },
       ]}
     />
   );

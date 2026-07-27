@@ -27,7 +27,6 @@ import { OfficerPhoto } from "@/components/officer/officer_photo";
 import { cn } from "@/lib/ui/cn";
 import {
   EMPTY_PROMOTION_FILTER,
-  EXECUTIVE_BUCKET_LABEL_TH,
   PRIORITY_LABEL_TH,
   type ActionUrgency,
   type CommanderPromotionFilterState,
@@ -35,7 +34,14 @@ import {
   type ExecutiveBucket,
   type ExecutivePriorityBand,
   type PreparedPromotionRow,
+  type PresentationBucket,
 } from "@/lib/commander_promotion/types";
+import {
+  EXECUTIVE_BUCKET_LABEL_TH,
+  PRESENTATION_BUCKET_LABEL_TH,
+  QUALIFIED_NOW_BUCKET,
+  QUALIFIED_NOW_LABEL_TH,
+} from "@/lib/commander_promotion/presentation_labels";
 import { filterPreparedRows, mergeFilter, countActiveFilters } from "@/lib/commander_promotion/filter_rows";
 import { computeFilteredQuickStats } from "@/lib/commander_promotion/quick_stats";
 import { buildCommanderPromotionCsv, promotionCsvFilename } from "@/lib/commander_promotion/export_csv";
@@ -359,9 +365,15 @@ export function CpiDashboard({ model }: { model: CommanderPromotionViewModel }) 
   ].filter(Boolean) as string[];
 
   const chips: Array<{ key: string; label: string; clear: Partial<CommanderPromotionFilterState> }> = [];
-  if (filter.bucket) chips.push({ key: "bucket", label: EXECUTIVE_BUCKET_LABEL_TH[filter.bucket], clear: { bucket: null } });
+  if (filter.bucket) {
+    chips.push({
+      key: "bucket",
+      label: PRESENTATION_BUCKET_LABEL_TH[filter.bucket],
+      clear: { bucket: null },
+    });
+  }
   if (filter.priority) chips.push({ key: "priority", label: `ความสำคัญ: ${PRIORITY_LABEL_TH[filter.priority]}`, clear: { priority: null } });
-  if (filter.promotionReadyOnly) chips.push({ key: "ready", label: "พร้อมเลื่อนระดับ", clear: { promotionReadyOnly: null } });
+  if (filter.promotionReadyOnly) chips.push({ key: "ready", label: QUALIFIED_NOW_LABEL_TH, clear: { promotionReadyOnly: null } });
   if (filter.retirementWindow) chips.push({ key: "retire", label: `เกษียณ: ${filter.retirementWindow}`, clear: { retirementWindow: null } });
   if (filter.blocker) chips.push({ key: "blocker", label: `ข้อจำกัด: ${filter.blocker}`, clear: { blocker: null } });
   if (filter.dataQuality) chips.push({ key: "dq", label: `คุณภาพข้อมูล: ${filter.dataQuality}`, clear: { dataQuality: null } });
@@ -445,7 +457,7 @@ export function CpiDashboard({ model }: { model: CommanderPromotionViewModel }) 
       const text = `${insight.titleTh} ${insight.detailTh}`;
       const restatesBanner =
         text.includes(String(summary.alreadyEligibleCount)) &&
-        text.includes("ครบคุณสมบัติมาแล้ว") &&
+        text.includes("ครบคุณสมบัติก่อนปีนี้") &&
         !text.includes("หน่วยงาน") &&
         !text.includes("ภาระ") &&
         !text.includes("ข้อจำกัด");
@@ -528,18 +540,25 @@ export function CpiDashboard({ model }: { model: CommanderPromotionViewModel }) 
             </p>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted">ครบคุณสมบัติมาแล้ว</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">{QUALIFIED_NOW_LABEL_TH}</p>
             <p className="mt-0.5 flex items-baseline gap-2">
-              <span className="text-4xl font-semibold tabular-nums tracking-tight text-foreground sm:text-5xl">
-                {summary.alreadyEligibleCount.toLocaleString("th-TH")}
+              <span className="text-4xl font-semibold tabular-nums tracking-tight text-accent sm:text-5xl">
+                {(summary.eligibleThisYearCount + summary.alreadyEligibleCount).toLocaleString("th-TH")}
               </span>
               <span className="text-sm text-muted">นาย</span>
             </p>
-            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-sm">
+            <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-4">
               <div>
-                <dt className="text-[11px] leading-snug text-muted">ครบในปีนี้</dt>
+                <dt className="text-[11px] leading-snug text-muted">{EXECUTIVE_BUCKET_LABEL_TH.eligibleThisYear}</dt>
                 <dd className="mt-0.5 font-semibold tabular-nums">
                   {summary.eligibleThisYearCount.toLocaleString("th-TH")}
+                  <span className="ml-1 text-xs font-normal text-muted">นาย</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] leading-snug text-muted">{EXECUTIVE_BUCKET_LABEL_TH.alreadyEligible}</dt>
+                <dd className="mt-0.5 font-semibold tabular-nums">
+                  {summary.alreadyEligibleCount.toLocaleString("th-TH")}
                   <span className="ml-1 text-xs font-normal text-muted">นาย</span>
                 </dd>
               </div>
@@ -564,8 +583,39 @@ export function CpiDashboard({ model }: { model: CommanderPromotionViewModel }) 
 
       {/* 4. Executive KPI Strip */}
       <div className="cpi-screen-only print:hidden">
-        <Section title="ตัวชี้วัดผู้บริหาร" description="หกกลุ่มสถานะแบบแยกกัน — คลิกเพื่อกรองตาราง">
-          <div className={cn("grid grid-cols-2 items-stretch sm:grid-cols-3 xl:grid-cols-6", GRID_GAP)}>
+        <Section
+          title="ตัวชี้วัดผู้บริหาร"
+          description="สถานะแยกกันตามเกณฑ์ — รวมถึงกลุ่มผู้มีคุณสมบัติครบทั้งหมด (ปีนี้ + ก่อนปีนี้)"
+        >
+          <div className={cn("grid grid-cols-2 items-stretch sm:grid-cols-3 xl:grid-cols-7", GRID_GAP)}>
+            {(() => {
+              const qualifiedCount = summary.eligibleThisYearCount + summary.alreadyEligibleCount;
+              const active = filter.bucket === QUALIFIED_NOW_BUCKET;
+              return (
+                <button
+                  type="button"
+                  onClick={() => applyFilter({ ...EMPTY_PROMOTION_FILTER, bucket: QUALIFIED_NOW_BUCKET })}
+                  className={cn(
+                    "flex h-full flex-col rounded-xl border px-3 py-3 text-left transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
+                    active
+                      ? "border-accent bg-accent/10 ring-1 ring-accent/40"
+                      : "border-accent/30 bg-accent/5 hover:border-accent/50"
+                  )}
+                  aria-pressed={active}
+                  aria-label={`${QUALIFIED_NOW_LABEL_TH} ${qualifiedCount} นาย`}
+                >
+                  <p className="text-[11px] font-medium leading-snug text-muted">{QUALIFIED_NOW_LABEL_TH}</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-accent">
+                    {qualifiedCount.toLocaleString("th-TH")}
+                  </p>
+                  <p className="mt-1 text-[10px] leading-snug text-muted">
+                    {EXECUTIVE_BUCKET_LABEL_TH.eligibleThisYear} {summary.eligibleThisYearCount} ·{" "}
+                    {EXECUTIVE_BUCKET_LABEL_TH.alreadyEligible} {summary.alreadyEligibleCount}
+                  </p>
+                </button>
+              );
+            })()}
             {kpisOrdered.map((kpi) => {
               const emphasis = kpiEmphasis(kpi.bucket);
               const active = filter.bucket === kpi.bucket;
@@ -1056,6 +1106,37 @@ export function CpiDashboard({ model }: { model: CommanderPromotionViewModel }) 
               value={filter.search}
               onChange={(e) => applyFilter({ search: e.target.value }, false)}
             />
+          </label>
+          <label className="text-xs text-muted">
+            กลุ่มคุณสมบัติ
+            <select
+              className="mt-1 block min-w-[12rem] rounded-md border border-border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              value={filter.bucket ?? ""}
+              onChange={(e) => {
+                const value = e.target.value;
+                applyFilter(
+                  { bucket: value ? (value as PresentationBucket) : null },
+                  false
+                );
+              }}
+            >
+              <option value="">ทั้งหมด</option>
+              <option value={QUALIFIED_NOW_BUCKET}>{QUALIFIED_NOW_LABEL_TH}</option>
+              {(
+                [
+                  "eligibleThisYear",
+                  "alreadyEligible",
+                  "nextYear",
+                  "notYetEligible",
+                  "incomplete",
+                  "noTarget",
+                ] as const
+              ).map((bucket) => (
+                <option key={bucket} value={bucket}>
+                  {EXECUTIVE_BUCKET_LABEL_TH[bucket]}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-xs text-muted">
             ความสำคัญ

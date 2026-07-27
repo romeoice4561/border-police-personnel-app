@@ -20,7 +20,16 @@ export function filterPreparedRows(
     if (filter.targetPosition != null && row.targetPositionLabel !== filter.targetPosition) return false;
     if (filter.promotionStatus != null && row.promotionStatus !== filter.promotionStatus) return false;
     if (filter.promotionReadyOnly && !row.isPromotionReady) return false;
-    if (filter.bucket != null && row.executiveBucket !== filter.bucket) return false;
+    if (filter.bucket != null) {
+      if (filter.bucket === "qualifiedNow") {
+        // Presentation aggregate: current-year + prior-year eligible (mutually exclusive statuses).
+        if (row.executiveBucket !== "eligibleThisYear" && row.executiveBucket !== "alreadyEligible") {
+          return false;
+        }
+      } else if (row.executiveBucket !== filter.bucket) {
+        return false;
+      }
+    }
     if (filter.priority != null && row.priorityBand !== filter.priority) return false;
     if (filter.readinessBand != null && row.readinessBand !== filter.readinessBand) return false;
     if (filter.eligibleYear != null && row.firstEligibleYearBe !== filter.eligibleYear) return false;

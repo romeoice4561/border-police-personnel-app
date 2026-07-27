@@ -3,7 +3,8 @@
  * UTF-8 BOM + metadata preamble + filtered/selected rows. No xlsx/pdf libs.
  */
 import type { CommanderPromotionFilterState, PreparedPromotionRow } from "@/lib/commander_promotion/types";
-import { EXECUTIVE_BUCKET_LABEL_TH, PRIORITY_LABEL_TH } from "@/lib/commander_promotion/types";
+import { PRIORITY_LABEL_TH } from "@/lib/commander_promotion/types";
+import { PRESENTATION_BUCKET_LABEL_TH } from "@/lib/commander_promotion/presentation_labels";
 import { countActiveFilters } from "@/lib/commander_promotion/filter_rows";
 
 const COLUMNS_TH = [
@@ -40,7 +41,7 @@ function describeFilters(filter: CommanderPromotionFilterState): string {
   if (filter.divisionKey) parts.push(`กก.:${filter.divisionKey}`);
   if (filter.companyKey) parts.push(`ร้อย:${filter.companyKey}`);
   if (filter.rank) parts.push(`ยศ:${filter.rank}`);
-  if (filter.bucket) parts.push(EXECUTIVE_BUCKET_LABEL_TH[filter.bucket]);
+  if (filter.bucket) parts.push(PRESENTATION_BUCKET_LABEL_TH[filter.bucket]);
   if (filter.priority) parts.push(`ความสำคัญ:${PRIORITY_LABEL_TH[filter.priority]}`);
   if (filter.eligibleYear != null) parts.push(`ปีที่มีสิทธิ์:${filter.eligibleYear}`);
   if (filter.eligibleYearMin != null || filter.eligibleYearMax != null) {

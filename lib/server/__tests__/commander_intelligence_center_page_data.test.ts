@@ -67,12 +67,16 @@ test("lib/server/commander_intelligence_center_page_data.ts's wrapper delegates 
   assert.ok(!source.includes('from "@/lib/commander_query/build_dataset"'), "must not import the dataset builder directly — it only reuses the already-built dataset");
 });
 
-test("app/commander-intelligence/page.tsx owns a single loadCommanderIntelligenceCenterPageData call, no second dataset/dashboard fetch", async () => {
-  const pageSource = await fs.readFile(path.join(REPO_ROOT, "app/commander-intelligence/page.tsx"), "utf8");
+test("app/commander-intelligence/legacy/page.tsx owns a single loadCommanderIntelligenceCenterPageData call, no second dataset/dashboard fetch", async () => {
+  const pageSource = await fs.readFile(
+    path.join(REPO_ROOT, "app/commander-intelligence/legacy/page.tsx"),
+    "utf8"
+  );
   assert.ok(pageSource.includes("loadCommanderIntelligenceCenterPageData"));
   assert.equal((pageSource.match(/await loadCommanderIntelligenceCenterPageData\(/g) ?? []).length, 1);
   assert.ok(!pageSource.includes("getCommanderQueryDataset"));
   assert.ok(!pageSource.includes("loadCommanderDashboardPageData"));
+  assert.ok(!pageSource.includes("loadCommanderWorkforcePageData"));
   assert.ok(!pageSource.includes("Promise.all"));
 });
 

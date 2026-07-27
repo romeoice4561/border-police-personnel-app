@@ -14,6 +14,12 @@ export type ExecutiveBucket =
   | "nextYear"
   | "notYetEligible";
 
+/**
+ * Presentation filter bucket — includes the composed aggregate `qualifiedNow`
+ * (EligibleThisYear ∪ AlreadyEligible). Never assigned as a row.executiveBucket.
+ */
+export type PresentationBucket = ExecutiveBucket | "qualifiedNow";
+
 export type ExecutivePriorityBand = "Critical" | "High" | "Medium" | "Low";
 
 export type RetirementWindow = "within1" | "within3" | "within5" | "beyond" | "unknown";
@@ -229,7 +235,8 @@ export interface CommanderPromotionFilterState {
   currentPosition: string | null;
   targetPosition: string | null;
   promotionStatus: PromotionEligibilityStatus | null;
-  bucket: ExecutiveBucket | null;
+  /** Canonical executive bucket or presentation aggregate `qualifiedNow`. */
+  bucket: PresentationBucket | null;
   priority: ExecutivePriorityBand | null;
   readinessBand: ReadinessBand | null;
   eligibleYear: number | null;
@@ -289,15 +296,6 @@ export interface CommanderPromotionViewModel {
   dashboardQuickStats: DashboardQuickStatsView;
   filterOptions: FilterOptionsView;
 }
-
-export const EXECUTIVE_BUCKET_LABEL_TH: Record<ExecutiveBucket, string> = {
-  eligibleThisYear: "ครบคุณสมบัติในปีนี้",
-  alreadyEligible: "ครบคุณสมบัติมาแล้ว",
-  nextYear: "จะครบในปีหน้า",
-  notYetEligible: "ยังไม่ครบคุณสมบัติ",
-  incomplete: "ข้อมูลไม่สมบูรณ์",
-  noTarget: "ไม่มีระดับเป้าหมาย",
-};
 
 export const PRIORITY_LABEL_TH: Record<ExecutivePriorityBand, string> = {
   Critical: "วิกฤต",

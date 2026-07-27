@@ -4,13 +4,12 @@
  */
 import {
   EMPTY_PROMOTION_FILTER,
-  EXECUTIVE_BUCKET_LABEL_TH,
   PRIORITY_LABEL_TH,
   type CommanderPromotionFilterState,
-  type ExecutiveBucket,
   type ExecutivePriorityBand,
   type RetirementWindow,
 } from "@/lib/commander_promotion/types";
+import { isPresentationBucket } from "@/lib/commander_promotion/presentation_labels";
 import { mergeFilter } from "@/lib/commander_promotion/filter_rows";
 
 const RETIREMENT_WINDOWS = new Set<RetirementWindow>(["within1", "within3", "within5", "beyond", "unknown"]);
@@ -36,8 +35,8 @@ export function parsePromotionFilterFromSearchParams(
   params: URLSearchParams | { get(name: string): string | null }
 ): CommanderPromotionFilterState {
   const patch: Partial<CommanderPromotionFilterState> = {};
-  const bucket = params.get("bucket") as ExecutiveBucket | null;
-  if (bucket && bucket in EXECUTIVE_BUCKET_LABEL_TH) patch.bucket = bucket;
+  const bucket = params.get("bucket");
+  if (isPresentationBucket(bucket)) patch.bucket = bucket;
   const priority = params.get("priority") as ExecutivePriorityBand | null;
   if (priority && priority in PRIORITY_LABEL_TH) patch.priority = priority;
   if (params.get("region")) patch.regionKey = params.get("region");

@@ -53,28 +53,35 @@ export const WORKFORCE_PROMOTION_STATUSES = [
 
 export type WorkforcePromotionStatus = (typeof WORKFORCE_PROMOTION_STATUSES)[number];
 
-/** Matches PROMOTION_STATUS_DISPLAY_TH (lib/intelligence/promotion) — labels only, no engine import. */
+/**
+ * Executive presentation labels for PromotionSummary.promotionStatus.
+ * Classification stays mutually exclusive — labels only (Phase 52.2.2).
+ */
 export const WORKFORCE_PROMOTION_LABEL_TH: Record<WorkforcePromotionStatus, string> = {
-  EligibleThisYear: "ครบคุณสมบัติในปีนี้",
-  AlreadyEligible: "มีคุณสมบัติครบมาแล้ว",
-  Waiting: "ยังไม่ครบคุณสมบัติ",
-  MissingTraining: "ขาดคุณสมบัติด้านการฝึกอบรม",
-  MissingDocuments: "ขาดเอกสารประกอบการพิจารณา",
-  RetirementRestricted: "ใกล้เกษียณอายุราชการ",
-  NotEligible: "ยังไม่ครบคุณสมบัติ",
-  Unknown: "ไม่สามารถประเมินได้",
+  EligibleThisYear: "พร้อมเลื่อนปีนี้",
+  AlreadyEligible: "ครบคุณสมบัติก่อนปีนี้",
+  Waiting: "อยู่ระหว่างรอ",
+  MissingTraining: "ขาดหลักสูตร",
+  MissingDocuments: "ขาดเอกสาร",
+  RetirementRestricted: "จำกัดจากการเกษียณ",
+  NotEligible: "ยังไม่ถึงเกณฑ์",
+  Unknown: "ไม่ทราบข้อมูล",
 };
 
 export const WORKFORCE_PROMOTION_DESCRIPTION_TH: Record<WorkforcePromotionStatus, string> = {
-  EligibleThisYear: "สถานะ PromotionSummary.EligibleThisYear",
-  AlreadyEligible: "สถานะ PromotionSummary.AlreadyEligible",
-  Waiting: "สถานะ PromotionSummary.Waiting",
-  MissingTraining: "สถานะ PromotionSummary.MissingTraining",
-  MissingDocuments: "สถานะ PromotionSummary.MissingDocuments",
-  RetirementRestricted: "สถานะ PromotionSummary.RetirementRestricted",
-  NotEligible: "สถานะ PromotionSummary.NotEligible",
-  Unknown: "สถานะ PromotionSummary.Unknown",
+  EligibleThisYear: "ครบคุณสมบัติครั้งแรกในปีพิจารณานี้",
+  AlreadyEligible: "ครบคุณสมบัติมาแล้วก่อนปีนี้ และยังไม่ได้รับการแต่งตั้ง",
+  Waiting: "ยังอยู่ระหว่างรอครบคุณสมบัติ",
+  MissingTraining: "ติดขัดด้านหลักสูตร",
+  MissingDocuments: "ติดขัดด้านเอกสาร",
+  RetirementRestricted: "ถูกจำกัดเนื่องจากใกล้เกษียณ",
+  NotEligible: "ยังไม่ถึงเกณฑ์คุณสมบัติ",
+  Unknown: "ยังประเมินสถานะไม่ได้",
 };
+
+/** Presentation aggregate — not a PromotionEligibilityStatus. */
+export const WORKFORCE_QUALIFIED_NOW_LABEL_TH = "ผู้มีคุณสมบัติครบทั้งหมด";
+
 
 export const WORKFORCE_RETIREMENT_WINDOWS = [
   "this_fiscal_year",

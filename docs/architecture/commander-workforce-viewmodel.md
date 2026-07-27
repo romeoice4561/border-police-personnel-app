@@ -95,3 +95,23 @@ Deterministic operational items from existing statuses only.
 - training policy invention
 - document mandatory-list invention
 - vacancy / authorized strength fabrication
+
+## Phase 52.2 UI
+
+- Primary route: `/commander-intelligence` → `loadCommanderWorkforcePageData` + Workforce UI
+- Legacy CIC: `/commander-intelligence/legacy` → Phase 49B/50 CIC (unchanged semantics)
+- URL filters: `lib/commander_workforce/url_filters.ts` (presentation adapter only)
+
+### Drill-down parity gaps
+
+Workforce drilldowns may emit query keys that Commander Search / Promotion do not fully round-trip yet:
+
+| Param | Destination | Gap |
+|-------|-------------|-----|
+| `regionPublicCode` / `divisionPublicCode` / `companyPublicCode` | `/commander-search` | Search allowlist still uses internal org filters in places; public-code params may be ignored until parity work |
+| `retirementWindow` (workforce keys) | `/commander-search` | Search uses `retirement=within-1-year` style; some workforce-only keys may not filter |
+| `trainingStatus` / `documentStatus` / `dataQualityStatus` | `/commander-search` | Partial overlap with existing allowlisted keys |
+| `promotionEligibilityStatus` | `/commander-search` | Supported when allowlisted |
+| `bucket` / `ready` | `/commander-promotion` | Supported by promotion URL filter |
+
+Documented for Phase 52.3 — UI must not invent alternate href construction.

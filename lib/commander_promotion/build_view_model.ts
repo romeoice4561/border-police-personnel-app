@@ -18,7 +18,6 @@ import { assignExecutivePriority, prioritySortOrder } from "@/lib/commander_prom
 import { computeFilteredQuickStats } from "@/lib/commander_promotion/quick_stats";
 import {
   BLOCKER_LABEL_TH,
-  EXECUTIVE_BUCKET_LABEL_TH,
   PRIORITY_LABEL_TH,
   type ActionItemView,
   type BlockerKey,
@@ -34,6 +33,10 @@ import {
   type TimelineYearView,
   type WatchlistCategoryView,
 } from "@/lib/commander_promotion/types";
+import {
+  CPI_STATUS_LABEL_TH,
+  EXECUTIVE_BUCKET_LABEL_TH,
+} from "@/lib/commander_promotion/presentation_labels";
 
 const TOP_N = 5;
 const QUEUE_LIMIT = 40;
@@ -179,7 +182,8 @@ function prepareRow(officer: CommanderQueryOfficer, dataset: CommanderQueryDatas
     ordinalLabel: ordinal != null ? `ปีที่ ${ordinal}` : null,
     overdueYears: promo.overdueYears,
     recommendedActionTh: recommendedActionTh(bucket, promo.promotionStatus, blockerKeys),
-    statusLabelTh: promo.displayStatusTh ?? EXECUTIVE_BUCKET_LABEL_TH[bucket],
+    // Presentation overlay — does not change PromotionSummary.displayStatusTh from the engine.
+    statusLabelTh: CPI_STATUS_LABEL_TH[promo.promotionStatus] ?? EXECUTIVE_BUCKET_LABEL_TH[bucket],
     retirementYearBe: officer.retirementYearBe,
     retirementRemainingYears: retirement.remainingYears,
     retirementWindow: retirement.window,
@@ -334,7 +338,7 @@ function buildActions(rows: readonly PreparedPromotionRow[]): ActionItemView[] {
     {
       id: "review-already",
       urgency: "Critical",
-      labelTh: "ทบทวนผู้ที่ครบคุณสมบัติมาแล้ว",
+      labelTh: "ทบทวนผู้ที่ครบคุณสมบัติก่อนปีนี้",
       descriptionTh: "ตรวจสอบรายชื่อที่รอการพิจารณามาแล้วเพื่อเสนอในรอบปัจจุบัน",
       count: already.length,
       filter: { bucket: "alreadyEligible" },
@@ -343,9 +347,9 @@ function buildActions(rows: readonly PreparedPromotionRow[]): ActionItemView[] {
       id: "ready-retire",
       urgency: "Critical",
       labelTh: "ทบทวนผู้พร้อมเลื่อนใกล้เกษียณ",
-      descriptionTh: "ผู้มีคุณสมบัติครบและใกล้เกษียณภายใน 3 ปี",
+      descriptionTh: "ผู้มีคุณสมบัติครบทั้งหมดและใกล้เกษียณภายใน 3 ปี",
       count: readyNearRetire.length,
-      filter: { retirementWindow: "within3", bucket: "alreadyEligible" },
+      filter: { retirementWindow: "within3", bucket: "qualifiedNow" },
     },
     {
       id: "training",
@@ -482,8 +486,9 @@ function urgentSummary(
   alreadyEligible: number,
   incomplete: number
 ): string {
-  if (alreadyEligible > 0) return `มี ${alreadyEligible} นายที่ครบคุณสมบัติมาแล้วและควรได้รับการทบทวน`;
-  if (eligibleThisYear > 0) return `มี ${eligibleThisYear} นายที่ครบคุณสมบัติในปีนี้`;
+  if (alreadyEligible > 0)
+    return `มี ${alreadyEligible} นายที่ครบคุณสมบัติก่อนปีนี้และควรได้รับการทบทวน`;
+  if (eligibleThisYear > 0) return `มี ${eligibleThisYear} นายที่พร้อมเลื่อนปีนี้`;
   if (incomplete > 0) return `มีข้อมูลกำลังพล ${incomplete} รายการที่ควรตรวจสอบให้สมบูรณ์`;
   return "ยังไม่พบประเด็นเร่งด่วนด้านการเลื่อนตำแหน่ง";
 }

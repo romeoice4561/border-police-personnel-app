@@ -1,4 +1,5 @@
 export * from "@/lib/commander_promotion/types";
+export * from "@/lib/commander_promotion/presentation_labels";
 export * from "@/lib/commander_promotion/readiness";
 export * from "@/lib/commander_promotion/priority";
 export * from "@/lib/commander_promotion/filter_rows";

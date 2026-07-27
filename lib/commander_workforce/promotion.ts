@@ -66,9 +66,11 @@ export function buildPromotionSection(
         label: WORKFORCE_PROMOTION_LABEL_TH[status],
         target: status === "EligibleThisYear" || status === "AlreadyEligible" ? "commander-promotion" : "commander-search",
         filters:
-          status === "EligibleThisYear" || status === "AlreadyEligible"
-            ? { ready: "1", bucket: status === "AlreadyEligible" ? "AlreadyEligible" : "EligibleThisYear" }
-            : { promotionEligibilityStatus: status },
+          status === "EligibleThisYear"
+            ? { bucket: "eligibleThisYear" }
+            : status === "AlreadyEligible"
+              ? { bucket: "alreadyEligible" }
+              : { promotionEligibilityStatus: status },
       }),
     })),
   };

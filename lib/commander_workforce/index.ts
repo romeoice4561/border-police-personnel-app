@@ -15,3 +15,11 @@ export { retirementWindowForOfficer } from "@/lib/commander_workforce/retirement
 export { promotionStatusOf } from "@/lib/commander_workforce/promotion";
 export { documentStatusForOfficer } from "@/lib/commander_workforce/documents";
 export { dataQualityStatusForOfficer } from "@/lib/commander_workforce/data_quality";
+export {
+  parseWorkforceFiltersFromSearchParams,
+  serializeWorkforceFiltersToQuery,
+  searchParamsRecordToURLSearchParams,
+  countActiveWorkforceFilters,
+  emptyWorkforceFilters,
+  WORKFORCE_FILTER_QUERY_KEYS,
+} from "@/lib/commander_workforce/url_filters";

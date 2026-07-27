@@ -37,19 +37,19 @@ export function buildActionCenterSection(args: {
     (args.promotion.byStatus.find((s) => s.status === "AlreadyEligible")?.count ?? 0);
   candidates.push({
     key: "promotion_ready",
-    titleTh: "พร้อมเลื่อนตำแหน่ง",
-    summaryTh: `มี ${eligible} นายในสถานะ EligibleThisYear / AlreadyEligible`,
+    titleTh: "ผู้มีคุณสมบัติครบทั้งหมด",
+    summaryTh: `มี ${eligible} นายที่พร้อมเลื่อนปีนี้หรือครบคุณสมบัติก่อนปีนี้`,
     category: "promotion",
     severity: severityFromCount(eligible, 5, 20),
     count: eligible,
     affectedScopeTh: "ขอบเขตตัวกรองปัจจุบัน",
     sourceStatus: "EligibleThisYear|AlreadyEligible",
-    explanationTh: "นับจาก PromotionSummary.promotionStatus โดยตรง",
+    explanationTh: "ผลรวมสถานะพร้อมเลื่อนปีนี้ + ครบคุณสมบัติก่อนปีนี้ (ไม่ทับซ้อน)",
     drilldown: buildWorkforceDrilldown({
       id: "action:promotion_ready",
       target: "commander-promotion",
-      label: "คิวเลื่อนตำแหน่ง",
-      filters: { ready: "1" },
+      label: "ผู้มีคุณสมบัติครบทั้งหมด",
+      filters: { bucket: "qualifiedNow" },
     }),
   });
 

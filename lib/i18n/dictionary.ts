@@ -181,8 +181,9 @@ export const DICTIONARY = {
   "dashboard.actionCenterTitle": tr("ศูนย์ปฏิบัติการผู้บังคับบัญชา", "Commander Action Center"),
   "dashboard.actionCenterEmpty": tr("ไม่มีรายการที่ต้องดำเนินการเร่งด่วนในขณะนี้", "No urgent items right now."),
   "dashboard.promotionIntelligenceTitle": tr("ข่าวกรองการเลื่อนตำแหน่ง", "Promotion Intelligence"),
-  "dashboard.promotionEligibleThisYear": tr("ครบคุณสมบัติในปีนี้", "Eligible This Year"),
-  "dashboard.promotionAlreadyEligible": tr("ครบคุณสมบัติสะสม", "Already Eligible"),
+  "dashboard.promotionEligibleThisYear": tr("พร้อมเลื่อนปีนี้", "Eligible This Year"),
+  "dashboard.promotionAlreadyEligible": tr("ครบคุณสมบัติก่อนปีนี้", "Already Eligible (prior years)"),
+
   "dashboard.promotionWaiting": tr("รอดำเนินการ", "Waiting"),
   "dashboard.promotionMissingTraining": tr("ขาดหลักสูตร", "Missing Training"),
   "dashboard.promotionMissingDocuments": tr("ขาดเอกสาร", "Missing Documents"),
@@ -287,8 +288,9 @@ export const DICTIONARY = {
   // Commander — Phase 43 Intelligence Summary cards (reflect the FILTERED result set; drill down via promotionEligibilityStatus)
   "commander.intelligenceSummary": tr("สรุปข่าวกรองผลลัพธ์", "Commander Intelligence Summary"),
   "commander.summaryTotal": tr("ผลลัพธ์ทั้งหมด", "All Results"),
-  "commander.summaryEligibleThisYear": tr("ครบคุณสมบัติในปีนี้", "Eligible This Year"),
-  "commander.summaryAlreadyEligible": tr("มีคุณสมบัติครบแล้ว", "Already Eligible"),
+  "commander.summaryEligibleThisYear": tr("พร้อมเลื่อนปีนี้", "Eligible This Year"),
+  "commander.summaryAlreadyEligible": tr("ครบคุณสมบัติก่อนปีนี้", "Already Eligible (prior years)"),
+
   "commander.summaryWaiting": tr("รอการแต่งตั้ง", "Waiting"),
   "commander.summaryMissingTraining": tr("ขาดหลักสูตร", "Missing Training"),
   "commander.summaryMissingDocuments": tr("ขาดเอกสาร", "Missing Documents"),
