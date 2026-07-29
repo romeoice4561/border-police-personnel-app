@@ -9,6 +9,7 @@ import type {
   PersonnelSearchResult,
   PersonnelSearchUnitItem,
 } from "@/lib/personnel_search/contracts";
+import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { UnitIntelligenceSnapshot } from "@/lib/personnel_search_telegram/types";
 
 export type { UnitIntelligenceSnapshot };
@@ -112,6 +113,34 @@ export function formatUnitIntelligenceCard(unit: PersonnelSearchUnitItem): strin
 
 export function formatPersonIntelligenceCard(person: PersonnelSearchPersonItem): string {
   const intel = person.intelligence;
+  const dash = "—";
+
+  const positionLevel =
+    intel?.positionLevel != null && String(intel.positionLevel).trim() !== ""
+      ? String(intel.positionLevel)
+      : dash;
+  const yearsInLevel =
+    intel?.positionLevelYearCount != null && Number.isFinite(intel.positionLevelYearCount)
+      ? `${intel.positionLevelYearCount} ปี`
+      : dash;
+  const sinceYear =
+    intel?.positionLevelStartYearBe != null && Number.isFinite(intel.positionLevelStartYearBe)
+      ? String(intel.positionLevelStartYearBe)
+      : dash;
+  const appointmentStatus =
+    intel?.promotionStatusTh != null && String(intel.promotionStatusTh).trim() !== ""
+      ? String(intel.promotionStatusTh)
+      : dash;
+  const qualification =
+    intel?.promotionStatus === "EligibleThisYear" || intel?.promotionStatus === "AlreadyEligible"
+      ? "ครบขึ้น ผกก."
+      : dash;
+  const firstEligibleTh = formatFirstEligibleDateTh(intel?.firstEligibleDate ?? null);
+  const cycleLabel =
+    intel?.promotionCyclesPassed == null || !Number.isFinite(intel.promotionCyclesPassed)
+      ? dash
+      : `ปีที่ ${intel.promotionCyclesPassed + 1}`;
+
   const lines = [
     "👤 <b>Person Intelligence</b>",
     `<b>${escapeHtml(person.rank)} ${escapeHtml(person.fullName)}</b>`,
@@ -120,7 +149,15 @@ export function formatPersonIntelligenceCard(person: PersonnelSearchPersonItem):
     `หน่วย: ${escapeHtml(person.unitLabel)}`,
     `รหัส: <code>${escapeHtml(person.officerIdDisplay)}</code>`,
     "",
-    "📈 เลื่อนตำแหน่ง: " + escapeHtml(intel?.promotionStatusTh ?? "—"),
+    "📈 <b>สถานะตำแหน่งและการแต่งตั้ง</b>",
+    `ระดับตำแหน่ง : ${escapeHtml(positionLevel)}`,
+    `ดำรงระดับนี้ : ${escapeHtml(yearsInLevel)}`,
+    `ดำรงระดับนี้ตั้งแต่ปี : ${escapeHtml(sinceYear)}`,
+    `คุณสมบัติ : ${escapeHtml(qualification)}`,
+    `สถานะการแต่งตั้ง : ${escapeHtml(appointmentStatus)}`,
+    `วันที่ครบครั้งแรก : ${escapeHtml(firstEligibleTh)}`,
+    `รอบการแต่งตั้ง : ${escapeHtml(cycleLabel)}`,
+    "",
     "👴 เกษียณ: " +
       escapeHtml(
         intel?.retirementYearBe != null
@@ -137,6 +174,14 @@ export function formatPersonIntelligenceCard(person: PersonnelSearchPersonItem):
     }
   }
   return lines.filter((l) => l != null).join("\n");
+}
+
+/** Presentation-only: ISO date from API → short Thai Buddhist-Era label. */
+function formatFirstEligibleDateTh(isoDate: string | null | undefined): string {
+  if (isoDate == null || String(isoDate).trim() === "") return "—";
+  const parsed = new Date(`${String(isoDate).trim()}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return formatShortThaiDateTh(parsed);
 }
 
 export function formatHomeTodayCard(snapshot: UnitIntelligenceSnapshot | null | undefined): string {

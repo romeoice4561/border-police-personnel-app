@@ -113,6 +113,27 @@ No stack traces, repository errors, or raw exception messages.
 
 Never returned: national ID, bank details, home address, medical data, passwords/PINs, document bytes.
 
+### Level 2 person `intelligence` (curated scalars)
+
+When `disclosureLevel >= 2` and a person item is returned, `items[].intelligence` includes existing status snippets **plus** a curated subset of fields already present on `CommanderQueryOfficer` / `PromotionSummary` (produced by `toQueryOfficer` → `computePromotionSummary`). The API **copies** these values; it does not recalculate eligibility, call `computePromotionSummary` again, or expose the full `PromotionSummary` object.
+
+| Response field | Source |
+|----------------|--------|
+| `positionLevel` | `CommanderQueryOfficer.positionLevel` |
+| `positionLevelYearCount` | `CommanderQueryOfficer.positionLevelYearCount` |
+| `positionLevelStartYearBe` | `CommanderQueryOfficer.positionLevelStartYearBe` |
+| `promotionStatus` | `promotionIntelligence.promotionStatus` |
+| `promotionStatusTh` | `promotionIntelligence.displayStatusTh` |
+| `firstEligibleDate` | `promotionIntelligence.firstEligibleDate` |
+| `firstEligibleYearBe` | `promotionIntelligence.firstEligibleYearBe` |
+| `firstEligibleFiscalYearBe` | `promotionIntelligence.firstEligibleFiscalYearBe` |
+| `promotionCyclesPassed` | `promotionIntelligence.promotionCyclesPassed` |
+| `requiredTenureYears` | `promotionIntelligence.requiredTenureYears` |
+
+Null source values are returned as `null`. Priority scores, missing-evidence arrays, policy internals, and raw timeline rows are not exposed.
+
+Level 1 responses omit `intelligence` entirely.
+
 ## Pagination
 
 Opaque base64url cursor `{ o, k }` (offset + search fingerprint). Invalid cursor → `INVALID_REQUEST`. First disambiguation page suppresses `nextCursor` so clarification is not skipped.

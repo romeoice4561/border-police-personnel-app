@@ -19,6 +19,8 @@ Telegram Update
 
 The Telegram layer does **not** implement search, ranking, permissions, entity resolution, promotion/retirement logic, or repository access.
 
+Person cards may display a **curated subset** of canonical tenure / promotion fields when the Personnel Search API returns `disclosureLevel >= 2` person `intelligence` (for example `positionLevel`, `positionLevelYearCount`, `firstEligibleYearBe`, `promotionStatus`). Those values are serialized from `CommanderQueryOfficer` / `PromotionSummary` already computed by `toQueryOfficer()` — Telegram never calls `computePromotionSummary` or reads Prisma Timeline.
+
 ## Phase 51.4 — Commander Mobile Intelligence
 
 Home dashboard shows **Personnel Intelligence / Today** using counts from the last `unit_summary` API snapshot when available (never computed in Telegram).

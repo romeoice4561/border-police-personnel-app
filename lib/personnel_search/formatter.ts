@@ -67,8 +67,16 @@ export function formatPersonItem(
   if (level >= 2) {
     const promo = officer.promotionIntelligence;
     item.intelligence = {
+      positionLevel: officer.positionLevel,
+      positionLevelYearCount: officer.positionLevelYearCount,
+      positionLevelStartYearBe: officer.positionLevelStartYearBe,
       promotionStatusTh: promo.displayStatusTh,
       promotionStatus: promo.promotionStatus,
+      firstEligibleDate: promo.firstEligibleDate,
+      firstEligibleYearBe: promo.firstEligibleYearBe,
+      firstEligibleFiscalYearBe: promo.firstEligibleFiscalYearBe,
+      promotionCyclesPassed: promo.promotionCyclesPassed,
+      requiredTenureYears: promo.requiredTenureYears,
       retirementYearBe: officer.retirementYearBe,
       retirementStatus: officer.retirementStatus,
       trainingStatusTh: officer.trainingIntelligence?.displayStatusTh ?? null,

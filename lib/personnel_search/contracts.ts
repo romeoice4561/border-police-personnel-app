@@ -101,10 +101,30 @@ export interface PersonnelSearchPersonItem {
   academyClass: number | null;
   matchKind: MatchKind;
   matchScore: number;
-  /** Level 2+ intelligence snippets (permission-filtered). */
+  /**
+   * Level 2+ intelligence snippets (permission-filtered).
+   * Tenure / eligibility scalars are a curated copy of CommanderQueryOfficer +
+   * PromotionSummary fields already computed by toQueryOfficer — never recalculated here.
+   */
   intelligence?: {
+    /** CommanderQueryOfficer.positionLevel */
+    positionLevel: string | null;
+    /** CommanderQueryOfficer.positionLevelYearCount */
+    positionLevelYearCount: number | null;
+    /** CommanderQueryOfficer.positionLevelStartYearBe */
+    positionLevelStartYearBe: number | null;
     promotionStatusTh: string | null;
     promotionStatus: string | null;
+    /** PromotionSummary.firstEligibleDate */
+    firstEligibleDate: string | null;
+    /** PromotionSummary.firstEligibleYearBe */
+    firstEligibleYearBe: number | null;
+    /** PromotionSummary.firstEligibleFiscalYearBe */
+    firstEligibleFiscalYearBe: number | null;
+    /** PromotionSummary.promotionCyclesPassed */
+    promotionCyclesPassed: number | null;
+    /** PromotionSummary.requiredTenureYears */
+    requiredTenureYears: number | null;
     retirementYearBe: number | null;
     retirementStatus: string | null;
     trainingStatusTh: string | null;

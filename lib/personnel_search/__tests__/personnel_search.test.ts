@@ -409,6 +409,122 @@ describe("personnel_search permissions + contracts", () => {
     }
   });
 
+  it("disclosureLevel 1 omits intelligence; level 2 maps canonical tenure/promotion scalars only", () => {
+    const unique = officer(
+      "ภาค4/88",
+      {
+        firstName: "สมบูรณ์",
+        lastName: "ทดสอบ",
+        displayName: "สมบูรณ์ ทดสอบ",
+        positionLevel: "สารวัตร",
+        positionLevelYearCount: 5,
+        positionLevelStartYearBe: 2564,
+      },
+      {
+        promotionStatus: "AlreadyEligible",
+        displayStatusTh: "มีคุณสมบัติครบมาแล้ว",
+        firstEligibleDate: "2025-10-01",
+        firstEligibleYearBe: 2568,
+        firstEligibleFiscalYearBe: 2568,
+        promotionCyclesPassed: 1,
+        requiredTenureYears: 4,
+      }
+    );
+
+    const l1 = searchPersonnel(
+      {
+        query: "สมบูรณ์ ทดสอบ",
+        client: "telegram",
+        permissions: ROLE_PERMISSIONS.commander,
+        disclosureLevel: 1,
+        nowIso: "2026-07-24T00:00:00.000Z",
+      },
+      { dataset: dataset([unique]), organizationTree: TEST_ORG_TREE }
+    );
+    assert.equal(l1.resultType, "person");
+    assert.equal(l1.items[0].kind, "person");
+    if (l1.items[0].kind === "person") {
+      assert.equal(l1.items[0].intelligence, undefined);
+      assert.equal(l1.items[0].fullName, "สมบูรณ์ ทดสอบ");
+      assert.equal(l1.items[0].currentPosition, "สารวัตร");
+    }
+
+    const l2 = searchPersonnel(
+      {
+        query: "สมบูรณ์ ทดสอบ",
+        client: "telegram",
+        permissions: ROLE_PERMISSIONS.commander,
+        disclosureLevel: 2,
+        nowIso: "2026-07-24T00:00:00.000Z",
+      },
+      { dataset: dataset([unique]), organizationTree: TEST_ORG_TREE }
+    );
+    assert.equal(l2.items[0].kind, "person");
+    if (l2.items[0].kind === "person") {
+      const intel = l2.items[0].intelligence;
+      assert.ok(intel);
+      assert.equal(intel.positionLevel, "สารวัตร");
+      assert.equal(intel.positionLevelYearCount, 5);
+      assert.equal(intel.positionLevelStartYearBe, 2564);
+      assert.equal(intel.promotionStatus, "AlreadyEligible");
+      assert.equal(intel.promotionStatusTh, "มีคุณสมบัติครบมาแล้ว");
+      assert.equal(intel.firstEligibleDate, "2025-10-01");
+      assert.equal(intel.firstEligibleYearBe, 2568);
+      assert.equal(intel.firstEligibleFiscalYearBe, 2568);
+      assert.equal(intel.promotionCyclesPassed, 1);
+      assert.equal(intel.requiredTenureYears, 4);
+      assert.equal("priority" in intel, false);
+      assert.equal("priorityReason" in intel, false);
+    }
+  });
+
+  it("disclosureLevel 2 preserves null tenure/eligibility scalars without fabricating values", () => {
+    const unique = officer(
+      "ภาค4/87",
+      {
+        firstName: "ว่าง",
+        lastName: "ค่า",
+        displayName: "ว่าง ค่า",
+        positionLevel: null,
+        positionLevelYearCount: null,
+        positionLevelStartYearBe: null,
+      },
+      {
+        firstEligibleDate: null,
+        firstEligibleYearBe: null,
+        firstEligibleFiscalYearBe: null,
+        promotionCyclesPassed: null,
+        requiredTenureYears: null,
+        displayStatusTh: null,
+        promotionStatus: "Unknown",
+      }
+    );
+    const result = searchPersonnel(
+      {
+        query: "ว่าง ค่า",
+        client: "web",
+        permissions: ROLE_PERMISSIONS.commander,
+        disclosureLevel: 2,
+        nowIso: "2026-07-24T00:00:00.000Z",
+      },
+      { dataset: dataset([unique]), organizationTree: TEST_ORG_TREE }
+    );
+    assert.equal(result.items[0].kind, "person");
+    if (result.items[0].kind === "person") {
+      const intel = result.items[0].intelligence!;
+      assert.equal(intel.positionLevel, null);
+      assert.equal(intel.positionLevelYearCount, null);
+      assert.equal(intel.positionLevelStartYearBe, null);
+      assert.equal(intel.firstEligibleDate, null);
+      assert.equal(intel.firstEligibleYearBe, null);
+      assert.equal(intel.firstEligibleFiscalYearBe, null);
+      assert.equal(intel.promotionCyclesPassed, null);
+      assert.equal(intel.requiredTenureYears, null);
+      assert.equal(intel.promotionStatus, "Unknown");
+      assert.equal(intel.promotionStatusTh, null);
+    }
+  });
+
   it("contact search respects permission scope", () => {
     const accessOfficer = resolveFieldAccess({ permissions: ROLE_PERMISSIONS.officer });
     assert.equal(accessOfficer.canViewContacts, false);

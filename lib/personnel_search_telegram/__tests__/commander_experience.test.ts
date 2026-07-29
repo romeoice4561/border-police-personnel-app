@@ -95,8 +95,16 @@ function personItem(): Extract<PersonnelSearchResult["items"][number], { kind: "
     matchKind: "exact_full_name",
     matchScore: 1,
     intelligence: {
-      promotionStatusTh: "พร้อมเลื่อนปีนี้",
-      promotionStatus: "ready",
+      positionLevel: "รองผู้กำกับการ",
+      positionLevelYearCount: 5,
+      positionLevelStartYearBe: 2564,
+      promotionStatusTh: "มีคุณสมบัติครบมาแล้ว",
+      promotionStatus: "AlreadyEligible",
+      firstEligibleDate: "2025-10-01",
+      firstEligibleYearBe: 2568,
+      firstEligibleFiscalYearBe: 2568,
+      promotionCyclesPassed: 1,
+      requiredTenureYears: 4,
       retirementYearBe: 2570,
       retirementStatus: "near",
       trainingStatusTh: "ขาดหลักสูตร",
@@ -155,9 +163,38 @@ describe("commander cards", () => {
   it("formats person intelligence card with API intelligence snippets", () => {
     const text = formatPersonIntelligenceCard(personItem());
     assert.ok(text.includes("Person Intelligence"));
-    assert.ok(text.includes("พร้อมเลื่อนปีนี้"));
+    assert.ok(text.includes("สถานะตำแหน่งและการแต่งตั้ง"));
+    assert.ok(text.includes("ระดับตำแหน่ง : รองผู้กำกับการ"));
+    assert.ok(text.includes("ดำรงระดับนี้ : 5 ปี"));
+    assert.ok(text.includes("ดำรงระดับนี้ตั้งแต่ปี : 2564"));
+    assert.ok(text.includes("คุณสมบัติ : ครบขึ้น ผกก."));
+    assert.ok(text.includes("สถานะการแต่งตั้ง : มีคุณสมบัติครบมาแล้ว"));
+    assert.ok(text.includes("วันที่ครบครั้งแรก : 1 ต.ค. 2568"));
+    assert.ok(text.includes("รอบการแต่งตั้ง : ปีที่ 2"));
     assert.ok(text.includes("2570"));
     assert.ok(text.includes("ขาดหลักสูตร"));
+  });
+
+  it("person card shows dashes when eligibility scalars are missing or not ready", () => {
+    const person = personItem();
+    person.intelligence = {
+      ...person.intelligence!,
+      positionLevel: null,
+      positionLevelYearCount: null,
+      positionLevelStartYearBe: null,
+      promotionStatus: "Waiting",
+      promotionStatusTh: "ยังไม่ครบคุณสมบัติ",
+      firstEligibleDate: null,
+      promotionCyclesPassed: null,
+    };
+    const text = formatPersonIntelligenceCard(person);
+    assert.ok(text.includes("ระดับตำแหน่ง : —"));
+    assert.ok(text.includes("ดำรงระดับนี้ : —"));
+    assert.ok(text.includes("ดำรงระดับนี้ตั้งแต่ปี : —"));
+    assert.ok(text.includes("คุณสมบัติ : —"));
+    assert.ok(text.includes("สถานะการแต่งตั้ง : ยังไม่ครบคุณสมบัติ"));
+    assert.ok(text.includes("วันที่ครบครั้งแรก : —"));
+    assert.ok(text.includes("รอบการแต่งตั้ง : —"));
   });
 
   it("formats list intelligence cards by result type", () => {

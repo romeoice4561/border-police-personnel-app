@@ -415,6 +415,88 @@ describe("personnel_search_api handler", () => {
     assert.equal(body.meta.nextCursor, null);
   });
 
+  it("disclosureLevel 1 omits person intelligence; level 2 maps tenure/promotion scalars from CommanderQueryOfficer", async () => {
+    const unique = officer("ภาค4/99", {
+      firstName: "เอก",
+      lastName: "เดียว",
+      displayName: "เอก เดียว",
+      positionLevel: "สารวัตร",
+      positionLevelYearCount: 5,
+      positionLevelStartYearBe: 2564,
+      promotionIntelligence: promo({
+        promotionStatus: "AlreadyEligible",
+        displayStatusTh: "มีคุณสมบัติครบมาแล้ว",
+        firstEligibleDate: "2025-10-01",
+        firstEligibleYearBe: 2568,
+        firstEligibleFiscalYearBe: 2568,
+        promotionCyclesPassed: 1,
+        requiredTenureYears: 4,
+      }),
+    });
+    const uniqueDs = dataset([...officers, unique]);
+
+    const l1 = await handlePersonnelSearchRequest(
+      request({ query: "เอก เดียว", disclosureLevel: 1, client: "telegram" }),
+      {
+        resolveActor: async () => commanderActor(),
+        loadDataset: async () => uniqueDs,
+        loadEnrichment: async () => new Map(),
+        ...orgDeps,
+        auditSink: { record() {} },
+      }
+    );
+    const body1 = await l1.json();
+    assert.equal(body1.ok, true);
+    assert.equal(body1.result.resultType, "person");
+    assert.equal(body1.result.items[0].kind, "person");
+    assert.equal(body1.result.items[0].intelligence, undefined);
+    assert.equal(body1.result.items[0].fullName, "เอก เดียว");
+
+    const l2 = await handlePersonnelSearchRequest(
+      request({ query: "เอก เดียว", disclosureLevel: 2, client: "telegram" }),
+      {
+        resolveActor: async () => commanderActor(),
+        loadDataset: async () => uniqueDs,
+        loadEnrichment: async () => new Map(),
+        ...orgDeps,
+        auditSink: { record() {} },
+      }
+    );
+    const body2 = await l2.json();
+    assert.equal(body2.ok, true);
+    const intel = body2.result.items[0].intelligence;
+    assert.ok(intel);
+    assert.equal(intel.positionLevel, "สารวัตร");
+    assert.equal(intel.positionLevelYearCount, 5);
+    assert.equal(intel.positionLevelStartYearBe, 2564);
+    assert.equal(intel.promotionStatus, "AlreadyEligible");
+    assert.equal(intel.promotionStatusTh, "มีคุณสมบัติครบมาแล้ว");
+    assert.equal(intel.firstEligibleDate, "2025-10-01");
+    assert.equal(intel.firstEligibleYearBe, 2568);
+    assert.equal(intel.firstEligibleFiscalYearBe, 2568);
+    assert.equal(intel.promotionCyclesPassed, 1);
+    assert.equal(intel.requiredTenureYears, 4);
+    assert.equal(intel.priority, undefined);
+    assert.equal(intel.missingEvidence, undefined);
+  });
+
+  it("rejects actors without search capability", async () => {
+    const res = await handlePersonnelSearchRequest(request({ query: "เอก" }), {
+      resolveActor: async () =>
+        commanderActor({
+          permissions: [],
+        }),
+      loadDataset: async () => ds,
+      loadEnrichment: async () => new Map(),
+      ...orgDeps,
+      auditSink: { record() {} },
+    });
+    assert.equal(res.status, 403);
+    const body = await res.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.error.code, "FORBIDDEN");
+  });
+
   it("supports disclosure levels and promotion list", async () => {
     const res = await handlePersonnelSearchRequest(
       request({ query: "ครบคุณสมบัติมาแล้ว", disclosureLevel: 2, client: "internal" }),
