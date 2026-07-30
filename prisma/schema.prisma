@@ -185,6 +185,27 @@ model Officer {
   officialPortrait   ProfilePhoto? @relation("OfficialPortrait", fields: [officialPortraitId], references: [id], onDelete: SetNull)
   officialPortraitId Int?
 
+  // Phase XX — Manual Personnel Entry (Admin Only). `source` records how the
+  // row entered the system: "import" (the existing Drive/AI pipeline — the
+  // default, so every pre-existing row is unaffected) or "manual" (created
+  // through the new admin-only Create Personnel form). createdBy/updatedBy
+  // store the acting AuthUser.id (mirrors the V2 Master* tables' standard
+  // createdBy/updatedBy convention); the *Name variants are a denormalized,
+  // point-in-time display copy so the UI never needs a join or breaks if the
+  // acting user account is later removed. employmentStatus is free-form TEXT
+  // (not a DB enum), matching every other Personal Information field's
+  // "curated-suggestion, never a closed set" convention. policeServiceNumber
+  // (เลขประจำตัวตำรวจ) is a distinct concept from the existing employeeNumber
+  // field (เลขประจำตัวเจ้าหน้าที่, Phase 26B) — kept as its own column rather
+  // than reusing employeeNumber so the two are never conflated.
+  source              String  @default("import")
+  createdBy           String?
+  createdByName       String?
+  updatedBy           String?
+  updatedByName       String?
+  employmentStatus    String?
+  policeServiceNumber String?
+
   timeline      Timeline[]
   phones        Phone[]
   education     Education[]
@@ -204,6 +225,9 @@ model Officer {
   @@index([battalionId])
   @@index([companyId])
   @@index([officialPortraitId])
+  @@index([citizenId])
+  @@index([source])
+  @@index([policeServiceNumber])
 }
 
 /// One career-timeline row for an officer. Unique per (officer, sequence) so

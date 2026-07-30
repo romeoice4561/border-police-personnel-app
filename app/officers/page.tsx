@@ -10,7 +10,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Users } from "lucide-react";
+import Link from "next/link";
+import { Users, UserPlus } from "lucide-react";
 import { useOfficers, useGlobalSearch, useRanks, useOrganizationEngine } from "@/lib/ui/hooks";
 import { buildOfficerQuery, type OfficerListFilters } from "@/lib/ui/list_filters";
 import { PageHeader } from "@/components/common/page_header";
@@ -19,10 +20,15 @@ import { OfficerFilters } from "@/components/common/officer_filters";
 import { OfficerTable } from "@/components/common/officer_table";
 import { Pagination } from "@/components/common/pagination";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth/auth_provider";
+import { useT } from "@/components/i18n/language_provider";
 
 const PAGE_SIZE = 20;
 
 export default function OfficersPage() {
+  const { can } = useAuth();
+  const { t } = useT();
   const [globalQuery, setGlobalQuery] = useState("");
   const [filters, setFilters] = useState<OfficerListFilters>({});
   const [page, setPage] = useState(1);
@@ -71,7 +77,20 @@ export default function OfficersPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Officers" description="Browse and filter the personnel directory." />
+      <PageHeader
+        title="Officers"
+        description="Browse and filter the personnel directory."
+        actions={
+          can("officers.create") ? (
+            <Button asChild size="sm">
+              <Link href="/officers/new">
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                {t("manualEntry.addOfficerButton")}
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       <GlobalSearchBox value={globalQuery} onChange={onGlobalQueryChange} />
 

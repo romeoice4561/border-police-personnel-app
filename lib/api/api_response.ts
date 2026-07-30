@@ -36,6 +36,11 @@ export function notFound(message: string): Response {
   return jsonError("NOT_FOUND", message, 404);
 }
 
+/** 409 when a request conflicts with existing state (e.g. a duplicate record). */
+export function conflict(message: string, details?: unknown): Response {
+  return jsonError("CONFLICT", message, 409, details);
+}
+
 /** 503 when the database/dependency is unavailable. */
 export function serviceUnavailable(message: string): Response {
   return jsonError("SERVICE_UNAVAILABLE", message, 503);

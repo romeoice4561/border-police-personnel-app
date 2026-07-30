@@ -21,6 +21,7 @@ import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/l
 import type { Timeline } from "@/lib/database/query_types";
 import { PortraitManager } from "@/components/officer/portrait_manager";
 import { PhoneAction } from "@/components/officer/phone_action";
+import { ManualEntryBadge } from "@/components/officer/manual_entry_badge";
 import { Badge } from "@/components/ui/badge";
 import { useBilingualText } from "@/components/i18n/language_provider";
 import { ShieldCheck, Briefcase, Building2 } from "lucide-react";
@@ -73,6 +74,7 @@ export function OfficerIntelligenceHeader({
   academyClass,
   currentTimelineRow,
   onPortraitChanged,
+  officerSource,
 }: {
   viewModel: OfficerIntelligenceViewModel;
   /** Full ResolvedOfficerPortrait (not just the URL) — PortraitManager needs source/driveFileId for the upload/replace/history UI, unchanged from before this phase. */
@@ -83,6 +85,8 @@ export function OfficerIntelligenceHeader({
   academyClass?: number | null;
   currentTimelineRow: Timeline | null;
   onPortraitChanged?: () => void;
+  /** Phase XX: Officer.source ("manual" | "import") — renders the 🟡 Manual Entry badge when "manual", nothing otherwise. */
+  officerSource?: string | null;
 }) {
   const { identity, age, service, retirement } = viewModel;
   // Hero stays Thai-primary (same convention as nearby KPI labels); formatter supports EN for tests/dictionary use.
@@ -132,7 +136,10 @@ export function OfficerIntelligenceHeader({
                 </p>
               ) : null}
             </div>
-            <VerificationBadge currentTimelineRow={currentTimelineRow} />
+            <div className="flex flex-wrap items-center gap-2">
+              <ManualEntryBadge source={officerSource} />
+              <VerificationBadge currentTimelineRow={currentTimelineRow} />
+            </div>
           </div>
 
           {phone ? (

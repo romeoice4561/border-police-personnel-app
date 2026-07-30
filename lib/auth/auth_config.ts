@@ -107,6 +107,8 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Perm
   { prefix: "/review", permission: "review.view" },
   { prefix: "/gallery", permission: "gallery.view" },
   { prefix: "/admin/portraits", permission: "profile.manage" },
+  /** Manual Personnel Entry (Phase XX) — admin-only officer create form. */
+  { prefix: "/officers/new", permission: "officers.create" },
   /** Account integrations — any authenticated user may manage their own Telegram binding. */
   { prefix: "/settings/integrations", permission: "search.view" },
 ];

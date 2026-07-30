@@ -225,6 +225,7 @@ function OfficerFullWorkspace({ officer, knownUnits, portrait, orgTree, intellig
         academyClass={officer.academyClass}
         currentTimelineRow={officerCurrentTimelineRow}
         onPortraitChanged={handlePortraitChanged}
+        officerSource={officer.source}
       />
 
       {editing ? (

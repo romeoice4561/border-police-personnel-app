@@ -281,6 +281,39 @@ async function requestPatch<T>(path: string, body: unknown): Promise<{ data: T }
   return { data: parsed.data as T };
 }
 
+/** Phase XX: POST + envelope unwrap, mirroring `requestPatch` but for creating a new resource. */
+async function requestPost<T>(path: string, body: unknown): Promise<{ data: T }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+  }
+
+  let parsed: ApiEnvelope<T>;
+  try {
+    parsed = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new ApiClientError("The server returned an unreadable response.", response.status, "BAD_RESPONSE");
+  }
+
+  if (!response.ok || parsed.error) {
+    const err = parsed.error;
+    throw new ApiClientError(
+      err?.message ?? `Request failed (${response.status})`,
+      response.status,
+      err?.code ?? "REQUEST_FAILED",
+      err?.details
+    );
+  }
+
+  return { data: parsed.data as T };
+}
+
 /** Phase 23A: the batched-save request body — mirrors OfficerProfileSaveInput server-side. */
 export interface OfficerProfileSaveRequest {
   profile?: {
@@ -404,6 +437,41 @@ export interface OfficerProfileSaveResponse {
   skillRowCount: number | null;
 }
 
+/** Phase XX: Manual Personnel Entry — the Create Personnel form's request body. */
+export interface ManualEntryCreateRequest {
+  rank: string;
+  firstName: string;
+  lastName: string;
+  nickname?: string | null;
+  policeServiceNumber?: string | null;
+  citizenId?: string | null;
+  academyClass?: number | null;
+  currentPosition?: string | null;
+  currentUnit?: string | null;
+  region?: string | null;
+  /** DD/MM/YYYY (พ.ศ.) — same wire format as every other Thai personnel date field. */
+  dateOfBirth?: string | null;
+  appointmentDate?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  employmentStatus?: string | null;
+  actorId: string;
+  actorName: string;
+}
+
+export interface ManualEntryCreateResponse {
+  officerId: string;
+}
+
+/** Thrown via ApiClientError(status=409) when the duplicate check finds candidates; details.candidates carries the match list. */
+export interface ManualEntryDuplicateCandidate {
+  officerId: string;
+  firstName: string;
+  lastName: string;
+  rank: string;
+  reasons: string[];
+}
+
 export const apiClient = {
   /** Phase 26B Part 6 Part S: the shared Headquarters/Division/Battalion/Company snapshot, for every page's org-hierarchy filter dropdowns. */
   async getOrganizationTree(): Promise<import("@/lib/organization/org_tree").OrgTree> {
@@ -435,6 +503,12 @@ export const apiClient = {
   /** Phase 23A: batched save for the Officer Profile Workspace. */
   async saveOfficerProfile(id: string, body: OfficerProfileSaveRequest): Promise<OfficerProfileSaveResponse> {
     const { data } = await requestPatch<OfficerProfileSaveResponse>(`/officers/${encodeURIComponent(id)}`, body);
+    return data;
+  },
+
+  /** Phase XX: Manual Personnel Entry — create a brand-new officer by hand (Admin Only). */
+  async createOfficer(body: ManualEntryCreateRequest): Promise<ManualEntryCreateResponse> {
+    const { data } = await requestPost<ManualEntryCreateResponse>("/officers", body);
     return data;
   },
 

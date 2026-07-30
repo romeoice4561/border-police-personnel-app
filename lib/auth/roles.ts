@@ -27,6 +27,8 @@ export const PERMISSIONS = [
   "officers.view",
   /** Edit ANY officer's profile. Admin only — see officer.editOwn for the officer's self-edit capability. */
   "officers.edit",
+  /** Create a new officer profile by hand (Manual Personnel Entry — for cases the Drive/AI import hasn't covered). Admin only. */
+  "officers.create",
   /**
    * Edit ONLY your own profile (ownership-scoped, not role-scoped). Granted to
    * the officer role. A component checks this ALONGSIDE an ownership test

@@ -1346,6 +1346,41 @@ export const DICTIONARY = {
   ),
   "pwa.iosInstallDismiss": tr("ปิด", "Dismiss"),
 
+  // ── manualEntry.* — Phase XX: Manual Personnel Entry (Admin Only) ──
+  "manualEntry.addOfficerButton": tr("เพิ่มกำลังพล", "Add Officer"),
+  "manualEntry.pageTitle": tr("เพิ่มข้อมูลกำลังพลด้วยตนเอง", "Create Personnel"),
+  "manualEntry.pageDescription": tr(
+    "กรอกข้อมูลกำลังพลด้วยตนเองในกรณีที่ไม่พบข้อมูลจาก Google Drive หรือ AI ยังไม่สามารถสร้างโปรไฟล์ได้",
+    "Manually enter a personnel profile for cases the Drive/AI import hasn't covered yet."
+  ),
+  "manualEntry.noPermission": tr("คุณไม่มีสิทธิ์เข้าถึงหน้านี้", "You do not have permission to access this page."),
+  "manualEntry.requiredFieldsMissing": tr("กรุณากรอก ยศ ชื่อ และนามสกุล", "Please fill in Rank, First Name, and Last Name."),
+  "manualEntry.saveErrorGeneric": tr("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", "Something went wrong. Please try again."),
+  "manualEntry.duplicateFoundTitle": tr(
+    "พบข้อมูลที่อาจซ้ำกัน ระบบไม่ได้สร้างโปรไฟล์ใหม่",
+    "A possible duplicate was found — no new profile was created."
+  ),
+  "manualEntry.rank": tr("ยศ", "Rank"),
+  "manualEntry.rankPlaceholder": tr("เลือกหรือพิมพ์ยศ", "Select or type a rank"),
+  "manualEntry.academyClass": tr("รุ่น นรต.", "Academy Class"),
+  "manualEntry.notSpecified": tr("ไม่ระบุ", "Not specified"),
+  "manualEntry.firstName": tr("ชื่อ", "First Name"),
+  "manualEntry.lastName": tr("นามสกุล", "Last Name"),
+  "manualEntry.nickname": tr("ชื่อเล่น", "Nickname"),
+  "manualEntry.dateOfBirth": tr("วันเกิด", "Date of Birth"),
+  "manualEntry.policeServiceNumber": tr("เลขประจำตัวตำรวจ", "Police Service Number"),
+  "manualEntry.citizenId": tr("เลขบัตรประชาชน", "Citizen ID"),
+  "manualEntry.currentPosition": tr("ตำแหน่ง", "Position"),
+  "manualEntry.currentPositionPlaceholder": tr("เลือกหรือพิมพ์ตำแหน่ง", "Select or type a position"),
+  "manualEntry.currentUnit": tr("หน่วย", "Unit"),
+  "manualEntry.region": tr("จังหวัด", "Province"),
+  "manualEntry.regionPlaceholder": tr("เลือกหรือพิมพ์จังหวัด", "Select or type a province"),
+  "manualEntry.appointmentDate": tr("วันบรรจุ", "Appointment Date"),
+  "manualEntry.phone": tr("เบอร์โทรศัพท์", "Phone"),
+  "manualEntry.email": tr("อีเมล", "Email"),
+  "manualEntry.employmentStatus": tr("สถานะรับราชการ", "Employment Status"),
+  "manualEntry.employmentStatusPlaceholder": tr("เลือกหรือพิมพ์สถานะรับราชการ", "Select or type employment status"),
+
   // ── appearance.* — Phase 48A.1: theme switcher ──
   "appearance.switcher": tr("รูปแบบการแสดงผล", "Appearance"),
   "appearance.selectTheme": tr("เลือกธีม", "Select theme"),

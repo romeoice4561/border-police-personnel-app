@@ -115,11 +115,52 @@ export interface OfficerProfilePatch {
   bankAccountNumber?: string | null;
 }
 
+/**
+ * Phase XX — Manual Personnel Entry (Admin Only): the fields a hand-created
+ * officer starts with. `officerId` is caller-supplied (generated via
+ * generateManualOfficerId, never derived here) so this repository stays a
+ * pure data-access layer with no id-scheme knowledge. `source` defaults to
+ * "manual" at the database level when omitted, but the manual-entry service
+ * always sets it explicitly for clarity at the call site.
+ */
+export interface ManualOfficerCreateInput {
+  officerId: string;
+  rank: string;
+  firstName: string;
+  lastName: string;
+  nickname?: string | null;
+  policeServiceNumber?: string | null;
+  citizenId?: string | null;
+  academyClass?: number | null;
+  currentPosition?: string | null;
+  currentUnit?: string | null;
+  region?: string | null;
+  dateOfBirth?: Date | null;
+  phone?: string | null;
+  email?: string | null;
+  employmentStatus?: string | null;
+  source: string;
+  createdBy: string;
+  createdByName: string;
+  updatedBy: string;
+  updatedByName: string;
+}
+
 export class OfficerRepository {
   constructor(private readonly db: DatabaseClient) {}
 
   findByOfficerId(officerId: string): Promise<Officer | null> {
     return this.db.officer.findUnique({ where: { officerId } });
+  }
+
+  /**
+   * Phase XX — Manual Personnel Entry: creates a brand-new officer row (never
+   * upserts — the caller has already run duplicate detection and generated a
+   * fresh officerId, so a collision here would indicate a real bug, not a
+   * legitimate re-import).
+   */
+  create(input: ManualOfficerCreateInput): Promise<Officer> {
+    return this.db.officer.create({ data: { ...input, careerYears: 0 } });
   }
 
   /**
