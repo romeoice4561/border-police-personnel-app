@@ -16,6 +16,7 @@ import Link from "next/link";
 import { LogOut, ChevronDown, UserRound, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
+import { InstallAppButton } from "@/components/pwa/install_app_button";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import type { Role } from "@/lib/auth/roles";
 import { cn } from "@/lib/ui/cn";
@@ -107,6 +108,7 @@ export function UserMenu() {
             <MessageCircle className="h-4 w-4 text-muted" aria-hidden="true" />
             เชื่อมต่อ Telegram
           </Link>
+          <InstallAppButton onInstalled={() => setOpen(false)} />
           <button
             type="button"
             role="menuitem"

@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/layout/providers";
 import { AppShell } from "@/components/layout/app_shell";
+import { ServiceWorkerRegistration } from "@/components/pwa/service_worker_registration";
+import { IosInstallBanner } from "@/components/pwa/ios_install_banner";
 import { THEME_STORAGE_KEY, DEFAULT_THEME, THEMES } from "@/lib/theme/theme_config";
 
 const geistSans = Geist({
@@ -28,11 +30,43 @@ export const metadata: Metadata = {
     // at exactly the sizes browsers request).
     icon: [
       { url: "/assets/branding/bppis-favicon.png", type: "image/png" },
-      { url: "/assets/branding/bppis-icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/assets/branding/bppis-icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icons/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/assets/branding/bppis-icon.png" }],
+    // PWA install/manifest section (additive): a real 180x180 Apple touch
+    // icon with an OPAQUE background (iOS renders transparent PNG icons as
+    // black, so this one is composited onto the app's theme background —
+    // see the icon-generation note in public/icons — never the same file
+    // as the transparent branding source).
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
+  // PWA install/manifest section (additive) — Apple's own web-app meta tags;
+  // Next's Metadata API emits these instead of hand-written <meta> tags.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "BPPIS",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    // Next 16's appleWebApp.capable no longer emits this legacy Apple tag on
+    // its own (only status-bar-style/title) — added explicitly since older
+    // iOS/iPadOS Safari versions still key standalone-mode eligibility off it.
+    "apple-mobile-web-app-capable": "yes",
+  },
+};
+
+// PWA install/manifest section (additive): themeColor here is Next 15+'s
+// dedicated `viewport` export (Metadata.themeColor moved out of
+// `metadata` there) — matches manifest.json's theme_color exactly so the
+// browser UI and the installed app agree. No existing page set a custom
+// viewport before this, so this is purely additive.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#1d4ed8",
 };
 
 /**
@@ -74,8 +108,17 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_JS }} />
+        {/* PWA install/manifest section (additive): registers /sw.js on the
+            client only, after mount — never during SSR, never blocking
+            render. See the component's own doc comment for cache scope. */}
+        <ServiceWorkerRegistration />
         <Providers>
           <AppShell>{children}</AppShell>
+          {/* PWA install/manifest section (additive): iOS/iPadOS Safari has no
+              native install prompt — this dismissible banner is the only
+              install affordance there. Mounted globally so it works on every
+              route, including the login page. */}
+          <IosInstallBanner />
         </Providers>
       </body>
     </html>

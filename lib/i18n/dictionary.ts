@@ -1337,6 +1337,15 @@ export const DICTIONARY = {
     "You are viewing a restricted profile. Personal and detailed records are hidden.",
   ),
 
+  // ── pwa.* — PWA install/manifest section (additive) ──
+  "pwa.installButton": tr("ติดตั้งแอปบนอุปกรณ์", "Install app on device"),
+  "pwa.iosInstallTitle": tr("ติดตั้งแอปบน iPhone/iPad", "Install app on iPhone/iPad"),
+  "pwa.iosInstallSteps": tr(
+    'กดปุ่มแชร์ แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"',
+    'Tap the Share button, then select "Add to Home Screen"',
+  ),
+  "pwa.iosInstallDismiss": tr("ปิด", "Dismiss"),
+
   // ── appearance.* — Phase 48A.1: theme switcher ──
   "appearance.switcher": tr("รูปแบบการแสดงผล", "Appearance"),
   "appearance.selectTheme": tr("เลือกธีม", "Select theme"),

@@ -57,6 +57,11 @@ export const config = {
    * (Phase 48A.2 — web app manifest referencing the branding icons) is a
    * public static file every browser/PWA installer fetches unauthenticated by
    * design — same category as favicon.ico, so it's excluded the same way.
+   * `icons` (PWA icon set) and `sw.js` (the service worker script) are the
+   * same category — a browser/OS installer or the SW registration itself
+   * fetches these with no session cookie, so they must stay unauthenticated
+   * too (PWA install support, additive — no existing route's protection
+   * changed).
    */
-  matcher: ["/((?!api|_next/static|_next/image|assets|favicon.ico|manifest.json).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|assets|icons|favicon.ico|manifest.json|sw.js).*)"],
 };

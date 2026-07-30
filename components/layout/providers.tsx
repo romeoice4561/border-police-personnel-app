@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LanguageProvider } from "@/components/i18n/language_provider";
 import { AuthProvider } from "@/components/auth/auth_provider";
 import { ThemeProvider } from "@/components/theme/theme_provider";
+import { PwaInstallProvider } from "@/components/pwa/pwa_install_provider";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -38,7 +39,13 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <ThemeProvider>
         <LanguageProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {/* PWA install/manifest section (additive): mounted app-wide (not
+                inside the install button) so the beforeinstallprompt listener
+                is attached from first paint — the real event fires once,
+                early, and is lost if nothing is listening yet. */}
+            <PwaInstallProvider>{children}</PwaInstallProvider>
+          </AuthProvider>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
