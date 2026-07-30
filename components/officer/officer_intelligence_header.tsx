@@ -1,6 +1,6 @@
 /**
  * OfficerIntelligenceHeader (Phase 44 — Officer Intelligence Workspace,
- * Task 3).
+ * Task 3; Phase XX.1 create-mode hooks).
  *
  * The redesigned profile hero: portrait, rank/name, position, unit, and
  * verification badge on the left; a compact KPI summary grid (age, service,
@@ -20,6 +20,7 @@ import { formatOfficerInformalIdentity } from "@/lib/officer_profile/informal_id
 import { isValidTimelineVerificationStatus, VERIFICATION_STATUS_META } from "@/lib/officer_profile/verification_options";
 import type { Timeline } from "@/lib/database/query_types";
 import { PortraitManager } from "@/components/officer/portrait_manager";
+import type { CroppedPortraitResult } from "@/components/officer/portrait_crop_dialog";
 import { PhoneAction } from "@/components/officer/phone_action";
 import { ManualEntryBadge } from "@/components/officer/manual_entry_badge";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,12 @@ export function OfficerIntelligenceHeader({
   currentTimelineRow,
   onPortraitChanged,
   officerSource,
+  hideIntelligenceKpis = false,
+  identityOverride,
+  deferPortraitUpload = false,
+  deferredPortraitPreviewUrl = null,
+  onDeferredPortrait,
+  onClearDeferredPortrait,
 }: {
   viewModel: OfficerIntelligenceViewModel;
   /** Full ResolvedOfficerPortrait (not just the URL) — PortraitManager needs source/driveFileId for the upload/replace/history UI, unchanged from before this phase. */
@@ -87,8 +94,30 @@ export function OfficerIntelligenceHeader({
   onPortraitChanged?: () => void;
   /** Phase XX: Officer.source ("manual" | "import") — renders the 🟡 Manual Entry badge when "manual", nothing otherwise. */
   officerSource?: string | null;
+  /** Phase XX.1: hide age/service/promotion KPI strip in create mode (same intent as edit-mode KPI cards). */
+  hideIntelligenceKpis?: boolean;
+  /** Phase XX.1: live draft identity while creating (or editing) before server refresh. */
+  identityOverride?: {
+    rank?: string | null;
+    displayName?: string | null;
+    position?: string | null;
+    unit?: string | null;
+  } | null;
+  deferPortraitUpload?: boolean;
+  deferredPortraitPreviewUrl?: string | null;
+  onDeferredPortrait?: (payload: {
+    originalFile: File;
+    originalMimeType: string;
+    cropped: CroppedPortraitResult;
+    previewUrl: string;
+  }) => void;
+  onClearDeferredPortrait?: () => void;
 }) {
   const { identity, age, service, retirement } = viewModel;
+  const rank = identityOverride?.rank ?? identity.rank;
+  const displayName = identityOverride?.displayName?.trim() || identity.displayName || "—";
+  const position = identityOverride?.position ?? identity.position;
+  const unit = identityOverride?.unit ?? identity.unit;
   // Hero stays Thai-primary (same convention as nearby KPI labels); formatter supports EN for tests/dictionary use.
   const informalIdentity = formatOfficerInformalIdentity({ nickname, academyClass }, "th");
   // Same presentation object as OfficerPromotionIntelligenceCard — no arithmetic here.
@@ -100,33 +129,37 @@ export function OfficerIntelligenceHeader({
         <div className="relative shrink-0">
           <PortraitManager
             officerId={identity.officerId}
-            name={identity.displayName}
+            name={displayName}
             thumbnailUrl={portrait.thumbnailUrl}
             driveFileId={portrait.driveFileId}
             webViewUrl={portrait.webViewUrl}
             source={portrait.source}
             onChanged={onPortraitChanged}
+            deferUpload={deferPortraitUpload}
+            deferredPreviewUrl={deferredPortraitPreviewUrl}
+            onDeferredPortrait={onDeferredPortrait}
+            onClearDeferredPortrait={onClearDeferredPortrait}
           />
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm text-muted">{identity.rank || "—"}</p>
-              <h1 title={identity.displayName} className="wrap-break-word text-2xl leading-tight font-semibold text-foreground">
-                {identity.displayName}
+              <p className="text-sm text-muted">{rank || "—"}</p>
+              <h1 title={displayName} className="wrap-break-word text-2xl leading-tight font-semibold text-foreground">
+                {displayName}
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
-                {identity.position ? (
+                {position ? (
                   <span className="inline-flex items-center gap-1.5">
                     <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
-                    {identity.position}
+                    {position}
                   </span>
                 ) : null}
-                {identity.unit ? (
+                {unit ? (
                   <span className="inline-flex items-center gap-1.5">
                     <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    {identity.unit}
+                    {unit}
                   </span>
                 ) : null}
               </div>
@@ -138,7 +171,7 @@ export function OfficerIntelligenceHeader({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <ManualEntryBadge source={officerSource} />
-              <VerificationBadge currentTimelineRow={currentTimelineRow} />
+              {!hideIntelligenceKpis ? <VerificationBadge currentTimelineRow={currentTimelineRow} /> : null}
             </div>
           </div>
 
@@ -150,20 +183,22 @@ export function OfficerIntelligenceHeader({
         </div>
       </div>
 
-      {/* KPI summary grid — age/service/retirement + promotion presentation (Phase 49.12). */}
-      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCell label="อายุปัจจุบัน" value={age.available ? age.displayAgeTh : null} />
-        <KpiCell label="อายุราชการ" value={service.available ? service.displayServiceDurationTh : null} />
-        <KpiCell label="ปีเกษียณอายุราชการ" value={retirement.available ? `พ.ศ. ${retirement.retirementYearBe}` : null} />
-        <KpiCell label="ดำรงระดับนี้มา" value={promotionPresentation.headerTenureLabelTh} />
-        <KpiCell label="คุณสมบัติ" value={promotionPresentation.headerQualificationTh} />
-        <div className="min-w-0">
-          <dt className="text-[11px] uppercase tracking-wide text-muted">สถานะ</dt>
-          <dd className="mt-0.5">
-            <Badge tone={promotionPresentation.headerStatusTone}>{promotionPresentation.headerStatusLabelTh}</Badge>
-          </dd>
-        </div>
-      </dl>
+      {/* KPI summary grid — age/service/retirement + promotion presentation (Phase 49.12). Hidden in create mode. */}
+      {!hideIntelligenceKpis ? (
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-3 xl:grid-cols-6">
+          <KpiCell label="อายุปัจจุบัน" value={age.available ? age.displayAgeTh : null} />
+          <KpiCell label="อายุราชการ" value={service.available ? service.displayServiceDurationTh : null} />
+          <KpiCell label="ปีเกษียณอายุราชการ" value={retirement.available ? `พ.ศ. ${retirement.retirementYearBe}` : null} />
+          <KpiCell label="ดำรงระดับนี้มา" value={promotionPresentation.headerTenureLabelTh} />
+          <KpiCell label="คุณสมบัติ" value={promotionPresentation.headerQualificationTh} />
+          <div className="min-w-0">
+            <dt className="text-[11px] uppercase tracking-wide text-muted">สถานะ</dt>
+            <dd className="mt-0.5">
+              <Badge tone={promotionPresentation.headerStatusTone}>{promotionPresentation.headerStatusLabelTh}</Badge>
+            </dd>
+          </div>
+        </dl>
+      ) : null}
     </header>
   );
 }

@@ -93,6 +93,8 @@ export const FIELD_LABELS = {
   // Part O — optional
   citizenId: bilingual("เลขบัตรประชาชน", "Citizen ID"),
   passportNumber: bilingual("เลขหนังสือเดินทาง", "Passport Number"),
+  policeServiceNumber: bilingual("เลขประจำตัวตำรวจ", "Police Service Number"),
+  employmentStatus: bilingual("สถานะรับราชการ", "Employment Status"),
   employeeNumber: bilingual("เลขประจำตัวเจ้าหน้าที่", "Employee Number"),
   retirementYear: bilingual("ปีเกษียณอายุราชการ", "Retirement Year"),
   retirementCountdown: bilingual("นับถอยหลังเกษียณอายุ", "Retirement Countdown"),

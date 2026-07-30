@@ -75,7 +75,7 @@ test("hero renders informal identity between position and phone", async () => {
   assert.ok(header.includes("academyClass"));
 
   // Markup order in the identity column (not import order).
-  const posMarkup = header.indexOf("identity.position ?");
+  const posMarkup = header.indexOf("{position ? (");
   const informalMarkup = header.indexOf('data-testid="officer-informal-identity"');
   const phoneMarkup = header.indexOf("<PhoneAction");
   assert.ok(posMarkup >= 0 && informalMarkup > posMarkup && phoneMarkup > informalMarkup);

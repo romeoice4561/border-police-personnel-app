@@ -56,11 +56,37 @@ export interface PortraitManagerProps {
    * PortraitManager also calls router.refresh() independently.
    */
   onChanged?: () => void;
+  /**
+   * Phase XX.1 create mode: skip the portrait API and hand the cropped result
+   * to the parent (uploaded after Manual Entry create returns an officerId).
+   */
+  deferUpload?: boolean;
+  onDeferredPortrait?: (payload: {
+    originalFile: File;
+    originalMimeType: string;
+    cropped: CroppedPortraitResult;
+    previewUrl: string;
+  }) => void;
+  /** Local preview URL while a deferred portrait is pending (create mode). */
+  deferredPreviewUrl?: string | null;
+  onClearDeferredPortrait?: () => void;
 }
 
 const ACCEPT = Object.keys(ALLOWED_PORTRAIT_MIME).join(",");
 
-export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, webViewUrl, source, onChanged }: PortraitManagerProps) {
+export function PortraitManager({
+  officerId,
+  name,
+  thumbnailUrl,
+  driveFileId,
+  webViewUrl,
+  source,
+  onChanged,
+  deferUpload = false,
+  onDeferredPortrait,
+  deferredPreviewUrl = null,
+  onClearDeferredPortrait,
+}: PortraitManagerProps) {
   const router = useRouter();
   const { t } = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,7 +96,8 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
   const [previewFull, setPreviewFull] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const hasPortrait = Boolean(thumbnailUrl);
+  const displayThumbnailUrl = deferredPreviewUrl ?? thumbnailUrl;
+  const hasPortrait = Boolean(displayThumbnailUrl);
   const uploadLabel = hasPortrait ? t("officer.replacePortrait") : t("officer.uploadPortrait");
 
   // Release the object URL when the crop source changes/unmounts.
@@ -129,6 +156,18 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
     setBusy(true);
     setError(null);
     try {
+      if (deferUpload) {
+        const previewUrl = URL.createObjectURL(cropped.blob);
+        onDeferredPortrait?.({
+          originalFile: pickedSource.file,
+          originalMimeType: pickedSource.mimeType,
+          cropped,
+          previewUrl,
+        });
+        setPickedSource(null);
+        return;
+      }
+
       // Preserve the user's original image in existing portrait history/gallery
       // before uploading the cropped version as the current official portrait.
       await uploadPortraitFile(pickedSource.file, pickedSource.mimeType, pickedSource.file.name || "original-portrait");
@@ -148,6 +187,10 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
   }
 
   async function onRemove() {
+    if (deferUpload) {
+      onClearDeferredPortrait?.();
+      return;
+    }
     if (!window.confirm("Remove the current portrait? Older portraits are kept in history.")) return;
     setBusy(true);
     setError(null);
@@ -170,9 +213,9 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
     <div className="flex flex-col items-center gap-2 sm:items-start">
       <div className="relative">
         <OfficerPhoto
-          thumbnailUrl={thumbnailUrl}
-          driveFileId={driveFileId}
-          webViewUrl={webViewUrl}
+          thumbnailUrl={displayThumbnailUrl}
+          driveFileId={deferUpload ? null : driveFileId}
+          webViewUrl={deferUpload ? null : webViewUrl}
           name={name}
           size={80}
           enableViewer={false}
@@ -180,7 +223,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
       </div>
 
       {/* Phase 24B-2: Current Portrait + Portrait Source, always visible together. */}
-      <PortraitSourceBadge source={source} />
+      <PortraitSourceBadge source={deferredPreviewUrl ? "UPLOADED" : source} />
 
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <Button
@@ -197,10 +240,12 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
 
         {hasPortrait ? (
           <>
-            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setPreviewFull(true)}>
-              <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-              {t("officer.previewFullSize")}
-            </Button>
+            {!deferUpload ? (
+              <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setPreviewFull(true)}>
+                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("officer.previewFullSize")}
+              </Button>
+            ) : null}
             <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={onRemove}>
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
               {t("officer.removePortrait")}
@@ -208,10 +253,12 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
           </>
         ) : null}
 
-        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setHistoryOpen(true)}>
-          <History className="h-3.5 w-3.5" aria-hidden="true" />
-          {t("officer.portraitHistory")}
-        </Button>
+        {!deferUpload ? (
+          <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setHistoryOpen(true)}>
+            <History className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("officer.portraitHistory")}
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
@@ -243,7 +290,7 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         />
       ) : null}
 
-      {historyOpen ? (
+      {!deferUpload && historyOpen ? (
         <PortraitHistoryPanel
           officerId={officerId}
           name={name}
@@ -252,12 +299,14 @@ export function PortraitManager({ officerId, name, thumbnailUrl, driveFileId, we
         />
       ) : null}
 
-      <PhotoModal
-        open={previewFull}
-        onClose={() => setPreviewFull(false)}
-        photo={{ driveFileId, thumbnailUrl, webViewUrl }}
-        name={name}
-      />
+      {!deferUpload ? (
+        <PhotoModal
+          open={previewFull}
+          onClose={() => setPreviewFull(false)}
+          photo={{ driveFileId, thumbnailUrl, webViewUrl }}
+          name={name}
+        />
+      ) : null}
     </div>
   );
 }

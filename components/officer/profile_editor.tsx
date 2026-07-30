@@ -44,6 +44,7 @@ import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_optio
 import { NATIONALITY_OPTIONS } from "@/lib/officer_profile/nationality_options";
 import { RELIGION_OPTIONS } from "@/lib/officer_profile/religion_options";
 import { EDUCATION_LEVEL_OPTIONS } from "@/lib/officer_profile/education_level_options";
+import { EMPLOYMENT_STATUS_OPTIONS } from "@/lib/manual_entry/employment_status_options";
 import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { OrgHierarchyPicker, type OrgHierarchyValue } from "@/components/officer/org_hierarchy_picker";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
@@ -324,6 +325,25 @@ export function PersonalInformationEditor({ profile, onChange }: { profile: Prof
         {/* Phase 26B Part 5 Part O — optional additional fields. */}
         <BilingualField labelKey="citizenId" htmlFor="edit-citizenId">
           <input id="edit-citizenId" type="text" className={inputCls} value={profile.citizenId} onChange={(e) => set("citizenId", e.target.value)} />
+        </BilingualField>
+        <BilingualField labelKey="policeServiceNumber" htmlFor="edit-policeServiceNumber">
+          <input
+            id="edit-policeServiceNumber"
+            type="text"
+            className={inputCls}
+            value={profile.policeServiceNumber}
+            onChange={(e) => set("policeServiceNumber", e.target.value)}
+          />
+        </BilingualField>
+        <BilingualField labelKey="employmentStatus" htmlFor="edit-employmentStatus">
+          <Combobox
+            id="edit-employmentStatus"
+            value={profile.employmentStatus}
+            onChange={(value) => set("employmentStatus", value)}
+            suggestions={EMPLOYMENT_STATUS_OPTIONS}
+            placeholder="เลือกหรือพิมพ์สถานะรับราชการ"
+            aria-label="สถานะรับราชการ"
+          />
         </BilingualField>
         <BilingualField labelKey="passportNumber" htmlFor="edit-passportNumber">
           <input id="edit-passportNumber" type="text" className={inputCls} value={profile.passportNumber} onChange={(e) => set("passportNumber", e.target.value)} />

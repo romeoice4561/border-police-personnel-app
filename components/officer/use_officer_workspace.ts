@@ -59,6 +59,10 @@ export interface ProfileDraft {
   nationality: string;
   /** Phase 26B Part 5 Part O: optional additional fields. */
   citizenId: string;
+  /** Phase XX / XX.1: เลขประจำตัวตำรวจ — distinct from employeeNumber. */
+  policeServiceNumber: string;
+  /** Phase XX / XX.1: สถานะรับราชการ (free-text). */
+  employmentStatus: string;
   passportNumber: string;
   employeeNumber: string;
   emergencyContact: string;
@@ -198,6 +202,8 @@ function toProfileDraft(officer: OfficerWithRelations, organizationEngine: Organ
     shirtSize: officer.shirtSize ?? "",
     nationality: officer.nationality ?? "",
     citizenId: officer.citizenId ?? "",
+    policeServiceNumber: officer.policeServiceNumber ?? "",
+    employmentStatus: officer.employmentStatus ?? "",
     passportNumber: officer.passportNumber ?? "",
     employeeNumber: officer.employeeNumber ?? "",
     emergencyContact: officer.emergencyContact ?? "",
@@ -410,8 +416,156 @@ export function emptySkillRow(skillId: number): SkillDraftRow {
   };
 }
 
-export function useOfficerWorkspace(officer: OfficerWithRelations, organizationEngine: OrganizationEngine) {
-  const [editing, setEditing] = useState(false);
+export type OfficerWorkspaceMode = "view" | "edit" | "create";
+
+/**
+ * Builds the batched Officer Profile PATCH body from workspace drafts.
+ * Shared by edit-mode save and create-mode orchestration (create → patch).
+ */
+export function buildOfficerProfileSaveRequest(input: {
+  profile: ProfileDraft;
+  timeline: readonly TimelineDraftRow[];
+  education: readonly EducationDraftRow[];
+  training: readonly TrainingDraftRow[];
+  salaryHistory: readonly SalaryHistoryDraftRow[];
+  skills: readonly SkillDraftRow[];
+}): OfficerProfileSaveRequest {
+  const { profile, timeline, education, training, salaryHistory, skills } = input;
+  return {
+    profile: {
+      rank: profile.rank,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      currentPosition: profile.currentPosition.trim() || null,
+      // The legacy free-text currentUnit is DERIVED from the most specific
+      // resolved org level (company > battalion > region > headquarters)
+      // whenever the Current Organization picker has resolved a
+      // selection, so every reader that still displays currentUnit (or
+      // hasn't been migrated to the structured org fields yet) keeps
+      // showing an accurate value — never overwritten with a guess when no
+      // structured selection exists.
+      currentUnit: (profile.companyText || profile.battalionText || profile.regionText || profile.headquartersText || profile.currentUnit).trim() || null,
+      phone: profile.phone.trim() || null,
+      email: profile.email.trim() || null,
+      lineId: profile.lineId.trim() || null,
+      facebookUrl: profile.facebookUrl.trim() || null,
+      headquartersId: profile.headquartersId,
+      regionId: profile.regionId,
+      battalionId: profile.battalionId,
+      companyId: profile.companyId,
+      nickname: profile.nickname.trim() || null,
+      dateOfBirth: toGregorianDateInputValue(profile.dateOfBirth),
+      bloodGroup: profile.bloodGroup.trim() || null,
+      rh: profile.rh.trim() || null,
+      maritalStatus: profile.maritalStatus.trim() || null,
+      children: profile.children.trim() ? Number(profile.children) : null,
+      homeProvince: profile.homeProvince.trim() || null,
+      shirtSize: profile.shirtSize.trim() || null,
+      nationality: profile.nationality.trim() || null,
+      citizenId: profile.citizenId.trim() || null,
+      passportNumber: profile.passportNumber.trim() || null,
+      employeeNumber: profile.employeeNumber.trim() || null,
+      emergencyContact: profile.emergencyContact.trim() || null,
+      emergencyPhone: profile.emergencyPhone.trim() || null,
+      addressSummary: profile.addressSummary.trim() || null,
+      currentProvince: profile.currentProvince.trim() || null,
+      religion: profile.religion.trim() || null,
+      educationLevel: profile.educationLevel.trim() || null,
+      weightKg: profile.weightKg.trim() ? Number(profile.weightKg) : null,
+      heightCm: profile.heightCm.trim() ? Number(profile.heightCm) : null,
+      uniformShoeSize: profile.uniformShoeSize.trim() || null,
+      hatSize: profile.hatSize.trim() || null,
+      jacketSize: profile.jacketSize.trim() || null,
+      academyClass: profile.academyClass.trim() ? Number(profile.academyClass) : null,
+      isGpfMember: triStateToBoolean(profile.isGpfMember),
+      isPoliceFuneralWelfareMember: triStateToBoolean(profile.isPoliceFuneralWelfareMember),
+      isCooperativeMember: triStateToBoolean(profile.isCooperativeMember),
+      cooperativeName: profile.cooperativeName.trim() || null,
+      salaryLevel: profile.salaryLevel.trim() || null,
+      currentSalaryStep: profile.currentSalaryStep.trim() || null,
+      currentSalary: parseMoneyDraft(profile.currentSalary),
+      otherSpecialAllowances: parseMoneyDraft(profile.otherSpecialAllowances),
+      cooperativeMonthlyDeduction: parseMoneyDraft(profile.cooperativeMonthlyDeduction),
+      // netSalary is calculated server-side from base + allowances − expenses;
+      // omit any client value so a stale draft cannot overwrite the formula.
+      bankName: profile.bankName.trim() || null,
+      // Phase 45.1 hardening pass: bankAccountNumber is WRITE-ONLY (see
+      // bankAccountNumberSavePatch's doc comment and
+      // docs/PERSONNEL_MASTER_DATA_STANDARD.md) — blank means "leave
+      // unchanged," the one field in this form where that's true.
+      ...bankAccountNumberSavePatch(profile.bankAccountNumber),
+    },
+    // Phase 26A stabilization (bug #1): a row added via "เพิ่มแถว" but
+    // never filled in (still fully blank) previously reached the server
+    // as-is and failed the required position/institution/course
+    // validation with "Invalid officer profile save request" — the row
+    // was never meant to be saved, only started. Drop untouched-blank
+    // rows here rather than loosening the server's structural
+    // validation (which exists to guard real data — Phase 23B's own
+    // docstring is explicit that CONTENT is tolerated but STRUCTURE
+    // still is not).
+    timeline: timeline
+      .filter((row) => row.year.trim() || row.position.trim() || row.unit.trim() || row.yearBE != null)
+      .map((row, i) => serializeTimelineDraftForSave(row, i)),
+    // Phase 26A stabilization (bug #1): same untouched-blank-row filter as timeline above.
+    education: education
+      .filter((row) => row.year.trim() || row.institution.trim() || row.degree.trim() || row.notes.trim())
+      .map((row) => ({
+        year: row.year.trim() || null,
+        institution: row.institution.trim() || "-",
+        degree: row.degree.trim() || null,
+        notes: row.notes.trim() || null,
+      })),
+    training: training
+      .filter((row) => row.year.trim() || row.course.trim() || row.organization.trim() || row.notes.trim())
+      .map((row) => ({
+        year: row.year.trim() || null,
+        course: row.course.trim() || "-",
+        organization: row.organization.trim() || null,
+        notes: row.notes.trim() || null,
+      })),
+    // Phase 28A: unlike Education/Training's free-text required field, Year
+    // and Salary Step are true closed-set dropdowns (Part 4's "no duplicate
+    // year" / 4-value step) — an untouched blank row (both dropdowns still
+    // unselected) is dropped rather than saved with an invented "-", since
+    // there is no meaningful placeholder for a missing year or step.
+    salaryHistory: salaryHistory
+      .filter((row) => row.yearBE.trim() && row.salaryStep.trim())
+      .map((row) => ({
+        yearBE: Number(row.yearBE),
+        salaryStep: Number(row.salaryStep),
+        remarks: row.remarks.trim() || null,
+      })),
+    // Phase 44: only CHECKED skills are persisted (replace-all). A skill the
+    // user unchecked simply isn't in the list, so it's removed on save.
+    // Dates are sent as DD/MM/YYYY (พ.ศ.) strings the server parses; a blank
+    // string normalizes to null.
+    skills: skills
+      .filter((row) => row.checked)
+      .map((row) => ({
+        skillId: row.skillId,
+        levelId: row.levelId.trim() ? Number(row.levelId) : null,
+        yearsExperience: row.yearsExperience.trim() ? Number(row.yearsExperience) : null,
+        certificateNumber: row.certificateNumber.trim() || null,
+        issuingOrganization: row.issuingOrganization.trim() || null,
+        issueDate: normalizeThaiPersonnelDateForSave(row.issueDate),
+        expiryDate: normalizeThaiPersonnelDateForSave(row.expiryDate),
+        verified: row.verified,
+        verifiedBy: row.verifiedBy.trim() || null,
+        verifiedDate: normalizeThaiPersonnelDateForSave(row.verifiedDate),
+        availableForDeployment: row.availableForDeployment,
+        remarks: row.remarks.trim() || null,
+      })),
+  };
+}
+
+export function useOfficerWorkspace(
+  officer: OfficerWithRelations,
+  organizationEngine: OrganizationEngine,
+  options?: { mode?: OfficerWorkspaceMode }
+) {
+  const isCreate = options?.mode === "create";
+  const [editing, setEditing] = useState(isCreate);
   const [profile, setProfile] = useState<ProfileDraft>(() => toProfileDraft(officer, organizationEngine));
   const [timeline, setTimeline] = useState<TimelineDraftRow[]>(() => toTimelineDrafts(officer, organizationEngine));
   const [education, setEducation] = useState<EducationDraftRow[]>(() => toEducationDrafts(officer));
@@ -422,13 +576,18 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
   const mutation = useSaveOfficerProfile();
 
   // Exit edit mode when navigating to a different officer (same component instance).
+  // Create mode stays locked in editing until redirect after save.
   useEffect(() => {
+    if (isCreate) return;
+    // Reset edit mode when the route officer changes — external navigation sync.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset on officerId change (pre-existing pattern)
     setEditing(false);
     mutation.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [officer.officerId]);
+  }, [officer.officerId, isCreate]);
 
   const startEditing = useCallback(() => {
+    if (isCreate) return;
     setEditing(true);
     setProfile(toProfileDraft(officer, organizationEngine));
     setTimeline(toTimelineDrafts(officer, organizationEngine));
@@ -436,150 +595,42 @@ export function useOfficerWorkspace(officer: OfficerWithRelations, organizationE
     setTraining(toTrainingDrafts(officer));
     setSalaryHistory(toSalaryHistoryDrafts(officer));
     setSkills(toSkillDrafts(officer));
-  }, [officer, organizationEngine]);
+  }, [officer, organizationEngine, isCreate]);
 
   const cancel = useCallback(() => {
+    if (isCreate) return;
     setEditing(false);
     mutation.reset();
-  }, [mutation]);
+  }, [mutation, isCreate]);
+
+  const buildSaveRequest = useCallback(
+    () =>
+      buildOfficerProfileSaveRequest({
+        profile,
+        timeline,
+        education,
+        training,
+        salaryHistory,
+        skills,
+      }),
+    [profile, timeline, education, training, salaryHistory, skills]
+  );
 
   const save = useCallback(async () => {
-    const body: OfficerProfileSaveRequest = {
-      profile: {
-        rank: profile.rank,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        currentPosition: profile.currentPosition.trim() || null,
-        // The legacy free-text currentUnit is DERIVED from the most specific
-        // resolved org level (company > battalion > region > headquarters)
-        // whenever the Current Organization picker has resolved a
-        // selection, so every reader that still displays currentUnit (or
-        // hasn't been migrated to the structured org fields yet) keeps
-        // showing an accurate value — never overwritten with a guess when no
-        // structured selection exists.
-        currentUnit: (profile.companyText || profile.battalionText || profile.regionText || profile.headquartersText || profile.currentUnit).trim() || null,
-        phone: profile.phone.trim() || null,
-        email: profile.email.trim() || null,
-        lineId: profile.lineId.trim() || null,
-        facebookUrl: profile.facebookUrl.trim() || null,
-        headquartersId: profile.headquartersId,
-        regionId: profile.regionId,
-        battalionId: profile.battalionId,
-        companyId: profile.companyId,
-        nickname: profile.nickname.trim() || null,
-        dateOfBirth: toGregorianDateInputValue(profile.dateOfBirth),
-        bloodGroup: profile.bloodGroup.trim() || null,
-        rh: profile.rh.trim() || null,
-        maritalStatus: profile.maritalStatus.trim() || null,
-        children: profile.children.trim() ? Number(profile.children) : null,
-        homeProvince: profile.homeProvince.trim() || null,
-        shirtSize: profile.shirtSize.trim() || null,
-        nationality: profile.nationality.trim() || null,
-        citizenId: profile.citizenId.trim() || null,
-        passportNumber: profile.passportNumber.trim() || null,
-        employeeNumber: profile.employeeNumber.trim() || null,
-        emergencyContact: profile.emergencyContact.trim() || null,
-        emergencyPhone: profile.emergencyPhone.trim() || null,
-        addressSummary: profile.addressSummary.trim() || null,
-        currentProvince: profile.currentProvince.trim() || null,
-        religion: profile.religion.trim() || null,
-        educationLevel: profile.educationLevel.trim() || null,
-        weightKg: profile.weightKg.trim() ? Number(profile.weightKg) : null,
-        heightCm: profile.heightCm.trim() ? Number(profile.heightCm) : null,
-        uniformShoeSize: profile.uniformShoeSize.trim() || null,
-        hatSize: profile.hatSize.trim() || null,
-        jacketSize: profile.jacketSize.trim() || null,
-        academyClass: profile.academyClass.trim() ? Number(profile.academyClass) : null,
-        isGpfMember: triStateToBoolean(profile.isGpfMember),
-        isPoliceFuneralWelfareMember: triStateToBoolean(profile.isPoliceFuneralWelfareMember),
-        isCooperativeMember: triStateToBoolean(profile.isCooperativeMember),
-        cooperativeName: profile.cooperativeName.trim() || null,
-        salaryLevel: profile.salaryLevel.trim() || null,
-        currentSalaryStep: profile.currentSalaryStep.trim() || null,
-        currentSalary: parseMoneyDraft(profile.currentSalary),
-        otherSpecialAllowances: parseMoneyDraft(profile.otherSpecialAllowances),
-        cooperativeMonthlyDeduction: parseMoneyDraft(profile.cooperativeMonthlyDeduction),
-        // netSalary is calculated server-side from base + allowances − expenses;
-        // omit any client value so a stale draft cannot overwrite the formula.
-        bankName: profile.bankName.trim() || null,
-        // Phase 45.1 hardening pass: bankAccountNumber is WRITE-ONLY (see
-        // bankAccountNumberSavePatch's doc comment and
-        // docs/PERSONNEL_MASTER_DATA_STANDARD.md) — blank means "leave
-        // unchanged," the one field in this form where that's true.
-        ...bankAccountNumberSavePatch(profile.bankAccountNumber),
-      },
-      // Phase 26A stabilization (bug #1): a row added via "เพิ่มแถว" but
-      // never filled in (still fully blank) previously reached the server
-      // as-is and failed the required position/institution/course
-      // validation with "Invalid officer profile save request" — the row
-      // was never meant to be saved, only started. Drop untouched-blank
-      // rows here rather than loosening the server's structural
-      // validation (which exists to guard real data — Phase 23B's own
-      // docstring is explicit that CONTENT is tolerated but STRUCTURE
-      // still is not).
-      timeline: timeline
-        .filter((row) => row.year.trim() || row.position.trim() || row.unit.trim() || row.yearBE != null)
-        .map((row, i) => serializeTimelineDraftForSave(row, i)),
-      // Phase 26A stabilization (bug #1): same untouched-blank-row filter as timeline above.
-      education: education
-        .filter((row) => row.year.trim() || row.institution.trim() || row.degree.trim() || row.notes.trim())
-        .map((row) => ({
-          year: row.year.trim() || null,
-          institution: row.institution.trim() || "-",
-          degree: row.degree.trim() || null,
-          notes: row.notes.trim() || null,
-        })),
-      training: training
-        .filter((row) => row.year.trim() || row.course.trim() || row.organization.trim() || row.notes.trim())
-        .map((row) => ({
-          year: row.year.trim() || null,
-          course: row.course.trim() || "-",
-          organization: row.organization.trim() || null,
-          notes: row.notes.trim() || null,
-        })),
-      // Phase 28A: unlike Education/Training's free-text required field, Year
-      // and Salary Step are true closed-set dropdowns (Part 4's "no duplicate
-      // year" / 4-value step) — an untouched blank row (both dropdowns still
-      // unselected) is dropped rather than saved with an invented "-", since
-      // there is no meaningful placeholder for a missing year or step.
-      salaryHistory: salaryHistory
-        .filter((row) => row.yearBE.trim() && row.salaryStep.trim())
-        .map((row) => ({
-          yearBE: Number(row.yearBE),
-          salaryStep: Number(row.salaryStep),
-          remarks: row.remarks.trim() || null,
-        })),
-      // Phase 44: only CHECKED skills are persisted (replace-all). A skill the
-      // user unchecked simply isn't in the list, so it's removed on save.
-      // Dates are sent as DD/MM/YYYY (พ.ศ.) strings the server parses; a blank
-      // string normalizes to null.
-      skills: skills
-        .filter((row) => row.checked)
-        .map((row) => ({
-          skillId: row.skillId,
-          levelId: row.levelId.trim() ? Number(row.levelId) : null,
-          yearsExperience: row.yearsExperience.trim() ? Number(row.yearsExperience) : null,
-          certificateNumber: row.certificateNumber.trim() || null,
-          issuingOrganization: row.issuingOrganization.trim() || null,
-          issueDate: normalizeThaiPersonnelDateForSave(row.issueDate),
-          expiryDate: normalizeThaiPersonnelDateForSave(row.expiryDate),
-          verified: row.verified,
-          verifiedBy: row.verifiedBy.trim() || null,
-          verifiedDate: normalizeThaiPersonnelDateForSave(row.verifiedDate),
-          availableForDeployment: row.availableForDeployment,
-          remarks: row.remarks.trim() || null,
-        })),
-    };
-
+    if (isCreate) {
+      throw new Error("Create mode must use runCreateOfficerSave, not save()");
+    }
+    const body = buildSaveRequest();
     await mutation.mutateAsync({ officerId: officer.officerId, body });
     setEditing(false);
-  }, [profile, timeline, education, training, salaryHistory, skills, officer.officerId, mutation]);
+  }, [isCreate, buildSaveRequest, officer.officerId, mutation]);
 
   return {
     editing,
     startEditing,
     cancel,
     save,
+    buildSaveRequest,
     isSaving: mutation.isPending,
     saveError: mutation.error,
     profile,

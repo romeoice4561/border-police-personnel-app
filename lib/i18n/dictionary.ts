@@ -1360,6 +1360,25 @@ export const DICTIONARY = {
     "พบข้อมูลที่อาจซ้ำกัน ระบบไม่ได้สร้างโปรไฟล์ใหม่",
     "A possible duplicate was found — no new profile was created."
   ),
+  "manualEntry.saveProfile": tr("บันทึกโปรไฟล์", "Save Profile"),
+  "manualEntry.createSuccess": tr("เพิ่มข้อมูลกำลังพลสำเร็จ", "Personnel profile created successfully."),
+  "manualEntry.createModeBanner": tr(
+    "กำลังสร้างโปรไฟล์กำลังพลใหม่ — กรอกข้อมูลแล้วกดบันทึกโปรไฟล์",
+    "Creating a new personnel profile — fill in the fields, then save."
+  ),
+  "manualEntry.partialFailureTitle": tr(
+    "สร้างโปรไฟล์แล้ว แต่บันทึกข้อมูลบางส่วนไม่สำเร็จ",
+    "Profile was created, but some data could not be saved."
+  ),
+  "manualEntry.partialFailureContinue": tr("เปิดโปรไฟล์เพื่อแก้ไขต่อ", "Open profile to continue editing"),
+  "manualEntry.epfDeferred": tr(
+    "เอกสาร e-PF จะอัปโหลดได้หลังบันทึกโปรไฟล์",
+    "e-PF documents can be uploaded after the profile is saved."
+  ),
+  "manualEntry.mediaDeferred": tr(
+    "แกลเลอรีรูปภาพจะใช้งานได้หลังบันทึกโปรไฟล์",
+    "The photo gallery is available after the profile is saved."
+  ),
   "manualEntry.rank": tr("ยศ", "Rank"),
   "manualEntry.rankPlaceholder": tr("เลือกหรือพิมพ์ยศ", "Select or type a rank"),
   "manualEntry.academyClass": tr("รุ่น นรต.", "Academy Class"),
