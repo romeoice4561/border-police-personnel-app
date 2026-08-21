@@ -502,9 +502,11 @@ model Headquarters {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  regions  Region[]
-  timeline Timeline[]
-  officers Officer[]
+  regions   Region[]
+  timeline  Timeline[]
+  officers  Officer[]
+  /// Phase DI-1: DrugCase.headquartersId opposite relation (additive; Headquarters' own behavior is unchanged).
+  drugCases DrugCase[]
 
   @@index([displayOrder])
 }
@@ -532,6 +534,8 @@ model Region {
   officers   Officer[]
   timeline   Timeline[]
   aliases    OrganizationAlias[]
+  /// Phase DI-1: DrugCase.regionId opposite relation (additive).
+  drugCases  DrugCase[]
 
   @@index([headquartersId])
 }
@@ -553,6 +557,8 @@ model Battalion {
   officers  Officer[]
   timeline  Timeline[]
   aliases   OrganizationAlias[]
+  /// Phase DI-1: DrugCase.battalionId opposite relation (additive).
+  drugCases DrugCase[]
 
   @@index([regionId])
 }
@@ -570,10 +576,12 @@ model Company {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  assets   Asset[]
-  officers Officer[]
-  timeline Timeline[]
-  aliases  OrganizationAlias[]
+  assets    Asset[]
+  officers  Officer[]
+  timeline  Timeline[]
+  aliases   OrganizationAlias[]
+  /// Phase DI-1: DrugCase.companyId opposite relation (additive).
+  drugCases DrugCase[]
 
   @@index([battalionId])
 }
@@ -1343,4 +1351,722 @@ model TelegramWebHandoff {
 
   @@index([expiresAt])
   @@map("telegram_web_handoff")
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// PHASE DI-1 — Drug Intelligence Core Data Model & Case Workspace
+// ═════════════════════════════════════════════════════════════════════════
+//
+// A NEW module inside the SAME app/database — not a second system. Reuses:
+//   - Auth: AuthUser.id strings (e.g. "mock:admin") for every actor/recordedBy
+//     field, exactly like Officer.createdBy/updatedBy above. No second login,
+//     no second role system, no second permission model — see
+//     lib/auth/roles.ts's new drug.read/drug.create/drug.edit/drug.admin
+//     permissions (Section 20).
+//   - Organization: the legacy Region/Battalion/Company/Headquarters tables
+//     ABOVE (Phase 20A/26B) — DrugCase references them via nullable FK,
+//     exactly like Officer/Timeline do, never a parallel org hierarchy. The
+//     V2 master_* UUID tables are NOT referenced (unused elsewhere in the
+//     app today — see DATABASE_V2_DESIGN.md; wiring them in is a separate,
+//     system-wide migration outside this module's scope).
+//   - Database client: the SAME PrismaClient/DatabaseClient — no second
+//     database, no second connection.
+//
+// Model naming: every model is prefixed `Drug*` so it can never collide with
+// an existing Personnel/Officer/Telegram model name, and so a `grep "model
+// Drug"` instantly enumerates the whole module's schema surface.
+//
+// IDs: cuid() (matching the Telegram tables' convention for new, non-legacy
+// modules — see TelegramIdentityBinding above) rather than Int autoincrement
+// (the legacy Officer/Timeline convention) or UUID (the V2 master_*
+// convention this module deliberately does not adopt). A fresh choice for a
+// fresh module; never mixed with Officer's Int PKs since nothing here FKs
+// into Officer by numeric id (DrugCasePerson links by Officer.officerId
+// STRING when a case subject is a known officer — see below — never by the
+// numeric Officer.id, so Officer's schema/PK never has to change for this
+// module to exist).
+//
+// ENTITY + CASE/EVENT + RELATIONSHIP (Section 2): DrugCase is the event.
+// DrugPerson/DrugPhoneNumber/DrugSim/DrugDevice/DrugVehicle/DrugLocation are
+// entities. Every entity-to-entity or entity-to-case link that matters for
+// future graph/network analysis (Section 23) is its own row with
+// sourceCaseId + firstSeenAt/lastSeenAt + status + recordedBy (Section 12),
+// never a foreign key alone and never a flattened person_1/person_2 column
+// (Section 5) or a phone1/phone2 column (Section 6).
+//
+// NOT implemented in DI-1 (Section 28): SOCIAL_ACCOUNT, FINANCIAL_ACCOUNT,
+// ORGANIZATION/GROUP, DOCUMENT entities; automatic Person merge; graph
+// traversal; map/heatmap. The schema below does not close the door on any of
+// these — DrugRelationship's entityType/entityId design (see below) can
+// target a future entity type by adding one string constant, no migration.
+
+/// Provenance/confidence triad shared by every relationship-shaped table in
+/// this module (Section 13). `SYSTEM_SUGGESTED` must never be presented as
+/// confirmed (Section 13 — enforced at the UI/service layer, not the DB).
+enum DrugRelationshipStatus {
+  CONFIRMED
+  OBSERVED
+  REPORTED
+  SYSTEM_SUGGESTED
+}
+
+/// A person's role within one case (Section 5). Free-standing enum (not
+/// reused from Personnel — Officer has no equivalent "role in an event"
+/// concept) so this module's vocabulary can grow independently.
+enum DrugCasePersonRole {
+  SUSPECT
+  ACCUSED
+  ARRESTED_PERSON
+  ASSOCIATED_PERSON
+  WITNESS
+  OTHER
+}
+
+/// Section 3: identifier TYPE — never assume every person has a Thai
+/// national ID. UNKNOWN is a first-class value (Section 3: "ยังไม่ทราบตัวตน").
+enum DrugPersonIdentifierType {
+  THAI_ID
+  PASSPORT
+  ALIEN_ID
+  OTHER
+  UNKNOWN
+}
+
+/// Section 10: a Location's conceptual ROLE within a case — never inferred,
+/// always explicit, and never implies two people at the same location share
+/// a network (Section 10's explicit prohibition).
+enum DrugLocationRole {
+  ARREST_LOCATION
+  RESIDENCE
+  STORAGE_LOCATION
+  MEETING_POINT
+  OTHER
+}
+
+/// Section 4/16: a case's lifecycle status. Free string in the UI layer's
+/// Zod validation (not a DB CHECK) matching this schema's established
+/// "validate ranges/sets in Zod, not SQL" convention (see Timeline/Officer
+/// above) — but a real Postgres enum here because, unlike Rank/Position,
+/// there is no "preserve an arbitrary imported legacy value" concern: every
+/// DrugCase is created through this module's own form, never through an
+/// external import pipeline that could hand back an out-of-vocabulary value.
+enum DrugCaseStatus {
+  OPEN
+  UNDER_INVESTIGATION
+  CLOSED
+  ARCHIVED
+}
+
+/// Section 4: one arrest/case event. The root of the module — every other
+/// Drug* entity ultimately traces back to at least one DrugCase through a
+/// DrugCase* junction/relationship row (Section 23's graph-edge list).
+///
+/// Organization is referenced through the SAME legacy Region/Battalion/
+/// Company/Headquarters tables Officer/Timeline already use (nullable FK,
+/// SetNull on delete — identical convention to Officer.regionId etc. above)
+/// — never a duplicated free-text unit name (spec Section 4 explicit
+/// instruction). reportingUnitText/battalionText/companyText are kept
+/// alongside the FKs (same "id + free-text label" pairing Timeline's
+/// headquartersText/regionText/... already established) so a unit that
+/// doesn't resolve to a registered master-data row is never silently
+/// dropped or forced into the wrong record.
+model DrugCase {
+  id         String         @id @default(cuid())
+  /// Human-facing case number (e.g. "ตชด.44-2569-001"). Not globally unique
+  /// by design — different units may use overlapping local numbering
+  /// schemes; officerId-style global uniqueness would force a numbering
+  /// convention this module has no authority to impose. Duplicate-case
+  /// safety instead comes from the application-layer duplicate check
+  /// (Section 14), never a DB unique constraint on this human-entered field.
+  caseNumber String
+  title      String
+  status     DrugCaseStatus @default(OPEN)
+
+  arrestDate DateTime? @db.Date
+  arrestTime String?
+
+  headquarters      Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
+  headquartersId    Int?
+  region            Region?       @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  regionId          Int?
+  battalion         Battalion?    @relation(fields: [battalionId], references: [id], onDelete: SetNull)
+  battalionId       Int?
+  company           Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId         Int?
+  reportingUnitText String?
+
+  province     String?
+  district     String?
+  subdistrict  String?
+  locationName String?
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+
+  narrative String?
+
+  createdBy     String
+  createdByName String
+  updatedBy     String?
+  updatedByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  persons       DrugCasePerson[]
+  phones        DrugCasePhone[]
+  sims          DrugCaseSim[]
+  devices       DrugCaseDevice[]
+  vehicles      DrugCaseVehicle[]
+  seizedItems   DrugSeizedItem[]
+  locations     DrugCaseLocation[]
+  relationships DrugRelationship[] @relation("RelationshipSourceCase")
+
+  @@index([caseNumber])
+  @@index([status])
+  @@index([arrestDate])
+  @@index([province])
+  @@index([headquartersId])
+  @@index([regionId])
+  @@index([battalionId])
+  @@index([companyId])
+  @@index([createdBy])
+}
+
+/// Section 3: a real, internally-identified person. Never keyed by national
+/// ID (explicit prohibition) — `id` is the only identity, and it is stable
+/// even for a person with zero identifiers on file yet (Section 3: "ยังไม่
+/// ทราบตัวตน" — an unidentified person is still exactly one DrugPerson row,
+/// just with no DrugPersonIdentifier children).
+///
+/// `primaryFullName` is a display convenience (list/search columns need a
+/// name to sort/render immediately without a join) — the AUTHORITATIVE name
+/// history/aliases live in DrugPersonAlias below, never flattened into
+/// name_1/name_2 columns (Section 3).
+model DrugPerson {
+  id              String    @id @default(cuid())
+  primaryFullName String
+  nationality     String?
+  dateOfBirth     DateTime? @db.Date
+  notes           String?
+
+  createdBy     String
+  createdByName String
+  updatedBy     String?
+  updatedByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  identifiers          DrugPersonIdentifier[]
+  aliases              DrugPersonAlias[]
+  cases                DrugCasePerson[]
+  phones               DrugCasePhone[] // via association, see below (person is on the case-phone link, not directly here)
+  devices              DrugPersonDevice[]
+  vehicles             DrugPersonVehicle[]
+  relationshipsFrom    DrugRelationship[]     @relation("RelationshipFromPerson")
+  /// Opposite side of DrugCaseSim.person / DrugCaseDevice.person /
+  /// DrugCaseVehicle.person — required by Prisma for every relation to be a
+  /// declared pair. Not intended for eager per-person iteration in DI-1 (the
+  /// per-case sighting rows are queried from the Case side); declared here
+  /// purely to satisfy the schema and keep the door open for a future
+  /// "every sighting of this person" query with no migration needed.
+  caseSimSightings     DrugCaseSim[]
+  caseDeviceSightings  DrugCaseDevice[]       @relation("CaseDevicePerson")
+  caseVehicleSightings DrugCaseVehicle[]      @relation("CaseVehiclePerson")
+
+  @@index([primaryFullName])
+  @@index([dateOfBirth])
+}
+
+/// Section 3: one identifier for a person — a person may have MANY (a Thai
+/// ID discovered later, an alien ID from before naturalization, etc.), and
+/// (deliberately, per Section 14) two different DrugPerson rows are allowed
+/// to carry the SAME identifier value until an analyst explicitly resolves
+/// the conflict in a future phase — this table never enforces uniqueness on
+/// (type, value), because doing so would silently block the exact "possible
+/// duplicate, needs human review" case DI-2's matching engine is meant to
+/// surface, not something the schema should pre-empt by rejecting the insert.
+model DrugPersonIdentifier {
+  id       String                   @id @default(cuid())
+  person   DrugPerson               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  type     DrugPersonIdentifierType
+  value    String
+  notes    String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([type, value])
+}
+
+/// Section 3: one name/alias for a person over time. `isPrimary` marks which
+/// alias backs DrugPerson.primaryFullName's display copy (denormalized for
+/// list rendering — never the other way around: this table is the source of
+/// truth, primaryFullName is a cache updated when the primary alias changes).
+model DrugPersonAlias {
+  id        String     @id @default(cuid())
+  person    DrugPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId  String
+  fullName  String
+  isPrimary Boolean    @default(false)
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([fullName])
+}
+
+/// Section 5: the Case↔Person junction, carrying the person's ROLE in that
+/// specific case (never person_1/person_2/person_3 columns on DrugCase).
+/// One person can appear in many cases; one case can have many persons.
+model DrugCasePerson {
+  id       String             @id @default(cuid())
+  case     DrugCase           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId   String
+  person   DrugPerson         @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  role     DrugCasePersonRole
+
+  /// Section 5 note: when the arrested/associated person is ALSO a known
+  /// police Officer (e.g. an internal corruption case), this optionally
+  /// links to the existing Personnel record by its STRING business key
+  /// (Officer.officerId) — never a numeric FK, so this module never forces a
+  /// migration/lock on the Officer table, and Personnel is completely
+  /// unaffected whether or not this field is ever populated (nullable,
+  /// unindexed by the Officer side — no reverse relation added to Officer).
+  linkedOfficerId String?
+
+  notes String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@unique([caseId, personId])
+  @@index([caseId])
+  @@index([personId])
+  @@index([linkedOfficerId])
+}
+
+/// Section 6: a normalized phone number as its own entity — never
+/// person.phone1/phone2 columns. `normalizedNumber` is the matching key
+/// (E.164-ish digits only, e.g. "66812345678"); `rawInputs` is NOT stored as
+/// a column here (a phone number is shared across many observations with
+/// many original spellings) — each case-linking row below keeps its own
+/// original-input text instead, so the canonical entity itself never
+/// prefers one formatting over another.
+model DrugPhoneNumber {
+  id               String  @id @default(cuid())
+  normalizedNumber String  @unique
+  notes            String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  caseLinks DrugCasePhone[]
+  simLinks  DrugSimPhoneHistory[]
+
+  @@index([normalizedNumber])
+}
+
+/// Section 6/12: the relationship edge "this Person used/was associated with
+/// this Phone Number, observed via this Case" — carries the full provenance
+/// triad (Section 12: source case, first/last seen, status, recordedBy) so
+/// no permanent "owns" conclusion is ever implied by a single sighting
+/// (Section 12's explicit prohibition). `originalInput` preserves exactly
+/// what was typed/found (e.g. "081-234-5678") independently of
+/// DrugPhoneNumber.normalizedNumber, per Section 6's "keep original input if
+/// useful" note. This is simultaneously the Case↔Phone AND Person↔Phone edge
+/// (a phone is always observed FOR a person WITHIN a case — there is no
+/// scenario in this module where a case references a bare phone number with
+/// no associated person, so one junction row captures both edges without
+/// forcing a redundant second table).
+model DrugCasePhone {
+  id            String          @id @default(cuid())
+  case          DrugCase        @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId        String
+  person        DrugPerson      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId      String
+  phoneNumber   DrugPhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  phoneNumberId String
+  originalInput String?
+
+  status      DrugRelationshipStatus @default(REPORTED)
+  firstSeenAt DateTime?              @db.Date
+  lastSeenAt  DateTime?              @db.Date
+  confidence  Int?
+  recordedBy  String
+  notes       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([personId])
+  @@index([phoneNumberId])
+  @@index([status])
+}
+
+/// Section 7: a SIM card as its own entity, distinct from DrugPhoneNumber
+/// (a SIM can be re-provisioned onto a different number over its life; the
+/// module tracks that as history, not a single fixed field).
+model DrugSim {
+  id      String  @id @default(cuid())
+  iccid   String? @unique
+  imsi    String?
+  carrier String?
+  notes   String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  caseLinks     DrugCaseSim[]
+  phoneHistory  DrugSimPhoneHistory[]
+  deviceHistory DrugSimDeviceHistory[]
+
+  @@index([iccid])
+  @@index([imsi])
+}
+
+/// Section 7: "Phone Number may have a history of SIMs" / a SIM may change
+/// number — the temporal join between DrugSim and DrugPhoneNumber. Every row
+/// is a historical fact, never overwritten; `validTo=null` means "current as
+/// of lastSeenAt/now".
+model DrugSimPhoneHistory {
+  id            String          @id @default(cuid())
+  sim           DrugSim         @relation(fields: [simId], references: [id], onDelete: Cascade)
+  simId         String
+  phoneNumber   DrugPhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  phoneNumberId String
+  validFrom     DateTime?       @db.Date
+  validTo       DateTime?       @db.Date
+  sourceCaseId  String?
+  recordedBy    String
+  createdAt     DateTime        @default(now())
+
+  @@index([simId])
+  @@index([phoneNumberId])
+}
+
+/// Section 7/12: the Case↔SIM edge — same provenance triad as DrugCasePhone,
+/// same "SIM found WITH a person in a case" combined edge shape.
+model DrugCaseSim {
+  id       String      @id @default(cuid())
+  case     DrugCase    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId   String
+  person   DrugPerson? @relation(fields: [personId], references: [id], onDelete: SetNull)
+  personId String?
+  sim      DrugSim     @relation(fields: [simId], references: [id], onDelete: Cascade)
+  simId    String
+
+  status      DrugRelationshipStatus @default(REPORTED)
+  firstSeenAt DateTime?              @db.Date
+  lastSeenAt  DateTime?              @db.Date
+  recordedBy  String
+  notes       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([personId])
+  @@index([simId])
+}
+
+/// Section 8: a physical device (handset), distinct from any single Person
+/// or SIM — the SAME device may be seen with different people in different
+/// years (Section 8's explicit example), which is exactly why Person↔Device
+/// and SIM↔Device are their own time-aware relationship tables below, never
+/// a device.ownerId column.
+model DrugDevice {
+  id           String  @id @default(cuid())
+  brand        String?
+  model        String?
+  serialNumber String?
+  imei1        String?
+  imei2        String?
+  notes        String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  personLinks DrugPersonDevice[]
+  simHistory  DrugSimDeviceHistory[]
+  caseLinks   DrugCaseDevice[]
+
+  @@index([imei1])
+  @@index([imei2])
+  @@index([serialNumber])
+}
+
+/// Section 8/12: Person↔Device, full provenance triad — the durable "was
+/// this device associated with this person" fact, independent of any one
+/// case (a device can be linked to a person across multiple cases; this row
+/// aggregates the relationship, DrugCaseDevice below records EACH sighting).
+model DrugPersonDevice {
+  id       String     @id @default(cuid())
+  person   DrugPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  device   DrugDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String
+
+  status       DrugRelationshipStatus @default(REPORTED)
+  firstSeenAt  DateTime?              @db.Date
+  lastSeenAt   DateTime?              @db.Date
+  sourceCaseId String?
+  recordedBy   String
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([deviceId])
+}
+
+/// Section 7/8: "SIM may change device" — the temporal join, same pattern as
+/// DrugSimPhoneHistory.
+model DrugSimDeviceHistory {
+  id           String     @id @default(cuid())
+  sim          DrugSim    @relation(fields: [simId], references: [id], onDelete: Cascade)
+  simId        String
+  device       DrugDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId     String
+  validFrom    DateTime?  @db.Date
+  validTo      DateTime?  @db.Date
+  sourceCaseId String?
+  recordedBy   String
+  createdAt    DateTime   @default(now())
+
+  @@index([simId])
+  @@index([deviceId])
+}
+
+/// Section 8/12: the Case↔Device edge — one row per sighting of a device
+/// within a case (distinct from DrugPersonDevice's aggregate relationship).
+model DrugCaseDevice {
+  id       String      @id @default(cuid())
+  case     DrugCase    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId   String
+  person   DrugPerson? @relation(fields: [personId], references: [id], onDelete: SetNull, name: "CaseDevicePerson")
+  personId String?
+  device   DrugDevice  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String
+
+  status     DrugRelationshipStatus @default(REPORTED)
+  recordedBy String
+  notes      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([personId])
+  @@index([deviceId])
+}
+
+/// Section 9: a vehicle entity — one vehicle can relate to many
+/// Persons/Cases (Section 9's explicit requirement), so linkage lives in
+/// DrugPersonVehicle/DrugCaseVehicle below, never a single ownerId column.
+model DrugVehicle {
+  id                   String  @id @default(cuid())
+  registrationNumber   String?
+  registrationProvince String?
+  vehicleType          String?
+  brand                String?
+  model                String?
+  color                String?
+  vin                  String?
+  notes                String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  personLinks DrugPersonVehicle[]
+  caseLinks   DrugCaseVehicle[]
+
+  @@index([registrationNumber])
+  @@index([vin])
+}
+
+/// Section 9/12: Person↔Vehicle, full provenance triad (same shape as
+/// DrugPersonDevice — an aggregate relationship, independent of any one
+/// case; DrugCaseVehicle records each sighting).
+model DrugPersonVehicle {
+  id        String      @id @default(cuid())
+  person    DrugPerson  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId  String
+  vehicle   DrugVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicleId String
+
+  status       DrugRelationshipStatus @default(REPORTED)
+  firstSeenAt  DateTime?              @db.Date
+  lastSeenAt   DateTime?              @db.Date
+  sourceCaseId String?
+  recordedBy   String
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([vehicleId])
+}
+
+/// Section 9/12: the Case↔Vehicle edge.
+model DrugCaseVehicle {
+  id        String      @id @default(cuid())
+  case      DrugCase    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    String
+  person    DrugPerson? @relation(fields: [personId], references: [id], onDelete: SetNull, name: "CaseVehiclePerson")
+  personId  String?
+  vehicle   DrugVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicleId String
+
+  status     DrugRelationshipStatus @default(REPORTED)
+  recordedBy String
+  notes      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([personId])
+  @@index([vehicleId])
+}
+
+/// Section 10: a location, with an explicit conceptual ROLE (never inferred
+/// — Section 10's explicit prohibition on assuming shared-location implies
+/// shared-network). A location entity itself is reusable across cases (the
+/// same address may be an ARREST_LOCATION in one case and a RESIDENCE in
+/// another); DrugCaseLocation below is the per-case, per-role linking row.
+model DrugLocation {
+  id          String   @id @default(cuid())
+  name        String?
+  addressText String?
+  province    String?
+  district    String?
+  subdistrict String?
+  latitude    Decimal? @db.Decimal(10, 7)
+  longitude   Decimal? @db.Decimal(10, 7)
+  notes       String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  caseLinks DrugCaseLocation[]
+
+  @@index([province])
+  @@index([district])
+}
+
+/// Section 10/12: the Case↔Location edge, carrying the ROLE this location
+/// played in THIS case (the same DrugLocation row can carry a different role
+/// in a different case — role lives here, not on DrugLocation itself).
+model DrugCaseLocation {
+  id         String           @id @default(cuid())
+  case       DrugCase         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId     String
+  location   DrugLocation     @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  locationId String
+  role       DrugLocationRole
+
+  recordedBy String
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([caseId])
+  @@index([locationId])
+  @@index([role])
+}
+
+/// Section 11: one seized-item line on a case. Deliberately NOT a set of
+/// drugType1/drugType2/... columns on DrugCase (Section 11's explicit
+/// prohibition) — a case adds as many rows here as needed.
+model DrugSeizedItem {
+  id           String   @id @default(cuid())
+  case         DrugCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId       String
+  drugType     String
+  subtype      String?
+  quantity     Decimal? @db.Decimal(12, 3)
+  unit         String?
+  weightGrams  Decimal? @db.Decimal(12, 3)
+  packageCount Int?
+  notes        String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([drugType])
+}
+
+/// Section 12/23: a GENERIC graph edge between any two entities in this
+/// module, for relationships that don't already have a dedicated join table
+/// above (e.g. Person↔Person "associate of", Person↔Case beyond the
+/// DrugCasePerson role link, or a future entity type added in DI-2+ without
+/// a schema migration). `fromType`/`fromId` and `toType`/`toId` are a loose
+/// polymorphic pair (string discriminator + string id, matching this
+/// module's cuid() ids uniformly) rather than a set of nullable FK columns
+/// per possible entity type — Section 23 requires the schema to support
+/// arbitrary graph edges (Person→Case, Person→Phone, Person→Device, ...)
+/// WITHOUT a redesign when new entity types are added; a fixed FK-per-type
+/// table would need a new column (and a migration) for every future entity,
+/// which is exactly what this generic shape avoids. Every edge still carries
+/// the full Section 12/13 provenance triad and traces back to `sourceCase`.
+///
+/// The dedicated junction tables above (DrugCasePerson, DrugCasePhone, ...)
+/// remain the PRIMARY, strongly-typed way to record the six relationship
+/// kinds DI-1 actually implements (Section 23's explicit edge list) — they
+/// give referential integrity and are what DI-1's own UI reads/writes. This
+/// table exists so DI-5 (Interactive Link Analysis) has ONE place to query
+/// every edge type uniformly when building a graph, without hand-joining
+/// six different tables — DI-1 does not populate it yet (Section 28: no
+/// full graph UI this phase), but nothing about its shape blocks a future
+/// service from projecting the typed junction tables into rows here, or
+/// writing directly into it for edge kinds that have no dedicated table.
+model DrugRelationship {
+  id               String @id @default(cuid())
+  fromType         String
+  fromId           String
+  toType           String
+  toId             String
+  relationshipType String
+
+  status      DrugRelationshipStatus @default(SYSTEM_SUGGESTED)
+  firstSeenAt DateTime?              @db.Date
+  lastSeenAt  DateTime?              @db.Date
+  confidence  Int?
+  recordedBy  String
+  notes       String?
+
+  sourceCase   DrugCase?   @relation("RelationshipSourceCase", fields: [sourceCaseId], references: [id], onDelete: SetNull)
+  sourceCaseId String?
+  /// Convenience reverse relation when fromType="PERSON" (lets Prisma eager-load a person's outbound generic edges without a raw query); toType-side lookups go through fromId/toId string matching instead, since a polymorphic "to" side can't be a typed Prisma relation.
+  fromPerson   DrugPerson? @relation("RelationshipFromPerson", fields: [fromId], references: [id], map: "DrugRelationship_fromPerson_fkey")
+
+  createdAt DateTime @default(now())
+
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+  @@index([relationshipType])
+  @@index([sourceCaseId])
+  @@index([status])
+}
+
+/// Section 21: a generic, append-only audit trail for the whole Drug
+/// Intelligence module (no reusable generic audit log exists elsewhere in
+/// this codebase today — see the DI-1 audit report). One row per action;
+/// never updated or deleted. `entityType`/`entityId` name what changed
+/// (e.g. "DrugCase"/caseId, "DrugPerson"/personId); `detail` is a short
+/// human-readable summary, never raw PII beyond what the entity reference
+/// already implies.
+model DrugAuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  actorId    String
+  actorName  String
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }

@@ -69,6 +69,21 @@ export const PERMISSIONS = [
    * officer.editOwn convention above).
    */
   "officers.viewFinancial",
+  /**
+   * Phase DI-1 — Drug Intelligence module. Fine-grained per the same
+   * philosophy as every permission above: `drug.read` sees cases/persons/
+   * entities; `drug.create` may create new cases/entities; `drug.edit` may
+   * modify existing ones; `drug.admin` is reserved for future module
+   * administration (e.g. merge review, cross-unit visibility overrides —
+   * not used by any DI-1 UI yet, declared now so later phases never need a
+   * new permission just to gate an admin-only Drug Intelligence action).
+   * Independent of every Personnel permission — a user's officers.* grants
+   * say nothing about Drug Intelligence access, and vice versa.
+   */
+  "drug.read",
+  "drug.create",
+  "drug.edit",
+  "drug.admin",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -89,11 +104,17 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "gallery.view",
     "documents.download",
     "review.view",
+    // Phase DI-1: Drug Intelligence — read-only, same posture as every other
+    // commander grant above (view/search, never create/edit/admin).
+    "drug.read",
   ],
   // Officer — own full profile (view AND edit, ownership-scoped via
   // officer.editOwn), plus Search and Gallery (browse/preview only: no
   // documents.download, no officers.view of others' private sections — those
-  // are covered by the restricted profile view instead).
+  // are covered by the restricted profile view instead). No Drug Intelligence
+  // access at all — this module is sensitive investigative data, not part of
+  // an officer's own-profile self-service surface (Section 20: "ห้ามใช้
+  // แนวคิดว่า authenticated = เห็นทุกอย่าง").
   officer: ["officer.viewOwn", "officer.editOwn", "search.view", "gallery.view"],
 };
 

@@ -88,6 +88,31 @@ test("Phase 47.1: commander is READ ONLY (no edit/delete/media/user-mgmt/AI-impo
   assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "ai.import"), true);
 });
 
+test("Phase DI-1: Drug Intelligence permissions — admin full access, commander read-only, officer none at all", () => {
+  // Admin — every drug.* permission, via the same [...PERMISSIONS] spread every other permission uses.
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.read"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.create"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.edit"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.admin"), true);
+
+  // Commander — read-only, same posture as its other grants (officers.view without officers.edit).
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.read"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.create"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.edit"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.admin"), false);
+
+  // Officer — NO Drug Intelligence access at all (Section 20: authenticated != sees everything).
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.read"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.create"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.edit"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.admin"), false);
+});
+
+test("Phase DI-1: /drug-intelligence route requires drug.read (registered in ROUTE_PERMISSIONS, same gate the client AuthGate and this test both read)", () => {
+  assert.equal(requiredPermissionForRoute("/drug-intelligence"), "drug.read");
+  assert.equal(requiredPermissionForRoute("/drug-intelligence/cases"), "drug.read");
+});
+
 test("route protection map: /login is public; each route maps to the right capability; officers-detail is auth-only", () => {
   assert.equal(isPublicRoute(LOGIN_ROUTE), true);
   assert.equal(isPublicRoute("/dashboard"), false);

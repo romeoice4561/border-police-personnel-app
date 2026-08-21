@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
@@ -80,6 +80,18 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/review", labelKey: "nav.review", icon: ClipboardCheck, permission: "review.view" },
       { href: "/gallery", labelKey: "nav.gallery", icon: Images, permission: "gallery.view" },
     ],
+  },
+  {
+    // Phase DI-1 Round 2: own top-level group (not folded into Operations) so
+    // Drug Intelligence reads as a distinct module, not a Personnel feature —
+    // matches Section 3's "เพิ่มเมนูหลัก". Gated on drug.read: a user with none
+    // of the drug.* permissions (every officer, by default) never sees this
+    // group at all — can()-filtered exactly like every other item, never a
+    // client-only visual hide (Section 3: "ห้ามใช้การซ่อน UI แทน server-side
+    // permission" — the route itself is ALSO gated via ROUTE_PERMISSIONS, so
+    // hiding the link is a UX nicety, not the security boundary).
+    titleKey: "nav.groupDrugIntelligence",
+    items: [{ href: "/drug-intelligence", labelKey: "di.nav.title", icon: ShieldAlert, permission: "drug.read" }],
   },
   {
     titleKey: "nav.groupAdministration",

@@ -188,6 +188,40 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     return r.id === w.id;
   });
 
+  // Phase DI-1: Drug Intelligence tables. cuid() string ids (not the
+  // autoincrement Int ids Table.create() normally assigns) — the fake's
+  // simple id matcher (r.id === w.id) works unchanged either way since it
+  // only compares whatever value is present, but callers must supply their
+  // own id via data.id since Table.create() would otherwise overwrite it
+  // with a numeric nextId; DrugRepository (Round 1 backend) generates cuids
+  // itself before calling create(), matching how the real Prisma client's
+  // @default(cuid()) behaves from the caller's perspective in every other
+  // repository in this codebase (never relies on the DB to invent an id it
+  // then has to read back).
+  private readonly drugCases = new Table((r, w) => r.id === w.id);
+  private readonly drugPersons = new Table((r, w) => r.id === w.id);
+  private readonly drugPersonIdentifiers = new Table((r, w) => r.id === w.id);
+  private readonly drugPersonAliases = new Table((r, w) => r.id === w.id);
+  private readonly drugCasePersons = new Table((r, w) => {
+    const c = composite(w, "caseId_personId");
+    if (c) return r.caseId === c.caseId && r.personId === c.personId;
+    return r.id === w.id;
+  });
+  private readonly drugPhoneNumbers = new Table((r, w) => (w.normalizedNumber !== undefined ? r.normalizedNumber === w.normalizedNumber : r.id === w.id));
+  private readonly drugCasePhones = new Table((r, w) => r.id === w.id);
+  private readonly drugSims = new Table((r, w) => (w.iccid !== undefined ? r.iccid === w.iccid : r.id === w.id));
+  private readonly drugCaseSims = new Table((r, w) => r.id === w.id);
+  private readonly drugDevices = new Table((r, w) => r.id === w.id);
+  private readonly drugPersonDevices = new Table((r, w) => r.id === w.id);
+  private readonly drugCaseDevices = new Table((r, w) => r.id === w.id);
+  private readonly drugVehicles = new Table((r, w) => r.id === w.id);
+  private readonly drugPersonVehicles = new Table((r, w) => r.id === w.id);
+  private readonly drugCaseVehicles = new Table((r, w) => r.id === w.id);
+  private readonly drugLocations = new Table((r, w) => r.id === w.id);
+  private readonly drugCaseLocations = new Table((r, w) => r.id === w.id);
+  private readonly drugSeizedItems = new Table((r, w) => r.id === w.id);
+  private readonly drugAuditLogs = new Table((r, w) => r.id === w.id);
+
   /**
    * When set, any timeline.create for an officer whose row has this string
    * officerId throws — simulating a mid-transaction failure AFTER the officer
@@ -254,6 +288,65 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     return delegate(this.officerSkills) as unknown as DatabaseClient["officerSkill"];
   }
 
+  // Phase DI-1: Drug Intelligence delegates.
+  get drugCase() {
+    return delegate(this.drugCases) as unknown as DatabaseClient["drugCase"];
+  }
+  get drugPerson() {
+    return delegate(this.drugPersons) as unknown as DatabaseClient["drugPerson"];
+  }
+  get drugPersonIdentifier() {
+    return delegate(this.drugPersonIdentifiers) as unknown as DatabaseClient["drugPersonIdentifier"];
+  }
+  get drugPersonAlias() {
+    return delegate(this.drugPersonAliases) as unknown as DatabaseClient["drugPersonAlias"];
+  }
+  get drugCasePerson() {
+    return delegate(this.drugCasePersons) as unknown as DatabaseClient["drugCasePerson"];
+  }
+  get drugPhoneNumber() {
+    return delegate(this.drugPhoneNumbers) as unknown as DatabaseClient["drugPhoneNumber"];
+  }
+  get drugCasePhone() {
+    return delegate(this.drugCasePhones) as unknown as DatabaseClient["drugCasePhone"];
+  }
+  get drugSim() {
+    return delegate(this.drugSims) as unknown as DatabaseClient["drugSim"];
+  }
+  get drugCaseSim() {
+    return delegate(this.drugCaseSims) as unknown as DatabaseClient["drugCaseSim"];
+  }
+  get drugDevice() {
+    return delegate(this.drugDevices) as unknown as DatabaseClient["drugDevice"];
+  }
+  get drugPersonDevice() {
+    return delegate(this.drugPersonDevices) as unknown as DatabaseClient["drugPersonDevice"];
+  }
+  get drugCaseDevice() {
+    return delegate(this.drugCaseDevices) as unknown as DatabaseClient["drugCaseDevice"];
+  }
+  get drugVehicle() {
+    return delegate(this.drugVehicles) as unknown as DatabaseClient["drugVehicle"];
+  }
+  get drugPersonVehicle() {
+    return delegate(this.drugPersonVehicles) as unknown as DatabaseClient["drugPersonVehicle"];
+  }
+  get drugCaseVehicle() {
+    return delegate(this.drugCaseVehicles) as unknown as DatabaseClient["drugCaseVehicle"];
+  }
+  get drugLocation() {
+    return delegate(this.drugLocations) as unknown as DatabaseClient["drugLocation"];
+  }
+  get drugCaseLocation() {
+    return delegate(this.drugCaseLocations) as unknown as DatabaseClient["drugCaseLocation"];
+  }
+  get drugSeizedItem() {
+    return delegate(this.drugSeizedItems) as unknown as DatabaseClient["drugSeizedItem"];
+  }
+  get drugAuditLog() {
+    return delegate(this.drugAuditLogs) as unknown as DatabaseClient["drugAuditLog"];
+  }
+
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(
     fn: (tx: DatabaseClient) => Promise<T>,
@@ -273,6 +366,25 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       skills: this.skills.snapshot(),
       skillLevels: this.skillLevels.snapshot(),
       officerSkills: this.officerSkills.snapshot(),
+      drugCases: this.drugCases.snapshot(),
+      drugPersons: this.drugPersons.snapshot(),
+      drugPersonIdentifiers: this.drugPersonIdentifiers.snapshot(),
+      drugPersonAliases: this.drugPersonAliases.snapshot(),
+      drugCasePersons: this.drugCasePersons.snapshot(),
+      drugPhoneNumbers: this.drugPhoneNumbers.snapshot(),
+      drugCasePhones: this.drugCasePhones.snapshot(),
+      drugSims: this.drugSims.snapshot(),
+      drugCaseSims: this.drugCaseSims.snapshot(),
+      drugDevices: this.drugDevices.snapshot(),
+      drugPersonDevices: this.drugPersonDevices.snapshot(),
+      drugCaseDevices: this.drugCaseDevices.snapshot(),
+      drugVehicles: this.drugVehicles.snapshot(),
+      drugPersonVehicles: this.drugPersonVehicles.snapshot(),
+      drugCaseVehicles: this.drugCaseVehicles.snapshot(),
+      drugLocations: this.drugLocations.snapshot(),
+      drugCaseLocations: this.drugCaseLocations.snapshot(),
+      drugSeizedItems: this.drugSeizedItems.snapshot(),
+      drugAuditLogs: this.drugAuditLogs.snapshot(),
     };
     try {
       return await fn(this);
@@ -289,6 +401,25 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.skills.restore(snaps.skills);
       this.skillLevels.restore(snaps.skillLevels);
       this.officerSkills.restore(snaps.officerSkills);
+      this.drugCases.restore(snaps.drugCases);
+      this.drugPersons.restore(snaps.drugPersons);
+      this.drugPersonIdentifiers.restore(snaps.drugPersonIdentifiers);
+      this.drugPersonAliases.restore(snaps.drugPersonAliases);
+      this.drugCasePersons.restore(snaps.drugCasePersons);
+      this.drugPhoneNumbers.restore(snaps.drugPhoneNumbers);
+      this.drugCasePhones.restore(snaps.drugCasePhones);
+      this.drugSims.restore(snaps.drugSims);
+      this.drugCaseSims.restore(snaps.drugCaseSims);
+      this.drugDevices.restore(snaps.drugDevices);
+      this.drugPersonDevices.restore(snaps.drugPersonDevices);
+      this.drugCaseDevices.restore(snaps.drugCaseDevices);
+      this.drugVehicles.restore(snaps.drugVehicles);
+      this.drugPersonVehicles.restore(snaps.drugPersonVehicles);
+      this.drugCaseVehicles.restore(snaps.drugCaseVehicles);
+      this.drugLocations.restore(snaps.drugLocations);
+      this.drugCaseLocations.restore(snaps.drugCaseLocations);
+      this.drugSeizedItems.restore(snaps.drugSeizedItems);
+      this.drugAuditLogs.restore(snaps.drugAuditLogs);
       throw error;
     }
   }

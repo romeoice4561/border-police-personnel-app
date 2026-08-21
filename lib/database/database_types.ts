@@ -17,8 +17,51 @@
 // tree), re-exported under their plain names (Officer, Timeline, …) — types
 // are identical to the former @prisma/client imports.
 import type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill } from "@/lib/generated/prisma/client";
+// Phase DI-1: Drug Intelligence models, same generated-client re-export convention.
+import type {
+  DrugCase,
+  DrugPerson,
+  DrugPersonIdentifier,
+  DrugPersonAlias,
+  DrugCasePerson,
+  DrugPhoneNumber,
+  DrugCasePhone,
+  DrugSim,
+  DrugCaseSim,
+  DrugDevice,
+  DrugPersonDevice,
+  DrugCaseDevice,
+  DrugVehicle,
+  DrugPersonVehicle,
+  DrugCaseVehicle,
+  DrugLocation,
+  DrugCaseLocation,
+  DrugSeizedItem,
+  DrugAuditLog,
+} from "@/lib/generated/prisma/client";
 
 export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
+export type {
+  DrugCase,
+  DrugPerson,
+  DrugPersonIdentifier,
+  DrugPersonAlias,
+  DrugCasePerson,
+  DrugPhoneNumber,
+  DrugCasePhone,
+  DrugSim,
+  DrugCaseSim,
+  DrugDevice,
+  DrugPersonDevice,
+  DrugCaseDevice,
+  DrugVehicle,
+  DrugPersonVehicle,
+  DrugCaseVehicle,
+  DrugLocation,
+  DrugCaseLocation,
+  DrugSeizedItem,
+  DrugAuditLog,
+};
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
 export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
@@ -55,6 +98,26 @@ export interface DatabaseClient {
   skill: ModelDelegate<Skill, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   skillLevel: ModelDelegate<SkillLevel, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   officerSkill: ModelDelegate<OfficerSkill, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase DI-1: Drug Intelligence — case/entity/relationship tables. Same narrow ModelDelegate convention as every table above. */
+  drugCase: ModelDelegate<DrugCase, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPerson: ModelDelegate<DrugPerson, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPersonIdentifier: ModelDelegate<DrugPersonIdentifier, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPersonAlias: ModelDelegate<DrugPersonAlias, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCasePerson: ModelDelegate<DrugCasePerson, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPhoneNumber: ModelDelegate<DrugPhoneNumber, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCasePhone: ModelDelegate<DrugCasePhone, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugSim: ModelDelegate<DrugSim, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCaseSim: ModelDelegate<DrugCaseSim, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugDevice: ModelDelegate<DrugDevice, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPersonDevice: ModelDelegate<DrugPersonDevice, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCaseDevice: ModelDelegate<DrugCaseDevice, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugVehicle: ModelDelegate<DrugVehicle, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPersonVehicle: ModelDelegate<DrugPersonVehicle, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCaseVehicle: ModelDelegate<DrugCaseVehicle, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugLocation: ModelDelegate<DrugLocation, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCaseLocation: ModelDelegate<DrugCaseLocation, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugSeizedItem: ModelDelegate<DrugSeizedItem, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugAuditLog: ModelDelegate<DrugAuditLog, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's

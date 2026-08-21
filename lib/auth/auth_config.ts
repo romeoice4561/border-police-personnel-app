@@ -111,6 +111,16 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Perm
   { prefix: "/officers/new", permission: "officers.create" },
   /** Account integrations — any authenticated user may manage their own Telegram binding. */
   { prefix: "/settings/integrations", permission: "search.view" },
+  /**
+   * Phase DI-1: Drug Intelligence module — base gate is drug.read (admin full
+   * access via the [...PERMISSIONS] spread, commander read-only, officer no
+   * access at all — see lib/auth/roles.ts). Round 2 (UI) will add more
+   * specific longer-prefix entries for the create-case route (drug.create)
+   * once that page exists — until then this single entry is enough for the
+   * module's landing/list/workspace pages built in Round 2, and does nothing
+   * yet since no /drug-intelligence page exists in Round 1.
+   */
+  { prefix: "/drug-intelligence", permission: "drug.read" },
 ];
 
 /** True when `pathname` is public (no auth required). */
