@@ -222,6 +222,14 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   private readonly drugSeizedItems = new Table((r, w) => r.id === w.id);
   private readonly drugAuditLogs = new Table((r, w) => r.id === w.id);
 
+  // Phase DI-2: Entity Resolution tables — same cuid()-string-id convention.
+  private readonly drugPersonMatchReviews = new Table((r, w) => {
+    const c = composite(w, "personAId_personBId");
+    if (c) return r.personAId === c.personAId && r.personBId === c.personBId;
+    return r.id === w.id;
+  });
+  private readonly drugPersonMerges = new Table((r, w) => r.id === w.id);
+
   /**
    * When set, any timeline.create for an officer whose row has this string
    * officerId throws — simulating a mid-transaction failure AFTER the officer
@@ -346,6 +354,12 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugAuditLog() {
     return delegate(this.drugAuditLogs) as unknown as DatabaseClient["drugAuditLog"];
   }
+  get drugPersonMatchReview() {
+    return delegate(this.drugPersonMatchReviews) as unknown as DatabaseClient["drugPersonMatchReview"];
+  }
+  get drugPersonMerge() {
+    return delegate(this.drugPersonMerges) as unknown as DatabaseClient["drugPersonMerge"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(
@@ -385,6 +399,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugCaseLocations: this.drugCaseLocations.snapshot(),
       drugSeizedItems: this.drugSeizedItems.snapshot(),
       drugAuditLogs: this.drugAuditLogs.snapshot(),
+      drugPersonMatchReviews: this.drugPersonMatchReviews.snapshot(),
+      drugPersonMerges: this.drugPersonMerges.snapshot(),
     };
     try {
       return await fn(this);
@@ -420,6 +436,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugCaseLocations.restore(snaps.drugCaseLocations);
       this.drugSeizedItems.restore(snaps.drugSeizedItems);
       this.drugAuditLogs.restore(snaps.drugAuditLogs);
+      this.drugPersonMatchReviews.restore(snaps.drugPersonMatchReviews);
+      this.drugPersonMerges.restore(snaps.drugPersonMerges);
       throw error;
     }
   }

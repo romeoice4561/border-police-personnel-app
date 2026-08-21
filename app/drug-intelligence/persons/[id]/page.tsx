@@ -1,0 +1,684 @@
+/**
+ * Person Intelligence Profile (Phase DI-2 Round B — Sections 4-9, 21-26).
+ *
+ * The canonical Person Profile workspace — header + clickable KPI row + tab
+ * navigation, mirroring the Case Workspace's exact structure (Section 4:
+ * "ไม่ใช่ฟอร์มข้อมูลบุคคลธรรมดา"). A MERGED person renders a banner + link to
+ * the survivor instead of an active profile (Section 5) — never silently
+ * hidden or 404'd (Section 29).
+ */
+"use client";
+
+import { Suspense, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, AlertTriangle, Plus } from "lucide-react";
+import { PageHeader } from "@/components/common/page_header";
+import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
+import { Card, CardBody } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
+import { DrugMatchConfidenceBadge } from "@/components/drug_intelligence/drug_match_confidence_badge";
+import { DrugMatchSignalsList } from "@/components/drug_intelligence/drug_match_signals_list";
+import { Field, inputCls } from "@/components/drug_intelligence/create_case_field";
+import { useAuth } from "@/components/auth/auth_provider";
+import { useT } from "@/components/i18n/language_provider";
+import {
+  useDrugPersonProfile,
+  useAddDrugPersonAlias,
+  useAddDrugPersonIdentifier,
+  useDrugPotentialDuplicates,
+} from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
+import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole, DRUG_PERSON_IDENTIFIER_TYPES, DRUG_PERSON_IDENTIFIER_TYPE_LABELS, isValidDrugPersonIdentifierType } from "@/lib/drug_intelligence/drug_person_options";
+import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
+import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type {
+  DrugPersonProfileResponse,
+  DrugCaseLinkSummary,
+  DrugPersonPhoneRow,
+  DrugPersonSimSummaryRow,
+  DrugPersonDeviceRow,
+  DrugPersonVehicleRow,
+  DrugPersonProfileLocationRow,
+  DrugPersonDataQualityFlag,
+  DrugPersonMatchCandidate,
+} from "@/lib/drug_intelligence/drug_intelligence_client";
+
+const TABS = [
+  { key: "overview", labelKey: "di.profile.tabOverview" },
+  { key: "cases", labelKey: "di.profile.tabCases" },
+  { key: "phones", labelKey: "di.profile.tabPhones" },
+  { key: "devices", labelKey: "di.profile.tabDevices" },
+  { key: "vehicles", labelKey: "di.profile.tabVehicles" },
+  { key: "locations", labelKey: "di.profile.tabLocations" },
+  { key: "identity", labelKey: "di.profile.tabIdentity" },
+  { key: "review", labelKey: "di.profile.tabReview" },
+] as const;
+
+function personRoleLabel(role: string, language: "th" | "en"): string {
+  if (!isValidDrugCasePersonRole(role)) return role;
+  const meta = DRUG_CASE_PERSON_ROLE_LABELS[role];
+  return language === "th" ? meta.labelTh : meta.labelEn;
+}
+
+function locationRoleLabel(role: string, language: "th" | "en"): string {
+  if (!isValidDrugLocationRole(role)) return role;
+  const meta = DRUG_LOCATION_ROLE_LABELS[role];
+  return language === "th" ? meta.labelTh : meta.labelEn;
+}
+
+function identifierTypeLabel(type: string, language: "th" | "en"): string {
+  if (!isValidDrugPersonIdentifierType(type)) return type;
+  const meta = DRUG_PERSON_IDENTIFIER_TYPE_LABELS[type];
+  return language === "th" ? meta.labelTh : meta.labelEn;
+}
+
+function formatDate(value: string, language: "th" | "en"): string {
+  return new Date(value).toLocaleDateString(language === "th" ? "th-TH" : "en-US");
+}
+
+export default function DrugPersonProfilePage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <DrugPersonProfileContent />
+    </Suspense>
+  );
+}
+
+function DrugPersonProfileContent() {
+  const params = useParams<{ id: string }>();
+  const personId = decodeURIComponent(params.id);
+  const searchParams = useSearchParams();
+  const justMerged = searchParams.get("merged") !== null;
+  const { user, can } = useAuth();
+  const { t, language } = useT();
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("overview");
+
+  const profile = useDrugPersonProfile(user?.id ?? null, personId);
+
+  if (profile.isPending) {
+    return <LoadingState />;
+  }
+  if (profile.isError) {
+    const isNotFound = profile.error instanceof ApiClientError && profile.error.status === 404;
+    return (
+      <ErrorState
+        title={isNotFound ? t("di.profile.notFound") : undefined}
+        message={isNotFound ? undefined : (profile.error as Error).message}
+        onRetry={isNotFound ? undefined : () => profile.refetch()}
+      />
+    );
+  }
+
+  const data = profile.data;
+  const canViewFull = can("drug.edit");
+  const canEdit = can("drug.edit");
+
+  if (data.person.status === "MERGED") {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title={data.person.primaryFullName}
+          actions={
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/drug-intelligence/persons">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                {t("di.matchReview.backToQueue")}
+              </Link>
+            </Button>
+          }
+        />
+        <Card className="border-warning/40 bg-warning/5">
+          <CardBody className="space-y-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+              {t("di.profile.mergedBanner")}
+            </p>
+            {data.person.mergedIntoPersonId ? (
+              <Button asChild size="sm">
+                <Link href={`/drug-intelligence/persons/${encodeURIComponent(data.person.mergedIntoPersonId)}`}>{t("di.profile.openSurvivor")}</Link>
+              </Button>
+            ) : null}
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title={data.person.primaryFullName}
+        description={t("di.profile.personId") + ": " + data.person.id}
+        actions={
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/drug-intelligence/persons">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              {t("di.matchReview.backToQueue")}
+            </Link>
+          </Button>
+        }
+      />
+
+      {justMerged ? (
+        <Card className="border-good/40 bg-good/5">
+          <CardBody className="text-sm text-foreground">{t("di.merge.mergeSuccess")}</CardBody>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardBody className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <span className="text-muted">
+            {t("di.profile.firstSeen")}: <span className="text-foreground">{formatDate(data.firstSeenAt, language)}</span>
+          </span>
+          <span className="text-muted">
+            {t("di.profile.lastSeen")}: <span className="text-foreground">{formatDate(data.lastSeenAt, language)}</span>
+          </span>
+          <span className="text-muted">
+            {t("di.profile.updatedAt")}: <span className="text-foreground">{formatDate(data.person.updatedAt, language)}</span>
+          </span>
+          {data.aliases.length > 0 ? (
+            <span className="text-muted">
+              {t("di.person.aliases")}: <span className="text-foreground">{data.aliases.map((a) => a.fullName).join(", ")}</span>
+            </span>
+          ) : null}
+          {data.dataQuality.some((f) => f.code === "POTENTIAL_DUPLICATE") ? (
+            <Badge tone="warning">
+              <AlertTriangle className="mr-1 h-3 w-3" aria-hidden="true" />
+              {t("di.profile.dqPotentialDuplicate")}
+            </Badge>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <DrugKpiTile label={t("di.profile.kpiCases")} value={data.counts.cases} icon={Users} onClick={() => setActiveTab("cases")} />
+        <DrugKpiTile label={t("di.profile.kpiPhones")} value={data.counts.phones} icon={Phone} onClick={() => setActiveTab("phones")} />
+        <DrugKpiTile label={t("di.profile.kpiSims")} value={data.counts.sims} icon={Smartphone} onClick={() => setActiveTab("phones")} />
+        <DrugKpiTile label={t("di.profile.kpiDevices")} value={data.counts.devices} icon={Smartphone} onClick={() => setActiveTab("devices")} />
+        <DrugKpiTile label={t("di.profile.kpiVehicles")} value={data.counts.vehicles} icon={Car} onClick={() => setActiveTab("vehicles")} />
+        <DrugKpiTile label={t("di.profile.kpiLocations")} value={data.counts.locations} icon={MapPin} onClick={() => setActiveTab("locations")} />
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              activeTab === tab.key ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
+            }`}
+          >
+            {t(tab.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "overview" ? <OverviewTab data={data} language={language} canViewFull={canViewFull} /> : null}
+      {activeTab === "cases" ? <CasesTab cases={data.cases} language={language} /> : null}
+      {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} canViewFull={canViewFull} /> : null}
+      {activeTab === "devices" ? <DevicesTab devices={data.devices} canViewFull={canViewFull} /> : null}
+      {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} /> : null}
+      {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
+      {activeTab === "identity" ? <IdentityTab personId={personId} data={data} language={language} canViewFull={canViewFull} canEdit={canEdit} /> : null}
+      {activeTab === "review" ? <ReviewTab personId={personId} dataQuality={data.dataQuality} mergeHistory={data.mergeHistory} /> : null}
+    </div>
+  );
+}
+
+function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileResponse; language: "th" | "en"; canViewFull: boolean }) {
+  const { t } = useT();
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardBody className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewIdentity")}</p>
+          <p className="text-sm text-foreground">{data.person.primaryFullName}</p>
+          {data.person.nationality ? <p className="text-sm text-muted">{data.person.nationality}</p> : null}
+          {data.identifiers.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.emptyIdentifiers")}</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {data.identifiers.map((identifier) => (
+                <li key={identifier.id} className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{identifierTypeLabel(identifier.type, language)}</span>
+                  <span className="font-mono text-foreground">{presentIdentifierValue(identifier.value, canViewFull)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewCaseSummary")}</p>
+          <p className="text-sm text-foreground">{t("di.profile.casesFoundIn").replace("{count}", String(data.counts.cases))}</p>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.dataQualityTitle")}</p>
+          {data.dataQuality.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.dataQualityNone")}</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {data.dataQuality.map((flag, i) => (
+                <DataQualityFlagRow key={i} flag={flag} />
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewRelatedCounts")}</p>
+          <dl className="grid grid-cols-3 gap-2 text-sm">
+            <div>
+              <dt className="text-muted">{t("di.profile.kpiPhones")}</dt>
+              <dd className="text-foreground">{data.counts.phones}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">{t("di.profile.kpiDevices")}</dt>
+              <dd className="text-foreground">{data.counts.devices}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">{t("di.profile.kpiVehicles")}</dt>
+              <dd className="text-foreground">{data.counts.vehicles}</dd>
+            </div>
+          </dl>
+        </CardBody>
+      </Card>
+    </div>
+  );
+}
+
+function DataQualityFlagRow({ flag }: { flag: DrugPersonDataQualityFlag }) {
+  const { t } = useT();
+  const labelKey =
+    flag.code === "NO_IDENTIFIER"
+      ? "di.profile.dqNoIdentifier"
+      : flag.code === "NO_SOURCE_CASE"
+        ? "di.profile.dqNoSourceCase"
+        : flag.code === "CONFLICTING_DOB"
+          ? "di.profile.dqConflictingDob"
+          : flag.code === "POTENTIAL_DUPLICATE"
+            ? "di.profile.dqPotentialDuplicate"
+            : "di.profile.dqIdentifierShared";
+  return (
+    <li className="flex items-start gap-2 text-sm">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+      <span className="text-foreground">{t(labelKey)}</span>
+    </li>
+  );
+}
+
+function CasesTab({ cases, language }: { cases: DrugCaseLinkSummary[]; language: "th" | "en" }) {
+  const { t } = useT();
+  if (cases.length === 0) return <EmptyState title={t("di.profile.emptyCases")} icon={<Users className="h-8 w-8" />} />;
+  const sorted = [...cases].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {sorted.map((link) => (
+        <Link key={link.caseId} href={`/drug-intelligence/cases/${encodeURIComponent(link.caseId)}`} className="block rounded-xl border border-border bg-surface p-4 hover:border-accent/50">
+          <p className="font-medium text-foreground">{link.case?.caseNumber || "—"}</p>
+          <p className="mt-1 text-sm text-muted">{personRoleLabel(link.role, language)}</p>
+          <p className="mt-1 text-xs text-muted">
+            {link.case?.arrestDate ? toGregorianDateInputValue(link.case.arrestDate) : "—"} · {link.case?.province || "—"}
+          </p>
+          {link.case?.status ? <p className="mt-1 text-xs text-muted">{link.case.status}</p> : null}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function PhonesTab({ phones, sims, canViewFull }: { phones: DrugPersonPhoneRow[]; sims: DrugPersonSimSummaryRow[]; canViewFull: boolean }) {
+  const { t } = useT();
+  if (phones.length === 0 && sims.length === 0) return <EmptyState title={t("di.profile.emptyPhones")} icon={<Phone className="h-8 w-8" />} />;
+  return (
+    <div className="space-y-4">
+      {phones.length > 0 ? (
+        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3 font-medium">{t("di.phone.number")}</th>
+                <th className="px-4 py-3 font-medium">{t("di.phone.firstSeen")}</th>
+                <th className="px-4 py-3 font-medium">{t("di.phone.lastSeen")}</th>
+                <th className="px-4 py-3 font-medium">{t("di.workspace.provenanceStatus")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {phones.map((phone) => (
+                <tr key={`${phone.caseId}-${phone.phoneNumberId}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
+                  <td className="px-4 py-3 font-mono">{phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{phone.firstSeenAt ? new Date(phone.firstSeenAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{phone.lastSeenAt ? new Date(phone.lastSeenAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{phone.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {sims.length > 0 ? (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">SIM</p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {sims.map((s, i) => (
+              <li key={i} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
+                {s.sim?.iccid ? presentIdentifierValue(s.sim.iccid, canViewFull) : "—"}
+                {s.sim?.carrier ? <span className="ml-2 text-muted">{s.sim.carrier}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DevicesTab({ devices, canViewFull }: { devices: DrugPersonDeviceRow[]; canViewFull: boolean }) {
+  const { t } = useT();
+  if (devices.length === 0) return <EmptyState title={t("di.profile.emptyDevices")} icon={<Smartphone className="h-8 w-8" />} />;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {devices.map((d) => (
+        <Card key={d.deviceId}>
+          <CardBody className="space-y-1">
+            <p className="font-medium text-foreground">{[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}</p>
+            {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
+            <p className="text-xs text-muted">
+              {d.firstSeenAt ? new Date(d.firstSeenAt).toLocaleDateString() : "—"} – {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleDateString() : "—"}
+            </p>
+            {/* Section 6: neutral wording — never "เป็นเจ้าของ" (owner) unless the relationship explicitly supports it, which DrugPersonDevice never does. */}
+            <p className="text-xs text-muted">{t("di.profile.relationAssociated")}</p>
+          </CardBody>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function VehiclesTab({ vehicles }: { vehicles: DrugPersonVehicleRow[] }) {
+  const { t } = useT();
+  if (vehicles.length === 0) return <EmptyState title={t("di.profile.emptyVehicles")} icon={<Car className="h-8 w-8" />} />;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {vehicles.map((v) => (
+        <Card key={v.vehicleId}>
+          <CardBody className="space-y-1">
+            <p className="font-medium text-foreground">{v.vehicle?.registrationNumber || "—"}</p>
+            <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
+            <p className="text-xs text-muted">
+              {v.firstSeenAt ? new Date(v.firstSeenAt).toLocaleDateString() : "—"} – {v.lastSeenAt ? new Date(v.lastSeenAt).toLocaleDateString() : "—"}
+            </p>
+          </CardBody>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function LocationsTab({ locations, language }: { locations: DrugPersonProfileLocationRow[]; language: "th" | "en" }) {
+  const { t } = useT();
+  if (locations.length === 0) return <EmptyState title={t("di.profile.emptyLocations")} icon={<MapPin className="h-8 w-8" />} />;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {locations.map((loc) => (
+        <Card key={loc.id}>
+          <CardBody>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{locationRoleLabel(loc.role, language)}</p>
+            <p className="mt-1 font-medium text-foreground">{loc.location?.name || loc.location?.addressText || "—"}</p>
+            <p className="mt-1 text-sm text-muted">{loc.location?.province || "—"}</p>
+            {loc.caseNumber ? (
+              <Link href={`/drug-intelligence/cases/${encodeURIComponent(loc.caseId)}`} className="mt-1 inline-block text-xs text-accent hover:underline">
+                {t("di.profile.sourceCase")}: {loc.caseNumber}
+              </Link>
+            ) : null}
+          </CardBody>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function IdentityTab({
+  personId,
+  data,
+  language,
+  canViewFull,
+  canEdit,
+}: {
+  personId: string;
+  data: DrugPersonProfileResponse;
+  language: "th" | "en";
+  canViewFull: boolean;
+  canEdit: boolean;
+}) {
+  const { t } = useT();
+  const { user } = useAuth();
+  const [addingAlias, setAddingAlias] = useState(false);
+  const [aliasValue, setAliasValue] = useState("");
+  const [addingIdentifier, setAddingIdentifier] = useState(false);
+  const [identifierType, setIdentifierType] = useState<string>("THAI_ID");
+  const [identifierValue, setIdentifierValue] = useState("");
+  const [identifierCandidates, setIdentifierCandidates] = useState<DrugPersonMatchCandidate[]>([]);
+
+  const addAlias = useAddDrugPersonAlias(user?.id ?? null, user?.displayName ?? "");
+  const addIdentifier = useAddDrugPersonIdentifier(user?.id ?? null, user?.displayName ?? "");
+
+  async function submitAlias() {
+    if (!aliasValue.trim()) return;
+    await addAlias.mutateAsync({ personId, fullName: aliasValue.trim() });
+    setAliasValue("");
+    setAddingAlias(false);
+  }
+
+  async function submitIdentifier() {
+    if (!identifierValue.trim()) return;
+    const result = await addIdentifier.mutateAsync({ personId, type: identifierType, value: identifierValue.trim() });
+    setIdentifierValue("");
+    setAddingIdentifier(false);
+    setIdentifierCandidates(result.candidates);
+  }
+
+  const identifierTypeOptions = DRUG_PERSON_IDENTIFIER_TYPES.map((tType) => ({ value: tType, label: identifierTypeLabel(tType, language) }));
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardBody className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.person.aliases")}</p>
+            {canEdit ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setAddingAlias((v) => !v)}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("di.profile.addAlias")}
+              </Button>
+            ) : null}
+          </div>
+          {data.aliases.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.emptyAliases")}</p>
+          ) : (
+            <ul className="space-y-1 text-sm text-foreground">
+              {data.aliases.map((alias) => (
+                <li key={alias.id}>{alias.fullName}</li>
+              ))}
+            </ul>
+          )}
+          {addingAlias ? (
+            <div className="space-y-2 border-t border-border pt-3">
+              <Field label={t("di.profile.aliasValue")}>
+                <input className={inputCls} value={aliasValue} onChange={(e) => setAliasValue(e.target.value)} />
+              </Field>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={submitAlias} disabled={addAlias.isPending || !aliasValue.trim()}>
+                  {addAlias.isPending ? t("di.profile.saving") : t("di.profile.saveChanges")}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAddingAlias(false)}>
+                  {t("di.profile.cancel")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.person.drawer.identifiers")}</p>
+            {canEdit ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setAddingIdentifier((v) => !v)}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("di.profile.addIdentifier")}
+              </Button>
+            ) : null}
+          </div>
+          {data.identifiers.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.emptyIdentifiers")}</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {data.identifiers.map((identifier) => (
+                <li key={identifier.id} className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{identifierTypeLabel(identifier.type, language)}</span>
+                  <span className="font-mono text-foreground">{presentIdentifierValue(identifier.value, canViewFull)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {addingIdentifier ? (
+            <div className="space-y-2 border-t border-border pt-3">
+              <Field label={t("di.person.identifierType")}>
+                <Select options={identifierTypeOptions} value={identifierType} onChange={(e) => setIdentifierType(e.target.value)} />
+              </Field>
+              <Field label={t("di.person.identifierValue")}>
+                <input className={inputCls} value={identifierValue} onChange={(e) => setIdentifierValue(e.target.value)} />
+              </Field>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={submitIdentifier} disabled={addIdentifier.isPending || !identifierValue.trim()}>
+                  {addIdentifier.isPending ? t("di.profile.saving") : t("di.profile.saveChanges")}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAddingIdentifier(false)}>
+                  {t("di.profile.cancel")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {identifierCandidates.length > 0 ? (
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-serious">
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {t("di.person.duplicateWarningTitle")}
+              </p>
+              {identifierCandidates.map((c) => (
+                <div key={c.personId} className="rounded-lg border border-border bg-surface p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={`/drug-intelligence/persons/${encodeURIComponent(c.personId)}`} className="text-sm font-medium text-accent hover:underline">
+                      {c.primaryFullName}
+                    </Link>
+                    <DrugMatchConfidenceBadge confidence={c.confidence} />
+                  </div>
+                  <DrugMatchSignalsList signals={c.signals} confidence={c.confidence} />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </CardBody>
+      </Card>
+    </div>
+  );
+}
+
+function ReviewTab({
+  personId,
+  dataQuality,
+  mergeHistory,
+}: {
+  personId: string;
+  dataQuality: DrugPersonDataQualityFlag[];
+  mergeHistory: DrugPersonProfileResponse["mergeHistory"];
+}) {
+  const { t, language } = useT();
+  const { user } = useAuth();
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardBody className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.dataQualityTitle")}</p>
+          {dataQuality.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.dataQualityNone")}</p>
+          ) : (
+            <ul className="space-y-2">
+              {dataQuality.map((flag, i) => (
+                <DataQualityFlagRow key={i} flag={flag} />
+              ))}
+            </ul>
+          )}
+          {dataQuality.some((f) => f.code === "POTENTIAL_DUPLICATE") ? (
+            <PotentialDuplicatesPreview personId={personId} actorId={user?.id ?? null} language={language} />
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.mergeHistoryTitle")}</p>
+          {mergeHistory.length === 0 ? (
+            <p className="text-sm text-muted">—</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {mergeHistory.map((entry) => (
+                <li key={entry.id} className="rounded-lg border border-border bg-surface p-3">
+                  <p className="text-foreground">{t("di.profile.mergeHistoryEntry").replace("{personId}", entry.mergedPersonId)}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {t("di.profile.mergedBy")}: {entry.mergedByName} · {new Date(entry.mergedAt).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  );
+}
+
+function PotentialDuplicatesPreview({ personId, actorId, language }: { personId: string; actorId: string | null; language: "th" | "en" }) {
+  void language;
+  const { t } = useT();
+  const potentialDuplicates = useDrugPotentialDuplicates(actorId, personId);
+
+  if (potentialDuplicates.isPending) return <LoadingState rows={2} />;
+  if (potentialDuplicates.isError || !potentialDuplicates.data) return null;
+  if (potentialDuplicates.data.candidates.length === 0) return null;
+
+  return (
+    <div className="space-y-2 border-t border-border pt-3">
+      {potentialDuplicates.data.candidates.map((c) => (
+        <div key={c.personId} className="rounded-lg border border-border bg-surface p-3">
+          <div className="flex items-center justify-between gap-2">
+            <Link href={`/drug-intelligence/persons/${encodeURIComponent(c.personId)}`} className="text-sm font-medium text-accent hover:underline">
+              {c.primaryFullName}
+            </Link>
+            <DrugMatchConfidenceBadge confidence={c.confidence} />
+          </div>
+          <DrugMatchSignalsList signals={c.signals} confidence={c.confidence} />
+        </div>
+      ))}
+      <Button asChild variant="outline" size="sm">
+        <Link href="/drug-intelligence/review/duplicates">{t("di.matchReview.title")}</Link>
+      </Button>
+    </div>
+  );
+}

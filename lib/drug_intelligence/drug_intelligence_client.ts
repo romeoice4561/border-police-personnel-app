@@ -85,6 +85,33 @@ async function requestPost<T>(path: string, body: unknown): Promise<{ data: T }>
   return { data: parsed.data as T };
 }
 
+async function requestPatch<T>(path: string, body: unknown): Promise<{ data: T }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+  }
+
+  let parsed: ApiEnvelope<T>;
+  try {
+    parsed = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new ApiClientError("The server returned an unreadable response.", response.status, "BAD_RESPONSE");
+  }
+
+  if (!response.ok || parsed.error) {
+    const err = parsed.error;
+    throw new ApiClientError(err?.message ?? `Request failed (${response.status})`, response.status, err?.code ?? "REQUEST_FAILED", err?.details);
+  }
+
+  return { data: parsed.data as T };
+}
+
 // ── Types (mirroring the Zod/service shapes server-side) ────────────────
 
 export interface DrugIntelligenceStats {
@@ -442,6 +469,140 @@ export interface DrugPersonDetailResponse {
   vehicles: DrugPersonVehicleRow[];
 }
 
+// ── DI-2 Round B: Person Directory / Profile / Matching / Review / Merge ──
+
+export interface DrugPersonDirectoryRow {
+  id: string;
+  primaryFullName: string;
+  status: string;
+  aliasCount: number;
+  primaryAlias: string | null;
+  identifierPreview: { type: string; value: string } | null;
+  caseCount: number;
+  phoneCount: number;
+  deviceCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  hasPotentialDuplicate: boolean;
+}
+
+export interface DrugPersonDirectoryQuery {
+  page?: number;
+  pageSize?: number;
+  query?: string;
+}
+
+export type DrugMatchSignalStrength = "STRONG" | "MEDIUM" | "WEAK";
+export type DrugMatchSignalKind =
+  | "IDENTIFIER_THAI_ID"
+  | "IDENTIFIER_PASSPORT"
+  | "IDENTIFIER_ALIEN_ID"
+  | "IDENTIFIER_OTHER"
+  | "PHONE_NUMBER"
+  | "DEVICE_IMEI"
+  | "VEHICLE_VIN"
+  | "NAME_EXACT"
+  | "ALIAS_MATCH"
+  | "DATE_OF_BIRTH"
+  | "SAME_CASE";
+
+export interface DrugMatchSignal {
+  kind: DrugMatchSignalKind;
+  strength: DrugMatchSignalStrength;
+  matchedValue: string;
+}
+
+export type DrugMatchConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type DrugPersonMatchDecisionValue = "CONFIRMED_DUPLICATE" | "NOT_SAME" | "MERGED";
+
+export interface DrugPersonMatchCandidate {
+  personId: string;
+  primaryFullName: string;
+  status: string;
+  signals: DrugMatchSignal[];
+  confidence: DrugMatchConfidence;
+  existingDecision: DrugPersonMatchDecisionValue | null;
+}
+
+export interface DrugUnresolvedMatchPair extends DrugPersonMatchCandidate {
+  /** The other person in the pair (the matching-engine response calls the queue-row's own `personId` the "B" side). */
+  pairPersonId: string;
+  pairPersonName: string;
+}
+
+export interface DrugCaseLinkSummary {
+  caseId: string;
+  role: string;
+  createdAt: string;
+  case: DrugCaseDetail | null;
+}
+
+export interface DrugPersonProfileLocationRow {
+  id: string;
+  locationId: string;
+  role: string;
+  createdAt: string;
+  caseId: string;
+  caseNumber: string | null;
+  location: DrugLocationSummary | null;
+}
+
+export interface DrugPersonSimSummaryRow {
+  sim: { id: string; iccid: string | null; imsi: string | null; carrier: string | null } | null;
+}
+
+export interface DrugPersonMergeHistoryRow {
+  id: string;
+  survivorPersonId: string;
+  mergedPersonId: string;
+  reason: string | null;
+  mergedBy: string;
+  mergedByName: string;
+  mergedAt: string;
+}
+
+export interface DrugPersonDataQualityFlag {
+  code: "NO_IDENTIFIER" | "NO_SOURCE_CASE" | "CONFLICTING_DOB" | "POTENTIAL_DUPLICATE" | "IDENTIFIER_SHARED";
+  detail: string;
+}
+
+export interface DrugPersonProfileResponse {
+  person: DrugPersonDetail & { status: string; mergedIntoPersonId: string | null; createdAt: string; updatedAt: string };
+  aliases: DrugPersonAliasRow[];
+  identifiers: DrugPersonIdentifierRow[];
+  cases: DrugCaseLinkSummary[];
+  phones: DrugPersonPhoneRow[];
+  sims: DrugPersonSimSummaryRow[];
+  devices: DrugPersonDeviceRow[];
+  caseDeviceSightingCount: number;
+  vehicles: DrugPersonVehicleRow[];
+  caseVehicleSightingCount: number;
+  locations: DrugPersonProfileLocationRow[];
+  mergeHistory: DrugPersonMergeHistoryRow[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+  dataQuality: DrugPersonDataQualityFlag[];
+  counts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; locations: number };
+}
+
+export interface DrugPersonProfileUpdateInput {
+  actorId: string;
+  actorName: string;
+  primaryFullName?: string;
+  nationality?: string | null;
+  dateOfBirth?: string | null;
+  notes?: string | null;
+}
+
+export interface DrugPersonMergePreview {
+  survivorPersonId: string;
+  survivorName: string;
+  mergedPersonId: string;
+  mergedName: string;
+  movedCounts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; identifiers: number; aliases: number };
+  skippedDuplicateCaseLinks: number;
+}
+
 export const drugIntelligenceClient = {
   async getStats(actorId: string): Promise<DrugIntelligenceStats> {
     return (await request<DrugIntelligenceStats>(`/drug-intelligence/stats${toQueryString({ actorId })}`)).data;
@@ -491,6 +652,77 @@ export const drugIntelligenceClient = {
         `/drug-intelligence/devices/check${toQueryString({ actorId, imei1: imei1 ?? undefined, serialNumber: serialNumber ?? undefined })}`
       )
     ).data;
+  },
+
+  // ── DI-2 Round B ──────────────────────────────────────────────────────
+
+  async getPersonDirectory(actorId: string, query: DrugPersonDirectoryQuery): Promise<{ rows: DrugPersonDirectoryRow[]; meta: PageMeta }> {
+    const { data, meta } = await request<DrugPersonDirectoryRow[]>(`/drug-intelligence/persons${toQueryString({ actorId, ...query })}`);
+    return { rows: data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
+
+  async getPersonProfile(personId: string, actorId: string): Promise<DrugPersonProfileResponse> {
+    return (await request<DrugPersonProfileResponse>(`/drug-intelligence/persons/${encodeURIComponent(personId)}/profile${toQueryString({ actorId })}`)).data;
+  },
+
+  async updatePersonProfile(personId: string, body: DrugPersonProfileUpdateInput): Promise<DrugPersonDetail> {
+    return (await requestPatch<DrugPersonDetail>(`/drug-intelligence/persons/${encodeURIComponent(personId)}/profile`, body)).data;
+  },
+
+  async addPersonAlias(personId: string, body: { actorId: string; actorName: string; fullName: string }): Promise<{ added: boolean }> {
+    return (await requestPost<{ added: boolean }>(`/drug-intelligence/persons/${encodeURIComponent(personId)}/aliases`, body)).data;
+  },
+
+  async addPersonIdentifier(
+    personId: string,
+    body: { actorId: string; actorName: string; type: string; value: string; notes?: string | null }
+  ): Promise<{ candidates: DrugPersonMatchCandidate[] }> {
+    return (await requestPost<{ candidates: DrugPersonMatchCandidate[] }>(`/drug-intelligence/persons/${encodeURIComponent(personId)}/identifiers`, body)).data;
+  },
+
+  async getPotentialDuplicates(personId: string, actorId: string): Promise<{ candidates: DrugPersonMatchCandidate[] }> {
+    return (
+      await request<{ candidates: DrugPersonMatchCandidate[] }>(`/drug-intelligence/persons/${encodeURIComponent(personId)}/potential-duplicates${toQueryString({ actorId })}`)
+    ).data;
+  },
+
+  async getMatchReviewQueue(actorId: string): Promise<DrugUnresolvedMatchPair[]> {
+    return (await request<DrugUnresolvedMatchPair[]>(`/drug-intelligence/review/duplicates${toQueryString({ actorId })}`)).data;
+  },
+
+  async decideMatchReview(body: {
+    actorId: string;
+    actorName: string;
+    personAId: string;
+    personBId: string;
+    decision: "CONFIRMED_DUPLICATE" | "NOT_SAME";
+    signals?: unknown;
+    notes?: string | null;
+  }): Promise<{ reviewId: string }> {
+    return (await requestPost<{ reviewId: string }>("/drug-intelligence/review/duplicates/decide", body)).data;
+  },
+
+  async getMergePreview(actorId: string, survivorPersonId: string, mergedPersonId: string): Promise<DrugPersonMergePreview> {
+    return (
+      await request<DrugPersonMergePreview>(`/drug-intelligence/persons/merge/preview${toQueryString({ actorId, survivorPersonId, mergedPersonId })}`)
+    ).data;
+  },
+
+  async mergePersons(body: { actorId: string; actorName: string; survivorPersonId: string; mergedPersonId: string; reason?: string | null }): Promise<{ mergeId: string }> {
+    return (await requestPost<{ mergeId: string }>("/drug-intelligence/persons/merge", body)).data;
+  },
+
+  /** Section 21/28: Create Case's real-time duplicate-candidate check via the Round A matching engine — distinct from checkPersonDuplicate() above (DI-1's simpler reasons-only check, still used by createCase()'s submit-time block). */
+  async checkDuplicateCandidates(body: {
+    actorId: string;
+    primaryFullName: string;
+    dateOfBirth?: string | null;
+    identifiers: Array<{ type: string; value: string }>;
+    phones?: string[];
+    deviceImeis?: string[];
+    vehicleVins?: string[];
+  }): Promise<{ candidates: DrugPersonMatchCandidate[] }> {
+    return (await requestPost<{ candidates: DrugPersonMatchCandidate[] }>("/drug-intelligence/persons/check-duplicate-candidates", body)).data;
   },
 };
 

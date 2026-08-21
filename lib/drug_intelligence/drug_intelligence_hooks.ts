@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { useQuery, keepPreviousData, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData, type UseQueryResult } from "@tanstack/react-query";
 import {
   drugIntelligenceClient,
   type DrugCaseListQuery,
@@ -18,6 +18,13 @@ import {
   type DrugCaseDetailResponse,
   type DrugIntelligenceStats,
   type DrugPersonDetailResponse,
+  type DrugPersonDirectoryQuery,
+  type DrugPersonDirectoryRow,
+  type DrugPersonProfileResponse,
+  type DrugPersonProfileUpdateInput,
+  type DrugPersonMatchCandidate,
+  type DrugUnresolvedMatchPair,
+  type DrugPersonMergePreview,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export interface DrugPageMeta {
@@ -32,6 +39,13 @@ export const drugQueryKeys = {
   cases: (actorId: string | null, query: DrugCaseListQuery) => ["drug-cases", actorId, query] as const,
   case: (actorId: string | null, caseId: string) => ["drug-case", actorId, caseId] as const,
   person: (actorId: string | null, personId: string) => ["drug-person", actorId, personId] as const,
+  // DI-2 Round B
+  personDirectory: (actorId: string | null, query: DrugPersonDirectoryQuery) => ["drug-person-directory", actorId, query] as const,
+  personProfile: (actorId: string | null, personId: string) => ["drug-person-profile", actorId, personId] as const,
+  potentialDuplicates: (actorId: string | null, personId: string) => ["drug-person-potential-duplicates", actorId, personId] as const,
+  matchReviewQueue: (actorId: string | null) => ["drug-match-review-queue", actorId] as const,
+  mergePreview: (actorId: string | null, survivorPersonId: string, mergedPersonId: string) =>
+    ["drug-merge-preview", actorId, survivorPersonId, mergedPersonId] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -65,5 +79,115 @@ export function useDrugPerson(actorId: string | null, personId: string): UseQuer
     queryKey: drugQueryKeys.person(actorId, personId),
     queryFn: () => drugIntelligenceClient.getPersonDetail(personId, actorId as string),
     enabled: Boolean(actorId) && personId.length > 0,
+  });
+}
+
+// ── DI-2 Round B ──────────────────────────────────────────────────────────
+
+export function useDrugPersonDirectory(actorId: string | null, query: DrugPersonDirectoryQuery): UseQueryResult<{ rows: DrugPersonDirectoryRow[]; meta: DrugPageMeta }> {
+  return useQuery({
+    queryKey: drugQueryKeys.personDirectory(actorId, query),
+    queryFn: () => drugIntelligenceClient.getPersonDirectory(actorId as string, query),
+    enabled: Boolean(actorId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDrugPersonProfile(actorId: string | null, personId: string): UseQueryResult<DrugPersonProfileResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.personProfile(actorId, personId),
+    queryFn: () => drugIntelligenceClient.getPersonProfile(personId, actorId as string),
+    enabled: Boolean(actorId) && personId.length > 0,
+  });
+}
+
+export function useDrugPotentialDuplicates(actorId: string | null, personId: string): UseQueryResult<{ candidates: DrugPersonMatchCandidate[] }> {
+  return useQuery({
+    queryKey: drugQueryKeys.potentialDuplicates(actorId, personId),
+    queryFn: () => drugIntelligenceClient.getPotentialDuplicates(personId, actorId as string),
+    enabled: Boolean(actorId) && personId.length > 0,
+  });
+}
+
+export function useDrugMatchReviewQueue(actorId: string | null): UseQueryResult<DrugUnresolvedMatchPair[]> {
+  return useQuery({
+    queryKey: drugQueryKeys.matchReviewQueue(actorId),
+    queryFn: () => drugIntelligenceClient.getMatchReviewQueue(actorId as string),
+    enabled: Boolean(actorId),
+  });
+}
+
+export function useDrugMergePreview(actorId: string | null, survivorPersonId: string, mergedPersonId: string): UseQueryResult<DrugPersonMergePreview> {
+  return useQuery({
+    queryKey: drugQueryKeys.mergePreview(actorId, survivorPersonId, mergedPersonId),
+    queryFn: () => drugIntelligenceClient.getMergePreview(actorId as string, survivorPersonId, mergedPersonId),
+    enabled: Boolean(actorId) && survivorPersonId.length > 0 && mergedPersonId.length > 0 && survivorPersonId !== mergedPersonId,
+  });
+}
+
+/** Section 21: profile field edit (canonical name/nationality/DOB/notes). Invalidates the profile and directory caches on success so the edited value is reflected immediately, no manual refetch or page reload. */
+export function useUpdateDrugPersonProfile(actorId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ personId, body }: { personId: string; body: DrugPersonProfileUpdateInput }) => drugIntelligenceClient.updatePersonProfile(personId, body),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.personId) });
+      queryClient.invalidateQueries({ queryKey: ["drug-person-directory"] });
+    },
+  });
+}
+
+/** Section 22: add alias. */
+export function useAddDrugPersonAlias(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ personId, fullName }: { personId: string; fullName: string }) =>
+      drugIntelligenceClient.addPersonAlias(personId, { actorId: actorId as string, actorName, fullName }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.personId) });
+    },
+  });
+}
+
+/** Section 23: add identifier — never bypasses the duplicate engine, returns candidates for the caller to surface as a warning. */
+export function useAddDrugPersonIdentifier(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ personId, type, value, notes }: { personId: string; type: string; value: string; notes?: string | null }) =>
+      drugIntelligenceClient.addPersonIdentifier(personId, { actorId: actorId as string, actorName, type, value, notes }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.personId) });
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.potentialDuplicates(actorId, variables.personId) });
+    },
+  });
+}
+
+/** Section 19: persistent NOT_SAME / CONFIRMED_DUPLICATE decision. Invalidates the review queue and both persons' profiles/potential-duplicates so the decision is reflected everywhere immediately. */
+export function useDecideDrugMatchReview(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { personAId: string; personBId: string; decision: "CONFIRMED_DUPLICATE" | "NOT_SAME"; signals?: unknown; notes?: string | null }) =>
+      drugIntelligenceClient.decideMatchReview({ actorId: actorId as string, actorName, ...body }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.matchReviewQueue(actorId) });
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.potentialDuplicates(actorId, variables.personAId) });
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.potentialDuplicates(actorId, variables.personBId) });
+      queryClient.invalidateQueries({ queryKey: ["drug-person-directory"] });
+    },
+  });
+}
+
+/** Sections 15-18: transactional merge. Invalidates the review queue, directory, and both persons' profiles so the survivor's updated data and the merged person's MERGED banner show immediately without a page reload. */
+export function useMergeDrugPersons(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { survivorPersonId: string; mergedPersonId: string; reason?: string | null }) =>
+      drugIntelligenceClient.mergePersons({ actorId: actorId as string, actorName, ...body }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.matchReviewQueue(actorId) });
+      queryClient.invalidateQueries({ queryKey: ["drug-person-directory"] });
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.survivorPersonId) });
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.mergedPersonId) });
+    },
   });
 }

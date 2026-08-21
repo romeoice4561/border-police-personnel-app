@@ -6,16 +6,18 @@
  */
 "use client";
 
-import { AlertTriangle, X } from "lucide-react";
+import { useState } from "react";
+import { X } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { Field, inputCls } from "@/components/drug_intelligence/create_case_field";
+import { DrugPersonMatchCard } from "@/components/drug_intelligence/drug_person_match_card";
 import { useT } from "@/components/i18n/language_provider";
 import { useAuth } from "@/components/auth/auth_provider";
-import { useDrugPersonDuplicateCheck } from "@/components/drug_intelligence/use_person_duplicate_check";
+import { useDrugPersonMatchCandidates } from "@/components/drug_intelligence/use_person_match_candidates";
 import { usePhoneExistsIndicator, useDeviceExistsIndicator } from "@/components/drug_intelligence/use_reuse_indicators";
 import { DRUG_CASE_PERSON_ROLES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_person_options";
@@ -88,7 +90,7 @@ function PersonCard({ person, index, onChange, onRemove }: { person: PersonDraft
   const roleOptions = DRUG_CASE_PERSON_ROLES.map((r) => ({ value: r, label: t(`di.role.${r}`) }));
   const identifierTypeOptions = DRUG_PERSON_IDENTIFIER_TYPES.map((it) => ({ value: it, label: t(`di.identifierType.${it}`) }));
 
-  const duplicateCheck = useDrugPersonDuplicateCheck(user?.id ?? null, {
+  const duplicateCheck = useDrugPersonMatchCandidates(user?.id ?? null, {
     primaryFullName: person.primaryFullName,
     dateOfBirth: person.dateOfBirth || null,
     identifiers: person.identifiers.map((i) => ({ type: i.type, value: i.value })),
@@ -185,29 +187,23 @@ function PersonCard({ person, index, onChange, onRemove }: { person: PersonDraft
             </div>
 
             {showDuplicateWarning ? (
-              <div className="space-y-2 rounded-lg border border-serious/40 bg-serious/5 p-3">
-                <p className="flex items-center gap-2 text-sm font-semibold text-serious">
-                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {t("di.person.duplicateWarningTitle")}
-                </p>
-                <ul className="space-y-1.5">
-                  {duplicateCheck.candidates.map((candidate) => (
-                    <li key={candidate.personId} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                      <span className="truncate">{candidate.primaryFullName}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onChange({ existingPersonId: candidate.personId, existingPersonLabel: candidate.primaryFullName })}
-                      >
-                        {t("di.person.useExisting")}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-                <Button type="button" variant="ghost" size="sm" onClick={duplicateCheck.dismiss}>
-                  {t("di.person.createNew")}
-                </Button>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-serious">{t("di.person.duplicateWarningTitle")}</p>
+                {duplicateCheck.candidates.map((candidate) => (
+                  <DrugPersonMatchCard
+                    key={candidate.personId}
+                    candidate={candidate}
+                    onUseExisting={() => onChange({ existingPersonId: candidate.personId, existingPersonLabel: candidate.primaryFullName })}
+                  />
+                ))}
+                {/* Section 21/28: a strong (HIGH-confidence) identifier collision requires an explicit confirmation before proceeding as a new person — a weak name-only match never blocks. */}
+                {duplicateCheck.candidates.some((c) => c.confidence === "HIGH") ? (
+                  <ConfirmCreateNewDespiteStrongMatch onConfirm={duplicateCheck.dismiss} />
+                ) : (
+                  <Button type="button" variant="ghost" size="sm" onClick={duplicateCheck.dismiss}>
+                    {t("di.person.createNew")}
+                  </Button>
+                )}
               </div>
             ) : null}
 
@@ -272,6 +268,34 @@ function PersonCard({ person, index, onChange, onRemove }: { person: PersonDraft
         </section>
       </CardBody>
     </Card>
+  );
+}
+
+/** Section 21/28: explicit confirmation gate before creating a new person despite a strong (HIGH-confidence) identifier collision — never silently proceeds, never auto-blocks either. */
+function ConfirmCreateNewDespiteStrongMatch({ onConfirm }: { onConfirm: () => void }) {
+  const { t } = useT();
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(true)}>
+        {t("di.person.createNew")}
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-critical/40 bg-critical/5 p-3">
+      <p className="text-sm text-critical">{t("di.error.duplicate")}</p>
+      <div className="flex gap-2">
+        <Button type="button" size="sm" onClick={onConfirm}>
+          {t("di.person.createNew")}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+          {t("di.profile.cancel")}
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -1,17 +1,17 @@
 /**
- * DrugPersonDrawer (Phase DI-1 Round 2, Section 18).
+ * DrugPersonDrawer (Phase DI-1 Round 2, Section 18; DI-2 Round B Section 20).
  *
  * Opens on top of the Case Workspace (never navigates away — Section 18:
  * "เปิด Drawer / Side panel") showing name/aliases/masked identifiers/role in
  * this case/case count/phones/devices/vehicles. Reuses the shared Drawer
- * primitive. "Open Person Profile" is a clearly-labeled placeholder pointing
- * at DI-2 (never a dead button — Section 18's explicit instruction: clicking
- * it explains WHY it doesn't do anything yet, rather than doing nothing).
+ * primitive. "Open Person Profile" now navigates to the real DI-2 canonical
+ * Person Intelligence Profile route — the Case Workspace never implements
+ * its own full profile (Section 20's explicit instruction).
  */
 "use client";
 
+import Link from "next/link";
 import { Drawer } from "@/components/ui/drawer";
-import { Tooltip } from "@/components/ui/tooltip";
 import { LoadingState, ErrorState } from "@/components/common/states";
 import { useT } from "@/components/i18n/language_provider";
 import { useAuth } from "@/components/auth/auth_provider";
@@ -145,14 +145,9 @@ export function DrugPersonDrawer({
           </div>
 
           <div className="border-t border-border pt-4">
-            {/* Section 18: never a dead button — disabled with a tooltip
-                explaining exactly why (arrives in DI-2's full Person
-                Profile), rather than a click that silently does nothing. */}
-            <Tooltip label={t("di.person.viewProfileComingSoon")}>
-              <button type="button" disabled className="text-sm text-muted cursor-not-allowed opacity-60">
-                {t("di.person.viewProfile")}
-              </button>
-            </Tooltip>
+            <Link href={`/drug-intelligence/persons/${encodeURIComponent(personId)}`} className="text-sm font-medium text-accent hover:underline">
+              {t("di.person.viewProfile")}
+            </Link>
           </div>
         </div>
       )}

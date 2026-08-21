@@ -1548,6 +1548,20 @@ model DrugPerson {
   dateOfBirth     DateTime? @db.Date
   notes           String?
 
+  /// DI-2 Section 16: entity-resolution lifecycle state. ACTIVE is the
+  /// canonical, normal state every DI-1 person was created in. MERGED means
+  /// this row lost a merge review and now only exists for traceability —
+  /// every service/UI query that lists "real" persons (directory, search,
+  /// duplicate candidates, Create Case reuse) must filter to ACTIVE, while
+  /// mergedIntoPersonId lets any old reference (a stale bookmark, a Case
+  /// Workspace drawer opened before the merge) redirect to the surviving
+  /// canonical record instead of 404ing. Never hard-deleted (Section 16:
+  /// "ไม่ควรถูก hard delete แบบหายไป") — MERGED rows are the trace.
+  status             DrugPersonStatus @default(ACTIVE)
+  mergedIntoPerson   DrugPerson?      @relation("PersonMergedInto", fields: [mergedIntoPersonId], references: [id], onDelete: SetNull)
+  mergedIntoPersonId String?
+  mergedFromPersons  DrugPerson[]     @relation("PersonMergedInto")
+
   createdBy     String
   createdByName String
   updatedBy     String?
@@ -1572,8 +1586,26 @@ model DrugPerson {
   caseDeviceSightings  DrugCaseDevice[]       @relation("CaseDevicePerson")
   caseVehicleSightings DrugCaseVehicle[]      @relation("CaseVehiclePerson")
 
+  /// DI-2: merge history rows where this person was the surviving canonical
+  /// record, and rows where this person was absorbed into another.
+  mergesAsSurvivor DrugPersonMerge[] @relation("MergeSurvivor")
+  mergesAsMerged   DrugPersonMerge[] @relation("MergeMerged")
+
+  /// DI-2: persistent match-review decisions this person is one half of
+  /// (never re-derived per pair — see DrugPersonMatchReview's own comment).
+  matchReviewsAsA DrugPersonMatchReview[] @relation("MatchReviewPersonA")
+  matchReviewsAsB DrugPersonMatchReview[] @relation("MatchReviewPersonB")
+
   @@index([primaryFullName])
   @@index([dateOfBirth])
+  @@index([status])
+  @@index([mergedIntoPersonId])
+}
+
+/// DI-2 Section 16.
+enum DrugPersonStatus {
+  ACTIVE
+  MERGED
 }
 
 /// Section 3: one identifier for a person — a person may have MANY (a Thai
@@ -2069,4 +2101,95 @@ model DrugAuditLog {
   @@index([entityType, entityId])
   @@index([actorId])
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PHASE DI-2 — Entity Resolution / Duplicate Matching (additive only).
+//
+// Nothing above this line was changed except: DrugPerson gained `status` +
+// `mergedIntoPersonId` (Section 16 — a person is never hard-deleted by a
+// merge, only marked MERGED with a pointer to the survivor) and their two
+// new reverse relations into the models below. No existing column, index,
+// or relation was removed or retyped, so this migration is purely additive
+// on top of the DI-1 schema audited at the start of this phase.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Section 19: the persistent decision a human reviewer made about ONE
+/// unordered pair of persons — so the matching engine never re-surfaces a
+/// pair the same or another reviewer already resolved. `personAId`/`personBId`
+/// are always stored with the lexicographically smaller id first (enforced
+/// in the service layer, not the DB) so the @@unique constraint catches the
+/// pair regardless of which person the matching engine happened to name
+/// "from" vs. "to" on a later run.
+model DrugPersonMatchReview {
+  id       String @id @default(cuid())
+  personA  DrugPerson @relation("MatchReviewPersonA", fields: [personAId], references: [id], onDelete: Cascade)
+  personAId String
+  personB  DrugPerson @relation("MatchReviewPersonB", fields: [personBId], references: [id], onDelete: Cascade)
+  personBId String
+
+  decision DrugPersonMatchDecision
+
+  /// Snapshot of the matching signals that produced this review pair at
+  /// decision time (Section 11/12 — human-readable reasons, e.g.
+  /// ["identifier:THAI_ID", "nameAndDateOfBirth"]), stored as a JSON array
+  /// of strings so the review queue/history can still explain "why this
+  /// pair was suggested" even after later data edits change the live signal
+  /// set. Never used to RE-derive a verdict — matching always re-runs live.
+  signals Json
+
+  reviewedBy     String
+  reviewedByName String
+  reviewedAt     DateTime @default(now())
+  notes          String?
+
+  @@unique([personAId, personBId])
+  @@index([personAId])
+  @@index([personBId])
+  @@index([decision])
+}
+
+/// Section 19: outcome vocabulary for a match-review decision.
+/// NEEDS_REVIEW is never stored as a row's decision — it's the matching
+/// engine's live "no persistent decision exists yet for this pair" state,
+/// represented by the ABSENCE of a DrugPersonMatchReview row, not a value
+/// of this enum. CONFIRMED_DUPLICATE without an accompanying merge is a
+/// valid, distinct state from MERGED (Section 19: a reviewer can confirm
+/// two records represent the same person while deferring the actual merge
+/// operation to later — Section 15's merge flow is a separate, heavier step).
+enum DrugPersonMatchDecision {
+  CONFIRMED_DUPLICATE
+  NOT_SAME
+  MERGED
+}
+
+/// Section 16: one completed merge operation — the durable trace of
+/// "mergedPerson was merged into survivorPerson". Never deleted or updated
+/// after creation (append-only, like DrugAuditLog). `detail` carries a JSON
+/// snapshot of the merged person's pre-merge state (aliases/identifiers/
+/// case count/etc.) specifically so a future administrative Unmerge (DI-2
+/// Section 18: not built now, but must not be architecturally foreclosed)
+/// has enough information to reconstruct what was absorbed, without relying
+/// on DrugPerson.mergedIntoPersonId alone (which only proves the fact of a
+/// merge, not its contents at the time).
+model DrugPersonMerge {
+  id                String @id @default(cuid())
+  survivorPerson    DrugPerson @relation("MergeSurvivor", fields: [survivorPersonId], references: [id], onDelete: Cascade)
+  survivorPersonId  String
+  mergedPerson      DrugPerson @relation("MergeMerged", fields: [mergedPersonId], references: [id], onDelete: Cascade)
+  mergedPersonId    String
+
+  reason String?
+  /// JSON snapshot: { mergedPerson: {...}, movedCounts: { cases, phones,
+  /// sims, devices, vehicles, identifiers, aliases }, skippedDuplicates:
+  /// {...} } — see drug_person_merge_service.ts for the exact shape.
+  detail Json
+
+  mergedBy     String
+  mergedByName String
+  mergedAt     DateTime @default(now())
+
+  @@index([survivorPersonId])
+  @@index([mergedPersonId])
+  @@index([mergedAt])
 }

@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award, ShieldAlert, GitCompareArrows, FilePlus2 } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
@@ -91,7 +91,13 @@ const NAV_GROUPS: NavGroup[] = [
     // permission" — the route itself is ALSO gated via ROUTE_PERMISSIONS, so
     // hiding the link is a UX nicety, not the security boundary).
     titleKey: "nav.groupDrugIntelligence",
-    items: [{ href: "/drug-intelligence", labelKey: "di.nav.title", icon: ShieldAlert, permission: "drug.read" }],
+    items: [
+      { href: "/drug-intelligence", labelKey: "di.nav.title", icon: ShieldAlert, permission: "drug.read" },
+      { href: "/drug-intelligence/cases", labelKey: "di.nav.cases", icon: FileSpreadsheet, permission: "drug.read" },
+      { href: "/drug-intelligence/persons", labelKey: "di.nav.persons", icon: Users, permission: "drug.read" },
+      { href: "/drug-intelligence/review/duplicates", labelKey: "di.nav.reviewDuplicates", icon: GitCompareArrows, permission: "drug.read" },
+      { href: "/drug-intelligence/cases/new", labelKey: "di.nav.newCase", icon: FilePlus2, permission: "drug.create" },
+    ],
   },
   {
     titleKey: "nav.groupAdministration",

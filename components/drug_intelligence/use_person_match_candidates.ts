@@ -1,24 +1,26 @@
 /**
- * useDrugPersonDuplicateCheck (Phase DI-1 Round 2, Section 8/14).
+ * useDrugPersonMatchCandidates (Phase DI-2 Round B, Section 21/28).
  *
- * Debounced, real-time duplicate check against the Round 2
- * check-duplicate endpoint as the user fills in a NEW person's name/DOB/
- * identifiers. Never blocks typing, never auto-merges — reports candidates
- * for the Person section to render as a dismissible warning with explicit
- * "ใช้บุคคลเดิม" / "สร้างเป็นบุคคลใหม่" actions.
+ * Debounced, real-time duplicate check against the Round A matching engine
+ * (signals + confidence) — supersedes DI-1's useDrugPersonDuplicateCheck for
+ * the Create Case Persons step's UI, while createCase()'s server-side
+ * submit-time block still independently uses DI-1's simpler check (see
+ * drug_person_api_schemas.ts's comment on this endpoint). Never blocks
+ * typing, never auto-merges — reports candidates for the Person section to
+ * render as a dismissible warning with "ใช้บุคคลเดิม" / "สร้างเป็นบุคคลใหม่" actions.
  */
 "use client";
 
 import { useEffect, useState } from "react";
-import { drugIntelligenceClient, type DrugPersonDuplicateCandidate } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { drugIntelligenceClient, type DrugPersonMatchCandidate } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 const DEBOUNCE_MS = 500;
 
-export function useDrugPersonDuplicateCheck(
+export function useDrugPersonMatchCandidates(
   actorId: string | null,
   input: { primaryFullName: string; dateOfBirth: string | null; identifiers: Array<{ type: string; value: string }> }
 ) {
-  const [candidates, setCandidates] = useState<DrugPersonDuplicateCandidate[]>([]);
+  const [candidates, setCandidates] = useState<DrugPersonMatchCandidate[]>([]);
   const [checking, setChecking] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -26,10 +28,6 @@ export function useDrugPersonDuplicateCheck(
 
   useEffect(() => {
     if (!actorId || !hasSignal) {
-      // No debounce needed for the "nothing to check" case — but still
-      // deferred to a microtask via the timer below (0ms) rather than
-      // called synchronously in the effect body, so React never sees a
-      // setState during the render/effect phase itself.
       const timer = window.setTimeout(() => {
         setDismissed(false);
         setCandidates([]);
@@ -42,7 +40,7 @@ export function useDrugPersonDuplicateCheck(
       setDismissed(false);
       setChecking(true);
       try {
-        const result = await drugIntelligenceClient.checkPersonDuplicate({
+        const result = await drugIntelligenceClient.checkDuplicateCandidates({
           actorId,
           primaryFullName: input.primaryFullName,
           dateOfBirth: input.dateOfBirth,

@@ -29,7 +29,7 @@ export class DrugPersonRepository {
   }
 
   create(input: DrugPersonCreateInput): Promise<DrugPerson> {
-    return this.db.drugPerson.create({ data: { ...input, updatedBy: null, updatedByName: null } });
+    return this.db.drugPerson.create({ data: { ...input, updatedBy: null, updatedByName: null, status: "ACTIVE", mergedIntoPersonId: null } });
   }
 
   async addIdentifier(personId: string, type: string, value: string, notes: string | null, createdBy: string): Promise<DrugPersonIdentifier> {
@@ -74,5 +74,35 @@ export class DrugPersonRepository {
   /** Section 18's Person Detail Drawer — every phone number link across ALL of this person's cases (not scoped to one case), for the "phones" list. */
   casePhonesForPerson(personId: string) {
     return this.db.drugCasePhone.findMany({ where: { personId } });
+  }
+
+  // ── DI-2: Entity Resolution additions ──────────────────────────────────
+
+  /**
+   * DI-2 Section 7/9: every ACTIVE person, for the Person Directory and the
+   * matching engine's candidate pool. Same "load then filter in JS"
+   * DI-1-established shape as `search()` above (no DB-side text index exists
+   * yet) — acceptable at this module's current data scale, same call already
+   * made for `search()`. MERGED persons are excluded so a resolved duplicate
+   * never resurfaces in the directory or as a fresh matching candidate.
+   */
+  async findAllActive(): Promise<DrugPerson[]> {
+    const rows = await this.db.drugPerson.findMany({ where: { status: "ACTIVE" } });
+    return rows.filter((r) => r.status === "ACTIVE");
+  }
+
+  /** DI-2 Section 15/16: marks a person MERGED and points it at the surviving canonical person. Called only from inside the merge service's transaction. */
+  async markMerged(personId: string, mergedIntoPersonId: string): Promise<DrugPerson> {
+    return this.db.drugPerson.update({ where: { id: personId }, data: { status: "MERGED", mergedIntoPersonId } });
+  }
+
+  /** DI-2 Section 21: profile edit — canonical name/nationality/DOB/notes. Identifier/alias edits go through addIdentifier/addAlias above, never through this generic update, so those additions can carry their own audit trail entries. */
+  async updateProfile(
+    personId: string,
+    input: { primaryFullName?: string; nationality?: string | null; dateOfBirth?: Date | null; notes?: string | null },
+    updatedBy: string,
+    updatedByName: string
+  ): Promise<DrugPerson> {
+    return this.db.drugPerson.update({ where: { id: personId }, data: { ...input, updatedBy, updatedByName } });
   }
 }
