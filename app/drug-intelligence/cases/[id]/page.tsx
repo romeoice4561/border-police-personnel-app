@@ -20,6 +20,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DrugCaseStatusBadge } from "@/components/drug_intelligence/drug_case_status_badge";
 import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
+import { DrugCaseAlertSummary } from "@/components/drug_intelligence/drug_case_alert_summary";
 import { DrugPersonDrawer } from "@/components/drug_intelligence/drug_person_drawer";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
@@ -184,13 +185,16 @@ function FutureFeaturesNote() {
 function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
   const { t } = useT();
   return (
-    <Card>
-      <CardBody className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>
-        <p className="whitespace-pre-wrap text-sm text-foreground">{data.case.narrative || "—"}</p>
-        <FutureFeaturesNote />
-      </CardBody>
-    </Card>
+    <div className="space-y-3">
+      <DrugCaseAlertSummary caseId={data.case.id} />
+      <Card>
+        <CardBody className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{data.case.narrative || "—"}</p>
+          <FutureFeaturesNote />
+        </CardBody>
+      </Card>
+    </div>
   );
 }
 

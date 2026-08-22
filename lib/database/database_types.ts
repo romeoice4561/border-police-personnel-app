@@ -40,6 +40,7 @@ import type {
   DrugAuditLog,
   DrugPersonMatchReview,
   DrugPersonMerge,
+  DrugIntelligenceAlert,
 } from "@/lib/generated/prisma/client";
 
 export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
@@ -65,6 +66,7 @@ export type {
   DrugAuditLog,
   DrugPersonMatchReview,
   DrugPersonMerge,
+  DrugIntelligenceAlert,
 };
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
@@ -125,6 +127,8 @@ export interface DatabaseClient {
   /** Phase DI-2: Entity Resolution — persistent match-review decisions and merge history. Same narrow ModelDelegate convention. */
   drugPersonMatchReview: ModelDelegate<DrugPersonMatchReview, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   drugPersonMerge: ModelDelegate<DrugPersonMerge, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase DI-6: Repeat Entity Detection & Intelligence Alerts — persisted alert events. Same narrow ModelDelegate convention. */
+  drugIntelligenceAlert: ModelDelegate<DrugIntelligenceAlert, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's

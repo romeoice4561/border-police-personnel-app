@@ -194,9 +194,23 @@ export function buildDrugGroupedMessage(results: DrugSearchGroupedResults, webSe
   };
 }
 
+/**
+ * Phase DI-6, Section 16: minimal, safe repeat-intelligence flag —
+ * `caseCount` was already computed and displayed by every formatter below
+ * (DI-4), so this is presentation-only, no new data plumbing. Deliberately
+ * NOT the full alert history (never exposed in Telegram) — just a nudge to
+ * open the Web app for detail. Threshold matches drug_intelligence_alert_
+ * severity.ts's own "more than one prior case" NOTICE/HIGH boundary.
+ */
+function repeatIntelligenceLine(result: DrugSearchResult): string | null {
+  return result.caseCount > 1 ? "⚠ พบข้อมูลนี้ในหลายคดี" : null;
+}
+
 /** Section 12: Person result detail card — case/phone/device counts, last seen, never a full profile dump. */
 export function formatDrugPersonDetailText(result: DrugSearchResult): string {
   const lines = [`👤 <b>${escapeTelegramHtml(result.primaryLabel)}</b>`, `พบใน ${result.caseCount} คดี`, `ล่าสุด: ${formatDateTh(result.lastSeen)}`];
+  const repeatLine = repeatIntelligenceLine(result);
+  if (repeatLine) lines.push(repeatLine);
   if (result.hasPotentialDuplicate) lines.push("⚠️ พบข้อมูลที่อาจซ้ำกับบุคคลอื่น");
   if (result.canonicalTarget) lines.push(`ℹ️ รายการนี้ถูกรวมเข้ากับ: ${escapeTelegramHtml(result.canonicalTarget.primaryLabel)}`);
   return truncateForTelegram(lines.join("\n"));
@@ -210,6 +224,8 @@ export function formatDrugPhoneDetailText(result: DrugSearchResult): string {
     `First Seen: ${formatDateTh(result.firstSeen)}`,
     `Last Seen: ${formatDateTh(result.lastSeen)}`,
   ];
+  const repeatLine = repeatIntelligenceLine(result);
+  if (repeatLine) lines.push(repeatLine);
   return truncateForTelegram(lines.join("\n"));
 }
 
@@ -218,6 +234,8 @@ export function formatDrugDeviceDetailText(result: DrugSearchResult): string {
   const lines = [`📱 <b>${escapeTelegramHtml(result.primaryLabel)}</b>`];
   if (result.secondaryLabel) lines.push(escapeTelegramHtml(result.secondaryLabel));
   lines.push(`พบใน ${result.caseCount} คดี`);
+  const repeatLine = repeatIntelligenceLine(result);
+  if (repeatLine) lines.push(repeatLine);
   return truncateForTelegram(lines.join("\n"));
 }
 
@@ -226,6 +244,8 @@ export function formatDrugVehicleDetailText(result: DrugSearchResult): string {
   const lines = [`🚗 <b>${escapeTelegramHtml(result.primaryLabel)}</b>`];
   if (result.secondaryLabel) lines.push(escapeTelegramHtml(result.secondaryLabel));
   lines.push(`พบใน ${result.caseCount} คดี`);
+  const repeatLine = repeatIntelligenceLine(result);
+  if (repeatLine) lines.push(repeatLine);
   return truncateForTelegram(lines.join("\n"));
 }
 
@@ -239,6 +259,8 @@ export function formatDrugCaseDetailText(result: DrugSearchResult): string {
 /** Section 14: SIM result. */
 export function formatDrugSimDetailText(result: DrugSearchResult): string {
   const lines = [`💳 <b>${escapeTelegramHtml(result.primaryLabel)}</b>`, `พบใน ${result.caseCount} คดี`];
+  const repeatLine = repeatIntelligenceLine(result);
+  if (repeatLine) lines.push(repeatLine);
   return truncateForTelegram(lines.join("\n"));
 }
 

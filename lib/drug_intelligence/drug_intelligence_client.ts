@@ -831,6 +831,82 @@ export interface DrugGraphPathQuery {
   maxDepth?: number;
 }
 
+// ── DI-6: Repeat Entity Detection & Intelligence Alerts ───────────────────
+
+export type DrugAlertType =
+  | "REPEAT_PERSON"
+  | "REPEAT_PHONE"
+  | "REPEAT_SIM"
+  | "REPEAT_DEVICE"
+  | "REPEAT_VEHICLE"
+  | "REPEAT_CASE_ENTITY"
+  | "NEW_NETWORK_CONNECTION"
+  | "HIGH_CONFIDENCE_DUPLICATE";
+
+export type DrugAlertSeverity = "INFO" | "NOTICE" | "HIGH";
+export type DrugAlertEntityType = "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE";
+export type DrugAlertStatus = "NEW" | "REVIEWED" | "DISMISSED";
+
+export interface DrugIntelligenceAlert {
+  id: string;
+  alertType: DrugAlertType;
+  severity: DrugAlertSeverity;
+  entityType: DrugAlertEntityType;
+  entityId: string;
+  title: string;
+  explanation: string;
+  currentCaseId: string | null;
+  priorCaseIds: string[];
+  relatedPersonIds: string[] | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  occurrenceCount: number;
+  dedupeKey: string;
+  status: DrugAlertStatus;
+  reviewedBy: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  dismissReason: string | null;
+  createdAt: string;
+}
+
+export interface DrugIntelligenceAlertKpi {
+  unreviewed: number;
+  highSeverity: number;
+  repeatPerson: number;
+  repeatPhoneOrSim: number;
+  repeatDeviceOrImei: number;
+  repeatVehicle: number;
+}
+
+export interface DrugAlertListQuery {
+  status?: DrugAlertStatus;
+  alertType?: DrugAlertType;
+  severity?: DrugAlertSeverity;
+  entityType?: DrugAlertEntityType;
+  currentCaseId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DrugAlertListResponse {
+  alerts: DrugIntelligenceAlert[];
+  totalCount: number;
+  kpi: DrugIntelligenceAlertKpi;
+}
+
+export interface DrugAlertQuickCheckResult {
+  found: boolean;
+  entityType: DrugAlertEntityType;
+  entityId: string | null;
+  caseCount: number;
+  relatedPersonCount: number;
+  lastSeenAt: string | null;
+}
+
 export const drugIntelligenceClient = {
   async getStats(actorId: string): Promise<DrugIntelligenceStats> {
     return (await request<DrugIntelligenceStats>(`/drug-intelligence/stats${toQueryString({ actorId })}`)).data;
@@ -988,6 +1064,62 @@ export const drugIntelligenceClient = {
 
   async getNetworkPath(actorId: string, query: DrugGraphPathQuery): Promise<DrugGraphPathResponse> {
     return (await request<DrugGraphPathResponse>(`/drug-intelligence/network/path${toQueryString({ actorId, ...query })}`)).data;
+  },
+
+  // ── DI-6: Repeat Entity Detection & Intelligence Alerts ─────────────────
+
+  async listAlerts(actorId: string, query: DrugAlertListQuery): Promise<DrugAlertListResponse> {
+    return (await request<DrugAlertListResponse>(`/drug-intelligence/alerts${toQueryString({ actorId, ...query })}`)).data;
+  },
+
+  async getAlertsForEntity(actorId: string, entityType: DrugAlertEntityType, entityId: string): Promise<{ alerts: DrugIntelligenceAlert[] }> {
+    return (await request<{ alerts: DrugIntelligenceAlert[] }>(`/drug-intelligence/alerts/entity${toQueryString({ actorId, entityType, entityId })}`)).data;
+  },
+
+  async getAlertsForCase(actorId: string, caseId: string): Promise<{ alerts: DrugIntelligenceAlert[] }> {
+    return (await request<{ alerts: DrugIntelligenceAlert[] }>(`/drug-intelligence/alerts/case${toQueryString({ actorId, caseId })}`)).data;
+  },
+
+  async quickCheckPhone(actorId: string, rawInput: string): Promise<DrugAlertQuickCheckResult> {
+    return (await request<DrugAlertQuickCheckResult>(`/drug-intelligence/alerts/quick-check${toQueryString({ actorId, entityType: "PHONE", rawInput })}`)).data;
+  },
+
+  async quickCheckDevice(actorId: string, imei1: string | null, serialNumber: string | null): Promise<DrugAlertQuickCheckResult> {
+    return (
+      await request<DrugAlertQuickCheckResult>(
+        `/drug-intelligence/alerts/quick-check${toQueryString({ actorId, entityType: "DEVICE", imei1: imei1 ?? undefined, serialNumber: serialNumber ?? undefined })}`
+      )
+    ).data;
+  },
+
+  async quickCheckVehicle(actorId: string, registrationNumber: string | null, registrationProvince: string | null, vin: string | null): Promise<DrugAlertQuickCheckResult> {
+    return (
+      await request<DrugAlertQuickCheckResult>(
+        `/drug-intelligence/alerts/quick-check${toQueryString({
+          actorId,
+          entityType: "VEHICLE",
+          registrationNumber: registrationNumber ?? undefined,
+          registrationProvince: registrationProvince ?? undefined,
+          vin: vin ?? undefined,
+        })}`
+      )
+    ).data;
+  },
+
+  async generateAlerts(actorId: string, actorName: string, caseId: string): Promise<{ alerts: DrugIntelligenceAlert[] }> {
+    return (await requestPost<{ alerts: DrugIntelligenceAlert[] }>("/drug-intelligence/alerts/generate", { actorId, actorName, caseId })).data;
+  },
+
+  async reviewAlert(alertId: string, actorId: string, actorName: string): Promise<{ alert: DrugIntelligenceAlert }> {
+    return (await requestPost<{ alert: DrugIntelligenceAlert }>(`/drug-intelligence/alerts/${encodeURIComponent(alertId)}/review`, { actorId, actorName })).data;
+  },
+
+  async dismissAlert(alertId: string, actorId: string, actorName: string, reason: string): Promise<{ alert: DrugIntelligenceAlert }> {
+    return (await requestPost<{ alert: DrugIntelligenceAlert }>(`/drug-intelligence/alerts/${encodeURIComponent(alertId)}/dismiss`, { actorId, actorName, reason })).data;
+  },
+
+  async reopenAlert(alertId: string, actorId: string, actorName: string): Promise<{ alert: DrugIntelligenceAlert }> {
+    return (await requestPost<{ alert: DrugIntelligenceAlert }>(`/drug-intelligence/alerts/${encodeURIComponent(alertId)}/reopen`, { actorId, actorName })).data;
   },
 };
 

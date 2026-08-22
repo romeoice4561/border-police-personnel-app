@@ -14,13 +14,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, FileSpreadsheet, Network as NetworkIcon, BellRing } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useOrganizationEngine } from "@/lib/ui/hooks";
-import { drugIntelligenceClient, ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { useGenerateDrugAlerts } from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { drugIntelligenceClient, ApiClientError, type DrugIntelligenceAlert } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { createEmptyDraft, buildCreateCaseRequest, validateDraft, type CreateCaseDraft } from "@/lib/drug_intelligence/create_case_draft";
 import { CreateCaseArrestStep } from "@/components/drug_intelligence/create_case_arrest_step";
 import { CreateCasePersonsStep } from "@/components/drug_intelligence/create_case_persons_step";
@@ -45,6 +47,8 @@ export default function CreateDrugCasePage() {
   const [stepIndex, setStepIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [createdCase, setCreatedCase] = useState<{ caseId: string; alerts: DrugIntelligenceAlert[] } | null>(null);
+  const generateAlerts = useGenerateDrugAlerts(user?.id ?? null, user?.displayName ?? "");
 
   if (!can("drug.create")) {
     return (
@@ -79,7 +83,12 @@ export default function CreateDrugCasePage() {
     try {
       const request = buildCreateCaseRequest(draft, user.id, user.displayName);
       const result = await drugIntelligenceClient.createCase(request);
-      router.push(`/drug-intelligence/cases/${encodeURIComponent(result.caseId)}`);
+      // Section 7: generate alerts AFTER the case is already saved — a
+      // failure here must never be treated as a case-creation failure,
+      // never rolls back, never blocks reaching the success summary.
+      const generated = await generateAlerts.mutateAsync(result.caseId).catch(() => ({ alerts: [] as DrugIntelligenceAlert[] }));
+      setCreatedCase({ caseId: result.caseId, alerts: generated.alerts });
+      setSubmitting(false);
     } catch (error) {
       if (error instanceof ApiClientError) {
         if (error.status === 409) {
@@ -97,6 +106,52 @@ export default function CreateDrugCasePage() {
       }
       setSubmitting(false);
     }
+  }
+
+  if (createdCase) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-5">
+        <Card className="border-good/40 bg-good/5">
+          <CardBody className="space-y-4 text-center">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-good" aria-hidden="true" />
+            <p className="text-lg font-semibold text-foreground">{t("di.alert.postCreateTitle")}</p>
+            {createdCase.alerts.length > 0 ? (
+              <div className="space-y-2 text-left">
+                <p className="text-sm font-medium text-foreground">{t("di.alert.postCreateFound")}</p>
+                <ul className="space-y-1 text-sm text-muted">
+                  {createdCase.alerts.map((alert) => (
+                    <li key={alert.id}>• {alert.title}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-sm text-muted">{t("di.alert.postCreateNone")}</p>
+            )}
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
+              <Button onClick={() => router.push(`/drug-intelligence/cases/${encodeURIComponent(createdCase.caseId)}`)}>
+                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                {t("di.alert.postCreateOpenCase")}
+              </Button>
+              {createdCase.alerts.length > 0 ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(createdCase.caseId)}`)}
+                  >
+                    <NetworkIcon className="h-4 w-4" aria-hidden="true" />
+                    {t("di.alert.postCreateViewNetwork")}
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push(`/drug-intelligence/alerts?currentCaseId=${encodeURIComponent(createdCase.caseId)}`)}>
+                    <BellRing className="h-4 w-4" aria-hidden="true" />
+                    {t("di.alert.postCreateViewAlerts")}
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    );
   }
 
   return (

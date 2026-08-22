@@ -3,9 +3,11 @@
  */
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, PhoneCall, Smartphone, Car } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { useT } from "@/components/i18n/language_provider";
+import { useAuth } from "@/components/auth/auth_provider";
+import { useDraftAlertSummary } from "@/components/drug_intelligence/use_draft_alert_summary";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
 import type { CreateCaseDraft, ValidationError } from "@/lib/drug_intelligence/create_case_draft";
@@ -43,10 +45,46 @@ export function CreateCaseReviewStep({
   onJumpToStep: (step: string) => void;
 }) {
   const { t, language } = useT();
+  const { user } = useAuth();
+  const alertSummary = useDraftAlertSummary(user?.id ?? null, draft.persons);
 
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-foreground">{t("di.review.title")}</h2>
+
+      {alertSummary.totalCount > 0 ? (
+        <Card className="border-warning/40 bg-warning-bg/40">
+          <CardBody className="space-y-2">
+            <p className="flex items-center gap-2 text-sm font-semibold text-warning">
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              {t("di.alert.reviewSummaryTitle")}
+            </p>
+            <p className="text-sm text-foreground">
+              {t("di.alert.reviewSummaryCount")} {alertSummary.totalCount.toLocaleString("th-TH")} {t("di.alert.reviewSummaryItems")}
+            </p>
+            <ul className="space-y-1.5 text-sm text-foreground">
+              {alertSummary.phoneMatches.length > 0 ? (
+                <li className="flex items-center gap-1.5">
+                  <PhoneCall className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
+                  {t("di.alert.typeRepeatPhone")}: {alertSummary.phoneMatches.length.toLocaleString("th-TH")}
+                </li>
+              ) : null}
+              {alertSummary.deviceMatches.length > 0 ? (
+                <li className="flex items-center gap-1.5">
+                  <Smartphone className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
+                  {t("di.alert.typeRepeatDevice")}: {alertSummary.deviceMatches.length.toLocaleString("th-TH")}
+                </li>
+              ) : null}
+              {alertSummary.vehicleMatches.length > 0 ? (
+                <li className="flex items-center gap-1.5">
+                  <Car className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
+                  {t("di.alert.typeRepeatVehicle")}: {alertSummary.vehicleMatches.length.toLocaleString("th-TH")}
+                </li>
+              ) : null}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
 
       {errors.length > 0 ? (
         <Card className="border-critical/40 bg-critical/5">

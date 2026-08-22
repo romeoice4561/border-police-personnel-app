@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
+import { DrugEntityAlertSummary } from "@/components/drug_intelligence/drug_entity_alert_summary";
 import { DrugMatchConfidenceBadge } from "@/components/drug_intelligence/drug_match_confidence_badge";
 import { DrugMatchSignalsList } from "@/components/drug_intelligence/drug_match_signals_list";
 import { Field, inputCls } from "@/components/drug_intelligence/create_case_field";
@@ -269,6 +270,8 @@ function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileR
           <p className="text-sm text-foreground">{t("di.profile.casesFoundIn").replace("{count}", String(data.counts.cases))}</p>
         </CardBody>
       </Card>
+
+      <DrugEntityAlertSummary entityType="PERSON" entityId={data.person.id} />
 
       <Card>
         <CardBody className="space-y-2">

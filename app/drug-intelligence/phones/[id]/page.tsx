@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugPhoneDetail } from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { DrugEntityAlertSummary } from "@/components/drug_intelligence/drug_entity_alert_summary";
 import { presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 
@@ -67,6 +68,8 @@ export default function DrugPhoneDetailPage() {
           </span>
         </CardBody>
       </Card>
+
+      <DrugEntityAlertSummary entityType="PHONE" entityId={phoneNumberId} titleKey="di.alert.entityHistoryTitle" />
 
       <div>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{t("di.entity.relatedPersons")}</h2>

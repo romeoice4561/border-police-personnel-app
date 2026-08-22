@@ -37,6 +37,10 @@ import {
   type DrugGraphNeighborhoodResponse,
   type DrugGraphPathQuery,
   type DrugGraphPathResponse,
+  type DrugAlertListQuery,
+  type DrugAlertListResponse,
+  type DrugAlertEntityType,
+  type DrugIntelligenceAlert,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export interface DrugPageMeta {
@@ -68,6 +72,10 @@ export const drugQueryKeys = {
   // DI-5
   networkNeighborhood: (actorId: string | null, query: DrugGraphNeighborhoodQuery) => ["drug-network-neighborhood", actorId, query] as const,
   networkPath: (actorId: string | null, query: DrugGraphPathQuery) => ["drug-network-path", actorId, query] as const,
+  // DI-6
+  alertList: (actorId: string | null, query: DrugAlertListQuery) => ["drug-alert-list", actorId, query] as const,
+  alertsForEntity: (actorId: string | null, entityType: DrugAlertEntityType, entityId: string) => ["drug-alerts-for-entity", actorId, entityType, entityId] as const,
+  alertsForCase: (actorId: string | null, caseId: string) => ["drug-alerts-for-case", actorId, caseId] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -285,5 +293,86 @@ export function useDrugNetworkPath(actorId: string | null, query: DrugGraphPathQ
     queryKey: drugQueryKeys.networkPath(actorId, query ?? { fromType: "PERSON", fromId: "", toType: "PERSON", toId: "" }),
     queryFn: () => drugIntelligenceClient.getNetworkPath(actorId as string, query as DrugGraphPathQuery),
     enabled: Boolean(actorId) && Boolean(query) && query!.fromId.length > 0 && query!.toId.length > 0,
+  });
+}
+
+// ── DI-6: Repeat Entity Detection & Intelligence Alerts ─────────────────
+
+/** Alert Center list + KPI (Section 8). Server-side filtered/paginated — never fetches everything and filters client-side. */
+export function useDrugAlertList(actorId: string | null, query: DrugAlertListQuery): UseQueryResult<DrugAlertListResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.alertList(actorId, query),
+    queryFn: () => drugIntelligenceClient.listAlerts(actorId as string, query),
+    enabled: Boolean(actorId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Section 14/15: entity-detail page's "ประวัติการพบ"/alert context. */
+export function useDrugAlertsForEntity(actorId: string | null, entityType: DrugAlertEntityType, entityId: string): UseQueryResult<{ alerts: DrugIntelligenceAlert[] }> {
+  return useQuery({
+    queryKey: drugQueryKeys.alertsForEntity(actorId, entityType, entityId),
+    queryFn: () => drugIntelligenceClient.getAlertsForEntity(actorId as string, entityType, entityId),
+    enabled: Boolean(actorId) && entityId.length > 0,
+  });
+}
+
+/** Section 13: Case Workspace's alert summary. */
+export function useDrugAlertsForCase(actorId: string | null, caseId: string): UseQueryResult<{ alerts: DrugIntelligenceAlert[] }> {
+  return useQuery({
+    queryKey: drugQueryKeys.alertsForCase(actorId, caseId),
+    queryFn: () => drugIntelligenceClient.getAlertsForCase(actorId as string, caseId),
+    enabled: Boolean(actorId) && caseId.length > 0,
+  });
+}
+
+/** Section 7: post-create generation trigger — called once right after a successful case save, never blocking the save itself. Invalidates every alert-related cache on success. */
+export function useGenerateDrugAlerts(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (caseId: string) => drugIntelligenceClient.generateAlerts(actorId as string, actorName, caseId),
+    onSuccess: (_data, caseId) => {
+      queryClient.invalidateQueries({ queryKey: ["drug-alert-list"] });
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.alertsForCase(actorId, caseId) });
+    },
+  });
+}
+
+/** Section 9: mark an alert REVIEWED. */
+export function useReviewDrugAlert(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (alertId: string) => drugIntelligenceClient.reviewAlert(alertId, actorId as string, actorName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drug-alert-list"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-entity"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-case"] });
+    },
+  });
+}
+
+/** Section 9: dismiss an alert — requires a reason. */
+export function useDismissDrugAlert(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ alertId, reason }: { alertId: string; reason: string }) => drugIntelligenceClient.dismissAlert(alertId, actorId as string, actorName, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drug-alert-list"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-entity"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-case"] });
+    },
+  });
+}
+
+/** Section 9: reopen a REVIEWED/DISMISSED alert back to NEW. */
+export function useReopenDrugAlert(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (alertId: string) => drugIntelligenceClient.reopenAlert(alertId, actorId as string, actorName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drug-alert-list"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-entity"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-case"] });
+    },
   });
 }

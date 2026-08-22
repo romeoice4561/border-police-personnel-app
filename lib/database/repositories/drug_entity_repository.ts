@@ -174,6 +174,19 @@ export class DrugEntityRepository {
     return this.db.drugVehicle.create({ data: { ...input, notes: null } });
   }
 
+  /** Existence-only lookup for a real-time "พบรถคันนี้ในข้อมูลเดิม" reuse indicator (Phase DI-6, Section 4) — never blocks, only informs. Mirrors findDeviceByImeiOrSerial's read-only pattern; matches findOrCreateVehicle's own matching precedence (registration+province first, VIN second). */
+  async findVehicleByRegistrationOrVin(registrationNumber: string | null, registrationProvince: string | null, vin: string | null): Promise<DrugVehicle | null> {
+    if (registrationNumber && registrationProvince) {
+      const matches = await this.db.drugVehicle.findMany({ where: { registrationNumber, registrationProvince } });
+      if (matches.length > 0) return matches[0];
+    }
+    if (vin) {
+      const matches = await this.db.drugVehicle.findMany({ where: { vin } });
+      if (matches.length > 0) return matches[0];
+    }
+    return null;
+  }
+
   findVehicleById(id: string): Promise<DrugVehicle | null> {
     return this.db.drugVehicle.findUnique({ where: { id } });
   }

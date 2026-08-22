@@ -2276,3 +2276,71 @@ model DrugPersonMerge {
   @@index([mergedPersonId])
   @@index([mergedAt])
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// PHASE DI-6 — Repeat Entity Detection & Intelligence Alerts (additive
+// only). Nothing above this line was changed.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Section 10: a PERSISTED alert event — review/dismiss state and alert
+/// history must survive across page loads and later data changes, which a
+/// purely-recomputed-on-read model cannot provide. Deliberately NOT built
+/// on DrugAuditLog (append-only, unstructured `detail: String?`, no
+/// lifecycle/severity) and NOT built on DrugRelationship (a graph-edge
+/// concept with no alertType/severity/title/lifecycle) — this is its own
+/// model, following the same conventions both of those already establish:
+/// polymorphic `entityType`/`entityId` (DrugAuditLog/DrugRelationship's
+/// pattern) and `reviewedBy`/`reviewedByName` (DrugPersonMatchReview's
+/// actor-with-name pattern). `entityId`/`currentCaseId`/`priorCaseIds` are
+/// loose string references, never FKs — an alert must remain readable and
+/// reviewable even after the referenced case/person is later edited,
+/// merged, or (in a future phase) archived; a hard FK with onDelete:Cascade
+/// would silently destroy alert history whenever the underlying data
+/// changed, defeating the entire purpose of an operational inbox.
+model DrugIntelligenceAlert {
+  id String @id @default(cuid())
+
+  alertType String
+  severity  String
+  entityType String
+  entityId   String
+
+  title       String
+  explanation String
+
+  currentCaseId    String?
+  /// JSON array of case ids (string[]) — every prior case (besides
+  /// currentCaseId, if any) this entity/person was found in.
+  priorCaseIds     Json
+  /// JSON array of person ids (string[]), present for entity-type alerts
+  /// (phone/sim/device/vehicle) where more than one person is linked —
+  /// null for REPEAT_PERSON/HIGH_CONFIDENCE_DUPLICATE, which already name
+  /// the person via entityId.
+  relatedPersonIds Json?
+
+  firstSeenAt     DateTime?
+  lastSeenAt      DateTime?
+  occurrenceCount Int
+
+  /// Section 11: deterministic dedup key — one meaningful event produces
+  /// exactly one alert row, never a fresh duplicate on every re-generation.
+  /// Computed as `${alertType}:${entityType}:${entityId}:${currentCaseId ?? "none"}`.
+  dedupeKey String @unique
+
+  /// Section 9 lifecycle: NEW -> REVIEWED | DISMISSED. Never deleted on
+  /// review/dismiss — DISMISSED means "reviewed and not actionable," never
+  /// "the underlying relationship didn't exist."
+  status         String  @default("NEW")
+  reviewedBy     String?
+  reviewedByName String?
+  reviewedAt     DateTime?
+  dismissReason  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([severity])
+  @@index([entityType, entityId])
+  @@index([currentCaseId])
+  @@index([createdAt])
+}

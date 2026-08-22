@@ -230,6 +230,13 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   });
   private readonly drugPersonMerges = new Table((r, w) => r.id === w.id);
 
+  // Phase DI-6: Intelligence Alerts — deduplicated via the unique
+  // `dedupeKey`, same upsert-by-unique-key convention as DrugPersonMatchReview above.
+  private readonly drugIntelligenceAlerts = new Table((r, w) => {
+    if (w.dedupeKey !== undefined) return r.dedupeKey === w.dedupeKey;
+    return r.id === w.id;
+  });
+
   /**
    * When set, any timeline.create for an officer whose row has this string
    * officerId throws — simulating a mid-transaction failure AFTER the officer
@@ -360,6 +367,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugPersonMerge() {
     return delegate(this.drugPersonMerges) as unknown as DatabaseClient["drugPersonMerge"];
   }
+  get drugIntelligenceAlert() {
+    return delegate(this.drugIntelligenceAlerts) as unknown as DatabaseClient["drugIntelligenceAlert"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(
@@ -401,6 +411,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugAuditLogs: this.drugAuditLogs.snapshot(),
       drugPersonMatchReviews: this.drugPersonMatchReviews.snapshot(),
       drugPersonMerges: this.drugPersonMerges.snapshot(),
+      drugIntelligenceAlerts: this.drugIntelligenceAlerts.snapshot(),
     };
     try {
       return await fn(this);
@@ -438,6 +449,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugAuditLogs.restore(snaps.drugAuditLogs);
       this.drugPersonMatchReviews.restore(snaps.drugPersonMatchReviews);
       this.drugPersonMerges.restore(snaps.drugPersonMerges);
+      this.drugIntelligenceAlerts.restore(snaps.drugIntelligenceAlerts);
       throw error;
     }
   }

@@ -18,7 +18,8 @@ import { DrugPersonMatchCard } from "@/components/drug_intelligence/drug_person_
 import { useT } from "@/components/i18n/language_provider";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useDrugPersonMatchCandidates } from "@/components/drug_intelligence/use_person_match_candidates";
-import { usePhoneExistsIndicator, useDeviceExistsIndicator } from "@/components/drug_intelligence/use_reuse_indicators";
+import { usePhoneReuseSignal, useDeviceReuseSignal, useVehicleReuseSignal } from "@/components/drug_intelligence/use_reuse_indicators";
+import { DrugAlertInlineCard } from "@/components/drug_intelligence/drug_alert_inline_card";
 import { DRUG_CASE_PERSON_ROLES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_person_options";
 import {
@@ -302,7 +303,7 @@ function ConfirmCreateNewDespiteStrongMatch({ onConfirm }: { onConfirm: () => vo
 function PhoneRow({ phone, onChange, onRemove }: { phone: PhoneDraft; onChange: (patch: Partial<PhoneDraft>) => void; onRemove: () => void }) {
   const { t } = useT();
   const { user } = useAuth();
-  const exists = usePhoneExistsIndicator(user?.id ?? null, phone.rawInput);
+  const signal = usePhoneReuseSignal(user?.id ?? null, phone.rawInput);
 
   return (
     <div className="rounded-lg border border-border p-2.5">
@@ -320,7 +321,7 @@ function PhoneRow({ phone, onChange, onRemove }: { phone: PhoneDraft; onChange: 
           <X className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
-      {exists ? <p className="mt-1.5 text-xs text-warning">{t("di.phone.existsWarning")}</p> : null}
+      <DrugAlertInlineCard signal={signal} />
     </div>
   );
 }
@@ -350,7 +351,7 @@ function SimRow({ sim, onChange, onRemove }: { sim: SimDraft; onChange: (patch: 
 function DeviceRow({ device, onChange, onRemove }: { device: DeviceDraft; onChange: (patch: Partial<DeviceDraft>) => void; onRemove: () => void }) {
   const { t } = useT();
   const { user } = useAuth();
-  const exists = useDeviceExistsIndicator(user?.id ?? null, device.imei1, device.serialNumber);
+  const signal = useDeviceReuseSignal(user?.id ?? null, device.imei1, device.serialNumber);
 
   return (
     <div className="rounded-lg border border-border p-2.5">
@@ -376,13 +377,15 @@ function DeviceRow({ device, onChange, onRemove }: { device: DeviceDraft; onChan
           </Button>
         </div>
       </div>
-      {exists ? <p className="mt-1.5 text-xs text-warning">{t("di.device.existsWarning")}</p> : null}
+      <DrugAlertInlineCard signal={signal} />
     </div>
   );
 }
 
 function VehicleRow({ vehicle, onChange, onRemove }: { vehicle: VehicleDraft; onChange: (patch: Partial<VehicleDraft>) => void; onRemove: () => void }) {
   const { t } = useT();
+  const { user } = useAuth();
+  const signal = useVehicleReuseSignal(user?.id ?? null, vehicle.registrationNumber, vehicle.registrationProvince, vehicle.vin);
   return (
     <div className="rounded-lg border border-border p-2.5">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -410,6 +413,7 @@ function VehicleRow({ vehicle, onChange, onRemove }: { vehicle: VehicleDraft; on
           </Button>
         </div>
       </div>
+      <DrugAlertInlineCard signal={signal} />
     </div>
   );
 }
