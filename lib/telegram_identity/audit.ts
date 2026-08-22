@@ -9,6 +9,8 @@ export type TelegramIdentityAuditEvent =
   | { type: "binding_rejected"; reason: string; telegramUserId?: string }
   | { type: "binding_revoked"; appUserId: string; telegramUserId: string }
   | { type: "search_requested"; appUserId: string; telegramUserId: string }
+  | { type: "drug_search_requested"; appUserId: string; telegramUserId: string }
+  | { type: "drug_permission_denied"; appUserId: string; telegramUserId: string }
   | { type: "unbound_rejected"; telegramUserId: string }
   | { type: "invalid_webhook_secret" }
   | { type: "duplicate_update_ignored"; updateId: string }

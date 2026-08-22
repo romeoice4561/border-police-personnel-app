@@ -16,7 +16,9 @@ export type TelegramChatMode =
   | "awaiting_retirement_search"
   | "awaiting_training_search"
   | "awaiting_document_search"
-  | "awaiting_quality_search";
+  | "awaiting_quality_search"
+  /** Phase DI-4: user picked "Drug Intelligence" and the next free-text message is a drug search query. */
+  | "awaiting_drug_search";
 
 /** Temporary conversation context — Telegram layer only. */
 export interface TelegramConversationContext {
@@ -57,10 +59,29 @@ export interface UnitIntelligenceSnapshot {
   capturedAtIso: string;
 }
 
+/**
+ * Phase DI-4: compact reference to one Drug search result, just enough to
+ * resolve a callback button by index without re-running the search or
+ * exceeding Telegram's 64-byte callback_data limit (Section 19/20 — never
+ * serialize a full result into callback_data). Never carries an unmasked
+ * sensitive value — only the entityType/entityId Web deep links need.
+ */
+export interface TelegramDrugResultRef {
+  entityType: "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE";
+  entityId: string;
+}
+
 export interface TelegramSearchSession {
   chatId: number;
   telegramUserId: number;
   mode: TelegramChatMode;
+  /** Phase DI-4: last Drug search query text, for the ◀▶ page callbacks. */
+  lastDrugQuery: string | null;
+  /** Phase DI-4: the flat, indexable result list the last Drug message's buttons refer to. */
+  lastDrugResults: TelegramDrugResultRef[];
+  /** Phase DI-4: current page (1-based) into lastDrugQuery's single-entity-type drill-down, when active. */
+  lastDrugEntityType: "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE" | null;
+  lastDrugPage: number;
   lastQuery: string | null;
   lastCursor: string | null;
   cursorStack: string[];

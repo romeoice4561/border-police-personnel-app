@@ -62,4 +62,5 @@ export const APPROVED_ACTION_PATH_PREFIXES = [
   "/commander-intelligence",
   "/dashboard",
   "/search",
+  "/drug-intelligence/",
 ] as const;

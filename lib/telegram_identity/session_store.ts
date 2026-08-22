@@ -34,6 +34,10 @@ function withSessionDefaults(session: TelegramSearchSession): TelegramSearchSess
     lastUnitSnapshot: session.lastUnitSnapshot ?? null,
     lastPersonOfficerId: session.lastPersonOfficerId ?? null,
     lastPersonLabelTh: session.lastPersonLabelTh ?? null,
+    lastDrugQuery: session.lastDrugQuery ?? null,
+    lastDrugResults: Array.isArray(session.lastDrugResults) ? session.lastDrugResults : [],
+    lastDrugEntityType: session.lastDrugEntityType ?? null,
+    lastDrugPage: session.lastDrugPage ?? 1,
   };
 }
 

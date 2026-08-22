@@ -49,6 +49,10 @@ export function createFreshSession(
     chatId,
     telegramUserId,
     mode: "idle",
+    lastDrugQuery: null,
+    lastDrugResults: [],
+    lastDrugEntityType: null,
+    lastDrugPage: 1,
     lastQuery: null,
     lastCursor: null,
     cursorStack: [],
@@ -77,6 +81,10 @@ export function normalizeSession(session: TelegramSearchSession): TelegramSearch
     lastUnitSnapshot: session.lastUnitSnapshot ?? null,
     lastPersonOfficerId: session.lastPersonOfficerId ?? null,
     lastPersonLabelTh: session.lastPersonLabelTh ?? null,
+    lastDrugQuery: session.lastDrugQuery ?? null,
+    lastDrugResults: Array.isArray(session.lastDrugResults) ? session.lastDrugResults : [],
+    lastDrugEntityType: session.lastDrugEntityType ?? null,
+    lastDrugPage: session.lastDrugPage ?? 1,
   };
 }
 

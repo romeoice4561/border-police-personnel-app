@@ -31,8 +31,28 @@ import {
   createTelegramCallbackAnswerer,
 } from "@/lib/personnel_search_telegram/telegram_api";
 import type { TelegramUpdate } from "@/lib/personnel_search_telegram/types";
+import { createInProcessTelegramRateLimiter, type TelegramRateLimiter } from "@/lib/telegram_identity/rate_limit";
 
 const NO_STORE = { "Cache-Control": "no-store", Pragma: "no-cache" } as const;
+
+/**
+ * Phase DI-4, Section 26/27 — per-process Drug-search rate limiter. In
+ * -process only (documented limitation of createInProcessTelegramRateLimiter
+ * itself — not multi-instance-safe), reused across requests within one
+ * server process the same way createTelegramSessionStoreFromEnv's memory
+ * mode already is; still meaningfully raises the bar against automated
+ * enumeration compared to no limiter at all (the previous state).
+ */
+let cachedDrugRateLimiter: TelegramRateLimiter | undefined;
+function getDrugRateLimiter(config: TelegramPersonnelSearchConfig): TelegramRateLimiter {
+  if (!cachedDrugRateLimiter) {
+    cachedDrugRateLimiter = createInProcessTelegramRateLimiter({
+      max: config.drugSearchRateLimitMax,
+      windowMs: config.drugSearchRateLimitWindowMs,
+    });
+  }
+  return cachedDrugRateLimiter;
+}
 
 const telegramUpdateSchema = z
   .object({
@@ -174,6 +194,7 @@ export async function handleTelegramWebhook(
     completeBinding: deps.dispatcherDeps?.completeBinding,
     createHandoff: deps.dispatcherDeps?.createHandoff,
     auditSink: deps.dispatcherDeps?.auditSink ?? auditSink,
+    drugRateLimiter: deps.dispatcherDeps?.drugRateLimiter ?? getDrugRateLimiter(config),
   };
 
   try {

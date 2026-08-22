@@ -16,6 +16,9 @@ export interface TelegramPersonnelSearchConfig {
   defaultDisclosureLevel: 1 | 2 | 3;
   pageLimit: number;
   sessionStoreMode: "prisma" | "memory";
+  /** Phase DI-4, Section 26/27 — max Drug searches per actor within the window, anti-enumeration. */
+  drugSearchRateLimitMax: number;
+  drugSearchRateLimitWindowMs: number;
 }
 
 function parseUserIds(raw: string | undefined): ReadonlySet<number> {
@@ -43,6 +46,8 @@ export function loadTelegramPersonnelSearchConfig(
     env.TELEGRAM_REQUIRE_WEBHOOK_SECRET === "1" ||
     env.TELEGRAM_REQUIRE_WEBHOOK_SECRET === "true" ||
     env.NODE_ENV === "production";
+  const drugRateMax = Number(env.TELEGRAM_DRUG_SEARCH_RATE_LIMIT_MAX ?? "20");
+  const drugRateWindowSeconds = Number(env.TELEGRAM_DRUG_SEARCH_RATE_LIMIT_WINDOW_SECONDS ?? "60");
 
   return {
     botToken: env.TELEGRAM_BOT_TOKEN?.trim() || null,
@@ -57,6 +62,8 @@ export function loadTelegramPersonnelSearchConfig(
     defaultDisclosureLevel: disclosureLevel,
     pageLimit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 25) : 8,
     sessionStoreMode: store,
+    drugSearchRateLimitMax: Number.isFinite(drugRateMax) ? Math.max(drugRateMax, 1) : 20,
+    drugSearchRateLimitWindowMs: Number.isFinite(drugRateWindowSeconds) ? Math.max(drugRateWindowSeconds, 1) * 1000 : 60000,
   };
 }
 

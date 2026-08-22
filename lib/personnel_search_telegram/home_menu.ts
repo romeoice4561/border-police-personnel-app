@@ -41,6 +41,7 @@ export function buildHomeKeyboard(): TelegramInlineKeyboard {
         { text: "🏢 Unit", callback_data: CALLBACK.MENU_UNIT },
         { text: "⚡ Quick", callback_data: CALLBACK.MENU_QUICK },
       ],
+      [{ text: "🚨 Drug Intelligence", callback_data: CALLBACK.MENU_DRUG }],
     ],
   };
 }

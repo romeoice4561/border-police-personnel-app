@@ -44,6 +44,14 @@ export const CALLBACK = {
   favoriteOpen: (index: number) => `fo:${index}`,
   favoriteRemove: (index: number) => `fx:${index}`,
   recentOpen: (index: number) => `ro:${index}`,
+  /** Phase DI-4: enter Drug Intelligence mode from the home menu. */
+  MENU_DRUG: "mdi",
+  /** Phase DI-4: open a Drug search result by its index in session.lastDrugResults. */
+  drugOpen: (index: number) => `dg:${index}`,
+  /** Phase DI-4: page a single-entity-type Drug drill-down. */
+  drugPage: (direction: "next" | "prev") => `dp:${direction === "next" ? "n" : "p"}`,
+  /** Phase DI-4: drill into one group's full "ดูทั้งหมด" list from the grouped overview. */
+  drugGroup: (entityType: "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE") => `dv:${entityType}`,
 } as const;
 
 export type ParsedCallback =
@@ -86,6 +94,11 @@ export type ParsedCallback =
   | { kind: "favorite_open"; index: number }
   | { kind: "favorite_remove"; index: number }
   | { kind: "recent_open"; index: number }
+  /** Phase DI-4 */
+  | { kind: "drug_menu" }
+  | { kind: "drug_open"; index: number }
+  | { kind: "drug_page"; direction: "next" | "prev" }
+  | { kind: "drug_group"; entityType: "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE" }
   | { kind: "unknown"; raw: string };
 
 export function parseCallbackData(data: string | undefined): ParsedCallback {
@@ -149,6 +162,8 @@ export function parseCallbackData(data: string | undefined): ParsedCallback {
       return { kind: "fav_add", target: "unit" };
     case CALLBACK.FAV_ADD_PERSON:
       return { kind: "fav_add", target: "person" };
+    case CALLBACK.MENU_DRUG:
+      return { kind: "drug_menu" };
     default:
       break;
   }
@@ -170,6 +185,15 @@ export function parseCallbackData(data: string | undefined): ParsedCallback {
 
   const recentOpen = data.match(/^ro:(\d+)$/);
   if (recentOpen) return { kind: "recent_open", index: Number(recentOpen[1]) };
+
+  const drugOpen = data.match(/^dg:(\d+)$/);
+  if (drugOpen) return { kind: "drug_open", index: Number(drugOpen[1]) };
+
+  const drugPage = data.match(/^dp:(n|p)$/);
+  if (drugPage) return { kind: "drug_page", direction: drugPage[1] === "n" ? "next" : "prev" };
+
+  const drugGroup = data.match(/^dv:(PERSON|PHONE|SIM|DEVICE|VEHICLE|CASE)$/);
+  if (drugGroup) return { kind: "drug_group", entityType: drugGroup[1] as "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE" };
 
   return { kind: "unknown", raw: data };
 }

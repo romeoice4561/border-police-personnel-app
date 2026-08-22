@@ -49,6 +49,16 @@ import type {
   TelegramSender,
   TelegramUpdate,
 } from "@/lib/personnel_search_telegram/types";
+import { DRUG_MODE_PROMPT_TH, buildDrugModeKeyboard } from "@/lib/personnel_search_telegram/drug_search_formatter";
+import {
+  handleDrugGroupDrillDown,
+  handleDrugResultOpen,
+  handleDrugSearchQuery,
+  type DrugSearchCommandDeps,
+} from "@/lib/personnel_search_telegram/drug_search_command";
+import type { TelegramRateLimiter } from "@/lib/telegram_identity/rate_limit";
+import type { DrugSearchEntityType } from "@/lib/drug_intelligence/drug_search_types";
+import type { DrugIntelligenceSearchService } from "@/lib/drug_intelligence/drug_intelligence_search_service";
 
 export type CompleteBindingFn = (args: {
   rawToken: string;
@@ -75,6 +85,10 @@ export interface TelegramDispatcherDeps {
   completeBinding?: CompleteBindingFn;
   createHandoff?: CreateHandoffFn;
   auditSink?: TelegramIdentityAuditSink;
+  /** Phase DI-4, Section 26/27 — anti-enumeration. Defaults to allow-all (see drugRateLimiterOrDefault) when not supplied, matching every other rate-limiter seam in this codebase today. */
+  drugRateLimiter?: TelegramRateLimiter;
+  /** Phase DI-4 test seam — injects a DrugIntelligenceSearchService built over a fake DatabaseClient instead of the real production container. */
+  drugSearchService?: DrugIntelligenceSearchService;
 }
 
 async function defaultResolvePrincipal(
@@ -152,6 +166,39 @@ async function resolveActor(
   return resolve(String(telegramUserId));
 }
 
+/** Phase DI-4: builds the Drug command's deps from the already-resolved actor + this dispatcher's own config/handoff/audit plumbing — reusing the SAME appBaseUrl and handoff-token pattern Personnel's deep links already use (Section 18/§13 of the audit). */
+function buildDrugCommandDeps(
+  deps: TelegramDispatcherDeps,
+  actor: IntelligenceActor,
+  telegramUserId: number
+): DrugSearchCommandDeps {
+  const createHandoff = deps.createHandoff ?? defaultCreateHandoff;
+  return {
+    actor,
+    telegramUserId: String(telegramUserId),
+    appBaseUrl: deps.config.appBaseUrl,
+    rateLimiter: deps.drugRateLimiter,
+    searchService: deps.drugSearchService,
+    resolveDeepLink: async (destination) => {
+      if (!deps.config.appBaseUrl) return null;
+      try {
+        const { rawToken } = await createHandoff({ appUserId: actor.id, destination, auditSink: deps.auditSink });
+        const base = deps.config.appBaseUrl.replace(/\/$/, "");
+        return `${base}/api/auth/telegram-handoff?token=${encodeURIComponent(rawToken)}`;
+      } catch {
+        return null;
+      }
+    },
+    onAudit: (event) => {
+      void recordTelegramIdentityAudit(deps.auditSink, {
+        type: event,
+        appUserId: actor.id,
+        telegramUserId: String(telegramUserId),
+      });
+    },
+  };
+}
+
 async function showHome(
   deps: TelegramDispatcherDeps,
   session: TelegramSearchSession,
@@ -192,7 +239,7 @@ async function handleMessage(update: TelegramUpdate, deps: TelegramDispatcherDep
     return;
   }
 
-  let session = await loadSession(deps, chatId, userId);
+  const session = await loadSession(deps, chatId, userId);
 
   const startMatch = text.match(/^\/start(?:\s+(.+))?$/i);
   if (startMatch) {
@@ -238,6 +285,29 @@ async function handleMessage(update: TelegramUpdate, deps: TelegramDispatcherDep
 
   if (/^\/menu\b/i.test(text) || text === "เมนู") {
     await showHome(deps, session, principal.actor, chatId, userId);
+    return;
+  }
+
+  // Phase DI-4: /drug <query> is namespaced separately from Personnel search
+  // (Section 3 of the audit confirmed no existing command collision).
+  const drugCommandMatch = text.match(/^\/drug(?:\s+([\s\S]+))?$/i);
+  if (drugCommandMatch) {
+    const drugQuery = drugCommandMatch[1]?.trim() ?? "";
+    await runDrugSearch(deps, session, principal.actor, chatId, userId, drugQuery);
+    return;
+  }
+
+  // Phase DI-4, Section 5: escape hatches out of Drug mode — checked before
+  // the mode-gated free-text routing below so the user is never trapped.
+  if (session.mode === "awaiting_drug_search" && (text === "ยกเลิก" || text === "กลับเมนูหลัก" || /^\/menu\b/i.test(text))) {
+    await showHome(deps, session, principal.actor, chatId, userId);
+    return;
+  }
+
+  // Phase DI-4, Section 5: while in Drug mode, free text is a Drug query —
+  // never falls through to the Personnel search fallback below.
+  if (session.mode === "awaiting_drug_search") {
+    await runDrugSearch(deps, session, principal.actor, chatId, userId, text);
     return;
   }
 
@@ -356,6 +426,22 @@ async function runSearch(
   await deps.send(chatId, view.message);
 }
 
+/** Phase DI-4: the Drug Intelligence counterpart to runSearch() — same shape, calls handleDrugSearchQuery() instead of the Personnel API client. */
+async function runDrugSearch(
+  deps: TelegramDispatcherDeps,
+  session: TelegramSearchSession,
+  actor: IntelligenceActor,
+  chatId: number,
+  telegramUserId: number,
+  query: string
+): Promise<void> {
+  const commandDeps = buildDrugCommandDeps(deps, actor, telegramUserId);
+  const { message, sessionPatch } = await handleDrugSearchQuery(commandDeps, session, query);
+  const next = touchSession(session, { ...sessionPatch, mode: "idle" });
+  await persistSession(deps, next);
+  await deps.send(chatId, message);
+}
+
 async function handleDashboard(
   deps: TelegramDispatcherDeps,
   session: TelegramSearchSession,
@@ -433,6 +519,45 @@ async function handleCallback(update: TelegramUpdate, deps: TelegramDispatcherDe
 
   if (parsed.kind === "menu") {
     await handleMenu(parsed.menu, session, deps, chatId, principal.actor, userId);
+    return;
+  }
+
+  // Phase DI-4
+  if (parsed.kind === "drug_menu") {
+    const next = touchSession(session, { mode: "awaiting_drug_search" });
+    await persistSession(deps, next);
+    await deps.send(chatId, { text: DRUG_MODE_PROMPT_TH, parse_mode: "HTML", reply_markup: buildDrugModeKeyboard() });
+    return;
+  }
+
+  if (parsed.kind === "drug_open") {
+    const commandDeps = buildDrugCommandDeps(deps, principal.actor, userId);
+    const message = await handleDrugResultOpen(commandDeps, session, parsed.index);
+    await deps.send(chatId, message);
+    return;
+  }
+
+  if (parsed.kind === "drug_group") {
+    const commandDeps = buildDrugCommandDeps(deps, principal.actor, userId);
+    const { message, sessionPatch } = await handleDrugGroupDrillDown(commandDeps, session, parsed.entityType, 1);
+    session = touchSession(session, sessionPatch);
+    await persistSession(deps, session);
+    await deps.send(chatId, message);
+    return;
+  }
+
+  if (parsed.kind === "drug_page") {
+    const entityType: DrugSearchEntityType | null = session.lastDrugEntityType;
+    if (!entityType) {
+      await deps.send(chatId, { text: "รายการนี้หมดอายุแล้ว กรุณาค้นหาใหม่", parse_mode: "HTML" });
+      return;
+    }
+    const nextPage = parsed.direction === "next" ? session.lastDrugPage + 1 : Math.max(1, session.lastDrugPage - 1);
+    const commandDeps = buildDrugCommandDeps(deps, principal.actor, userId);
+    const { message, sessionPatch } = await handleDrugGroupDrillDown(commandDeps, session, entityType, nextPage);
+    session = touchSession(session, sessionPatch);
+    await persistSession(deps, session);
+    await deps.send(chatId, message);
     return;
   }
 
