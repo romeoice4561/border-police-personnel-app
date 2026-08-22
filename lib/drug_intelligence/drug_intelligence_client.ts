@@ -242,6 +242,9 @@ export interface DrugCaseVehicleRow {
 export interface DrugSeizedItemRow {
   id: string;
   caseId: string;
+  drugCategory: string;
+  otherDrugCategoryLabel: string | null;
+  measurementKind: string;
   drugType: string;
   subtype: string | null;
   quantity: string | null;
@@ -371,6 +374,9 @@ export interface DrugCaseCreateRequest {
   narrative?: string | null;
   persons: DrugCaseCreatePersonInput[];
   seizedItems: Array<{
+    drugCategory: string;
+    otherDrugCategoryLabel?: string | null;
+    measurementKind: string;
     drugType: string;
     subtype?: string | null;
     quantity?: number | null;
@@ -603,6 +609,119 @@ export interface DrugPersonMergePreview {
   skippedDuplicateCaseLinks: number;
 }
 
+// ── DI-3: Global Intelligence Search types ───────────────────────────────
+
+export type DrugSearchEntityType = "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE";
+export type DrugSearchQueryClassification = "PERSON_NAME" | "IDENTIFIER" | "PHONE" | "IMEI" | "VEHICLE_REGISTRATION" | "CASE_NUMBER" | "GENERAL_TEXT";
+export type DrugSearchMatchedField =
+  | "PRIMARY_NAME"
+  | "ALIAS"
+  | "IDENTIFIER"
+  | "PHONE_NUMBER"
+  | "ICCID"
+  | "IMSI"
+  | "IMEI"
+  | "SERIAL_NUMBER"
+  | "REGISTRATION_NUMBER"
+  | "VIN"
+  | "CASE_NUMBER"
+  | "CASE_TITLE";
+export type DrugSearchMatchStrength = "EXACT" | "PARTIAL";
+
+export interface DrugSearchResult {
+  entityType: DrugSearchEntityType;
+  entityId: string;
+  primaryLabel: string;
+  secondaryLabel: string | null;
+  matchedField: DrugSearchMatchedField;
+  matchedValueMasked: string;
+  strength: DrugSearchMatchStrength;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  caseCount: number;
+  hasPotentialDuplicate: boolean | null;
+  canonicalTarget: { entityId: string; primaryLabel: string } | null;
+}
+
+export interface DrugSearchGroupedResults {
+  query: string;
+  classification: DrugSearchQueryClassification;
+  totalCount: number;
+  groups: Array<{ entityType: DrugSearchEntityType; count: number; results: DrugSearchResult[] }>;
+}
+
+export interface DrugSearchFiltersInput {
+  entityType?: DrugSearchEntityType;
+  dateFrom?: string;
+  dateTo?: string;
+  province?: string;
+  headquartersId?: number;
+  regionId?: number;
+  battalionId?: number;
+  companyId?: number;
+  minCaseCount?: number;
+}
+
+export interface DrugSearchGroupedQuery extends DrugSearchFiltersInput {
+  q: string;
+  perGroupLimit?: number;
+}
+
+export interface DrugSearchByTypeQuery extends DrugSearchFiltersInput {
+  q: string;
+  entityType: DrugSearchEntityType;
+  page: number;
+  pageSize: number;
+}
+
+// ── DI-3: Entity Detail types ─────────────────────────────────────────────
+
+export interface DrugPhoneDetailResponse {
+  phone: DrugPhoneNumberSummary & { createdBy: string; createdAt: string; notes: string | null };
+  caseLinks: Array<DrugCasePhoneRow & { case: DrugCaseDetail | null }>;
+  relatedPersons: DrugPersonSummary[];
+  sourceCases: DrugCaseDetail[];
+  relatedPersonCount: number;
+  caseCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface DrugSimDetailResponse {
+  sim: { id: string; iccid: string | null; imsi: string | null; carrier: string | null; createdBy: string; createdAt: string; notes: string | null };
+  caseLinks: Array<DrugCaseSimRow & { case: DrugCaseDetail | null }>;
+  relatedPersons: DrugPersonSummary[];
+  sourceCases: DrugCaseDetail[];
+  relatedPersonCount: number;
+  caseCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface DrugDeviceDetailResponse {
+  device: DrugDeviceSummary & { createdBy: string; createdAt: string; notes: string | null };
+  personLinks: Array<DrugPersonDeviceRow & { person: DrugPersonSummary | null }>;
+  caseLinks: Array<DrugCaseDeviceRow & { case: DrugCaseDetail | null }>;
+  relatedPersons: DrugPersonSummary[];
+  sourceCases: DrugCaseDetail[];
+  relatedPersonCount: number;
+  caseCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface DrugVehicleDetailResponse {
+  vehicle: DrugVehicleSummary & { createdBy: string; createdAt: string; notes: string | null };
+  personLinks: Array<DrugPersonVehicleRow & { person: DrugPersonSummary | null }>;
+  caseLinks: Array<DrugCaseVehicleRow & { case: DrugCaseDetail | null }>;
+  relatedPersons: DrugPersonSummary[];
+  sourceCases: DrugCaseDetail[];
+  relatedPersonCount: number;
+  caseCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
 export const drugIntelligenceClient = {
   async getStats(actorId: string): Promise<DrugIntelligenceStats> {
     return (await request<DrugIntelligenceStats>(`/drug-intelligence/stats${toQueryString({ actorId })}`)).data;
@@ -723,6 +842,33 @@ export const drugIntelligenceClient = {
     vehicleVins?: string[];
   }): Promise<{ candidates: DrugPersonMatchCandidate[] }> {
     return (await requestPost<{ candidates: DrugPersonMatchCandidate[] }>("/drug-intelligence/persons/check-duplicate-candidates", body)).data;
+  },
+
+  // ── DI-3: Global Intelligence Search ──────────────────────────────────
+
+  async searchGrouped(actorId: string, actorName: string, query: DrugSearchGroupedQuery): Promise<DrugSearchGroupedResults> {
+    return (await request<DrugSearchGroupedResults>(`/drug-intelligence/search${toQueryString({ actorId, actorName, ...query })}`)).data;
+  },
+
+  async searchByType(actorId: string, query: DrugSearchByTypeQuery): Promise<{ rows: DrugSearchResult[]; meta: PageMeta }> {
+    const { data, meta } = await request<DrugSearchResult[]>(`/drug-intelligence/search/by-type${toQueryString({ actorId, ...query })}`);
+    return { rows: data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
+
+  async getPhoneDetail(phoneNumberId: string, actorId: string): Promise<DrugPhoneDetailResponse> {
+    return (await request<DrugPhoneDetailResponse>(`/drug-intelligence/phones/${encodeURIComponent(phoneNumberId)}${toQueryString({ actorId })}`)).data;
+  },
+
+  async getSimDetail(simId: string, actorId: string): Promise<DrugSimDetailResponse> {
+    return (await request<DrugSimDetailResponse>(`/drug-intelligence/sims/${encodeURIComponent(simId)}${toQueryString({ actorId })}`)).data;
+  },
+
+  async getDeviceDetail(deviceId: string, actorId: string): Promise<DrugDeviceDetailResponse> {
+    return (await request<DrugDeviceDetailResponse>(`/drug-intelligence/devices/${encodeURIComponent(deviceId)}${toQueryString({ actorId })}`)).data;
+  },
+
+  async getVehicleDetail(vehicleId: string, actorId: string): Promise<DrugVehicleDetailResponse> {
+    return (await request<DrugVehicleDetailResponse>(`/drug-intelligence/vehicles/${encodeURIComponent(vehicleId)}${toQueryString({ actorId })}`)).data;
   },
 };
 

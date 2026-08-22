@@ -25,6 +25,14 @@ import {
   type DrugPersonMatchCandidate,
   type DrugUnresolvedMatchPair,
   type DrugPersonMergePreview,
+  type DrugSearchGroupedQuery,
+  type DrugSearchByTypeQuery,
+  type DrugSearchGroupedResults,
+  type DrugSearchResult,
+  type DrugPhoneDetailResponse,
+  type DrugSimDetailResponse,
+  type DrugDeviceDetailResponse,
+  type DrugVehicleDetailResponse,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export interface DrugPageMeta {
@@ -46,6 +54,13 @@ export const drugQueryKeys = {
   matchReviewQueue: (actorId: string | null) => ["drug-match-review-queue", actorId] as const,
   mergePreview: (actorId: string | null, survivorPersonId: string, mergedPersonId: string) =>
     ["drug-merge-preview", actorId, survivorPersonId, mergedPersonId] as const,
+  // DI-3
+  searchGrouped: (actorId: string | null, query: DrugSearchGroupedQuery) => ["drug-search-grouped", actorId, query] as const,
+  searchByType: (actorId: string | null, query: DrugSearchByTypeQuery) => ["drug-search-by-type", actorId, query] as const,
+  phoneDetail: (actorId: string | null, phoneNumberId: string) => ["drug-phone-detail", actorId, phoneNumberId] as const,
+  simDetail: (actorId: string | null, simId: string) => ["drug-sim-detail", actorId, simId] as const,
+  deviceDetail: (actorId: string | null, deviceId: string) => ["drug-device-detail", actorId, deviceId] as const,
+  vehicleDetail: (actorId: string | null, vehicleId: string) => ["drug-vehicle-detail", actorId, vehicleId] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -189,5 +204,61 @@ export function useMergeDrugPersons(actorId: string | null, actorName: string) {
       queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.survivorPersonId) });
       queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.mergedPersonId) });
     },
+  });
+}
+
+// ── DI-3: Global Intelligence Search ────────────────────────────────────
+
+/** Section 3/10: the Global Search page's grouped overview. `actorName` is required (unlike most read hooks) because the endpoint writes a search_performed audit row. */
+export function useDrugSearchGrouped(actorId: string | null, actorName: string, query: DrugSearchGroupedQuery): UseQueryResult<DrugSearchGroupedResults> {
+  return useQuery({
+    queryKey: drugQueryKeys.searchGrouped(actorId, query),
+    queryFn: () => drugIntelligenceClient.searchGrouped(actorId as string, actorName, query),
+    enabled: Boolean(actorId) && query.q.trim().length > 0,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Section 24: single-entity-type paginated drill-in ("ดูทั้งหมด"). */
+export function useDrugSearchByType(actorId: string | null, query: DrugSearchByTypeQuery): UseQueryResult<{ rows: DrugSearchResult[]; meta: DrugPageMeta }> {
+  return useQuery({
+    queryKey: drugQueryKeys.searchByType(actorId, query),
+    queryFn: () => drugIntelligenceClient.searchByType(actorId as string, query),
+    enabled: Boolean(actorId) && query.q.trim().length > 0,
+    placeholderData: keepPreviousData,
+  });
+}
+
+// ── DI-3: Entity Detail ──────────────────────────────────────────────────
+
+export function useDrugPhoneDetail(actorId: string | null, phoneNumberId: string): UseQueryResult<DrugPhoneDetailResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.phoneDetail(actorId, phoneNumberId),
+    queryFn: () => drugIntelligenceClient.getPhoneDetail(phoneNumberId, actorId as string),
+    enabled: Boolean(actorId) && phoneNumberId.length > 0,
+  });
+}
+
+export function useDrugSimDetail(actorId: string | null, simId: string): UseQueryResult<DrugSimDetailResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.simDetail(actorId, simId),
+    queryFn: () => drugIntelligenceClient.getSimDetail(simId, actorId as string),
+    enabled: Boolean(actorId) && simId.length > 0,
+  });
+}
+
+export function useDrugDeviceDetail(actorId: string | null, deviceId: string): UseQueryResult<DrugDeviceDetailResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.deviceDetail(actorId, deviceId),
+    queryFn: () => drugIntelligenceClient.getDeviceDetail(deviceId, actorId as string),
+    enabled: Boolean(actorId) && deviceId.length > 0,
+  });
+}
+
+export function useDrugVehicleDetail(actorId: string | null, vehicleId: string): UseQueryResult<DrugVehicleDetailResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.vehicleDetail(actorId, vehicleId),
+    queryFn: () => drugIntelligenceClient.getVehicleDetail(vehicleId, actorId as string),
+    enabled: Boolean(actorId) && vehicleId.length > 0,
   });
 }

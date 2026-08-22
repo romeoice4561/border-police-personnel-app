@@ -9,7 +9,7 @@
  * an identifier match alone).
  */
 
-import type { DatabaseClient, DrugPerson, DrugPersonIdentifier } from "@/lib/database/database_types";
+import type { DatabaseClient, DrugPerson, DrugPersonIdentifier, DrugPersonAlias } from "@/lib/database/database_types";
 
 export interface DrugPersonCreateInput {
   id: string;
@@ -104,5 +104,27 @@ export class DrugPersonRepository {
     updatedByName: string
   ): Promise<DrugPerson> {
     return this.db.drugPerson.update({ where: { id: personId }, data: { ...input, updatedBy, updatedByName } });
+  }
+
+  /**
+   * DI-3 Section 8: exact identifier VALUE lookup across every type — Global
+   * Search doesn't know a priori whether a 13-digit query is a THAI_ID vs.
+   * an ALIEN_ID vs. an OTHER-typed value, so (unlike findCandidatesByIdentifier,
+   * which requires a known type) this scans every identifier row for an
+   * exact value match. Same "candidates list, never a single winner" contract
+   * as the rest of Section 14's identifier lookups.
+   */
+  findIdentifiersByValue(value: string): Promise<DrugPersonIdentifier[]> {
+    return this.db.drugPersonIdentifier.findMany({}).then((rows) => rows.filter((r) => r.value === value));
+  }
+
+  /** DI-3 Section 8: every alias row, for Global Search's broad in-memory alias-name scan. */
+  findAllAliases(): Promise<DrugPersonAlias[]> {
+    return this.db.drugPersonAlias.findMany({});
+  }
+
+  /** DI-3 Section 8: every identifier row, for Global Search's broad in-memory identifier-value substring scan. */
+  findAllIdentifiers(): Promise<DrugPersonIdentifier[]> {
+    return this.db.drugPersonIdentifier.findMany({});
   }
 }

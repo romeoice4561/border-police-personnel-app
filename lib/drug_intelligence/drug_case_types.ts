@@ -54,6 +54,12 @@ export interface DrugCasePersonInput {
 }
 
 export interface DrugCaseSeizedItemInput {
+  /** Canonical analytics key (Phase DI-3.1) — never inferred from drugType. */
+  drugCategory: string;
+  /** Populated only when drugCategory = "OTHER". */
+  otherDrugCategoryLabel: string | null;
+  /** COUNT ⇄ quantity or MASS ⇄ weightGrams — enforced server-side (drug_case_api_schemas.ts). */
+  measurementKind: string;
   drugType: string;
   subtype: string | null;
   quantity: number | null;

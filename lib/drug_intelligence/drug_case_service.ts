@@ -530,21 +530,21 @@ export class DrugCaseService {
 
 /**
  * Section 12's Case Workspace/list summary format: "ยาบ้า 20,000 เม็ด • ไอซ์
- * 2.4 กก." — groups by drugType, sums quantity (when a unit is present) and
- * weightGrams (converted to kg for readability) separately, joined with the
- * bullet separator this codebase's other summary strings use. Pure
- * presentation — no analytics, no derived intelligence (Section 12: "ไม่ต้อง
- * ทำ analytics ใน DI-1").
+ * 2.4 กก." — groups by drugType, formats using the row's canonical
+ * `measurementKind` (Phase DI-3.1) rather than inferring COUNT-vs-MASS from
+ * whether `unit` happens to be set — the ambiguity that inference carried
+ * is exactly the gap DI-3.1 closed. Pure presentation — no analytics, no
+ * derived intelligence (Section 12: "ไม่ต้อง ทำ analytics ใน DI-1").
  */
-function summarizeSeizedItems(items: Array<{ drugType: string; quantity: unknown; unit: string | null; weightGrams: unknown }>): string {
+function summarizeSeizedItems(items: Array<{ drugType: string; measurementKind: string; quantity: unknown; unit: string | null; weightGrams: unknown }>): string {
   if (items.length === 0) return "";
   const parts: string[] = [];
   for (const item of items) {
     const quantity = item.quantity !== null && item.quantity !== undefined ? Number(item.quantity) : null;
     const weightGrams = item.weightGrams !== null && item.weightGrams !== undefined ? Number(item.weightGrams) : null;
-    if (quantity !== null && item.unit) {
-      parts.push(`${item.drugType} ${quantity.toLocaleString("th-TH")} ${item.unit}`);
-    } else if (weightGrams !== null) {
+    if (item.measurementKind === "COUNT" && quantity !== null) {
+      parts.push(`${item.drugType} ${quantity.toLocaleString("th-TH")}${item.unit ? ` ${item.unit}` : ""}`);
+    } else if (item.measurementKind === "MASS" && weightGrams !== null) {
       const kg = weightGrams / 1000;
       parts.push(`${item.drugType} ${kg.toLocaleString("th-TH", { maximumFractionDigits: 2 })} กก.`);
     } else {

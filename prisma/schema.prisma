@@ -1915,6 +1915,13 @@ model DrugVehicle {
 
   @@index([registrationNumber])
   @@index([vin])
+  /// DI-3 Section 26: DrugEntityRepository.findOrCreateVehicle already
+  /// queries by (registrationNumber, registrationProvince) TOGETHER (a plate
+  /// number alone isn't unique nationally — the same plate text can exist in
+  /// different provinces), but only single-column indexes existed until now.
+  /// Global Search's vehicle-registration lookup uses this exact same
+  /// composite shape, so the query need is real, not speculative.
+  @@index([registrationNumber, registrationProvince])
 }
 
 /// Section 9/12: Person↔Vehicle, full provenance triad (same shape as
@@ -2006,17 +2013,92 @@ model DrugCaseLocation {
   @@index([role])
 }
 
+/// Phase DI-3.1: the canonical, aggregatable drug classification — never a
+/// free-text string a dashboard would have to GROUP BY and hope spelling
+/// variants don't fragment totals. Mirrors this module's own established
+/// convention (DrugCaseStatus/DrugCasePersonRole/DrugPersonIdentifierType/
+/// DrugLocationRole: a real Postgres enum, because every DrugSeizedItem is
+/// created through this module's own Create Case form, never round-tripped
+/// through an external import pipeline that could hand back an
+/// out-of-vocabulary value). OTHER is the deliberate escape hatch for a
+/// substance not yet catalogued — DrugSeizedItem.otherDrugCategoryLabel
+/// carries the free-text description in that case, so a new substance never
+/// blocks case entry and never needs a same-day migration.
+enum DrugCategory {
+  METHAMPHETAMINE_TABLET
+  CRYSTAL_METHAMPHETAMINE
+  HEROIN
+  KETAMINE
+  MDMA
+  COCAINE
+  OPIUM
+  CANNABIS
+  OTHER
+}
+
+/// Phase DI-3.1: which physical quantity a seized-item row's numbers mean —
+/// resolves the exact ambiguity a free-text `unit` column left open (a
+/// dashboard could not previously know, without parsing display text,
+/// whether to sum `quantity` or `weightGrams` for a given row, or whether
+/// two rows' totals were even addable). COUNT items are summed via
+/// `quantity` (discrete units — tablets, packages). MASS items are summed
+/// via `weightGrams` (the single canonical mass unit — see
+/// DrugSeizedItem.weightGrams). A COUNT row's weightGrams and a MASS row's
+/// quantity are never populated together — enforced in Zod, not the DB,
+/// matching this schema's established "validate combinations in Zod, not a
+/// CHECK constraint" convention (see DrugCaseStatus's doc comment).
+enum DrugMeasurementKind {
+  COUNT
+  MASS
+}
+
 /// Section 11: one seized-item line on a case. Deliberately NOT a set of
 /// drugType1/drugType2/... columns on DrugCase (Section 11's explicit
 /// prohibition) — a case adds as many rows here as needed.
+///
+/// Phase DI-3.1: `drugCategory`/`measurementKind` are the CANONICAL
+/// analytics keys a future Commander Dashboard (DI-8) aggregates by —
+/// closed sets, never free text. `drugType`/`subtype`/`notes` remain the
+/// EVIDENCE fields: whatever the officer actually recorded, verbatim,
+/// preserved even when it doesn't match the canonical label exactly (e.g.
+/// "ยาไอซ์บรรจุถุงชาเขียว จำนวน 12 ถุง"). Aggregation always reads
+/// drugCategory/measurementKind; display of what-was-recorded always reads
+/// drugType/subtype/notes. Never conflate the two — that conflation is
+/// exactly the gap this migration closes.
 model DrugSeizedItem {
-  id           String   @id @default(cuid())
-  case         DrugCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  caseId       String
+  id       String   @id @default(cuid())
+  case     DrugCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId   String
+
+  /// Canonical aggregation key (Phase DI-3.1). Required — every new row
+  /// must classify into the catalog, using OTHER when nothing else fits.
+  drugCategory           DrugCategory
+  /// Free-text description, populated ONLY when drugCategory = OTHER — the
+  /// substance name for a not-yet-catalogued drug, never itself an
+  /// aggregation key (Section 3's explicit instruction).
+  otherDrugCategoryLabel String?
+  /// COUNT (sum via quantity) or MASS (sum via weightGrams) — resolves
+  /// which of the two numeric fields below is the aggregatable one for
+  /// this row (Section 4).
+  measurementKind        DrugMeasurementKind
+
+  /// As-recorded evidence text — what the officer actually typed (e.g.
+  /// "ยาบ้า", "ไอซ์บรรจุถุงชาเขียว"). Never the aggregation key; preserved
+  /// verbatim even when drugCategory normalizes it (Section 6).
   drugType     String
   subtype      String?
+  /// Populated when measurementKind = COUNT (discrete units — tablets,
+  /// packages, etc.). The as-recorded unit label lives in `unit` below;
+  /// this is the number that gets summed for COUNT aggregation.
   quantity     Decimal? @db.Decimal(12, 3)
+  /// As-recorded unit label for a COUNT row (e.g. "เม็ด", "ถุง") — display
+  /// only, never parsed to infer measurementKind (Section 4's explicit
+  /// prohibition on inferring semantics from display strings).
   unit         String?
+  /// Populated when measurementKind = MASS. Canonical mass unit is ALWAYS
+  /// grams — never store kilograms separately; the UI/API convert
+  /// kilogram input to grams before persistence, and the presentation
+  /// layer converts back to kilograms for display (Section 4).
   weightGrams  Decimal? @db.Decimal(12, 3)
   packageCount Int?
   notes        String?
@@ -2026,6 +2108,7 @@ model DrugSeizedItem {
 
   @@index([caseId])
   @@index([drugType])
+  @@index([drugCategory])
 }
 
 /// Section 12/23: a GENERIC graph edge between any two entities in this

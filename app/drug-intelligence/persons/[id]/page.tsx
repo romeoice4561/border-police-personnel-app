@@ -359,7 +359,15 @@ function PhonesTab({ phones, sims, canViewFull }: { phones: DrugPersonPhoneRow[]
             <tbody>
               {phones.map((phone) => (
                 <tr key={`${phone.caseId}-${phone.phoneNumberId}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
-                  <td className="px-4 py-3 font-mono">{phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—"}</td>
+                  <td className="px-4 py-3 font-mono">
+                    {phone.phoneNumber ? (
+                      <Link href={`/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`} className="text-accent hover:underline">
+                        {presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull)}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted">{phone.firstSeenAt ? new Date(phone.firstSeenAt).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-3 text-muted">{phone.lastSeenAt ? new Date(phone.lastSeenAt).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-3 text-muted">{phone.status}</td>
@@ -373,12 +381,18 @@ function PhonesTab({ phones, sims, canViewFull }: { phones: DrugPersonPhoneRow[]
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">SIM</p>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {sims.map((s, i) => (
-              <li key={i} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
-                {s.sim?.iccid ? presentIdentifierValue(s.sim.iccid, canViewFull) : "—"}
-                {s.sim?.carrier ? <span className="ml-2 text-muted">{s.sim.carrier}</span> : null}
-              </li>
-            ))}
+            {sims.map((s, i) =>
+              s.sim ? (
+                <li key={i}>
+                  <Link href={`/drug-intelligence/sims/${encodeURIComponent(s.sim.id)}`} className="block rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground hover:border-accent/50">
+                    {s.sim.iccid ? presentIdentifierValue(s.sim.iccid, canViewFull) : "—"}
+                    {s.sim.carrier ? <span className="ml-2 text-muted">{s.sim.carrier}</span> : null}
+                  </Link>
+                </li>
+              ) : (
+                <li key={i} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">—</li>
+              ),
+            )}
           </ul>
         </div>
       ) : null}
@@ -392,17 +406,19 @@ function DevicesTab({ devices, canViewFull }: { devices: DrugPersonDeviceRow[]; 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {devices.map((d) => (
-        <Card key={d.deviceId}>
-          <CardBody className="space-y-1">
-            <p className="font-medium text-foreground">{[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}</p>
-            {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
-            <p className="text-xs text-muted">
-              {d.firstSeenAt ? new Date(d.firstSeenAt).toLocaleDateString() : "—"} – {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleDateString() : "—"}
-            </p>
-            {/* Section 6: neutral wording — never "เป็นเจ้าของ" (owner) unless the relationship explicitly supports it, which DrugPersonDevice never does. */}
-            <p className="text-xs text-muted">{t("di.profile.relationAssociated")}</p>
-          </CardBody>
-        </Card>
+        <Link key={d.deviceId} href={`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`} className="block">
+          <Card className="h-full transition-colors hover:border-accent/50">
+            <CardBody className="space-y-1">
+              <p className="font-medium text-foreground">{[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}</p>
+              {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
+              <p className="text-xs text-muted">
+                {d.firstSeenAt ? new Date(d.firstSeenAt).toLocaleDateString() : "—"} – {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleDateString() : "—"}
+              </p>
+              {/* Section 6: neutral wording — never "เป็นเจ้าของ" (owner) unless the relationship explicitly supports it, which DrugPersonDevice never does. */}
+              <p className="text-xs text-muted">{t("di.profile.relationAssociated")}</p>
+            </CardBody>
+          </Card>
+        </Link>
       ))}
     </div>
   );
@@ -414,15 +430,17 @@ function VehiclesTab({ vehicles }: { vehicles: DrugPersonVehicleRow[] }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {vehicles.map((v) => (
-        <Card key={v.vehicleId}>
-          <CardBody className="space-y-1">
-            <p className="font-medium text-foreground">{v.vehicle?.registrationNumber || "—"}</p>
-            <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
-            <p className="text-xs text-muted">
-              {v.firstSeenAt ? new Date(v.firstSeenAt).toLocaleDateString() : "—"} – {v.lastSeenAt ? new Date(v.lastSeenAt).toLocaleDateString() : "—"}
-            </p>
-          </CardBody>
-        </Card>
+        <Link key={v.vehicleId} href={`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`} className="block">
+          <Card className="h-full transition-colors hover:border-accent/50">
+            <CardBody className="space-y-1">
+              <p className="font-medium text-foreground">{v.vehicle?.registrationNumber || "—"}</p>
+              <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
+              <p className="text-xs text-muted">
+                {v.firstSeenAt ? new Date(v.firstSeenAt).toLocaleDateString() : "—"} – {v.lastSeenAt ? new Date(v.lastSeenAt).toLocaleDateString() : "—"}
+              </p>
+            </CardBody>
+          </Card>
+        </Link>
       ))}
     </div>
   );

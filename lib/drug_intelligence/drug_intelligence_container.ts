@@ -18,6 +18,8 @@ import { DrugPersonMatchingService } from "@/lib/drug_intelligence/drug_person_m
 import { DrugPersonMergeService } from "@/lib/drug_intelligence/drug_person_merge_service";
 import { DrugPersonMatchReviewService } from "@/lib/drug_intelligence/drug_person_match_review_service";
 import { DrugPersonProfileService, DrugPersonDirectoryService } from "@/lib/drug_intelligence/drug_person_profile_service";
+import { DrugIntelligenceSearchService } from "@/lib/drug_intelligence/drug_intelligence_search_service";
+import { DrugEntityDetailService } from "@/lib/drug_intelligence/drug_entity_detail_service";
 
 export interface DrugIntelligenceContainer {
   caseService: DrugCaseService;
@@ -28,6 +30,9 @@ export interface DrugIntelligenceContainer {
   matchReviewService: DrugPersonMatchReviewService;
   profileService: DrugPersonProfileService;
   directoryService: DrugPersonDirectoryService;
+  /** Phase DI-3: Global Intelligence Search. */
+  searchService: DrugIntelligenceSearchService;
+  entityDetailService: DrugEntityDetailService;
 }
 
 /** Builds the container from any DatabaseClient (real or fake). Pure — no I/O. */
@@ -40,6 +45,8 @@ export function createDrugIntelligenceContainer(client: DatabaseClient): DrugInt
     matchReviewService: new DrugPersonMatchReviewService(client),
     profileService: new DrugPersonProfileService(client),
     directoryService: new DrugPersonDirectoryService(client),
+    searchService: new DrugIntelligenceSearchService(client),
+    entityDetailService: new DrugEntityDetailService(client),
   };
 }
 

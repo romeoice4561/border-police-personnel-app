@@ -7,8 +7,10 @@
  */
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
-import { FileText, Users, Phone, Smartphone, Car, Plus, List } from "lucide-react";
+import { FileText, Users, Phone, Smartphone, Car, Plus, List, ScanSearch, Search } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -18,13 +20,44 @@ import { useT } from "@/components/i18n/language_provider";
 import { useDrugStats } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 
 export default function DrugIntelligenceLandingPage() {
+  const router = useRouter();
   const { user, can } = useAuth();
   const { t } = useT();
   const stats = useDrugStats(user?.id ?? null);
+  const [searchDraft, setSearchDraft] = useState("");
+
+  function goToSearch() {
+    if (!searchDraft.trim()) return;
+    router.push(`/drug-intelligence/search?${new URLSearchParams({ q: searchDraft }).toString()}`);
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader title={t("di.landing.title")} description={t("di.landing.description")} />
+
+      {can("drug.read") ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            goToSearch();
+          }}
+          className="relative"
+        >
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+          <input
+            type="text"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            placeholder={t("di.search.placeholder")}
+            aria-label={t("di.search.title")}
+            className="w-full rounded-xl border border-border bg-surface py-3 pl-10 pr-24 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          <Button type="submit" size="sm" className="absolute right-1.5 top-1/2 -translate-y-1/2" disabled={!searchDraft.trim()}>
+            <ScanSearch className="h-4 w-4" aria-hidden="true" />
+            {t("di.search.searchButton")}
+          </Button>
+        </form>
+      ) : null}
 
       {stats.isPending ? (
         <LoadingState rows={2} />

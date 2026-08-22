@@ -243,4 +243,9 @@ export class DrugCaseRepository {
   caseVehiclesForCase(caseId: string) {
     return this.db.drugCaseVehicle.findMany({ where: { caseId } });
   }
+
+  /** DI-3 Section 8: every case, for Global Search's broad case-number/title in-memory scan — same "load then filter" shape `findCaseIdsMatchingQuery` above already uses. `caseNumber` has no unique constraint (Section 4: units may share numbering), so this can never be a single findUnique. */
+  findAllCases(): Promise<DrugCase[]> {
+    return this.db.drugCase.findMany({});
+  }
 }

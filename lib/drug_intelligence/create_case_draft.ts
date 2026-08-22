@@ -11,6 +11,7 @@
  */
 
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
+import { kilogramsToGrams } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import type { DrugCaseCreateRequest, DrugCaseCreatePersonInput } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 let draftKeyCounter = 0;
@@ -91,11 +92,18 @@ export interface PersonDraft {
 
 export interface SeizedItemDraft {
   key: string;
+  /** Canonical analytics key (Phase DI-3.1) — a DrugCategory value, or "" until chosen. */
+  drugCategory: string;
+  /** Free-text substance name, populated only when drugCategory = "OTHER". */
+  otherDrugCategoryLabel: string;
+  /** COUNT or MASS — which of quantity/weightKilograms below the user is entering. */
+  measurementKind: string;
   drugType: string;
   subtype: string;
   quantity: string;
   unit: string;
-  weightGrams: string;
+  /** Kilograms, as the user types it — converted to grams at submit time (Section 7: never store kilograms). */
+  weightKilograms: string;
   packageCount: string;
   notes: string;
 }
@@ -159,7 +167,19 @@ export function createEmptyPersonDraft(): PersonDraft {
 }
 
 export function createEmptySeizedItemDraft(): SeizedItemDraft {
-  return { key: nextDraftKey(), drugType: "", subtype: "", quantity: "", unit: "", weightGrams: "", packageCount: "", notes: "" };
+  return {
+    key: nextDraftKey(),
+    drugCategory: "",
+    otherDrugCategoryLabel: "",
+    measurementKind: "",
+    drugType: "",
+    subtype: "",
+    quantity: "",
+    unit: "",
+    weightKilograms: "",
+    packageCount: "",
+    notes: "",
+  };
 }
 
 export function createEmptyLocationDraft(): LocationDraft {
@@ -231,6 +251,17 @@ export function validateDraft(draft: CreateCaseDraft): ValidationError[] {
 
   draft.seizedItems.forEach((item, index) => {
     if (!item.drugType.trim()) errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุประเภท` });
+    if (!item.drugCategory) errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาเลือกประเภทของกลาง` });
+    if (item.drugCategory === "OTHER" && !item.otherDrugCategoryLabel.trim()) {
+      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุชื่อสารเมื่อเลือก "อื่น ๆ"` });
+    }
+    if (!item.measurementKind) {
+      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาเลือกหน่วยวัด (จำนวนนับ/น้ำหนัก)` });
+    } else if (item.measurementKind === "COUNT" && !item.quantity.trim()) {
+      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุจำนวน` });
+    } else if (item.measurementKind === "MASS" && !item.weightKilograms.trim()) {
+      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุน้ำหนัก` });
+    }
   });
 
   return errors;
@@ -325,15 +356,24 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
     persons: draft.persons.map(personToRequest),
     seizedItems: draft.seizedItems
       .filter((item) => item.drugType.trim())
-      .map((item) => ({
-        drugType: item.drugType.trim(),
-        subtype: item.subtype.trim() || null,
-        quantity: toNumberOrNull(item.quantity),
-        unit: item.unit.trim() || null,
-        weightGrams: toNumberOrNull(item.weightGrams),
-        packageCount: item.packageCount.trim() ? Number(item.packageCount) : null,
-        notes: item.notes.trim() || null,
-      })),
+      .map((item) => {
+        const isCount = item.measurementKind === "COUNT";
+        const weightKilograms = toNumberOrNull(item.weightKilograms);
+        return {
+          drugCategory: item.drugCategory,
+          otherDrugCategoryLabel: item.drugCategory === "OTHER" ? item.otherDrugCategoryLabel.trim() || null : null,
+          measurementKind: item.measurementKind,
+          drugType: item.drugType.trim(),
+          subtype: item.subtype.trim() || null,
+          quantity: isCount ? toNumberOrNull(item.quantity) : null,
+          unit: item.unit.trim() || null,
+          // Section 7: the UI collects mass in kilograms; the client boundary converts to
+          // the single canonical persisted unit (grams) here — never stored as kilograms.
+          weightGrams: !isCount && weightKilograms !== null ? kilogramsToGrams(weightKilograms) : null,
+          packageCount: item.packageCount.trim() ? Number(item.packageCount) : null,
+          notes: item.notes.trim() || null,
+        };
+      }),
     locations: draft.locations.map((loc) => ({
       name: loc.name.trim() || null,
       addressText: loc.addressText.trim() || null,

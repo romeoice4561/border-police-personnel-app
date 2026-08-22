@@ -389,8 +389,8 @@ test("createCase() adds seized items and locations", async () => {
   const result = await service.createCase(
     baseCase({
       seizedItems: [
-        { drugType: "ยาบ้า", subtype: null, quantity: 5000, unit: "เม็ด", weightGrams: null, packageCount: 10, notes: null },
-        { drugType: "ไอซ์", subtype: null, quantity: null, unit: null, weightGrams: 250.5, packageCount: 1, notes: null },
+        { drugCategory: "METHAMPHETAMINE_TABLET", otherDrugCategoryLabel: null, measurementKind: "COUNT", drugType: "ยาบ้า", subtype: null, quantity: 5000, unit: "เม็ด", weightGrams: null, packageCount: 10, notes: null },
+        { drugCategory: "CRYSTAL_METHAMPHETAMINE", otherDrugCategoryLabel: null, measurementKind: "MASS", drugType: "ไอซ์", subtype: null, quantity: null, unit: null, weightGrams: 250.5, packageCount: 1, notes: null },
       ],
       locations: [{ name: "จุดตรวจ", addressText: "ถนนพหลโยธิน", province: "เชียงราย", district: null, subdistrict: null, latitude: null, longitude: null, role: "ARREST_LOCATION", notes: null }],
     })
@@ -422,7 +422,7 @@ test("getCase() returns FULL resolved detail (person names, phone numbers, devic
           vehicles: [],
         },
       ],
-      seizedItems: [{ drugType: "ยาบ้า", subtype: null, quantity: 20000, unit: "เม็ด", weightGrams: null, packageCount: null, notes: null }],
+      seizedItems: [{ drugCategory: "METHAMPHETAMINE_TABLET", otherDrugCategoryLabel: null, measurementKind: "COUNT", drugType: "ยาบ้า", subtype: null, quantity: 20000, unit: "เม็ด", weightGrams: null, packageCount: null, notes: null }],
       locations: [{ name: "จุดจับกุม", addressText: null, province: "เชียงราย", district: null, subdistrict: null, latitude: null, longitude: null, role: "ARREST_LOCATION", notes: null }],
     })
   );
@@ -569,8 +569,8 @@ test("listCases() enriches rows with seizedItemsSummary text (Section 12 format)
     baseCase({
       caseNumber: "SUMMARY-001",
       seizedItems: [
-        { drugType: "ยาบ้า", subtype: null, quantity: 20000, unit: "เม็ด", weightGrams: null, packageCount: null, notes: null },
-        { drugType: "ไอซ์", subtype: null, quantity: null, unit: null, weightGrams: 2400, packageCount: null, notes: null },
+        { drugCategory: "METHAMPHETAMINE_TABLET", otherDrugCategoryLabel: null, measurementKind: "COUNT", drugType: "ยาบ้า", subtype: null, quantity: 20000, unit: "เม็ด", weightGrams: null, packageCount: null, notes: null },
+        { drugCategory: "CRYSTAL_METHAMPHETAMINE", otherDrugCategoryLabel: null, measurementKind: "MASS", drugType: "ไอซ์", subtype: null, quantity: null, unit: null, weightGrams: 2400, packageCount: null, notes: null },
       ],
     })
   );

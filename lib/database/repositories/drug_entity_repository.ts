@@ -238,9 +238,111 @@ export class DrugEntityRepository {
     return this.db.drugLocation.findUnique({ where: { id } });
   }
 
+  // ── DI-3: Global Search read-only lookups ──────────────────────────────
+  // Indexed exact-match lookups the search service tries FIRST (Section
+  // 25/26 — never a full-table scan for a value the schema can already
+  // answer in O(1)/O(log n)). Broader substring scans (name/text) still go
+  // through findMany({}) + in-memory filter, same DI-1/DI-2-established
+  // shape, since the ModelDelegate contract has no `contains` operator.
+
+  findSimById(id: string): Promise<DrugSim | null> {
+    return this.db.drugSim.findUnique({ where: { id } });
+  }
+
+  findSimByIccid(iccid: string): Promise<DrugSim | null> {
+    return this.db.drugSim.findUnique({ where: { iccid } });
+  }
+
+  async findSimsByImsi(imsi: string): Promise<DrugSim[]> {
+    return this.db.drugSim.findMany({ where: { imsi } });
+  }
+
+  async findDevicesByImei(imei: string): Promise<DrugDevice[]> {
+    const [byImei1, byImei2] = await Promise.all([
+      this.db.drugDevice.findMany({ where: { imei1: imei } }),
+      this.db.drugDevice.findMany({ where: { imei2: imei } }),
+    ]);
+    const seen = new Set<string>();
+    const merged: DrugDevice[] = [];
+    for (const d of [...byImei1, ...byImei2]) {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        merged.push(d);
+      }
+    }
+    return merged;
+  }
+
+  findDevicesBySerialNumber(serialNumber: string): Promise<DrugDevice[]> {
+    return this.db.drugDevice.findMany({ where: { serialNumber } });
+  }
+
+  findVehiclesByRegistrationNumber(registrationNumber: string): Promise<DrugVehicle[]> {
+    return this.db.drugVehicle.findMany({ where: { registrationNumber } });
+  }
+
+  findVehiclesByVin(vin: string): Promise<DrugVehicle[]> {
+    return this.db.drugVehicle.findMany({ where: { vin } });
+  }
+
+  /** DI-3 Section 25: every phone/sim/device/vehicle, for the broader in-memory text scan — same "load then filter" shape as DrugPersonRepository.search()/findAllActive(). */
+  findAllPhoneNumbers(): Promise<DrugPhoneNumber[]> {
+    return this.db.drugPhoneNumber.findMany({});
+  }
+  findAllSims(): Promise<DrugSim[]> {
+    return this.db.drugSim.findMany({});
+  }
+  findAllDevices(): Promise<DrugDevice[]> {
+    return this.db.drugDevice.findMany({});
+  }
+  findAllVehicles(): Promise<DrugVehicle[]> {
+    return this.db.drugVehicle.findMany({});
+  }
+
+  countCasePhonesForPhoneNumber(phoneNumberId: string): Promise<number> {
+    return this.db.drugCasePhone.count({ where: { phoneNumberId } });
+  }
+  countCaseSimsForSim(simId: string): Promise<number> {
+    return this.db.drugCaseSim.count({ where: { simId } });
+  }
+  countCaseDevicesForDevice(deviceId: string): Promise<number> {
+    return this.db.drugCaseDevice.count({ where: { deviceId } });
+  }
+  countPersonDevicesForDevice(deviceId: string): Promise<number> {
+    return this.db.drugPersonDevice.count({ where: { deviceId } });
+  }
+  countCaseVehiclesForVehicle(vehicleId: string): Promise<number> {
+    return this.db.drugCaseVehicle.count({ where: { vehicleId } });
+  }
+  countPersonVehiclesForVehicle(vehicleId: string): Promise<number> {
+    return this.db.drugPersonVehicle.count({ where: { vehicleId } });
+  }
+
+  casePhonesForPhoneNumber(phoneNumberId: string) {
+    return this.db.drugCasePhone.findMany({ where: { phoneNumberId } });
+  }
+  caseSimsForSim(simId: string) {
+    return this.db.drugCaseSim.findMany({ where: { simId } });
+  }
+  caseDevicesForDevice(deviceId: string) {
+    return this.db.drugCaseDevice.findMany({ where: { deviceId } });
+  }
+  personDevicesForDevice(deviceId: string) {
+    return this.db.drugPersonDevice.findMany({ where: { deviceId } });
+  }
+  caseVehiclesForVehicle(vehicleId: string) {
+    return this.db.drugCaseVehicle.findMany({ where: { vehicleId } });
+  }
+  personVehiclesForVehicle(vehicleId: string) {
+    return this.db.drugPersonVehicle.findMany({ where: { vehicleId } });
+  }
+
   // ── Seized Items (Section 11) ─────────────────────────────────────────
   async addSeizedItem(input: {
     caseId: string;
+    drugCategory: string;
+    otherDrugCategoryLabel: string | null;
+    measurementKind: string;
     drugType: string;
     subtype: string | null;
     quantity: number | null;

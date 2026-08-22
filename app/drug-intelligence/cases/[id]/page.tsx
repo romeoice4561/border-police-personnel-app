@@ -27,6 +27,8 @@ import { useDrugCase } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
+import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
+import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type {
   DrugCaseDetailResponse,
@@ -53,6 +55,12 @@ const TABS = [
 function personRoleLabel(role: string, language: "th" | "en"): string {
   if (!isValidDrugCasePersonRole(role)) return role;
   const meta = DRUG_CASE_PERSON_ROLE_LABELS[role];
+  return language === "th" ? meta.labelTh : meta.labelEn;
+}
+
+function drugCategoryLabel(category: string, language: "th" | "en"): string | null {
+  if (!isValidDrugCategory(category)) return null;
+  const meta = DRUG_CATEGORY_LABELS[category];
   return language === "th" ? meta.labelTh : meta.labelEn;
 }
 
@@ -147,7 +155,7 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "devices" ? <DevicesTab devices={data.devices} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} onSelectPerson={openPersonDrawer} /> : null}
-      {activeTab === "seized" ? <SeizedTab items={data.seizedItems} /> : null}
+      {activeTab === "seized" ? <SeizedTab items={data.seizedItems} language={language} /> : null}
       {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
       {activeTab === "notes" ? <NotesTab data={data} /> : null}
 
@@ -235,7 +243,15 @@ function PhonesTab({
             <tbody>
               {phones.map((phone) => (
                 <tr key={`${phone.personId}-${phone.phoneNumberId}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
-                  <td className="px-4 py-3 font-mono">{phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—"}</td>
+                  <td className="px-4 py-3 font-mono">
+                    {phone.phoneNumber ? (
+                      <Link href={`/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`} className="text-accent hover:underline">
+                        {presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull)}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <button type="button" onClick={() => onSelectPerson(phone.personId, undefined)} className="text-accent hover:underline">
                       {phone.person?.primaryFullName || "—"}
@@ -253,7 +269,11 @@ function PhonesTab({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">SIM</p>
           <ul className="space-y-1 text-sm text-foreground">
             {sims.map((sim) => (
-              <li key={sim.simId}>{sim.status}</li>
+              <li key={sim.simId}>
+                <Link href={`/drug-intelligence/sims/${encodeURIComponent(sim.simId)}`} className="text-accent hover:underline">
+                  {sim.status}
+                </Link>
+              </li>
             ))}
           </ul>
         </div>
@@ -270,7 +290,9 @@ function DevicesTab({ devices, onSelectPerson, canViewFull }: { devices: DrugCas
       {devices.map((d) => (
         <Card key={d.deviceId}>
           <CardBody className="space-y-1">
-            <p className="font-medium text-foreground">{[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}</p>
+            <Link href={`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`} className="block font-medium text-foreground hover:underline">
+              {[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}
+            </Link>
             {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
             {d.personId ? (
               <button type="button" onClick={() => onSelectPerson(d.personId as string, undefined)} className="text-sm text-accent hover:underline">
@@ -292,7 +314,9 @@ function VehiclesTab({ vehicles, onSelectPerson }: { vehicles: DrugCaseVehicleRo
       {vehicles.map((v) => (
         <Card key={v.vehicleId}>
           <CardBody className="space-y-1">
-            <p className="font-medium text-foreground">{v.vehicle?.registrationNumber || "—"}</p>
+            <Link href={`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`} className="block font-medium text-foreground hover:underline">
+              {v.vehicle?.registrationNumber || "—"}
+            </Link>
             <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
             {v.personId ? (
               <button type="button" onClick={() => onSelectPerson(v.personId as string, undefined)} className="text-sm text-accent hover:underline">
@@ -306,23 +330,30 @@ function VehiclesTab({ vehicles, onSelectPerson }: { vehicles: DrugCaseVehicleRo
   );
 }
 
-function SeizedTab({ items }: { items: DrugSeizedItemRow[] }) {
+function SeizedTab({ items, language }: { items: DrugSeizedItemRow[]; language: "th" | "en" }) {
   const { t } = useT();
   if (items.length === 0) return <EmptyState title={t("di.workspace.emptySeized")} icon={<Package className="h-8 w-8" />} />;
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {items.map((item) => (
-        <Card key={item.id}>
-          <CardBody>
-            <p className="font-medium text-foreground">{item.drugType}</p>
-            <p className="mt-1 text-sm text-muted">
-              {item.quantity ? `${item.quantity} ${item.unit || ""}` : null}
-              {item.weightGrams ? ` ${item.weightGrams} g` : null}
-              {item.packageCount ? ` · ${item.packageCount} packages` : null}
-            </p>
-          </CardBody>
-        </Card>
-      ))}
+      {items.map((item) => {
+        const categoryLabel = drugCategoryLabel(item.drugCategory, language);
+        return (
+          <Card key={item.id}>
+            <CardBody>
+              <p className="font-medium text-foreground">{item.drugType}</p>
+              {categoryLabel ? <p className="mt-0.5 text-xs text-muted">{categoryLabel}</p> : null}
+              <p className="mt-1 text-sm text-muted">
+                {item.measurementKind === "MASS" && item.weightGrams
+                  ? `${gramsToKilograms(Number(item.weightGrams)).toLocaleString(language === "th" ? "th-TH" : "en-US", { maximumFractionDigits: 2 })} กก.`
+                  : item.quantity
+                    ? `${Number(item.quantity).toLocaleString(language === "th" ? "th-TH" : "en-US")} ${item.unit || ""}`
+                    : null}
+                {item.packageCount ? ` · ${item.packageCount} packages` : null}
+              </p>
+            </CardBody>
+          </Card>
+        );
+      })}
     </div>
   );
 }

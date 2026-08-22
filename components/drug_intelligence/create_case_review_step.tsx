@@ -107,7 +107,12 @@ export function CreateCaseReviewStep({
             <p className="text-sm text-muted">—</p>
           ) : (
             <p className="text-sm text-foreground">
-              {draft.seizedItems.map((item) => `${item.drugType} ${item.quantity || item.weightGrams || ""} ${item.unit || ""}`.trim()).join(" • ")}
+              {draft.seizedItems
+                .map((item) => {
+                  const amount = item.measurementKind === "MASS" ? (item.weightKilograms ? `${item.weightKilograms} กก.` : "") : `${item.quantity || ""} ${item.unit || ""}`.trim();
+                  return `${item.drugType} ${amount}`.trim();
+                })
+                .join(" • ")}
             </p>
           )}
         </CardBody>

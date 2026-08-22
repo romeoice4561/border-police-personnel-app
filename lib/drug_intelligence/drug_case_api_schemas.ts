@@ -16,6 +16,7 @@ import { DRUG_CASE_STATUSES } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_CASE_PERSON_ROLES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_options";
+import { DRUG_CATEGORIES, DRUG_MEASUREMENT_KINDS } from "@/lib/drug_intelligence/drug_seized_item_options";
 
 const MAX_FIELD = 500;
 
@@ -110,15 +111,51 @@ const personSchema = z
     message: "Exactly one of existingPersonId or newPerson must be set",
   });
 
-const seizedItemSchema = z.object({
-  drugType: z.string().trim().min(1).max(MAX_FIELD),
-  subtype: optionalText,
-  quantity: z.coerce.number().nonnegative().nullable().optional().transform((v) => v ?? null),
-  unit: optionalText,
-  weightGrams: z.coerce.number().nonnegative().nullable().optional().transform((v) => v ?? null),
-  packageCount: z.coerce.number().int().nonnegative().nullable().optional().transform((v) => v ?? null),
-  notes: optionalText,
-});
+/**
+ * Phase DI-3.1: drugCategory/measurementKind are the CANONICAL analytics
+ * keys (Section 3/4) — validated server-side against the closed enum sets
+ * regardless of what the UI dropdown offered, since a UI constraint alone
+ * is never a security/data-integrity boundary in this codebase's
+ * convention. The superRefine below enforces the COUNT ⇄ quantity / MASS ⇄
+ * weightGrams pairing (Section 8) — an ambiguous or contradictory
+ * combination (e.g. MASS row with no weightGrams, or a COUNT row that also
+ * sets weightGrams) is rejected before it ever reaches the repository,
+ * never silently coerced.
+ */
+const seizedItemSchema = z
+  .object({
+    drugCategory: z.enum(DRUG_CATEGORIES),
+    otherDrugCategoryLabel: optionalText,
+    measurementKind: z.enum(DRUG_MEASUREMENT_KINDS),
+    drugType: z.string().trim().min(1).max(MAX_FIELD),
+    subtype: optionalText,
+    quantity: z.coerce.number().nonnegative().nullable().optional().transform((v) => v ?? null),
+    unit: optionalText,
+    weightGrams: z.coerce.number().nonnegative().nullable().optional().transform((v) => v ?? null),
+    packageCount: z.coerce.number().int().nonnegative().nullable().optional().transform((v) => v ?? null),
+    notes: optionalText,
+  })
+  .superRefine((item, ctx) => {
+    if (item.drugCategory === "OTHER" && !item.otherDrugCategoryLabel) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["otherDrugCategoryLabel"], message: "otherDrugCategoryLabel is required when drugCategory is OTHER" });
+    }
+    if (item.measurementKind === "COUNT") {
+      if (item.quantity === null || item.quantity <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["quantity"], message: "quantity must be > 0 when measurementKind is COUNT" });
+      }
+      if (item.weightGrams !== null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["weightGrams"], message: "weightGrams must not be set when measurementKind is COUNT" });
+      }
+    }
+    if (item.measurementKind === "MASS") {
+      if (item.weightGrams === null || item.weightGrams <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["weightGrams"], message: "weightGrams must be > 0 when measurementKind is MASS" });
+      }
+      if (item.quantity !== null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["quantity"], message: "quantity must not be set when measurementKind is MASS" });
+      }
+    }
+  });
 
 const locationSchema = z.object({
   name: optionalText,
