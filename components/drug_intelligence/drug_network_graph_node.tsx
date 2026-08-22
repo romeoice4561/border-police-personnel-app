@@ -45,10 +45,11 @@ const NODE_TONE: Record<DrugGraphNodeType, string> = {
 };
 
 export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: DrugNetworkFlowNodeData }) {
-  const { graphNode, isFocus } = data;
+  const { graphNode, isFocus, density, dimmed } = data;
   const { t } = useT();
   const Icon = NODE_ICON[graphNode.type];
   const hasRisk = graphNode.riskIndicators.length > 0;
+  const isCompact = density === "COMPACT";
 
   return (
     <div
@@ -56,11 +57,13 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
       tabIndex={0}
       aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${graphNode.label}${isFocus ? ` (${t("di.network.focusNode")})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}`}
       className={cn(
-        "flex min-w-[120px] max-w-[180px] flex-col items-center gap-1 border-2 bg-surface px-3 py-2 text-center shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "flex min-w-[120px] max-w-[180px] flex-col items-center gap-1 border-2 bg-surface px-3 py-2 text-center shadow-sm transition-[opacity,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isCompact ? "min-w-20 max-w-30 px-2 py-1.5" : "",
         NODE_SHAPE[graphNode.type],
         NODE_TONE[graphNode.type],
         selected ? "ring-2 ring-accent ring-offset-2" : "",
-        isFocus ? "shadow-lg outline-2 outline-offset-2 outline-critical/60" : ""
+        isFocus ? "shadow-lg outline-2 outline-offset-2 outline-critical/60" : "",
+        dimmed ? "opacity-30" : ""
       )}
     >
       <Handle type="target" position={Position.Top} className="!bg-border" />
@@ -70,8 +73,10 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
       </div>
       <p className="line-clamp-2 text-xs font-semibold leading-tight text-foreground">{graphNode.label}</p>
-      {graphNode.secondaryLabel ? <p className="line-clamp-1 text-[10px] leading-tight text-muted">{graphNode.secondaryLabel}</p> : null}
-      <span className="text-[9px] font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}</span>
+      {!isCompact && graphNode.secondaryLabel ? <p className="line-clamp-1 text-[10px] leading-tight text-muted">{graphNode.secondaryLabel}</p> : null}
+      {!isCompact ? (
+        <span className="text-[9px] font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}</span>
+      ) : null}
       {isFocus ? <span className="text-[9px] font-semibold uppercase tracking-wide text-critical">{t("di.network.focusNode")}</span> : null}
     </div>
   );

@@ -2142,6 +2142,26 @@ export const DICTIONARY = {
   "di.network.selectedNode": tr("รายการที่เลือก", "Selected"),
   "di.network.closeDrawer": tr("ปิดแผงรายละเอียด", "Close detail panel"),
   "di.network.graphSummaryFallback": tr("ผังแสดงความเชื่อมโยงระหว่างรายการต่าง ๆ ดูรายละเอียดที่แผงสรุปด้านบนหรือแตะรายการ/เส้นเชื่อมเพื่อดูข้อมูลเพิ่มเติม", "The canvas shows connections between entities — see the summary above, or tap a node/edge for details"),
+
+  // Phase DI-5.3 — multi-layout network workspace (Sections 3-20).
+  "di.network.layoutToolbarLabel": tr("รูปแบบผัง", "Layout"),
+  "di.network.layoutAuto": tr("อัตโนมัติ", "Auto"),
+  "di.network.layoutPersonCentered": tr("บุคคลเป็นศูนย์กลาง", "Person-centered"),
+  "di.network.layoutCaseCentered": tr("คดีเป็นศูนย์กลาง", "Case-centered"),
+  "di.network.layoutHierarchical": tr("ลำดับชั้น", "Hierarchical"),
+  "di.network.layoutGroupByType": tr("แยกตามประเภท", "Group by type"),
+  "di.network.layoutCompact": tr("แบบกระชับ", "Compact"),
+  "di.network.layoutPath": tr("เส้นทางความเชื่อมโยง", "Path"),
+  "di.network.rearrange": tr("จัดผังใหม่", "Re-arrange"),
+  "di.network.resetToDefaultPositions": tr("กลับตำแหน่งเริ่มต้น", "Reset positions"),
+  "di.network.relationshipLabels": tr("ป้ายความสัมพันธ์", "Labels"),
+  "di.network.labelModeAll": tr("ทั้งหมด", "All"),
+  "di.network.labelModeSelectedOnly": tr("เฉพาะที่เลือก", "Selected only"),
+  "di.network.labelModeHidden": tr("ซ่อน", "Hidden"),
+  "di.network.nodeDensityStandard": tr("มาตรฐาน", "Standard"),
+  "di.network.nodeDensityCompact": tr("กระชับ", "Compact"),
+  "di.network.pathViewActive": tr("กำลังแสดงเส้นทางความเชื่อมโยง", "Showing connection path"),
+  "di.network.backToFullNetwork": tr("กลับไปดูเครือข่ายทั้งหมด", "Back to full network"),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

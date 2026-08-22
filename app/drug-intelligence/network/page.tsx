@@ -10,11 +10,11 @@
  */
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import "@xyflow/react/dist/style.css";
-import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useReactFlow, type Edge, type Node } from "@xyflow/react";
-import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useReactFlow, useNodesState, useEdgesState, type Edge, type Node } from "@xyflow/react";
+import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -31,7 +31,8 @@ import { DrugNetworkLegend } from "@/components/drug_intelligence/drug_network_l
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugNetworkNeighborhood, useDrugNetworkPath } from "@/lib/drug_intelligence/drug_intelligence_hooks";
-import { buildDrugNetworkFlowGraph, type DrugNetworkFlowNodeData } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
+import { buildDrugNetworkFlowGraph, mergePreservingManualPositions, type DrugNetworkFlowNodeData, type FlowNode, type FlowEdge, type DrugNetworkLabelMode, type DrugNetworkNodeDensity } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
+import { resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_intelligence_client";
@@ -40,6 +41,21 @@ import type { TranslationKey } from "@/lib/i18n/dictionary";
 const ALL_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE", "LOCATION"];
 const NODE_TYPES = { drugGraphNode: DrugNetworkGraphNode };
 const HARD_MAX_NODES = 150;
+
+const LAYOUT_BUTTONS: { mode: DrugNetworkLayoutMode; icon: typeof LayoutGrid; labelKey: TranslationKey }[] = [
+  { mode: "AUTO", icon: LayoutGrid, labelKey: "di.network.layoutAuto" },
+  { mode: "PERSON_CENTERED", icon: UserCircle, labelKey: "di.network.layoutPersonCentered" },
+  { mode: "CASE_CENTERED", icon: Briefcase, labelKey: "di.network.layoutCaseCentered" },
+  { mode: "HIERARCHICAL", icon: GitBranch, labelKey: "di.network.layoutHierarchical" },
+  { mode: "GROUP_BY_TYPE", icon: Layers, labelKey: "di.network.layoutGroupByType" },
+  { mode: "COMPACT", icon: Shrink, labelKey: "di.network.layoutCompact" },
+];
+
+const LABEL_MODE_OPTIONS: { value: DrugNetworkLabelMode; labelKey: TranslationKey }[] = [
+  { value: "ALL", labelKey: "di.network.labelModeAll" },
+  { value: "SELECTED_ONLY", labelKey: "di.network.labelModeSelectedOnly" },
+  { value: "HIDDEN", labelKey: "di.network.labelModeHidden" },
+];
 
 export default function DrugNetworkPage() {
   return (
@@ -82,6 +98,26 @@ function DrugNetworkContent() {
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<DrugGraphEdge | null>(null);
+  const [layoutMode, setLayoutMode] = useState<DrugNetworkLayoutMode>("AUTO");
+  const [labelMode, setLabelMode] = useState<DrugNetworkLabelMode>("SELECTED_ONLY");
+  const [nodeDensity, setNodeDensity] = useState<DrugNetworkNodeDensity>("STANDARD");
+  const [showLabelMenu, setShowLabelMenu] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  /** Section 10/13: an active Path View, set only via "เปิดในผัง" from a found Find Connection result; cleared by "กลับไปดูเครือข่ายทั้งหมด" or any focus/query change. */
+  const [pathViewNodeIds, setPathViewNodeIds] = useState<string[] | null>(null);
+  /** Bumped by "จัดผังใหม่" (re-arrange current layout) or "กลับไปจุดเริ่มต้น" (back to start) to force a position reset even when the query itself hasn't changed. */
+  const [rearrangeToken, setRearrangeToken] = useState(0);
+  /**
+   * DI-5.3.1 Bug 1 fix: the focus this page FIRST loaded with, captured once
+   * on mount — "กลับไปจุดเริ่มต้น" restores exactly this, not just whatever
+   * updateParams happens to leave in the URL. Without this, navigating to a
+   * different entity then pressing "back to start" only cleared filters on
+   * the CURRENT (wrong) focus, never actually returned to the original one.
+   */
+  const originalFocusRef = useRef<{ focusType: DrugGraphNodeType | null; focusId: string | null } | null>(null);
+  if (originalFocusRef.current === null) {
+    originalFocusRef.current = { focusType: searchParams.get("focusType") as DrugGraphNodeType | null, focusId: searchParams.get("focusId") };
+  }
 
   function updateParams(patch: Record<string, string | undefined>) {
     const next = new URLSearchParams(searchParams.toString());
@@ -106,9 +142,66 @@ function DrugNetworkContent() {
   const pathQuery = pathFrom && pathTo ? { fromType: pathFrom.entityType, fromId: pathFrom.entityId, toType: pathTo.entityType, toId: pathTo.entityId } : null;
   const path = useDrugNetworkPath(user?.id ?? null, pathQuery);
 
-  const { flowNodes, flowEdges } = neighborhood.data
-    ? buildDrugNetworkFlowGraph(neighborhood.data, (key) => t(key), selectedNode?.id ?? null, selectedEdge?.id ?? null)
-    : { flowNodes: [] as Node[], flowEdges: [] as Edge[] };
+  // Section 4: AUTO resolves deterministically from focus type / composition
+  // / whether a Path View is active — never a heuristic that could vary
+  // between runs on the same input.
+  const resolvedLayoutMode =
+    layoutMode === "AUTO"
+      ? resolveAutoLayoutMode({
+          focusType: focusType ?? "PERSON",
+          isPathResult: pathViewNodeIds !== null,
+          nodeCount: neighborhood.data?.nodes.length ?? 0,
+        })
+      : pathViewNodeIds !== null
+        ? "PATH"
+        : layoutMode;
+
+  // xyflow needs a controlled nodes/edges state (useNodesState/useEdgesState)
+  // plus onNodesChange wired to <ReactFlow> so drag deltas it computes
+  // internally have somewhere to land — without this sink, every re-render
+  // (selection, filter panel toggling, etc.) recomputes positions fresh from
+  // buildDrugNetworkFlowGraph and silently discards any manual drag.
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<FlowNode>([]);
+  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
+  // Section 12/13: manual drag positions persist until the query changes, the
+  // layout mode changes, Path View toggles, or "จัดผังใหม่" is pressed —
+  // any of those bump this signature and force a position reset.
+  const querySignature = JSON.stringify({
+    focusType,
+    focusId,
+    depth,
+    dateFrom,
+    dateTo,
+    maxNodes,
+    selectedNodeTypes,
+    selectedRelationshipTypes,
+    resolvedLayoutMode,
+    pathViewNodeIds,
+    rearrangeToken,
+  });
+  const lastQuerySignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!neighborhood.data) {
+      setFlowNodes([]);
+      setFlowEdges([]);
+      lastQuerySignatureRef.current = null;
+      return;
+    }
+    const built = buildDrugNetworkFlowGraph(neighborhood.data, (key) => t(key), selectedNode?.id ?? null, selectedEdge?.id ?? null, {
+      layoutMode: resolvedLayoutMode,
+      labelMode,
+      nodeDensity,
+      pathNodeIdsInOrder: pathViewNodeIds ?? undefined,
+    });
+    const isNewQuery = lastQuerySignatureRef.current !== querySignature;
+    lastQuerySignatureRef.current = querySignature;
+
+    setFlowNodes((current) => mergePreservingManualPositions(built.flowNodes, current, isNewQuery));
+    setFlowEdges(built.flowEdges);
+    if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity]);
 
   function handleNodeClick(_event: unknown, node: Node) {
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
@@ -125,6 +218,48 @@ function DrugNetworkContent() {
   function expandFromNode(node: DrugGraphNode) {
     updateParams({ focusType: node.type, focusId: node.id, depth: undefined });
     setSelectedNode(null);
+    setPathViewNodeIds(null);
+  }
+
+  function handleLayoutSelect(mode: DrugNetworkLayoutMode) {
+    setLayoutMode(mode);
+    setShowLayoutMenu(false);
+  }
+
+  function handleRearrange() {
+    setRearrangeToken((v) => v + 1);
+  }
+
+  /**
+   * DI-5.3.1 Bug 1 fix — "กลับไปจุดเริ่มต้น" (Back to start), distinct from
+   * "จัดผังใหม่" (Re-arrange, which only re-runs the CURRENT layout mode).
+   * Back to start restores: the ORIGINAL focus entity from when this page
+   * first loaded, the AUTO layout baseline, clears filters, clears the
+   * node/edge selection, exits Path View, and clears any manual drag
+   * positions (via the rearrange token, since the query itself may not
+   * change if the user never navigated away from the original focus).
+   */
+  function handleBackToStart() {
+    const original = originalFocusRef.current;
+    updateParams({
+      focusType: original?.focusType ?? undefined,
+      focusId: original?.focusId ?? undefined,
+      depth: undefined,
+      nodeTypes: undefined,
+      relationshipTypes: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      maxNodes: undefined,
+    });
+    setLayoutMode("AUTO");
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setPathViewNodeIds(null);
+    setRearrangeToken((v) => v + 1);
+  }
+
+  function exitPathView() {
+    setPathViewNodeIds(null);
   }
 
   const canViewNetwork = can("drug.read");
@@ -149,7 +284,10 @@ function DrugNetworkContent() {
           <Card>
             <CardBody className="space-y-2">
               <DrugNetworkEntityPicker
-                onSelect={(selection) => updateParams({ focusType: selection.entityType, focusId: selection.entityId, depth: undefined })}
+                onSelect={(selection) => {
+                  updateParams({ focusType: selection.entityType, focusId: selection.entityId, depth: undefined });
+                  setPathViewNodeIds(null);
+                }}
                 placeholder={t("di.network.searchToFocus")}
               />
             </CardBody>
@@ -198,6 +336,8 @@ function DrugNetworkContent() {
                       variant="outline"
                       onClick={() => {
                         if (pathFrom) updateParams({ focusType: pathFrom.entityType, focusId: pathFrom.entityId, depth: "2" });
+                        setPathViewNodeIds(path.data!.paths[0]!.steps.map((s) => s.node.id));
+                        setLayoutMode("PATH");
                         setShowFindConnection(false);
                       }}
                     >
@@ -349,10 +489,120 @@ function DrugNetworkContent() {
                 {t("di.network.graphSummaryFallback")}
               </p>
 
+              {pathViewNodeIds ? (
+                <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
+                  <Route className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {t("di.network.pathViewActive")}
+                  <button type="button" onClick={exitPathView} className="ml-auto underline hover:no-underline">
+                    {t("di.network.backToFullNetwork")}
+                  </button>
+                </p>
+              ) : null}
+
+              {/* Section 18: consolidated Layout / View toolbar — "รูปแบบผัง" */}
+              <Card>
+                <CardBody className="space-y-3 py-3">
+                  <div className="hidden flex-wrap items-center gap-3 sm:flex">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="mr-1 text-xs font-medium text-muted">{t("di.network.layoutToolbarLabel")}</span>
+                      {LAYOUT_BUTTONS.map(({ mode, icon: Icon, labelKey }) => (
+                        <Button
+                          key={mode}
+                          size="sm"
+                          variant={layoutMode === mode ? "accent" : "outline"}
+                          onClick={() => handleLayoutSelect(mode)}
+                          aria-pressed={layoutMode === mode}
+                        >
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                          {t(labelKey)}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => fitView({ duration: 300 })}>
+                        <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                        {t("di.network.fitToScreen")}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleRearrange}>
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                        {t("di.network.rearrange")}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setNodeDensity((d) => (d === "STANDARD" ? "COMPACT" : "STANDARD"))}
+                        aria-pressed={nodeDensity === "COMPACT"}
+                      >
+                        {nodeDensity === "COMPACT" ? t("di.network.nodeDensityCompact") : t("di.network.nodeDensityStandard")}
+                      </Button>
+                      <div className="relative">
+                        <Button variant="outline" size="sm" onClick={() => setShowLabelMenu((v) => !v)} aria-expanded={showLabelMenu} aria-controls="drug-network-label-menu">
+                          <Tags className="h-4 w-4" aria-hidden="true" />
+                          {t("di.network.relationshipLabels")}
+                          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                        {showLabelMenu ? (
+                          <div id="drug-network-label-menu" className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-border bg-surface p-1 shadow-lg">
+                            {LABEL_MODE_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  setLabelMode(opt.value);
+                                  setShowLabelMenu(false);
+                                }}
+                                className={`block w-full rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-neutral-bg/60 ${labelMode === opt.value ? "font-semibold text-accent" : "text-foreground"}`}
+                              >
+                                {t(opt.labelKey)}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 20: mobile ~375px — a compact dropdown instead of 6-8 full-width buttons */}
+                  <div className="flex flex-wrap items-center gap-2 sm:hidden">
+                    <div className="relative">
+                      <Button variant="outline" size="sm" onClick={() => setShowLayoutMenu((v) => !v)} aria-expanded={showLayoutMenu} aria-controls="drug-network-layout-menu-mobile">
+                        <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+                        {t("di.network.layoutToolbarLabel")}
+                        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                      {showLayoutMenu ? (
+                        <div id="drug-network-layout-menu-mobile" className="absolute left-0 z-20 mt-1 w-56 rounded-lg border border-border bg-surface p-1 shadow-lg">
+                          {LAYOUT_BUTTONS.map(({ mode, icon: Icon, labelKey }) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => handleLayoutSelect(mode)}
+                              className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-neutral-bg/60 ${layoutMode === mode ? "font-semibold text-accent" : "text-foreground"}`}
+                            >
+                              <Icon className="h-4 w-4" aria-hidden="true" />
+                              {t(labelKey)}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => fitView({ duration: 300 })}>
+                      <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleRearrange}>
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+
               <div className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]" aria-describedby="drug-network-canvas-summary">
                 <ReactFlow
                   nodes={flowNodes}
                   edges={flowEdges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  deleteKeyCode={null}
                   nodeTypes={NODE_TYPES}
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
@@ -379,15 +629,7 @@ function DrugNetworkContent() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => fitView({ duration: 300 })}>
-                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                  {t("di.network.fitToScreen")}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => updateParams({ depth: undefined, nodeTypes: undefined, relationshipTypes: undefined, dateFrom: undefined, dateTo: undefined, maxNodes: undefined })}
-                >
+                <Button variant="ghost" size="sm" onClick={handleBackToStart}>
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   {t("di.network.resetToFocus")}
                 </Button>

@@ -135,7 +135,8 @@ export class DrugNetworkGraphService {
 
     const visited = new Map<string, { type: DrugGraphNodeType; id: string }>([[nodeKey(request.entityType, focusId), { type: request.entityType, id: focusId }]]);
     const expanded = new Set<string>();
-    const edgesById = new Map<string, DrugGraphEdge>();
+    const edgesByKey = new Map<string, DrugGraphEdge>();
+    const mergedRawIds = new Map<string, Set<string>>();
     let frontier: Array<{ type: DrugGraphNodeType; id: string }> = [{ type: request.entityType, id: focusId }];
     let truncated = false;
 
@@ -153,7 +154,7 @@ export class DrugNetworkGraphService {
           truncated = true;
           continue;
         }
-        edgesById.set(raw.edge.id, raw.edge);
+        this.mergeEdgeIntoMap(edgesByKey, mergedRawIds, raw.edge);
         if (!visited.has(key)) {
           const ref = { type: raw.neighborType, id: raw.neighborId };
           visited.set(key, ref);
@@ -199,21 +200,76 @@ export class DrugNetworkGraphService {
         if (request.relationshipTypes && !request.relationshipTypes.includes(raw.edge.relationshipType)) continue;
         if (!this.withinDateRange(raw.edge, request.dateFrom, request.dateTo)) continue;
         const neighborKey = nodeKey(raw.neighborType, raw.neighborId);
-        if (visited.has(neighborKey)) edgesById.set(raw.edge.id, raw.edge);
+        if (visited.has(neighborKey)) this.mergeEdgeIntoMap(edgesByKey, mergedRawIds, raw.edge);
       }
     }
 
     const nodeRefs = [...visited.values()];
     const nodes = await this.hydrateNodes(nodeRefs, options);
-    const inferredEdges = this.deriveInferredPersonEdges(nodes, [...edgesById.values()]);
-    for (const edge of inferredEdges) edgesById.set(edge.id, edge);
+    const inferredEdges = this.deriveInferredPersonEdges(nodes, [...edgesByKey.values()]);
+    for (const edge of inferredEdges) this.mergeEdgeIntoMap(edgesByKey, mergedRawIds, edge);
 
     return {
       focus: { entityType: request.entityType, entityId: focusId },
       nodes,
-      edges: [...edgesById.values()],
+      edges: [...edgesByKey.values()],
       truncated,
     };
+  }
+
+  /**
+   * Section 3/9 (found via DI-5.2's realistic multi-person QA fixture, a
+   * real bug): a CASE↔entity junction (DrugCasePhone/Sim/Device/Vehicle)
+   * has ONE ROW PER PERSON linked to that sighting — a case where two
+   * different persons both independently recorded the same phone produces
+   * TWO DrugCasePhone rows for the identical (case, phone) pair. Keying
+   * edge dedup on the raw junction-row id (as the earlier version did)
+   * let both rows through as two parallel edges with identical source/
+   * target/relationshipType, overlapping visually on the canvas. Deduping
+   * here on (source, target, relationshipType) instead collapses them into
+   * ONE edge, summing evidenceCount and widening the first/lastSeen range
+   * and sourceCaseIds — never silently drops the extra provenance, only
+   * merges it into the single edge a user should actually see.
+   */
+  private mergeEdgeIntoMap(edgesByKey: Map<string, DrugGraphEdge>, mergedRawIds: Map<string, Set<string>>, edge: DrugGraphEdge): void {
+    const key = `${edge.source}|${edge.target}|${edge.relationshipType}`;
+    const existing = edgesByKey.get(key);
+    const rawIds = mergedRawIds.get(key) ?? new Set<string>();
+    mergedRawIds.set(key, rawIds);
+
+    // The SAME underlying junction row can be re-discovered from either
+    // endpoint (e.g. expanding the Case finds it, then the closing pass
+    // expanding the Phone finds the identical row again) — only fold a
+    // given raw edge id's evidence in ONCE, or evidenceCount double-counts.
+    if (rawIds.has(edge.id)) return;
+    rawIds.add(edge.id);
+
+    if (!existing) {
+      edgesByKey.set(key, edge);
+      return;
+    }
+    const firstSeenAt = this.earlierDate(existing.firstSeenAt, edge.firstSeenAt);
+    const lastSeenAt = this.laterDate(existing.lastSeenAt, edge.lastSeenAt);
+    const sourceCaseIds = [...new Set([...existing.sourceCaseIds, ...edge.sourceCaseIds])];
+    edgesByKey.set(key, {
+      ...existing,
+      evidenceCount: existing.evidenceCount + edge.evidenceCount,
+      firstSeenAt,
+      lastSeenAt,
+      sourceCaseIds,
+    });
+  }
+
+  private earlierDate(a: Date | null, b: Date | null): Date | null {
+    if (!a) return b;
+    if (!b) return a;
+    return a < b ? a : b;
+  }
+
+  private laterDate(a: Date | null, b: Date | null): Date | null {
+    if (!a) return b;
+    if (!b) return a;
+    return a > b ? a : b;
   }
 
   private withinDateRange(edge: DrugGraphEdge, dateFrom?: Date, dateTo?: Date): boolean {

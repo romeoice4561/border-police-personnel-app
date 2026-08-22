@@ -174,6 +174,24 @@ test("deduplication: a node reachable via two different paths appears exactly on
   assert.equal(phoneNodeIds.length, 1, "both persons share the SAME phone entity — one node, not two");
 });
 
+test("edge deduplication (found via DI-5.2's realistic QA fixture): two persons independently linked to the SAME case+phone must collapse into ONE CASE_PHONE edge, not two overlapping parallel edges", async () => {
+  const db = new InMemoryDatabaseClient();
+  const caseService = new DrugCaseService({ db });
+  await caseService.createCase(
+    baseCase({
+      caseNumber: "NET-EDGE-DEDUPE",
+      persons: [person("บุคคล เอ", "0888800000"), person("บุคคล บี", "0888800000")],
+    })
+  );
+  const cases = await db.drugCase.findMany({});
+  const graph = new DrugNetworkGraphService(db);
+  const result = await graph.getNeighborhood({ entityType: "CASE", entityId: cases[0].id, depth: 1 }, { canViewFull: true });
+
+  const casePhoneEdges = result.edges.filter((e) => e.relationshipType === "CASE_PHONE");
+  assert.equal(casePhoneEdges.length, 1, "must collapse the two DrugCasePhone junction rows (one per person) into a single CASE_PHONE edge");
+  assert.equal(casePhoneEdges[0].evidenceCount, 2, "evidenceCount must reflect BOTH underlying junction rows — merging never silently drops provenance");
+});
+
 test("cycle safety: a graph with a cycle (person -> case -> person's other link -> back to case) never infinite-loops", async () => {
   const db = new InMemoryDatabaseClient();
   const caseService = new DrugCaseService({ db });
