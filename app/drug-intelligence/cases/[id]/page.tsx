@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, Network } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -102,12 +102,20 @@ export default function DrugCaseWorkspacePage() {
         title={data.case.caseNumber}
         description={data.case.title}
         actions={
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/drug-intelligence/cases">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              {t("di.workspace.backToList")}
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`}>
+                <Network className="h-4 w-4" aria-hidden="true" />
+                {t("di.network.openNetwork")}
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/drug-intelligence/cases">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                {t("di.workspace.backToList")}
+              </Link>
+            </Button>
+          </div>
         }
       />
 

@@ -11,31 +11,19 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Network } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_SEARCH_MATCHED_FIELD_LABEL_KEY } from "@/lib/drug_intelligence/drug_search_match_explanation";
+import { drugEntityDetailPath, drugNetworkFocusPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import type { DrugSearchResult } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 const STRENGTH_TONE = { EXACT: "critical", PARTIAL: "neutral" } as const;
 
 function entityHref(result: DrugSearchResult): string {
-  switch (result.entityType) {
-    case "PERSON":
-      return `/drug-intelligence/persons/${encodeURIComponent(result.canonicalTarget?.entityId ?? result.entityId)}`;
-    case "PHONE":
-      return `/drug-intelligence/phones/${encodeURIComponent(result.entityId)}`;
-    case "SIM":
-      return `/drug-intelligence/sims/${encodeURIComponent(result.entityId)}`;
-    case "DEVICE":
-      return `/drug-intelligence/devices/${encodeURIComponent(result.entityId)}`;
-    case "VEHICLE":
-      return `/drug-intelligence/vehicles/${encodeURIComponent(result.entityId)}`;
-    case "CASE":
-      return `/drug-intelligence/cases/${encodeURIComponent(result.entityId)}`;
-  }
+  return drugEntityDetailPath(result.entityType, result.canonicalTarget?.entityId ?? result.entityId);
 }
 
 function actionLabelKey(entityType: DrugSearchResult["entityType"]): "di.search.viewProfile" | "di.search.viewRelations" | "di.search.openCase" {
@@ -77,9 +65,17 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
           <p className="text-xs text-muted">{t("di.search.mergedNotice")}</p>
         ) : null}
 
-        <Button asChild variant="outline" size="sm">
-          <Link href={entityHref(result)}>{t(actionLabelKey(result.entityType))}</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={entityHref(result)}>{t(actionLabelKey(result.entityType))}</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href={drugNetworkFocusPath(result.entityType, result.canonicalTarget?.entityId ?? result.entityId)}>
+              <Network className="h-4 w-4" aria-hidden="true" />
+              {t("di.network.openNetwork")}
+            </Link>
+          </Button>
+        </div>
       </CardBody>
     </Card>
   );

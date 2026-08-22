@@ -33,6 +33,10 @@ import {
   type DrugSimDetailResponse,
   type DrugDeviceDetailResponse,
   type DrugVehicleDetailResponse,
+  type DrugGraphNeighborhoodQuery,
+  type DrugGraphNeighborhoodResponse,
+  type DrugGraphPathQuery,
+  type DrugGraphPathResponse,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export interface DrugPageMeta {
@@ -61,6 +65,9 @@ export const drugQueryKeys = {
   simDetail: (actorId: string | null, simId: string) => ["drug-sim-detail", actorId, simId] as const,
   deviceDetail: (actorId: string | null, deviceId: string) => ["drug-device-detail", actorId, deviceId] as const,
   vehicleDetail: (actorId: string | null, vehicleId: string) => ["drug-vehicle-detail", actorId, vehicleId] as const,
+  // DI-5
+  networkNeighborhood: (actorId: string | null, query: DrugGraphNeighborhoodQuery) => ["drug-network-neighborhood", actorId, query] as const,
+  networkPath: (actorId: string | null, query: DrugGraphPathQuery) => ["drug-network-path", actorId, query] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -260,5 +267,23 @@ export function useDrugVehicleDetail(actorId: string | null, vehicleId: string):
     queryKey: drugQueryKeys.vehicleDetail(actorId, vehicleId),
     queryFn: () => drugIntelligenceClient.getVehicleDetail(vehicleId, actorId as string),
     enabled: Boolean(actorId) && vehicleId.length > 0,
+  });
+}
+
+// ── DI-5: Network Intelligence / Link Analysis ────────────────────────────
+
+export function useDrugNetworkNeighborhood(actorId: string | null, query: DrugGraphNeighborhoodQuery): UseQueryResult<DrugGraphNeighborhoodResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.networkNeighborhood(actorId, query),
+    queryFn: () => drugIntelligenceClient.getNetworkNeighborhood(actorId as string, query),
+    enabled: Boolean(actorId) && query.entityId.length > 0,
+  });
+}
+
+export function useDrugNetworkPath(actorId: string | null, query: DrugGraphPathQuery | null): UseQueryResult<DrugGraphPathResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.networkPath(actorId, query ?? { fromType: "PERSON", fromId: "", toType: "PERSON", toId: "" }),
+    queryFn: () => drugIntelligenceClient.getNetworkPath(actorId as string, query as DrugGraphPathQuery),
+    enabled: Boolean(actorId) && Boolean(query) && query!.fromId.length > 0 && query!.toId.length > 0,
   });
 }

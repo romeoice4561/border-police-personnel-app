@@ -76,6 +76,11 @@ export class DrugPersonRepository {
     return this.db.drugCasePhone.findMany({ where: { personId } });
   }
 
+  /** Phase DI-5: Person↔SIM edge traversal — DrugCaseSim.personId is nullable (a SIM sighting can exist with no person attached), so callers must filter out null-personId rows themselves when this scan is used generically. */
+  caseSimsForPerson(personId: string) {
+    return this.db.drugCaseSim.findMany({ where: { personId } });
+  }
+
   // ── DI-2: Entity Resolution additions ──────────────────────────────────
 
   /**

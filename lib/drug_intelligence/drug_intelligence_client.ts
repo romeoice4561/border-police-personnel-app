@@ -722,6 +722,115 @@ export interface DrugVehicleDetailResponse {
   lastSeenAt: string;
 }
 
+// ── DI-5: Network Intelligence / Link Analysis types ─────────────────────
+
+export type DrugGraphNodeType = "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "CASE" | "LOCATION";
+
+export type DrugGraphRelationshipType =
+  | "PERSON_CASE"
+  | "PERSON_PHONE"
+  | "PERSON_SIM"
+  | "PERSON_DEVICE"
+  | "PERSON_VEHICLE"
+  | "CASE_PHONE"
+  | "CASE_SIM"
+  | "CASE_DEVICE"
+  | "CASE_VEHICLE"
+  | "CASE_LOCATION"
+  | "SHARED_CASE"
+  | "SHARED_PHONE"
+  | "SHARED_SIM"
+  | "SHARED_DEVICE"
+  | "SHARED_VEHICLE";
+
+export type DrugGraphEdgeKind = "DIRECT" | "INFERRED";
+export type DrugGraphRiskIndicator = "POTENTIAL_DUPLICATE_PERSON" | "HIGH_CASE_COUNT" | "MERGED_PERSON_HISTORICAL";
+
+export type DrugGraphNodeMetadata =
+  | { type: "PERSON"; status: "ACTIVE" | "MERGED"; canonicalTarget: { entityId: string; primaryLabel: string } | null; hasPotentialDuplicate: boolean }
+  | { type: "PHONE"; carrier: string | null }
+  | { type: "SIM"; imsi: string | null; carrier: string | null }
+  | { type: "DEVICE"; brand: string | null; model: string | null }
+  | { type: "VEHICLE"; registrationProvince: string | null; brand: string | null; model: string | null; color: string | null }
+  | { type: "CASE"; caseNumber: string; status: string; arrestDate: string | null; province: string | null; reportingUnitText: string | null }
+  | { type: "LOCATION"; province: string | null; district: string | null };
+
+export interface DrugGraphNode {
+  id: string;
+  type: DrugGraphNodeType;
+  label: string;
+  secondaryLabel: string | null;
+  maskedLabel: string | null;
+  metadata: DrugGraphNodeMetadata;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  caseCount: number;
+  riskIndicators: DrugGraphRiskIndicator[];
+}
+
+export type DrugGraphEdgeExplanation =
+  | { kind: "DIRECT_ROLE"; role: string }
+  | { kind: "DIRECT_LINK" }
+  | { kind: "SHARED_CASES"; count: number }
+  | { kind: "SHARED_PHONE" }
+  | { kind: "SHARED_SIM" }
+  | { kind: "SHARED_DEVICE" }
+  | { kind: "SHARED_VEHICLE" };
+
+export interface DrugGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relationshipType: DrugGraphRelationshipType;
+  edgeKind: DrugGraphEdgeKind;
+  evidenceCount: number;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  sourceCaseIds: string[];
+  explanation: DrugGraphEdgeExplanation;
+}
+
+export interface DrugGraphNeighborhoodResponse {
+  focus: { entityType: DrugGraphNodeType; entityId: string };
+  nodes: DrugGraphNode[];
+  edges: DrugGraphEdge[];
+  truncated: boolean;
+}
+
+export interface DrugGraphNeighborhoodQuery {
+  entityType: DrugGraphNodeType;
+  entityId: string;
+  depth?: 1 | 2;
+  nodeTypes?: DrugGraphNodeType[];
+  relationshipTypes?: DrugGraphRelationshipType[];
+  dateFrom?: string;
+  dateTo?: string;
+  maxNodes?: number;
+}
+
+export interface DrugGraphPathStep {
+  node: DrugGraphNode;
+  viaEdge: DrugGraphEdge | null;
+}
+
+export interface DrugGraphPath {
+  steps: DrugGraphPathStep[];
+  hopCount: number;
+}
+
+export interface DrugGraphPathResponse {
+  found: boolean;
+  paths: DrugGraphPath[];
+}
+
+export interface DrugGraphPathQuery {
+  fromType: DrugGraphNodeType;
+  fromId: string;
+  toType: DrugGraphNodeType;
+  toId: string;
+  maxDepth?: number;
+}
+
 export const drugIntelligenceClient = {
   async getStats(actorId: string): Promise<DrugIntelligenceStats> {
     return (await request<DrugIntelligenceStats>(`/drug-intelligence/stats${toQueryString({ actorId })}`)).data;
@@ -869,6 +978,16 @@ export const drugIntelligenceClient = {
 
   async getVehicleDetail(vehicleId: string, actorId: string): Promise<DrugVehicleDetailResponse> {
     return (await request<DrugVehicleDetailResponse>(`/drug-intelligence/vehicles/${encodeURIComponent(vehicleId)}${toQueryString({ actorId })}`)).data;
+  },
+
+  // ── DI-5: Network Intelligence / Link Analysis ─────────────────────────
+
+  async getNetworkNeighborhood(actorId: string, query: DrugGraphNeighborhoodQuery): Promise<DrugGraphNeighborhoodResponse> {
+    return (await request<DrugGraphNeighborhoodResponse>(`/drug-intelligence/network${toQueryString({ actorId, ...query })}`)).data;
+  },
+
+  async getNetworkPath(actorId: string, query: DrugGraphPathQuery): Promise<DrugGraphPathResponse> {
+    return (await request<DrugGraphPathResponse>(`/drug-intelligence/network/path${toQueryString({ actorId, ...query })}`)).data;
   },
 };
 

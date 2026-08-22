@@ -238,6 +238,11 @@ export class DrugEntityRepository {
     return this.db.drugLocation.findUnique({ where: { id } });
   }
 
+  /** Phase DI-5: Case↔Location edge traversal FROM a Location — the reverse direction of caseLocationsForCase. */
+  caseLocationsForLocation(locationId: string) {
+    return this.db.drugCaseLocation.findMany({ where: { locationId } });
+  }
+
   // ── DI-3: Global Search read-only lookups ──────────────────────────────
   // Indexed exact-match lookups the search service tries FIRST (Section
   // 25/26 — never a full-table scan for a value the schema can already
