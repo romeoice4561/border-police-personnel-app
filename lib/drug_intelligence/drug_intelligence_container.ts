@@ -22,6 +22,7 @@ import { DrugIntelligenceSearchService } from "@/lib/drug_intelligence/drug_inte
 import { DrugEntityDetailService } from "@/lib/drug_intelligence/drug_entity_detail_service";
 import { DrugNetworkGraphService } from "@/lib/drug_intelligence/drug_network_graph_service";
 import { DrugIntelligenceAlertService } from "@/lib/drug_intelligence/drug_intelligence_alert_service";
+import { DrugTimelineService } from "@/lib/drug_intelligence/drug_timeline_service";
 
 export interface DrugIntelligenceContainer {
   caseService: DrugCaseService;
@@ -39,6 +40,8 @@ export interface DrugIntelligenceContainer {
   networkGraphService: DrugNetworkGraphService;
   /** Phase DI-6: Repeat Entity Detection & Intelligence Alerts. */
   alertService: DrugIntelligenceAlertService;
+  /** Phase DI-7: Timeline & Geographic Intelligence. */
+  timelineService: DrugTimelineService;
 }
 
 /** Builds the container from any DatabaseClient (real or fake). Pure — no I/O. */
@@ -55,6 +58,7 @@ export function createDrugIntelligenceContainer(client: DatabaseClient): DrugInt
     entityDetailService: new DrugEntityDetailService(client),
     networkGraphService: new DrugNetworkGraphService(client),
     alertService: new DrugIntelligenceAlertService(client),
+    timelineService: new DrugTimelineService(client),
   };
 }
 

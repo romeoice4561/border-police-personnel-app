@@ -12,7 +12,7 @@
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, AlertTriangle, Plus, Network } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, AlertTriangle, Plus, Network, History } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -163,6 +163,12 @@ function DrugPersonProfileContent() {
                 {t("di.network.openNetwork")}
               </Link>
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/drug-intelligence/timeline?personId=${encodeURIComponent(data.person.id)}`}>
+                <History className="h-4 w-4" aria-hidden="true" />
+                {t("di.timeline.viewPersonTimeline")}
+              </Link>
+            </Button>
             <Button asChild variant="ghost" size="sm">
               <Link href="/drug-intelligence/persons">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -272,6 +278,18 @@ function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileR
       </Card>
 
       <DrugEntityAlertSummary entityType="PERSON" entityId={data.person.id} />
+
+      <Card>
+        <CardBody className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <History className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+            {t("di.timeline.personHistoryTitle")}
+          </p>
+          <Link href={`/drug-intelligence/timeline?personId=${encodeURIComponent(data.person.id)}`} className="text-xs text-accent hover:underline">
+            {t("di.timeline.viewPersonTimeline")}
+          </Link>
+        </CardBody>
+      </Card>
 
       <Card>
         <CardBody className="space-y-2">

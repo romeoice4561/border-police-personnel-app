@@ -41,6 +41,10 @@ import {
   type DrugAlertListResponse,
   type DrugAlertEntityType,
   type DrugIntelligenceAlert,
+  type DrugTimelineListQuery,
+  type DrugTimelineListResponse,
+  type DrugGeographicAggregateRow,
+  type DrugTimelineCorrelation,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export interface DrugPageMeta {
@@ -76,6 +80,10 @@ export const drugQueryKeys = {
   alertList: (actorId: string | null, query: DrugAlertListQuery) => ["drug-alert-list", actorId, query] as const,
   alertsForEntity: (actorId: string | null, entityType: DrugAlertEntityType, entityId: string) => ["drug-alerts-for-entity", actorId, entityType, entityId] as const,
   alertsForCase: (actorId: string | null, caseId: string) => ["drug-alerts-for-case", actorId, caseId] as const,
+  // DI-7
+  timeline: (actorId: string | null, query: DrugTimelineListQuery) => ["drug-timeline", actorId, query] as const,
+  timelineGeographic: (actorId: string | null, query: DrugTimelineListQuery) => ["drug-timeline-geographic", actorId, query] as const,
+  timelineCorrelations: (actorId: string | null, query: DrugTimelineListQuery & { timeWindowDays?: number }) => ["drug-timeline-correlations", actorId, query] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -374,5 +382,35 @@ export function useReopenDrugAlert(actorId: string | null, actorName: string) {
       queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-entity"] });
       queryClient.invalidateQueries({ queryKey: ["drug-alerts-for-case"] });
     },
+  });
+}
+
+// ── Phase DI-7: Timeline & Geographic Intelligence ─────────────────────────
+
+/** Section 4/5: the main filtered/grouped/paginated Timeline feed. */
+export function useDrugTimeline(actorId: string | null, query: DrugTimelineListQuery): UseQueryResult<DrugTimelineListResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.timeline(actorId, query),
+    queryFn: () => drugIntelligenceClient.getTimeline(actorId as string, query),
+    enabled: Boolean(actorId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Section 9: จังหวัด/อำเภอ -> จำนวนคดี geographic aggregate, same filter surface as the main timeline. */
+export function useDrugTimelineGeographic(actorId: string | null, query: DrugTimelineListQuery): UseQueryResult<{ rows: DrugGeographicAggregateRow[] }> {
+  return useQuery({
+    queryKey: drugQueryKeys.timelineGeographic(actorId, query),
+    queryFn: () => drugIntelligenceClient.getGeographicAggregate(actorId as string, query),
+    enabled: Boolean(actorId),
+  });
+}
+
+/** Section 10: deterministic correlation signals over the current query scope. */
+export function useDrugTimelineCorrelations(actorId: string | null, query: DrugTimelineListQuery & { timeWindowDays?: number }): UseQueryResult<{ correlations: DrugTimelineCorrelation[] }> {
+  return useQuery({
+    queryKey: drugQueryKeys.timelineCorrelations(actorId, query),
+    queryFn: () => drugIntelligenceClient.getTimelineCorrelations(actorId as string, query),
+    enabled: Boolean(actorId),
   });
 }

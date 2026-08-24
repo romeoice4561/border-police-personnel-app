@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award, ShieldAlert, GitCompareArrows, FilePlus2, ScanSearch, Network, BellRing } from "lucide-react";
+import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award, ShieldAlert, GitCompareArrows, FilePlus2, ScanSearch, Network, BellRing, History } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
 import { LanguageToggle } from "@/components/ui/language_toggle";
@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/drug-intelligence", labelKey: "di.nav.title", icon: ShieldAlert, permission: "drug.read" },
       { href: "/drug-intelligence/search", labelKey: "di.nav.search", icon: ScanSearch, permission: "drug.read" },
       { href: "/drug-intelligence/network", labelKey: "di.nav.network", icon: Network, permission: "drug.read" },
+      { href: "/drug-intelligence/timeline", labelKey: "di.timeline.navLabel", icon: History, permission: "drug.read" },
       { href: "/drug-intelligence/alerts", labelKey: "di.nav.alerts", icon: BellRing, permission: "drug.read" },
       { href: "/drug-intelligence/cases", labelKey: "di.nav.cases", icon: FileSpreadsheet, permission: "drug.read" },
       { href: "/drug-intelligence/persons", labelKey: "di.nav.persons", icon: Users, permission: "drug.read" },

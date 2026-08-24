@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, Network } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, Network, History } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { DrugCaseStatusBadge } from "@/components/drug_intelligence/drug_case_status_badge";
 import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
 import { DrugCaseAlertSummary } from "@/components/drug_intelligence/drug_case_alert_summary";
+import { DrugCaseTimelineSummary } from "@/components/drug_intelligence/drug_case_timeline_summary";
 import { DrugPersonDrawer } from "@/components/drug_intelligence/drug_person_drawer";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
@@ -110,6 +111,12 @@ export default function DrugCaseWorkspacePage() {
                 {t("di.network.openNetwork")}
               </Link>
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/drug-intelligence/timeline?caseId=${encodeURIComponent(caseId)}`}>
+                <History className="h-4 w-4" aria-hidden="true" />
+                {t("di.timeline.navLabel")}
+              </Link>
+            </Button>
             <Button asChild variant="ghost" size="sm">
               <Link href="/drug-intelligence/cases">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -177,7 +184,7 @@ function FutureFeaturesNote() {
   const { t } = useT();
   return (
     <p className="mt-6 border-t border-border pt-4 text-xs text-muted">
-      {t("di.workspace.futureFeatures")}: {t("di.workspace.futureNetwork")} · {t("di.workspace.futureTimeline")} · {t("di.workspace.futureMap")}
+      {t("di.workspace.futureFeatures")}: {t("di.workspace.futureMap")}
     </p>
   );
 }
@@ -187,6 +194,15 @@ function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
   return (
     <div className="space-y-3">
       <DrugCaseAlertSummary caseId={data.case.id} />
+      <DrugCaseTimelineSummary
+        caseId={data.case.id}
+        arrestDate={data.case.arrestDate}
+        province={data.case.province}
+        district={data.case.district}
+        subdistrict={data.case.subdistrict}
+        latitude={data.case.latitude}
+        longitude={data.case.longitude}
+      />
       <Card>
         <CardBody className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>

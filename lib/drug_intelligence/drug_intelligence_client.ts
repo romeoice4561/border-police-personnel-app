@@ -907,6 +907,105 @@ export interface DrugAlertQuickCheckResult {
   lastSeenAt: string | null;
 }
 
+// ── Phase DI-7: Timeline & Geographic Intelligence ─────────────────────────
+
+export type DrugTimelineSortDirection = "OLDEST_FIRST" | "NEWEST_FIRST";
+export type DrugTimelineGroupMode = "DAY" | "MONTH" | "PERSON" | "LOCATION" | "CASE";
+
+export interface DrugTimelineEventPersonRow {
+  personId: string;
+  primaryFullName: string;
+  role: string;
+}
+
+export interface DrugTimelineEvent {
+  caseId: string;
+  caseNumber: string;
+  title: string;
+  status: string;
+  arrestDate: string | null;
+  province: string | null;
+  district: string | null;
+  subdistrict: string | null;
+  locationName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  hasCoordinates: boolean;
+  reportingUnitText: string | null;
+  personCount: number;
+  persons: DrugTimelineEventPersonRow[];
+  phoneCount: number;
+  simCount: number;
+  deviceCount: number;
+  vehicleCount: number;
+  seizedItemCount: number;
+  seizedItemsSummary: string;
+  hasUnreviewedAlert: boolean;
+}
+
+export interface DrugTimelineGroupRow {
+  groupKey: string;
+  groupLabel: string;
+  events: DrugTimelineEvent[];
+}
+
+export interface DrugTimelineKpi {
+  eventCount: number;
+  provinceCount: number;
+  personsRepeatedAcrossAreas: number;
+  entitiesRepeatedAcrossAreas: number;
+  areasWithRepeatEvents: number;
+  dateRangeFrom: string | null;
+  dateRangeTo: string | null;
+}
+
+export interface DrugTimelineListQuery {
+  dateFrom?: string;
+  dateTo?: string;
+  province?: string;
+  district?: string;
+  reportingUnitText?: string;
+  headquartersId?: number;
+  regionId?: number;
+  battalionId?: number;
+  companyId?: number;
+  caseId?: string;
+  personId?: string;
+  phoneNumberId?: string;
+  simId?: string;
+  deviceId?: string;
+  vehicleId?: string;
+  drugCategory?: string;
+  sort?: DrugTimelineSortDirection;
+  groupMode?: DrugTimelineGroupMode;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DrugTimelineListResponse {
+  groups: DrugTimelineGroupRow[];
+  totalCount: number;
+  kpi: DrugTimelineKpi;
+}
+
+export interface DrugGeographicAggregateRow {
+  province: string;
+  district: string | null;
+  caseCount: number;
+  eventIds: string[];
+}
+
+export type DrugTimelineCorrelationKind = "ENTITY_MULTI_AREA" | "SHARED_LOCATION_MULTI_PERSON" | "TIME_WINDOW_CLUSTER";
+
+export interface DrugTimelineCorrelation {
+  kind: DrugTimelineCorrelationKind;
+  entityType: string | null;
+  entityId: string | null;
+  province: string | null;
+  caseIds: string[];
+  explanation: string;
+}
+
 export const drugIntelligenceClient = {
   async getStats(actorId: string): Promise<DrugIntelligenceStats> {
     return (await request<DrugIntelligenceStats>(`/drug-intelligence/stats${toQueryString({ actorId })}`)).data;
@@ -1120,6 +1219,18 @@ export const drugIntelligenceClient = {
 
   async reopenAlert(alertId: string, actorId: string, actorName: string): Promise<{ alert: DrugIntelligenceAlert }> {
     return (await requestPost<{ alert: DrugIntelligenceAlert }>(`/drug-intelligence/alerts/${encodeURIComponent(alertId)}/reopen`, { actorId, actorName })).data;
+  },
+
+  async getTimeline(actorId: string, query: DrugTimelineListQuery): Promise<DrugTimelineListResponse> {
+    return (await request<DrugTimelineListResponse>(`/drug-intelligence/timeline${toQueryString({ actorId, ...query })}`)).data;
+  },
+
+  async getGeographicAggregate(actorId: string, query: DrugTimelineListQuery): Promise<{ rows: DrugGeographicAggregateRow[] }> {
+    return (await request<{ rows: DrugGeographicAggregateRow[] }>(`/drug-intelligence/timeline/geographic${toQueryString({ actorId, ...query })}`)).data;
+  },
+
+  async getTimelineCorrelations(actorId: string, query: DrugTimelineListQuery & { timeWindowDays?: number }): Promise<{ correlations: DrugTimelineCorrelation[] }> {
+    return (await request<{ correlations: DrugTimelineCorrelation[] }>(`/drug-intelligence/timeline/correlations${toQueryString({ actorId, ...query })}`)).data;
   },
 };
 

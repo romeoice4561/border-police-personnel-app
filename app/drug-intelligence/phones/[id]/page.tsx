@@ -6,7 +6,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Phone as PhoneIcon, Users, FileSpreadsheet, Network } from "lucide-react";
+import { ArrowLeft, Phone as PhoneIcon, Users, FileSpreadsheet, Network, History } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -46,6 +46,12 @@ export default function DrugPhoneDetailPage() {
               <Link href={`/drug-intelligence/network?focusType=PHONE&focusId=${encodeURIComponent(phoneNumberId)}`}>
                 <Network className="h-4 w-4" aria-hidden="true" />
                 {t("di.network.openNetwork")}
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/drug-intelligence/timeline?phoneNumberId=${encodeURIComponent(phoneNumberId)}`}>
+                <History className="h-4 w-4" aria-hidden="true" />
+                {t("di.timeline.navLabel")}
               </Link>
             </Button>
             <Button asChild variant="ghost" size="sm">
