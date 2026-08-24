@@ -237,6 +237,11 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     return r.id === w.id;
   });
 
+  // Phase DI-7.2/7.3: Network groups, memberships, and network-role assertions.
+  private readonly drugNetworkGroups = new Table((r, w) => r.id === w.id);
+  private readonly drugPersonNetworkMemberships = new Table((r, w) => r.id === w.id);
+  private readonly drugPersonNetworkRoles = new Table((r, w) => r.id === w.id);
+
   /**
    * When set, any timeline.create for an officer whose row has this string
    * officerId throws — simulating a mid-transaction failure AFTER the officer
@@ -370,6 +375,15 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugIntelligenceAlert() {
     return delegate(this.drugIntelligenceAlerts) as unknown as DatabaseClient["drugIntelligenceAlert"];
   }
+  get drugNetworkGroup() {
+    return delegate(this.drugNetworkGroups) as unknown as DatabaseClient["drugNetworkGroup"];
+  }
+  get drugPersonNetworkMembership() {
+    return delegate(this.drugPersonNetworkMemberships) as unknown as DatabaseClient["drugPersonNetworkMembership"];
+  }
+  get drugPersonNetworkRole() {
+    return delegate(this.drugPersonNetworkRoles) as unknown as DatabaseClient["drugPersonNetworkRole"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(
@@ -412,6 +426,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugPersonMatchReviews: this.drugPersonMatchReviews.snapshot(),
       drugPersonMerges: this.drugPersonMerges.snapshot(),
       drugIntelligenceAlerts: this.drugIntelligenceAlerts.snapshot(),
+      drugNetworkGroups: this.drugNetworkGroups.snapshot(),
+      drugPersonNetworkMemberships: this.drugPersonNetworkMemberships.snapshot(),
+      drugPersonNetworkRoles: this.drugPersonNetworkRoles.snapshot(),
     };
     try {
       return await fn(this);
@@ -450,6 +467,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugPersonMatchReviews.restore(snaps.drugPersonMatchReviews);
       this.drugPersonMerges.restore(snaps.drugPersonMerges);
       this.drugIntelligenceAlerts.restore(snaps.drugIntelligenceAlerts);
+      this.drugNetworkGroups.restore(snaps.drugNetworkGroups);
+      this.drugPersonNetworkMemberships.restore(snaps.drugPersonNetworkMemberships);
+      this.drugPersonNetworkRoles.restore(snaps.drugPersonNetworkRoles);
       throw error;
     }
   }

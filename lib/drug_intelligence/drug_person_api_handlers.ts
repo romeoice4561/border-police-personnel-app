@@ -39,7 +39,16 @@ import {
   drugPersonMergeRequestSchema,
   drugPersonMergePreviewQuerySchema,
   drugPersonMatchCandidatesForDraftSchema,
+  drugPersonAddNetworkRoleSchema,
+  drugPersonUpdateNetworkRoleStatusSchema,
+  drugPersonAddNetworkMembershipSchema,
+  drugNetworkGroupCreateSchema,
+  drugNetworkGroupSearchSchema,
 } from "@/lib/drug_intelligence/drug_person_api_schemas";
+import { DrugPersonNetworkRoleRepository } from "@/lib/database/repositories/drug_person_network_role_repository";
+import { DrugNetworkGroupRepository } from "@/lib/database/repositories/drug_network_group_repository";
+import { DrugAuditLogRepository } from "@/lib/database/repositories/drug_audit_log_repository";
+import type { DatabaseClient } from "@/lib/database/database_types";
 
 function zodDetails(error: z.ZodError): unknown {
   return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
@@ -285,4 +294,162 @@ export async function handleDrugPersonMatchCandidatesForDraft(service: DrugPerso
   });
   const candidates = await service.findCandidates(identity);
   return jsonOk({ candidates });
+}
+
+// ── DI-7.3: Network Role handlers ─────────────────────────────────────────────
+
+/** POST /api/drug-intelligence/persons/{id}/network-roles — add a role assertion. Requires drug.edit. */
+export async function handleAddDrugPersonNetworkRole(db: DatabaseClient, personId: string, request: Request): Promise<Response> {
+  const parsedBody = await parseJsonBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const parsed = drugPersonAddNetworkRoleSchema.safeParse(parsedBody.body);
+  if (!parsed.success) return badRequest("Invalid network role request", zodDetails(parsed.error));
+
+  const denied = await assertDrugIntelligencePermission(request, parsed.data.actorId, "drug.edit");
+  if (denied) return denied;
+
+  const repo = new DrugPersonNetworkRoleRepository(db);
+  const row = await repo.create({
+    personId,
+    sourceCaseId: parsed.data.sourceCaseId ?? null,
+    role: parsed.data.role,
+    source: parsed.data.source ?? null,
+    verificationStatus: parsed.data.verificationStatus,
+    note: parsed.data.note ?? null,
+    createdBy: parsed.data.actorId,
+    createdByName: parsed.data.actorName,
+  });
+  await new DrugAuditLogRepository(db).record({
+    entityType: "DrugPersonNetworkRole",
+    entityId: row.id,
+    action: "DRUG_PERSON_NETWORK_ROLE_ADDED",
+    actorId: parsed.data.actorId,
+    actorName: parsed.data.actorName,
+    detail: JSON.stringify({ personId, role: parsed.data.role, source: parsed.data.source ?? null, verificationStatus: row.verificationStatus }),
+  });
+  return jsonOk(row);
+}
+
+/** PATCH /api/drug-intelligence/persons/{id}/network-roles/{roleId} — update verification status. Requires drug.edit. */
+export async function handleUpdateDrugPersonNetworkRoleStatus(db: DatabaseClient, roleId: string, request: Request): Promise<Response> {
+  const parsedBody = await parseJsonBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const parsed = drugPersonUpdateNetworkRoleStatusSchema.safeParse(parsedBody.body);
+  if (!parsed.success) return badRequest("Invalid network role status request", zodDetails(parsed.error));
+
+  const denied = await assertDrugIntelligencePermission(request, parsed.data.actorId, "drug.edit");
+  if (denied) return denied;
+
+  const repo = new DrugPersonNetworkRoleRepository(db);
+  const row = await repo.updateVerificationStatus(roleId, parsed.data.verificationStatus);
+  await new DrugAuditLogRepository(db).record({
+    entityType: "DrugPersonNetworkRole",
+    entityId: roleId,
+    action: "DRUG_PERSON_NETWORK_ROLE_STATUS_UPDATED",
+    actorId: parsed.data.actorId,
+    actorName: parsed.data.actorName,
+    detail: JSON.stringify({ newStatus: parsed.data.verificationStatus }),
+  });
+  return jsonOk(row);
+}
+
+// ── DI-7.2: Network Group & Membership handlers ───────────────────────────────
+
+/** GET /api/drug-intelligence/network-groups?query=...&actorId=... — search groups. Requires drug.read. */
+export async function handleDrugNetworkGroupSearch(db: DatabaseClient, searchParams: URLSearchParams, request: Request): Promise<Response> {
+  const parsed = drugNetworkGroupSearchSchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) return badRequest("Invalid network group search", zodDetails(parsed.error));
+
+  const denied = await assertDrugIntelligencePermission(request, parsed.data.actorId, "drug.read");
+  if (denied) return denied;
+
+  const repo = new DrugNetworkGroupRepository(db);
+  const rows = await repo.search(parsed.data.query ?? "");
+  return jsonOk(rows);
+}
+
+/** POST /api/drug-intelligence/network-groups — create a canonical group. Requires drug.edit (never silently from free text). */
+export async function handleDrugNetworkGroupCreate(db: DatabaseClient, request: Request): Promise<Response> {
+  const parsedBody = await parseJsonBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const parsed = drugNetworkGroupCreateSchema.safeParse(parsedBody.body);
+  if (!parsed.success) return badRequest("Invalid network group create request", zodDetails(parsed.error));
+
+  const denied = await assertDrugIntelligencePermission(request, parsed.data.actorId, "drug.edit");
+  if (denied) return denied;
+
+  const repo = new DrugNetworkGroupRepository(db);
+  const row = await repo.create({
+    name: parsed.data.name,
+    aliases: parsed.data.aliases ?? null,
+    description: parsed.data.description ?? null,
+    note: parsed.data.note ?? null,
+    createdBy: parsed.data.actorId,
+  });
+  await new DrugAuditLogRepository(db).record({
+    entityType: "DrugNetworkGroup",
+    entityId: row.id,
+    action: "DRUG_NETWORK_GROUP_CREATED",
+    actorId: parsed.data.actorId,
+    actorName: parsed.data.actorName,
+    detail: JSON.stringify({ name: row.name }),
+  });
+  return jsonOk(row);
+}
+
+/** POST /api/drug-intelligence/persons/{id}/network-memberships — add a membership. Requires drug.edit. */
+export async function handleAddDrugPersonNetworkMembership(db: DatabaseClient, personId: string, request: Request): Promise<Response> {
+  const parsedBody = await parseJsonBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const parsed = drugPersonAddNetworkMembershipSchema.safeParse(parsedBody.body);
+  if (!parsed.success) return badRequest("Invalid network membership request", zodDetails(parsed.error));
+
+  const denied = await assertDrugIntelligencePermission(request, parsed.data.actorId, "drug.edit");
+  if (denied) return denied;
+
+  const repo = new DrugNetworkGroupRepository(db);
+  let groupId = parsed.data.networkGroupId ?? null;
+
+  if (!groupId && parsed.data.networkGroupName?.trim()) {
+    const existing = await repo.search(parsed.data.networkGroupName.trim());
+    const exact = existing.find((g) => g.name.toLowerCase() === parsed.data.networkGroupName!.trim().toLowerCase());
+    if (exact) {
+      groupId = exact.id;
+    } else {
+      const newGroup = await repo.create({
+        name: parsed.data.networkGroupName.trim(),
+        aliases: null,
+        description: null,
+        note: null,
+        createdBy: parsed.data.actorId,
+      });
+      groupId = newGroup.id;
+    }
+  }
+
+  if (!groupId) return badRequest("Either networkGroupId or networkGroupName must be provided");
+
+  const membership = await repo.addMembership({
+    personId,
+    networkGroupId: groupId,
+    source: parsed.data.source ?? null,
+    status: null,
+    note: parsed.data.note ?? null,
+    firstObservedAt: null,
+    lastObservedAt: null,
+    createdBy: parsed.data.actorId,
+  }) as { id: string; personId: string; networkGroupId: string; [key: string]: unknown };
+  await new DrugAuditLogRepository(db).record({
+    entityType: "DrugPersonNetworkMembership",
+    entityId: membership.id,
+    action: "DRUG_PERSON_NETWORK_MEMBERSHIP_ADDED",
+    actorId: parsed.data.actorId,
+    actorName: parsed.data.actorName,
+    detail: JSON.stringify({ personId, networkGroupId: groupId }),
+  });
+  return jsonOk(membership);
 }

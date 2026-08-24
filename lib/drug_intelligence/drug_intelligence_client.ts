@@ -320,10 +320,16 @@ export interface DrugCaseCreatePersonInput {
   existingPersonId?: string;
   newPerson?: {
     primaryFullName: string;
+    nickname?: string | null;
     nationality?: string | null;
+    sex?: string | null;
     dateOfBirth?: string | null;
+    approximateAge?: number | null;
     notes?: string | null;
+    aliases?: Array<{ fullName: string }>;
     identifiers: Array<{ type: string; value: string; notes?: string | null }>;
+    networkRoles?: Array<{ role: string; source?: string | null; verificationStatus?: string; note?: string | null }>;
+    networkMemberships?: Array<{ networkGroupId?: string | null; networkGroupName: string; source?: string | null; note?: string | null }>;
   };
   role: string;
   linkedOfficerId?: string | null;
@@ -572,8 +578,44 @@ export interface DrugPersonDataQualityFlag {
   detail: string;
 }
 
+export interface DrugPersonNetworkRoleProfileRow {
+  id: string;
+  personId: string;
+  sourceCaseId: string | null;
+  role: string;
+  source: string | null;
+  verificationStatus: string;
+  note: string | null;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DrugPersonNetworkMembershipProfileRow {
+  id: string;
+  personId: string;
+  networkGroupId: string;
+  networkGroupName?: string | null;
+  source: string | null;
+  status: string | null;
+  note: string | null;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface DrugPersonProfileResponse {
-  person: DrugPersonDetail & { status: string; mergedIntoPersonId: string | null; createdAt: string; updatedAt: string };
+  person: DrugPersonDetail & {
+    status: string;
+    mergedIntoPersonId: string | null;
+    createdAt: string;
+    updatedAt: string;
+    nickname?: string | null;
+    sex?: string | null;
+    approximateAge?: number | null;
+  };
   aliases: DrugPersonAliasRow[];
   identifiers: DrugPersonIdentifierRow[];
   cases: DrugCaseLinkSummary[];
@@ -589,6 +631,10 @@ export interface DrugPersonProfileResponse {
   lastSeenAt: string;
   dataQuality: DrugPersonDataQualityFlag[];
   counts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; locations: number };
+  /** DI-7.3: network-role assertions (append-only history). */
+  networkRoles?: DrugPersonNetworkRoleProfileRow[];
+  /** DI-7.2: network/group membership assertions. */
+  networkMemberships?: DrugPersonNetworkMembershipProfileRow[];
 }
 
 export interface DrugPersonProfileUpdateInput {

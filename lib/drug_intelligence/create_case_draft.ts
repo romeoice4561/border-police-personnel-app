@@ -65,11 +65,35 @@ export interface VehicleDraft {
   notes: string;
 }
 
+export interface AliasDraft {
+  key: string;
+  /** The alias text — trimmed before sending to the API. */
+  fullName: string;
+}
+
 export interface IdentifierDraft {
   key: string;
   type: string;
   value: string;
   notes: string;
+}
+
+export interface NetworkRoleDraft {
+  key: string;
+  role: string;
+  source: string;
+  verificationStatus: string;
+  note: string;
+}
+
+export interface NetworkMembershipDraft {
+  key: string;
+  /** Resolved canonical group id — null if not yet resolved or manual. */
+  networkGroupId: string | null;
+  /** Display name for the group (resolved from id or typed manually). */
+  networkGroupName: string;
+  source: string;
+  note: string;
 }
 
 export interface PersonDraft {
@@ -78,16 +102,28 @@ export interface PersonDraft {
   existingPersonId: string | null;
   existingPersonLabel: string | null;
   primaryFullName: string;
+  /** DI-7.2: dedicated "ชื่อเล่น" — separate from aliases. */
+  nickname: string;
   nationality: string;
+  /** DI-7.2: MALE / FEMALE / UNKNOWN — never inferred. */
+  sex: string;
   dateOfBirth: string;
+  /** DI-7.2: used only when dateOfBirth is unknown. */
+  approximateAge: string;
   role: string;
   linkedOfficerId: string;
   notes: string;
+  /** DI-7.1 fix: secondary aliases — each persisted as DrugPersonAlias, never comma-joined. */
+  aliases: AliasDraft[];
   identifiers: IdentifierDraft[];
   phones: PhoneDraft[];
   sims: SimDraft[];
   devices: DeviceDraft[];
   vehicles: VehicleDraft[];
+  /** DI-7.3: network-role assertions (each with provenance + verification). */
+  networkRoles: NetworkRoleDraft[];
+  /** DI-7.2: network/group memberships. */
+  networkMemberships: NetworkMembershipDraft[];
 }
 
 export interface SeizedItemDraft {
@@ -135,6 +171,14 @@ export interface CreateCaseDraft {
   battalionText: string;
   companyId: number | null;
   companyText: string;
+  /**
+   * DI-7.1: "หน่วยอื่น / ไม่พบหน่วย" fallback.
+   * When true, the canonical org hierarchy IDs are cleared and `manualUnitText` is
+   * persisted as `reportingUnitText`. Never creates an org master record.
+   */
+  useManualUnit: boolean;
+  /** Free text displayed with "ข้อมูลหน่วยที่กรอกเอง" label — only used when useManualUnit is true. */
+  manualUnitText: string;
   province: string;
   district: string;
   subdistrict: string;
@@ -153,17 +197,35 @@ export function createEmptyPersonDraft(): PersonDraft {
     existingPersonId: null,
     existingPersonLabel: null,
     primaryFullName: "",
+    nickname: "",
     nationality: "",
+    sex: "",
     dateOfBirth: "",
+    approximateAge: "",
     role: "SUSPECT",
     linkedOfficerId: "",
     notes: "",
+    aliases: [],
     identifiers: [],
     phones: [],
     sims: [],
     devices: [],
     vehicles: [],
+    networkRoles: [],
+    networkMemberships: [],
   };
+}
+
+export function createEmptyAliasDraft(): AliasDraft {
+  return { key: nextDraftKey(), fullName: "" };
+}
+
+export function createEmptyNetworkRoleDraft(): NetworkRoleDraft {
+  return { key: nextDraftKey(), role: "", source: "", verificationStatus: "UNVERIFIED", note: "" };
+}
+
+export function createEmptyNetworkMembershipDraft(): NetworkMembershipDraft {
+  return { key: nextDraftKey(), networkGroupId: null, networkGroupName: "", source: "", note: "" };
 }
 
 export function createEmptySeizedItemDraft(): SeizedItemDraft {
@@ -201,6 +263,8 @@ export function createEmptyDraft(): CreateCaseDraft {
     battalionText: "",
     companyId: null,
     companyText: "",
+    useManualUnit: false,
+    manualUnitText: "",
     province: "",
     district: "",
     subdistrict: "",
@@ -322,14 +386,36 @@ function personToRequest(person: PersonDraft): DrugCaseCreatePersonInput {
     return { ...base, existingPersonId: person.existingPersonId };
   }
 
+  const approximateAgeNum = toNumberOrNull(person.approximateAge);
+
   return {
     ...base,
     newPerson: {
       primaryFullName: person.primaryFullName.trim(),
+      nickname: person.nickname.trim() || null,
       nationality: person.nationality.trim() || null,
+      sex: person.sex.trim() || null,
       dateOfBirth: toApiDate(person.dateOfBirth),
+      approximateAge: approximateAgeNum,
       notes: null,
+      aliases: person.aliases.filter((a) => a.fullName.trim()).map((a) => ({ fullName: a.fullName.trim() })),
       identifiers: person.identifiers.filter((i) => i.value.trim()).map((i) => ({ type: i.type, value: i.value.trim(), notes: i.notes.trim() || null })),
+      networkRoles: person.networkRoles
+        .filter((r) => r.role.trim())
+        .map((r) => ({
+          role: r.role.trim(),
+          source: r.source.trim() || null,
+          verificationStatus: r.verificationStatus || "UNVERIFIED",
+          note: r.note.trim() || null,
+        })),
+      networkMemberships: person.networkMemberships
+        .filter((m) => m.networkGroupId || m.networkGroupName.trim())
+        .map((m) => ({
+          networkGroupId: m.networkGroupId || null,
+          networkGroupName: m.networkGroupName.trim(),
+          source: m.source.trim() || null,
+          note: m.note.trim() || null,
+        })),
     },
   };
 }
@@ -341,11 +427,14 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
     status: draft.status,
     arrestDate: toApiDate(draft.arrestDate),
     arrestTime: draft.arrestTime.trim() || null,
-    headquartersId: draft.headquartersId,
-    regionId: draft.regionId,
-    battalionId: draft.battalionId,
-    companyId: draft.companyId,
-    reportingUnitText: draft.companyText || draft.battalionText || draft.regionText || draft.headquartersText || null,
+    // DI-7.1: when the operator chose "หน่วยอื่น / ไม่พบหน่วย", clear canonical IDs and use the manual text only.
+    headquartersId: draft.useManualUnit ? null : draft.headquartersId,
+    regionId: draft.useManualUnit ? null : draft.regionId,
+    battalionId: draft.useManualUnit ? null : draft.battalionId,
+    companyId: draft.useManualUnit ? null : draft.companyId,
+    reportingUnitText: draft.useManualUnit
+      ? (draft.manualUnitText.trim() || null)
+      : (draft.companyText || draft.battalionText || draft.regionText || draft.headquartersText || null),
     province: draft.province.trim() || null,
     district: draft.district.trim() || null,
     subdistrict: draft.subdistrict.trim() || null,

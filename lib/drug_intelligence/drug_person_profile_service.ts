@@ -24,6 +24,7 @@ import { DrugCaseRepository } from "@/lib/database/repositories/drug_case_reposi
 import { DrugEntityRepository } from "@/lib/database/repositories/drug_entity_repository";
 import { DrugAuditLogRepository } from "@/lib/database/repositories/drug_audit_log_repository";
 import { DrugPersonMergeRepository } from "@/lib/database/repositories/drug_person_merge_repository";
+import { DrugPersonNetworkRoleRepository } from "@/lib/database/repositories/drug_person_network_role_repository";
 import { DrugPersonMatchingService } from "@/lib/drug_intelligence/drug_person_matching_service";
 import { normalizePhoneMatchingKey } from "@/lib/drug_intelligence/phone_matching_key";
 import { DrugPersonNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
@@ -40,6 +41,7 @@ export class DrugPersonProfileService {
   private readonly entityRepo: DrugEntityRepository;
   private readonly auditRepo: DrugAuditLogRepository;
   private readonly mergeRepo: DrugPersonMergeRepository;
+  private readonly networkRoleRepo: DrugPersonNetworkRoleRepository;
   private readonly matchingService: DrugPersonMatchingService;
 
   constructor(private readonly db: DatabaseClient) {
@@ -49,6 +51,7 @@ export class DrugPersonProfileService {
     this.entityRepo = new DrugEntityRepository(db);
     this.auditRepo = new DrugAuditLogRepository(db);
     this.mergeRepo = new DrugPersonMergeRepository(db);
+    this.networkRoleRepo = new DrugPersonNetworkRoleRepository(db);
     this.matchingService = new DrugPersonMatchingService(db);
   }
 
@@ -57,7 +60,7 @@ export class DrugPersonProfileService {
     const person = await this.personRepo.findById(personId);
     if (!person) throw new DrugPersonNotFoundError(personId);
 
-    const [aliases, identifiers, caseLinks, casePhoneLinks, caseSimLinks, personDeviceLinks, caseDeviceLinks, personVehicleLinks, caseVehicleLinks, mergeHistory] = await Promise.all([
+    const [aliases, identifiers, caseLinks, casePhoneLinks, caseSimLinks, personDeviceLinks, caseDeviceLinks, personVehicleLinks, caseVehicleLinks, mergeHistory, networkRoles, networkMemberships] = await Promise.all([
       this.personRepo.aliasesForPerson(personId),
       this.personRepo.identifiersForPerson(personId),
       this.casePersonRepo.forPerson(personId),
@@ -68,6 +71,8 @@ export class DrugPersonProfileService {
       this.entityRepo.personVehiclesForPerson(personId),
       this.db.drugCaseVehicle.findMany({ where: { personId } }),
       this.mergeRepo.forPerson(personId),
+      this.networkRoleRepo.forPerson(personId),
+      this.personRepo.networkMembershipsForPerson(personId),
     ]);
 
     // Cases tab (Section 6): resolve each case link to its case row.
@@ -167,6 +172,10 @@ export class DrugPersonProfileService {
       caseVehicleSightingCount: caseVehicleLinks.length,
       locations,
       mergeHistory,
+      /** DI-7.3: network-role assertions, ordered oldest first. */
+      networkRoles,
+      /** DI-7.2: network/group memberships with resolved group info. */
+      networkMemberships,
       firstSeenAt,
       lastSeenAt,
       dataQuality,
@@ -228,7 +237,15 @@ export class DrugPersonProfileService {
    */
   async updateProfile(
     personId: string,
-    input: { primaryFullName?: string; nationality?: string | null; dateOfBirth?: Date | null; notes?: string | null },
+    input: {
+      primaryFullName?: string;
+      nickname?: string | null;
+      nationality?: string | null;
+      sex?: string | null;
+      dateOfBirth?: Date | null;
+      approximateAge?: number | null;
+      notes?: string | null;
+    },
     actorId: string,
     actorName: string
   ) {

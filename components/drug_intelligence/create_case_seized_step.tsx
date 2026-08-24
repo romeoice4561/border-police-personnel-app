@@ -20,7 +20,7 @@
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Field, inputCls } from "@/components/drug_intelligence/create_case_field";
+import { Field, HelperText, inputCls } from "@/components/drug_intelligence/create_case_field";
 import { useT } from "@/components/i18n/language_provider";
 import { createEmptySeizedItemDraft, type SeizedItemDraft } from "@/lib/drug_intelligence/create_case_draft";
 import { DRUG_CATEGORIES, DRUG_CATEGORY_LABELS, DRUG_MEASUREMENT_KINDS, DRUG_MEASUREMENT_KIND_LABELS, DRUG_CATEGORY_DEFAULT_MEASUREMENT_KIND, type DrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
@@ -62,32 +62,44 @@ export function CreateCaseSeizedStep({ items, onChange }: { items: SeizedItemDra
               </button>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label={t("di.seized.drugCategory")} required>
-                <Select options={categoryOptions} placeholder={t("common.pleaseSelect")} value={item.drugCategory} onChange={(e) => selectCategory(index, e.target.value)} />
-              </Field>
+              <div className="space-y-1">
+                <Field label={t("di.seized.drugCategory")} required>
+                  <Select options={categoryOptions} placeholder={t("common.pleaseSelect")} value={item.drugCategory} onChange={(e) => selectCategory(index, e.target.value)} />
+                </Field>
+                <HelperText>{t("di.seized.helperCategory")}</HelperText>
+              </div>
               {item.drugCategory === "OTHER" ? (
                 <Field label={t("di.seized.otherDrugCategoryLabel")} required>
                   <input className={inputCls} value={item.otherDrugCategoryLabel} onChange={(e) => update(index, { otherDrugCategoryLabel: e.target.value })} />
                 </Field>
               ) : null}
-              <Field label={t("di.seized.measurementKind")} required>
-                <Select options={measurementKindOptions} placeholder={t("common.pleaseSelect")} value={item.measurementKind} onChange={(e) => update(index, { measurementKind: e.target.value })} />
-              </Field>
+              <div className="space-y-1">
+                <Field label={t("di.seized.measurementKind")} required>
+                  <Select options={measurementKindOptions} placeholder={t("common.pleaseSelect")} value={item.measurementKind} onChange={(e) => update(index, { measurementKind: e.target.value })} />
+                </Field>
+                <HelperText>{t("di.seized.helperMeasure")}</HelperText>
+              </div>
               <Field label={t("di.seized.drugType")} required>
-                <input className={inputCls} value={item.drugType} onChange={(e) => update(index, { drugType: e.target.value })} />
+                <input className={inputCls} value={item.drugType} onChange={(e) => update(index, { drugType: e.target.value })} placeholder={t("di.hint.drugType")} />
               </Field>
               <Field label={t("di.seized.subtype")}>
-                <input className={inputCls} value={item.subtype} onChange={(e) => update(index, { subtype: e.target.value })} />
+                <input className={inputCls} value={item.subtype} onChange={(e) => update(index, { subtype: e.target.value })} placeholder={t("di.hint.drugSubtype")} />
               </Field>
               {item.measurementKind === "MASS" ? (
-                <Field label={t("di.seized.weightKilograms")}>
-                  <input className={inputCls} value={item.weightKilograms} onChange={(e) => update(index, { weightKilograms: e.target.value })} inputMode="decimal" />
-                </Field>
+                <div className="space-y-1">
+                  <Field label={t("di.seized.weightKg")}>
+                    <input className={inputCls} value={item.weightKilograms} onChange={(e) => update(index, { weightKilograms: e.target.value })} inputMode="decimal" placeholder={t("di.hint.drugWeight")} />
+                  </Field>
+                  <HelperText>{t("di.hint.drugWeight")}</HelperText>
+                </div>
               ) : (
                 <>
-                  <Field label={t("di.seized.quantity")}>
-                    <input className={inputCls} value={item.quantity} onChange={(e) => update(index, { quantity: e.target.value })} inputMode="decimal" />
-                  </Field>
+                  <div className="space-y-1">
+                    <Field label={t("di.seized.quantity")}>
+                      <input className={inputCls} value={item.quantity} onChange={(e) => update(index, { quantity: e.target.value })} inputMode="decimal" placeholder={t("di.hint.drugQuantity")} />
+                    </Field>
+                    <HelperText>{t("di.hint.drugQuantity")}</HelperText>
+                  </div>
                   <Field label={t("di.seized.unit")}>
                     <input className={inputCls} list={`unit-suggestions-${item.key}`} value={item.unit} onChange={(e) => update(index, { unit: e.target.value })} />
                     <datalist id={`unit-suggestions-${item.key}`}>
@@ -98,9 +110,12 @@ export function CreateCaseSeizedStep({ items, onChange }: { items: SeizedItemDra
                   </Field>
                 </>
               )}
-              <Field label={t("di.seized.packageCount")}>
-                <input className={inputCls} value={item.packageCount} onChange={(e) => update(index, { packageCount: e.target.value })} inputMode="numeric" />
-              </Field>
+              <div className="space-y-1">
+                <Field label={t("di.seized.packageCount")}>
+                  <input className={inputCls} value={item.packageCount} onChange={(e) => update(index, { packageCount: e.target.value })} inputMode="numeric" placeholder={t("di.hint.drugPackageCount")} />
+                </Field>
+                <HelperText>{t("di.hint.drugPackageCount")}</HelperText>
+              </div>
             </div>
           </CardBody>
         </Card>

@@ -25,6 +25,8 @@ import { DrugIntelligenceAlertService } from "@/lib/drug_intelligence/drug_intel
 import { DrugTimelineService } from "@/lib/drug_intelligence/drug_timeline_service";
 
 export interface DrugIntelligenceContainer {
+  /** Raw DatabaseClient — passed to handlers that manage their own repositories directly (e.g. DI-7.2/7.3 network group/role handlers). */
+  db: DatabaseClient;
   caseService: DrugCaseService;
   statsService: DrugStatsService;
   /** Phase DI-2: Entity Resolution / Duplicate Matching services. */
@@ -47,6 +49,7 @@ export interface DrugIntelligenceContainer {
 /** Builds the container from any DatabaseClient (real or fake). Pure — no I/O. */
 export function createDrugIntelligenceContainer(client: DatabaseClient): DrugIntelligenceContainer {
   return {
+    db: client,
     caseService: new DrugCaseService({ db: client }),
     statsService: new DrugStatsService(client),
     matchingService: new DrugPersonMatchingService(client),

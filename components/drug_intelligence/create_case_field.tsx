@@ -1,6 +1,7 @@
 /**
  * Shared form-field primitives for the Create Case flow (Phase DI-1 Round
- * 2). Mirrors profile_editor.tsx's `inputCls`/`Field` convention exactly so
+ * 2; DI-7.1: added HelperText for UX guidance).
+ * Mirrors profile_editor.tsx's `inputCls`/`Field` convention exactly so
  * this module's forms are visually indistinguishable from Personnel's.
  */
 import type { ReactNode } from "react";
@@ -18,4 +19,10 @@ export function Field({ label, htmlFor, required, children }: { label: string; h
       {children}
     </div>
   );
+}
+
+/** DI-7.1: non-intrusive helper text shown below a field — same styling as
+ *  `text-xs text-muted` used by placeholder text in Personnel profile fields. */
+export function HelperText({ children }: { children: ReactNode }) {
+  return <p className="mt-1 text-xs text-muted">{children}</p>;
 }

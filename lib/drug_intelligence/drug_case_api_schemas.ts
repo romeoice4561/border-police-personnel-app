@@ -13,7 +13,7 @@
 import { z } from "zod";
 import { parseThaiPersonnelDate } from "@/lib/officer_profile/thai_personnel_date";
 import { DRUG_CASE_STATUSES } from "@/lib/drug_intelligence/drug_case_options";
-import { DRUG_CASE_PERSON_ROLES } from "@/lib/drug_intelligence/drug_person_options";
+import { DRUG_CASE_PERSON_ROLES, DRUG_NETWORK_ROLE_VERIFICATION_STATUSES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_options";
 import { DRUG_CATEGORIES, DRUG_MEASUREMENT_KINDS } from "@/lib/drug_intelligence/drug_seized_item_options";
@@ -87,13 +87,54 @@ const vehicleSchema = z.object({
   notes: optionalText,
 });
 
-const newPersonSchema = z.object({
-  primaryFullName: z.string().trim().min(1).max(MAX_FIELD),
-  nationality: optionalText,
-  dateOfBirth: thaiPersonnelDate,
-  notes: optionalText,
-  identifiers: z.array(identifierSchema).default([]),
+const networkRoleInputSchema = z.object({
+  role: z.string().trim().min(1).max(MAX_FIELD),
+  source: optionalText,
+  verificationStatus: z.enum(DRUG_NETWORK_ROLE_VERIFICATION_STATUSES).default("UNVERIFIED"),
+  note: optionalText,
 });
+
+const networkMembershipInputSchema = z.object({
+  networkGroupId: z.string().trim().min(1).max(MAX_FIELD).nullable().optional().transform((v) => v ?? null),
+  networkGroupName: z.string().trim().min(1).max(MAX_FIELD),
+  source: optionalText,
+  note: optionalText,
+});
+
+const aliasSchema = z.object({
+  fullName: z.string().trim().min(1).max(MAX_FIELD),
+});
+
+const newPersonSchema = z
+  .object({
+    primaryFullName: z.string().trim().min(1).max(MAX_FIELD),
+    nickname: optionalText,
+    nationality: optionalText,
+    sex: optionalText,
+    dateOfBirth: thaiPersonnelDate,
+    approximateAge: z.coerce.number().int().min(0).max(150).nullable().optional().transform((v) => v ?? null),
+    notes: optionalText,
+    aliases: z.array(aliasSchema).default([]),
+    identifiers: z.array(identifierSchema).default([]),
+    networkRoles: z.array(networkRoleInputSchema).default([]),
+    networkMemberships: z.array(networkMembershipInputSchema).default([]),
+  })
+  .superRefine((val, ctx) => {
+    if (val.dateOfBirth !== null && val.approximateAge !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["approximateAge"],
+        message: "approximateAge must be null when dateOfBirth is provided — do not supply both simultaneously",
+      });
+    }
+    if (val.approximateAge !== null && val.approximateAge < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["approximateAge"],
+        message: "approximateAge must be a non-negative integer",
+      });
+    }
+  });
 
 const personSchema = z
   .object({

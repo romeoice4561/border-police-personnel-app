@@ -41,6 +41,10 @@ import type {
   DrugPersonMatchReview,
   DrugPersonMerge,
   DrugIntelligenceAlert,
+  // DI-7.2/7.3: new intelligence tables
+  DrugNetworkGroup,
+  DrugPersonNetworkMembership,
+  DrugPersonNetworkRole,
 } from "@/lib/generated/prisma/client";
 
 export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
@@ -67,6 +71,9 @@ export type {
   DrugPersonMatchReview,
   DrugPersonMerge,
   DrugIntelligenceAlert,
+  DrugNetworkGroup,
+  DrugPersonNetworkMembership,
+  DrugPersonNetworkRole,
 };
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
@@ -129,6 +136,10 @@ export interface DatabaseClient {
   drugPersonMerge: ModelDelegate<DrugPersonMerge, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /** Phase DI-6: Repeat Entity Detection & Intelligence Alerts — persisted alert events. Same narrow ModelDelegate convention. */
   drugIntelligenceAlert: ModelDelegate<DrugIntelligenceAlert, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase DI-7.2/7.3: Network groups, memberships, and network-role assertions. */
+  drugNetworkGroup: ModelDelegate<DrugNetworkGroup, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPersonNetworkMembership: ModelDelegate<DrugPersonNetworkMembership, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugPersonNetworkRole: ModelDelegate<DrugPersonNetworkRole, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's

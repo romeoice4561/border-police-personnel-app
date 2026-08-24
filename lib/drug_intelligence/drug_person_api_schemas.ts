@@ -19,9 +19,59 @@ export const drugPersonProfileUpdateSchema = z.object({
   actorId: z.string().trim().min(1),
   actorName: z.string().trim().min(1),
   primaryFullName: z.string().trim().min(1).max(MAX_FIELD).optional(),
+  /** DI-7.2: ชื่อเล่น */
+  nickname: z.string().trim().max(MAX_FIELD).nullable().optional(),
   nationality: z.string().trim().max(MAX_FIELD).nullable().optional(),
+  /** DI-7.2: MALE / FEMALE / UNKNOWN */
+  sex: z.enum(["MALE", "FEMALE", "UNKNOWN"]).nullable().optional(),
   dateOfBirth: z.string().trim().nullable().optional(),
+  /** DI-7.2: approximateAge — only valid when dateOfBirth is absent */
+  approximateAge: z.number().int().min(0).max(150).nullable().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+});
+
+/** DI-7.3: add one network-role assertion to a person (drug.edit required). */
+export const drugPersonAddNetworkRoleSchema = z.object({
+  actorId: z.string().trim().min(1),
+  actorName: z.string().trim().min(1),
+  role: z.string().trim().min(1).max(MAX_FIELD),
+  source: z.string().trim().max(MAX_FIELD).nullable().optional(),
+  verificationStatus: z.enum(["UNVERIFIED", "SUPPORTED", "CONFIRMED"]).default("UNVERIFIED"),
+  note: z.string().trim().max(2000).nullable().optional(),
+  sourceCaseId: z.string().trim().min(1).nullable().optional(),
+});
+
+/** DI-7.3: update only the verificationStatus of an existing role assertion (drug.edit required). */
+export const drugPersonUpdateNetworkRoleStatusSchema = z.object({
+  actorId: z.string().trim().min(1),
+  actorName: z.string().trim().min(1),
+  verificationStatus: z.enum(["UNVERIFIED", "SUPPORTED", "CONFIRMED"]),
+});
+
+/** DI-7.2: add a network/group membership for a person (drug.edit required). */
+export const drugPersonAddNetworkMembershipSchema = z.object({
+  actorId: z.string().trim().min(1),
+  actorName: z.string().trim().min(1),
+  networkGroupId: z.string().trim().min(1).nullable().optional(),
+  networkGroupName: z.string().trim().min(1).max(MAX_FIELD).optional(),
+  source: z.string().trim().max(MAX_FIELD).nullable().optional(),
+  note: z.string().trim().max(2000).nullable().optional(),
+});
+
+/** DI-7.2: create a new canonical DrugNetworkGroup (drug.edit required). */
+export const drugNetworkGroupCreateSchema = z.object({
+  actorId: z.string().trim().min(1),
+  actorName: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(MAX_FIELD),
+  aliases: z.string().trim().max(MAX_FIELD).nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  note: z.string().trim().max(2000).nullable().optional(),
+});
+
+/** DI-7.2: search/list DrugNetworkGroups (drug.read required). */
+export const drugNetworkGroupSearchSchema = z.object({
+  actorId: z.string().trim().min(1),
+  query: z.string().trim().max(MAX_FIELD).optional(),
 });
 
 export const drugPersonAddAliasSchema = z.object({

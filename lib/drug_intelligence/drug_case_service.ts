@@ -29,6 +29,8 @@ import { DrugCasePersonRepository } from "@/lib/database/repositories/drug_case_
 import { DrugPersonRepository } from "@/lib/database/repositories/drug_person_repository";
 import { DrugEntityRepository } from "@/lib/database/repositories/drug_entity_repository";
 import { DrugAuditLogRepository } from "@/lib/database/repositories/drug_audit_log_repository";
+import { DrugNetworkGroupRepository } from "@/lib/database/repositories/drug_network_group_repository";
+import { DrugPersonNetworkRoleRepository } from "@/lib/database/repositories/drug_person_network_role_repository";
 import { findDrugPersonDuplicateCandidates } from "@/lib/drug_intelligence/drug_duplicate_check";
 import { normalizePhoneMatchingKey } from "@/lib/drug_intelligence/phone_matching_key";
 import {
@@ -125,17 +127,102 @@ export class DrugCaseService {
           await personRepo.create({
             id: personId,
             primaryFullName: personInput.newPerson.primaryFullName,
+            nickname: personInput.newPerson.nickname ?? null,
             nationality: personInput.newPerson.nationality,
+            sex: personInput.newPerson.sex ?? null,
             dateOfBirth: personInput.newPerson.dateOfBirth,
+            approximateAge: personInput.newPerson.approximateAge ?? null,
             notes: personInput.newPerson.notes,
             createdBy: input.actorId,
             createdByName: input.actorName,
           });
           await personRepo.addAlias(personId, personInput.newPerson.primaryFullName, true, input.actorId);
+          // DI-7.1 fix: secondary aliases (DrugPersonAlias rows, isPrimary=false)
+          for (const alias of (personInput.newPerson.aliases ?? [])) {
+            const name = alias.fullName.trim();
+            if (!name) continue;
+            await personRepo.addAlias(personId, name, false, input.actorId);
+          }
           for (const identifier of personInput.newPerson.identifiers) {
             if (!identifier.value.trim()) continue;
             await personRepo.addIdentifier(personId, identifier.type, identifier.value.trim(), identifier.notes, input.actorId);
           }
+
+          // DI-7.3: persist network-role assertions
+          const networkRoleRepo = new DrugPersonNetworkRoleRepository(tx);
+          for (const nr of (personInput.newPerson.networkRoles ?? [])) {
+            if (!nr.role.trim()) continue;
+            await networkRoleRepo.create({
+              personId,
+              sourceCaseId: caseId,
+              role: nr.role.trim(),
+              source: nr.source,
+              verificationStatus: nr.verificationStatus ?? "UNVERIFIED",
+              note: nr.note,
+              createdBy: input.actorId,
+              createdByName: input.actorName,
+            });
+            await auditRepo.record({
+              entityType: "DrugPersonNetworkRole",
+              entityId: personId,
+              action: "network_role_asserted",
+              actorId: input.actorId,
+              actorName: input.actorName,
+              detail: `role=${nr.role} source=${nr.source ?? "UNKNOWN"} status=${nr.verificationStatus ?? "UNVERIFIED"}`,
+            });
+          }
+
+          // DI-7.2: persist network/group memberships
+          const networkGroupRepo = new DrugNetworkGroupRepository(tx);
+          for (const nm of (personInput.newPerson.networkMemberships ?? [])) {
+            let groupId = nm.networkGroupId;
+            if (!groupId && nm.networkGroupName.trim()) {
+              // Find by name first (case-insensitive simple match)
+              const all = await networkGroupRepo.findAll();
+              const found = all.find((g) => g.name.toLowerCase() === nm.networkGroupName.trim().toLowerCase());
+              if (found) {
+                groupId = found.id;
+              } else {
+                // Create new group only if no canonical record exists
+                const newGroup = await networkGroupRepo.create({
+                  name: nm.networkGroupName.trim(),
+                  aliases: null,
+                  description: null,
+                  note: null,
+                  createdBy: input.actorId,
+                });
+                groupId = newGroup.id;
+                await auditRepo.record({
+                  entityType: "DrugNetworkGroup",
+                  entityId: groupId,
+                  action: "network_group_created",
+                  actorId: input.actorId,
+                  actorName: input.actorName,
+                  detail: `name=${nm.networkGroupName.trim()}`,
+                });
+              }
+            }
+            if (!groupId) continue;
+            await networkGroupRepo.addMembership({
+              personId,
+              networkGroupId: groupId,
+              source: nm.source,
+              status: null,
+              note: nm.note,
+              firstObservedAt: null,
+              lastObservedAt: null,
+              createdBy: input.actorId,
+            });
+            await auditRepo.record({
+              entityType: "DrugPersonNetworkMembership",
+              entityId: personId,
+              action: "network_membership_added",
+              actorId: input.actorId,
+              actorName: input.actorName,
+              detail: `group=${groupId}`,
+            });
+          }
+
           await auditRepo.record({
             entityType: "DrugPerson",
             entityId: personId,

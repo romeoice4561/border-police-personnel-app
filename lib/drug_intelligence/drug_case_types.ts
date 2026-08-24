@@ -13,15 +13,41 @@
  * Pure domain typing — no I/O, no Prisma import.
  */
 
+export interface DrugPersonNetworkRoleInput {
+  role: string;
+  source: string | null;
+  verificationStatus: string;
+  note: string | null;
+}
+
+export interface DrugPersonNetworkMembershipInput {
+  networkGroupId: string | null;
+  networkGroupName: string;
+  source: string | null;
+  note: string | null;
+}
+
 export interface DrugCasePersonInput {
   /** Either an existing DrugPerson id (chosen from a duplicate-check result the caller already resolved) OR a brand-new person's identity fields — exactly one of `existingPersonId` or `newPerson` is set. */
   existingPersonId?: string;
   newPerson?: {
     primaryFullName: string;
+    /** DI-7.2: dedicated "ชื่อเล่น" — separate from aliases. */
+    nickname?: string | null;
     nationality: string | null;
+    /** DI-7.2: MALE / FEMALE / UNKNOWN. */
+    sex?: string | null;
     dateOfBirth: Date | null;
+    /** DI-7.2: only when dateOfBirth is unknown. */
+    approximateAge?: number | null;
     notes: string | null;
+    /** DI-7.1 fix: secondary aliases — each maps to a DrugPersonAlias row (isPrimary=false). */
+    aliases?: Array<{ fullName: string }>;
     identifiers: Array<{ type: string; value: string; notes: string | null }>;
+    /** DI-7.3: network-role assertions, each with provenance. */
+    networkRoles?: DrugPersonNetworkRoleInput[];
+    /** DI-7.2: network/group memberships. */
+    networkMemberships?: DrugPersonNetworkMembershipInput[];
   };
   role: string;
   linkedOfficerId: string | null;

@@ -1511,14 +1511,15 @@ model DrugCase {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  persons       DrugCasePerson[]
-  phones        DrugCasePhone[]
-  sims          DrugCaseSim[]
-  devices       DrugCaseDevice[]
-  vehicles      DrugCaseVehicle[]
-  seizedItems   DrugSeizedItem[]
-  locations     DrugCaseLocation[]
-  relationships DrugRelationship[] @relation("RelationshipSourceCase")
+  persons              DrugCasePerson[]
+  phones               DrugCasePhone[]
+  sims                 DrugCaseSim[]
+  devices              DrugCaseDevice[]
+  vehicles             DrugCaseVehicle[]
+  seizedItems          DrugSeizedItem[]
+  locations            DrugCaseLocation[]
+  relationships        DrugRelationship[]      @relation("RelationshipSourceCase")
+  personNetworkRoles   DrugPersonNetworkRole[]
 
   @@index([caseNumber])
   @@index([status])
@@ -1548,6 +1549,27 @@ model DrugPerson {
   dateOfBirth     DateTime? @db.Date
   notes           String?
 
+  /// DI-7.2: dedicated "ชื่อเล่น" field — distinct from DrugPersonAlias
+  /// (which stores alternate full names / นามแฝง). Never inferred from
+  /// aliases; never overloaded with alias data. Nullable — not every
+  /// intelligence record will have a confirmed nickname.
+  nickname String?
+
+  /// DI-7.2: biological sex — a small controlled vocabulary (MALE/FEMALE/
+  /// UNKNOWN) stored as a plain string (not a Postgres enum) so the
+  /// application-layer Zod schema is the single enforcement point and the
+  /// vocabulary can be extended without a migration. Never inferred from
+  /// title, name, national-ID digit, or photograph (spec D3 prohibition).
+  sex String?
+
+  /// DI-7.2: approximate age in years, used ONLY when dateOfBirth is
+  /// unknown. Displayed as "ประมาณ X ปี" in the UI. When dateOfBirth IS
+  /// set, current age is CALCULATED from it — this field is never updated
+  /// automatically and must never be backfilled from dateOfBirth (spec D4:
+  /// "never fabricate DOB from approximate age" / never overwrite the
+  /// approximateAge store with a DOB-derived number).
+  approximateAge Int?
+
   /// DI-2 Section 16: entity-resolution lifecycle state. ACTIVE is the
   /// canonical, normal state every DI-1 person was created in. MERGED means
   /// this row lost a merge review and now only exists for traceability —
@@ -1575,7 +1597,7 @@ model DrugPerson {
   phones               DrugCasePhone[] // via association, see below (person is on the case-phone link, not directly here)
   devices              DrugPersonDevice[]
   vehicles             DrugPersonVehicle[]
-  relationshipsFrom    DrugRelationship[]     @relation("RelationshipFromPerson")
+  relationshipsFrom    DrugRelationship[]           @relation("RelationshipFromPerson")
   /// Opposite side of DrugCaseSim.person / DrugCaseDevice.person /
   /// DrugCaseVehicle.person — required by Prisma for every relation to be a
   /// declared pair. Not intended for eager per-person iteration in DI-1 (the
@@ -1583,23 +1605,34 @@ model DrugPerson {
   /// purely to satisfy the schema and keep the door open for a future
   /// "every sighting of this person" query with no migration needed.
   caseSimSightings     DrugCaseSim[]
-  caseDeviceSightings  DrugCaseDevice[]       @relation("CaseDevicePerson")
-  caseVehicleSightings DrugCaseVehicle[]      @relation("CaseVehiclePerson")
+  caseDeviceSightings  DrugCaseDevice[]             @relation("CaseDevicePerson")
+  caseVehicleSightings DrugCaseVehicle[]            @relation("CaseVehiclePerson")
 
   /// DI-2: merge history rows where this person was the surviving canonical
   /// record, and rows where this person was absorbed into another.
-  mergesAsSurvivor DrugPersonMerge[] @relation("MergeSurvivor")
-  mergesAsMerged   DrugPersonMerge[] @relation("MergeMerged")
+  mergesAsSurvivor DrugPersonMerge[]               @relation("MergeSurvivor")
+  mergesAsMerged   DrugPersonMerge[]               @relation("MergeMerged")
 
   /// DI-2: persistent match-review decisions this person is one half of
   /// (never re-derived per pair — see DrugPersonMatchReview's own comment).
-  matchReviewsAsA DrugPersonMatchReview[] @relation("MatchReviewPersonA")
-  matchReviewsAsB DrugPersonMatchReview[] @relation("MatchReviewPersonB")
+  matchReviewsAsA DrugPersonMatchReview[]          @relation("MatchReviewPersonA")
+  matchReviewsAsB DrugPersonMatchReview[]          @relation("MatchReviewPersonB")
+
+  /// DI-7.2: network/group memberships (many-to-many via
+  /// DrugPersonNetworkMembership — a person can belong to multiple networks,
+  /// multiple people can share the same canonical network).
+  networkMemberships DrugPersonNetworkMembership[]
+
+  /// DI-7.3: network-role assertions (append-only, each with provenance and
+  /// verification status — never a single overwritten "current role" field).
+  networkRoles DrugPersonNetworkRole[]
 
   @@index([primaryFullName])
   @@index([dateOfBirth])
   @@index([status])
   @@index([mergedIntoPersonId])
+  @@index([nickname])
+  @@index([sex])
 }
 
 /// DI-2 Section 16.
@@ -2343,4 +2376,127 @@ model DrugIntelligenceAlert {
   @@index([entityType, entityId])
   @@index([currentCaseId])
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PHASE DI-7.2/7.3 — Person Intelligence Expansion & Network Role
+// Classification (additive only). Nothing above this line was changed.
+//
+// Three new tables:
+//   DrugNetworkGroup              — canonical shared network/group entities
+//   DrugPersonNetworkMembership   — person↔network association with provenance
+//   DrugPersonNetworkRole         — network-role assertions with full provenance
+//
+// DrugPerson gained: nickname, sex, approximateAge, and back-relations
+// to the two membership/role tables above. All new columns on DrugPerson
+// are nullable so no existing row requires a backfill.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// DI-7.2: a canonical shared network or criminal group entity. Two people
+/// can reference the same DrugNetworkGroup row — membership is recorded via
+/// DrugPersonNetworkMembership, not by duplicating the group name on each
+/// person row. `name` is the only required field; `aliases`/`description`
+/// are optional intelligence notes. Never silently created from free text —
+/// only an authorized operator (drug.edit) may add a new group through the
+/// explicit "+ เพิ่มเครือข่ายใหม่" path.
+model DrugNetworkGroup {
+  id          String   @id @default(cuid())
+  /// Primary name shown in search/combobox (e.g. "กลุ่มท่าแซะ").
+  name        String
+  /// Optional comma-separated alternative spellings (for search purposes) —
+  /// kept as a single field rather than a sub-table because alias explosion
+  /// for GROUP names is far less common than for person aliases, and the
+  /// query pattern is a simple ILIKE, not a graph join.
+  aliases     String?
+  description String?
+  note        String?
+
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships DrugPersonNetworkMembership[]
+
+  @@index([name])
+}
+
+/// DI-7.2: one assertion that a specific DrugPerson is associated with a
+/// specific DrugNetworkGroup, with provenance and date-range tracking.
+/// Multiple people can be members of the same group; one person can be a
+/// member of multiple groups. Each membership is an explicit assertion (not
+/// auto-inferred from shared phone/location/vehicle — spec D6 prohibition).
+model DrugPersonNetworkMembership {
+  id             String           @id @default(cuid())
+  person         DrugPerson       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId       String
+  networkGroup   DrugNetworkGroup @relation(fields: [networkGroupId], references: [id], onDelete: Cascade)
+  networkGroupId String
+
+  /// Source of this membership assertion (mirrors DrugPersonNetworkRole
+  /// provenance vocabulary — operators should use the same controlled list).
+  source          String?
+  /// Operational status of the membership (e.g. "ยืนยัน" / "ยังไม่ยืนยัน").
+  status          String?
+  note            String?
+  firstObservedAt DateTime? @db.Date
+  lastObservedAt  DateTime? @db.Date
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([personId])
+  @@index([networkGroupId])
+}
+
+/// DI-7.3: one network-role ASSERTION for a person — "person X was observed
+/// playing role Y in the drug network, as reported via source Z, in the
+/// context of case W." Append-only (never update or overwrite a prior
+/// assertion — historical assertions must remain visible). A person may have
+/// multiple rows here (different roles, different cases, different time
+/// periods). The PROCEDURAL case role lives on DrugCasePerson.role — this
+/// table is the SECOND, distinct concept (บทบาทในเครือข่าย vs.
+/// บทบาทในคดี). Never auto-populated; never auto-elevated from "ถูกซัดทอด"
+/// to "ยืนยันแล้ว" (spec F/G: the verificationStatus must survive every
+/// data hop from entry through display through search through network graph).
+model DrugPersonNetworkRole {
+  id       String     @id @default(cuid())
+  person   DrugPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+
+  /// The source case that produced this role assertion, if known. A role
+  /// can also be entered directly on a Person Profile (outside any specific
+  /// case); in that scenario sourceCaseId is null.
+  sourceCase   DrugCase? @relation(fields: [sourceCaseId], references: [id], onDelete: SetNull)
+  sourceCaseId String?
+
+  /// The intelligence role itself (controlled vocabulary enforced via Zod in
+  /// the service layer — kept as a String rather than a Postgres enum so the
+  /// taxonomy can be extended with a service deploy rather than a migration).
+  /// Current controlled values: COURIER / RUNNER / RETAIL_DEALER /
+  /// WHOLESALE_DEALER / USER / SUPPLIER / COORDINATOR / STORAGE / FINANCE /
+  /// ACCOUNT_MULE / VEHICLE_PROVIDER / LOCATION_PROVIDER / OTHER.
+  role String
+
+  /// ที่มาของข้อมูล — how this role assertion was produced. Controlled
+  /// vocabulary: DIRECT_ARREST / TESTIMONY / INVESTIGATION / DOCUMENT /
+  /// OTHER_SOURCE / UNKNOWN.
+  source String?
+
+  /// สถานะการยืนยัน — never automatically elevated (spec F). One of:
+  /// UNVERIFIED / SUPPORTED / CONFIRMED. Defaults to UNVERIFIED — the safe
+  /// assumption for any new assertion.
+  verificationStatus String @default("UNVERIFIED")
+
+  note String?
+
+  createdBy     String
+  createdByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([personId])
+  @@index([sourceCaseId])
+  @@index([verificationStatus])
+  @@index([role])
 }

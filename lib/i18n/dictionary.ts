@@ -2314,6 +2314,121 @@ export const DICTIONARY = {
   "di.timeline.mobileFiltersToggle": tr("ตัวกรอง", "Filters"),
   "di.timeline.paginationNext": tr("ถัดไป", "Next"),
   "di.timeline.paginationPrev": tr("ก่อนหน้า", "Previous"),
+
+  // ── DI-7.1: Create Case UX guidance ─────────────────────────────────────────
+  "di.hint.caseNumber":        tr("เช่น ชพ.414/2569 หรือเลขคดีของหน่วย", "e.g. BP.414/2569 or your unit's case number"),
+  "di.hint.title":             tr("เช่น จับกุมยาเสพติดพร้อมของกลาง พื้นที่ อ.ท่าแซะ", "e.g. Arrest with seizure, Tha Sae District"),
+  "di.hint.locationName":      tr("เช่น บ้านเลขที่ / จุดตรวจ / ถนน / หมู่บ้าน / สถานที่เกิดเหตุ", "e.g. house no. / checkpoint / road / village"),
+  "di.hint.latitude":          tr("เช่น 10.6641234", "e.g. 10.6641234"),
+  "di.hint.longitude":         tr("เช่น 99.1724567", "e.g. 99.1724567"),
+  "di.hint.narrative":         tr("สรุปพฤติการณ์โดยย่อ เช่น จุดตรวจพบ การจับกุม บุคคล และของกลางสำคัญ", "Brief summary: checkpoint, arrest, persons, key evidence"),
+  "di.hint.phone":             tr("เช่น 0812345678", "e.g. 0812345678"),
+  "di.hint.imei":              tr("เลข IMEI 15 หลัก หากมี", "15-digit IMEI if available"),
+  "di.hint.vehicle":           tr("เช่น กข 1234 ชุมพร", "e.g. KhKh 1234 Chumphon"),
+  "di.hint.fullName":          tr("ชื่อ–นามสกุลตามข้อมูลที่มี", "Full name as known"),
+  "di.hint.alias":             tr("เช่น แดง, บังหนึ่ง, เจ๊เอ", "e.g. Daeng, Bang Nung, Jae Ae"),
+  "di.hint.nickname":          tr("เช่น หนึ่ง, แดง, บัง", "e.g. Nung, Daeng, Bang"),
+  "di.hint.drugType":          tr("เช่น ยาบ้า, ไอซ์, กัญชา", "e.g. ya ba, ice, cannabis"),
+  "di.hint.drugSubtype":       tr("เช่น บรรจุถุง, อัดแท่ง", "e.g. bagged, pressed"),
+  "di.hint.drugQuantity":      tr("จำนวน (นับเป็นเม็ด/เม็ด/เส้น ฯลฯ)", "Count (tablets, units, etc.)"),
+  "di.hint.drugWeight":        tr("น้ำหนักในหน่วยกิโลกรัม เช่น 0.5 หรือ 1.2", "Weight in kg, e.g. 0.5 or 1.2"),
+  "di.hint.drugPackageCount":  tr("จำนวนห่อ/ถุง/บรรจุภัณฑ์ที่พบ", "Number of packages/bags found"),
+  "di.hint.approximateAge":    tr("อายุโดยประมาณ (ปี) หากไม่ทราบวันเกิด", "Approximate age (years) when DOB is unknown"),
+  "di.hint.orgOther":          tr("ระบุชื่อหน่วยที่ไม่พบในรายการ", "Enter unit name not found in the list"),
+
+  // Seized item additional field labels and helpers (DI-7.1 UX)
+  "di.seized.weightKg":        tr("น้ำหนัก (กก.)", "Weight (kg)"),
+  "di.seized.notes":           tr("หมายเหตุ", "Notes"),
+  "di.seized.helperCategory":  tr("เลือกหมวดหลัก เพื่อใช้ในการวิเคราะห์", "Select main category for analytics"),
+  "di.seized.helperMeasure":   tr("เลือก 'จำนวนนับ' สำหรับนับเม็ด/ชิ้น หรือ 'น้ำหนัก' สำหรับสารที่ชั่งน้ำหนัก", "Count for tablets/units; Weight for substances measured by mass"),
+
+  // DI-7.1: Org picker fallback
+  "di.org.fallbackOption":     tr("หน่วยอื่น / ไม่พบหน่วย", "Other / Unit not found"),
+  "di.org.manualLabel":        tr("ข้อมูลหน่วยที่กรอกเอง", "Manually entered unit"),
+  "di.org.manualPlaceholder":  tr("ระบุชื่อหน่วยที่ไม่พบในรายการ", "Enter unit name not in the list"),
+  "di.org.switchToCanonical":  tr("เปลี่ยนกลับเป็นรายการหน่วย", "Switch back to unit list"),
+  "di.org.manualHelperText":   tr("ใช้เมื่อไม่พบหน่วยในรายการ ระบบจะเก็บเป็นข้อความประกอบและจะไม่สร้างหน่วยใหม่ในโครงสร้างองค์กรอัตโนมัติ", "Use when unit is not in the list. Stored as a text note only — no new organisation record will be created."),
+
+  // DI-7.1 fix / DI-7.2: Alias section
+  "di.person.aliasesSectionLabel": tr("ชื่ออื่น / นามแฝง", "Aliases"),
+  "di.person.addAlias":        tr("+ เพิ่มชื่ออื่น / นามแฝง", "+ Add Alias"),
+
+  // DI-7.2: Person intelligence fields
+  "di.person.nickname":        tr("ชื่อเล่น", "Nickname"),
+  "di.person.sex":             tr("เพศ", "Sex"),
+  "di.person.approximateAge":  tr("อายุโดยประมาณ", "Approximate Age"),
+  "di.person.sexMale":         tr("ชาย", "Male"),
+  "di.person.sexFemale":       tr("หญิง", "Female"),
+  "di.person.sexUnknown":      tr("ไม่ทราบ", "Unknown"),
+  "di.person.networkRoles":    tr("บทบาทในเครือข่ายยาเสพติด", "Drug Network Role"),
+  "di.person.addNetworkRole":  tr("+ เพิ่มบทบาท", "+ Add Role"),
+  "di.person.networkGroups":   tr("เครือข่าย / กลุ่มที่เกี่ยวข้อง", "Network / Group Affiliation"),
+  "di.person.addNetworkGroup": tr("+ เลือก/เพิ่มเครือข่าย", "+ Select/Add Network"),
+
+  // DI-7.3: Network role fields
+  "di.networkRole.role":             tr("บทบาทในเครือข่าย", "Network Role"),
+  "di.networkRole.source":           tr("ที่มาของข้อมูล", "Information Source"),
+  "di.networkRole.verificationStatus": tr("สถานะการยืนยัน", "Verification Status"),
+  "di.networkRole.note":             tr("หมายเหตุ", "Notes"),
+  "di.networkRole.sourceCaseRef":    tr("คดีอ้างอิง", "Reference Case"),
+  "di.networkRole.remove":           tr("ลบบทบาท", "Remove Role"),
+  "di.networkRole.emptyTitle":       tr("ยังไม่มีบทบาทในเครือข่ายที่บันทึกไว้", "No network roles recorded yet"),
+
+  // Network role taxonomy labels
+  "di.networkRole.COURIER":           tr("นักบิน / คนส่งยา",       "Courier / Drug Runner"),
+  "di.networkRole.RUNNER":            tr("เด็กเดินยา",              "Street Runner"),
+  "di.networkRole.RETAIL_DEALER":     tr("ผู้ค้ารายย่อย",           "Retail Dealer"),
+  "di.networkRole.WHOLESALE_DEALER":  tr("ผู้ค้ารายใหญ่",           "Wholesale Dealer"),
+  "di.networkRole.USER":              tr("ผู้เสพ",                  "User / Consumer"),
+  "di.networkRole.SUPPLIER":          tr("ผู้จัดหา / ต้นทาง",       "Supplier / Source"),
+  "di.networkRole.COORDINATOR":       tr("ผู้ประสานงาน",            "Coordinator"),
+  "di.networkRole.STORAGE":           tr("ผู้พักยา / เก็บยา",       "Storage / Stash Keeper"),
+  "di.networkRole.FINANCE":           tr("ผู้รับเงิน / การเงิน",    "Finance / Money Handler"),
+  "di.networkRole.ACCOUNT_MULE":      tr("เจ้าของบัญชี / บัญชีม้า", "Account Mule"),
+  "di.networkRole.VEHICLE_PROVIDER":  tr("ผู้จัดหายานพาหนะ",       "Vehicle Provider"),
+  "di.networkRole.LOCATION_PROVIDER": tr("ผู้จัดหาสถานที่",        "Location Provider"),
+  "di.networkRole.OTHER":             tr("อื่น ๆ",                  "Other"),
+
+  // Network role source labels
+  "di.networkRoleSource.DIRECT_ARREST": tr("จับกุม / ตรวจพบโดยตรง",        "Direct Arrest / Detection"),
+  "di.networkRoleSource.TESTIMONY":     tr("คำให้การ / ถูกซัดทอด",          "Testimony / Accusation"),
+  "di.networkRoleSource.INVESTIGATION": tr("ข้อมูลการสืบสวน",               "Investigation Data"),
+  "di.networkRoleSource.DOCUMENT":      tr("เอกสาร / ข้อมูลคดีเดิม",        "Document / Prior Case Record"),
+  "di.networkRoleSource.OTHER_SOURCE":  tr("แหล่งข้อมูลอื่น",                "Other Source"),
+  "di.networkRoleSource.UNKNOWN":       tr("ไม่ทราบ",                        "Unknown"),
+
+  // Verification status labels
+  "di.verificationStatus.UNVERIFIED": tr("ยังไม่ยืนยัน",          "Unverified"),
+  "di.verificationStatus.SUPPORTED":  tr("มีข้อมูลสนับสนุน",       "Supported by Evidence"),
+  "di.verificationStatus.CONFIRMED":  tr("ยืนยันจากคดี/หลักฐาน",  "Confirmed"),
+
+  // Network group labels
+  "di.networkGroup.title":            tr("เครือข่าย / กลุ่มที่เกี่ยวข้อง", "Network / Group"),
+  "di.networkGroup.searchPlaceholder": tr("ค้นหาชื่อเครือข่าย", "Search network name"),
+  "di.networkGroup.newGroup":          tr("สร้างเครือข่ายใหม่",  "Create New Network"),
+  "di.networkGroup.manualLabel":       tr("ข้อมูลเครือข่ายที่กรอกเอง", "Manually entered network"),
+  "di.networkGroup.addedLabel":        tr("เพิ่มแล้ว",            "Added"),
+  "di.networkGroup.remove":            tr("ลบ",                   "Remove"),
+  "di.networkGroup.emptyTitle":        tr("ยังไม่มีข้อมูลเครือข่าย/กลุ่ม", "No network/group affiliations yet"),
+
+  // Person profile new sections
+  "di.profile.tabNetworkRoles":        tr("บทบาทในเครือข่าย", "Network Roles"),
+  "di.profile.tabNetworkGroups":       tr("เครือข่าย / กลุ่ม", "Network / Groups"),
+  "di.profile.overviewNickname":       tr("ชื่อเล่น", "Nickname"),
+  "di.profile.overviewSex":            tr("เพศ", "Sex"),
+  "di.profile.overviewApproxAge":      tr("อายุโดยประมาณ", "Approximate Age"),
+  "di.profile.overviewAgeApprox":      tr("ประมาณ {age} ปี", "approx. {age} years"),
+  "di.profile.overviewDobAge":         tr("{age} ปี", "{age} years old"),
+  "di.profile.approxAgeNote":          tr("(อายุโดยประมาณ ไม่ทราบวันเกิดที่แน่ชัด)", "(approximate — DOB unknown)"),
+
+  // DI-7.3: network roles tab additions
+  "di.networkRole.empty":             tr("ยังไม่มีบทบาทในเครือข่ายที่บันทึกไว้", "No network roles recorded yet"),
+  "di.networkRole.sourceCase":        tr("คดีอ้างอิง", "Reference Case"),
+  "di.networkRole.recordedBy":        tr("บันทึกโดย", "Recorded by"),
+  "di.networkRole.recordedAt":        tr("บันทึกเมื่อ", "Recorded at"),
+  "di.networkGroup.sectionLabel":     tr("เครือข่าย / กลุ่มที่เกี่ยวข้อง", "Network / Group Affiliations"),
+  "di.networkGroup.empty":            tr("ยังไม่มีข้อมูลเครือข่าย/กลุ่ม", "No network/group affiliations yet"),
+  "di.profile.moreNetworkRoles":      tr("และอีก {n} บทบาท — ดูทั้งหมดในแท็บ บทบาทในเครือข่าย", "and {n} more — see Network Roles tab"),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;

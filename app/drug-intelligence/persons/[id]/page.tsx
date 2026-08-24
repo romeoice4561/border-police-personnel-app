@@ -33,7 +33,20 @@ import {
   useDrugPotentialDuplicates,
 } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
-import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole, DRUG_PERSON_IDENTIFIER_TYPES, DRUG_PERSON_IDENTIFIER_TYPE_LABELS, isValidDrugPersonIdentifierType } from "@/lib/drug_intelligence/drug_person_options";
+import {
+  DRUG_CASE_PERSON_ROLE_LABELS,
+  isValidDrugCasePersonRole,
+  DRUG_PERSON_IDENTIFIER_TYPES,
+  DRUG_PERSON_IDENTIFIER_TYPE_LABELS,
+  isValidDrugPersonIdentifierType,
+  DRUG_PERSON_SEX_LABELS,
+  isValidDrugPersonSex,
+  DRUG_NETWORK_ROLE_LABELS,
+  isValidDrugNetworkRole,
+  DRUG_NETWORK_ROLE_SOURCE_LABELS,
+  DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS,
+  isValidDrugNetworkRoleVerificationStatus,
+} from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
@@ -52,6 +65,7 @@ import type {
 const TABS = [
   { key: "overview", labelKey: "di.profile.tabOverview" },
   { key: "cases", labelKey: "di.profile.tabCases" },
+  { key: "network-roles", labelKey: "di.profile.tabNetworkRoles" },
   { key: "phones", labelKey: "di.profile.tabPhones" },
   { key: "devices", labelKey: "di.profile.tabDevices" },
   { key: "vehicles", labelKey: "di.profile.tabVehicles" },
@@ -236,6 +250,7 @@ function DrugPersonProfileContent() {
 
       {activeTab === "overview" ? <OverviewTab data={data} language={language} canViewFull={canViewFull} /> : null}
       {activeTab === "cases" ? <CasesTab cases={data.cases} language={language} /> : null}
+      {activeTab === "network-roles" ? <NetworkRolesTab networkRoles={data.networkRoles ?? []} networkMemberships={data.networkMemberships ?? []} language={language} /> : null}
       {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} canViewFull={canViewFull} /> : null}
       {activeTab === "devices" ? <DevicesTab devices={data.devices} canViewFull={canViewFull} /> : null}
       {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} /> : null}
@@ -246,15 +261,68 @@ function DrugPersonProfileContent() {
   );
 }
 
+function sexLabel(sex: string | null | undefined, language: "th" | "en"): string | null {
+  if (!sex) return null;
+  if (!isValidDrugPersonSex(sex)) return sex;
+  return language === "th" ? DRUG_PERSON_SEX_LABELS[sex].labelTh : DRUG_PERSON_SEX_LABELS[sex].labelEn;
+}
+
+function calculateAge(dateOfBirth: string | Date | null | undefined): number | null {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const mDiff = now.getMonth() - dob.getMonth();
+  if (mDiff < 0 || (mDiff === 0 && now.getDate() < dob.getDate())) age--;
+  return age;
+}
+
 function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileResponse; language: "th" | "en"; canViewFull: boolean }) {
   const { t } = useT();
+  const calculatedAge = calculateAge(data.person.dateOfBirth);
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardBody className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewIdentity")}</p>
-          <p className="text-sm text-foreground">{data.person.primaryFullName}</p>
-          {data.person.nationality ? <p className="text-sm text-muted">{data.person.nationality}</p> : null}
+          <p className="text-sm font-medium text-foreground">{data.person.primaryFullName}</p>
+          {/* DI-7.2: nickname */}
+          {(data.person as { nickname?: string | null }).nickname ? (
+            <p className="text-sm text-muted">
+              {t("di.profile.overviewNickname")}: <span className="text-foreground">{(data.person as { nickname?: string | null }).nickname}</span>
+            </p>
+          ) : null}
+          {/* DI-7.2: aliases */}
+          {data.aliases.filter((a) => !a.isPrimary).length > 0 ? (
+            <p className="text-sm text-muted">
+              {t("di.person.aliases")}: <span className="text-foreground">{data.aliases.filter((a) => !a.isPrimary).map((a) => a.fullName).join(", ")}</span>
+            </p>
+          ) : null}
+          {/* DI-7.2: sex */}
+          {sexLabel((data.person as { sex?: string | null }).sex, language) ? (
+            <p className="text-sm text-muted">
+              {t("di.profile.overviewSex")}: <span className="text-foreground">{sexLabel((data.person as { sex?: string | null }).sex, language)}</span>
+            </p>
+          ) : null}
+          {/* DI-7.2: age / approximate age */}
+          {calculatedAge !== null ? (
+            <p className="text-sm text-muted">
+              {t("di.person.dateOfBirth")}:{" "}
+              <span className="text-foreground">
+                {formatDate(data.person.dateOfBirth as string, language)} ({t("di.profile.overviewDobAge").replace("{age}", String(calculatedAge))})
+              </span>
+            </p>
+          ) : (data.person as { approximateAge?: number | null }).approximateAge ? (
+            <p className="text-sm text-muted">
+              {t("di.profile.overviewApproxAge")}:{" "}
+              <span className="text-foreground">
+                {t("di.profile.overviewAgeApprox").replace("{age}", String((data.person as { approximateAge?: number | null }).approximateAge))}
+                <span className="ml-1 text-xs text-muted">{t("di.profile.approxAgeNote")}</span>
+              </span>
+            </p>
+          ) : null}
+          {data.person.nationality ? <p className="text-sm text-muted">{t("di.person.nationality")}: <span className="text-foreground">{data.person.nationality}</span></p> : null}
           {data.identifiers.length === 0 ? (
             <p className="text-sm text-muted">{t("di.profile.emptyIdentifiers")}</p>
           ) : (
@@ -306,6 +374,51 @@ function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileR
         </CardBody>
       </Card>
 
+      {/* DI-7.2: network group affiliations summary */}
+      {(data.networkMemberships ?? []).length > 0 ? (
+        <Card>
+          <CardBody className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.networkGroup.sectionLabel")}</p>
+            <ul className="space-y-1 text-sm">
+              {(data.networkMemberships as NetworkMembershipRow[]).map((m) => (
+                <li key={m.id} className="flex items-center justify-between gap-2">
+                  <span className="text-foreground">{m.networkGroupName ?? m.networkGroupId}</span>
+                  {m.status ? <span className="text-xs text-muted">{m.status}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {/* DI-7.3: network roles summary (first 3, link to full tab) */}
+      {(data.networkRoles ?? []).length > 0 ? (
+        <Card>
+          <CardBody className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.tabNetworkRoles")}</p>
+            <ul className="space-y-1 text-sm">
+              {(data.networkRoles as NetworkRoleRow[]).slice(0, 3).map((nr) => (
+                <li key={nr.id} className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-foreground">
+                    {isValidDrugNetworkRole(nr.role)
+                      ? language === "th"
+                        ? DRUG_NETWORK_ROLE_LABELS[nr.role].labelTh
+                        : DRUG_NETWORK_ROLE_LABELS[nr.role].labelEn
+                      : nr.role}
+                  </span>
+                  {nr.verificationStatus && isValidDrugNetworkRoleVerificationStatus(nr.verificationStatus) ? (
+                    <VerificationBadge status={nr.verificationStatus} language={language} />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {(data.networkRoles as NetworkRoleRow[]).length > 3 ? (
+              <p className="text-xs text-muted">{t("di.profile.moreNetworkRoles").replace("{n}", String((data.networkRoles as NetworkRoleRow[]).length - 3))}</p>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
       <Card>
         <CardBody className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewRelatedCounts")}</p>
@@ -325,6 +438,156 @@ function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileR
           </dl>
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+interface NetworkRoleRow {
+  id: string;
+  role: string;
+  source: string | null;
+  verificationStatus: string;
+  note: string | null;
+  sourceCaseId: string | null;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string | Date;
+}
+interface NetworkMembershipRow {
+  id: string;
+  networkGroupId: string;
+  networkGroupName?: string | null;
+  source: string | null;
+  status: string | null;
+  note: string | null;
+  firstObservedAt?: string | Date | null;
+  lastObservedAt?: string | Date | null;
+}
+
+function VerificationBadge({ status, language }: { status: string; language: "th" | "en" }) {
+  if (!isValidDrugNetworkRoleVerificationStatus(status)) return null;
+  const label = language === "th" ? DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[status].labelTh : DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[status].labelEn;
+  const toneCls =
+    status === "CONFIRMED"
+      ? "bg-good/10 text-good border-good/30"
+      : status === "SUPPORTED"
+        ? "bg-warning/10 text-warning border-warning/30"
+        : "bg-muted/10 text-muted border-border";
+  return <span className={`rounded-full border px-2 py-0.5 text-xs ${toneCls}`}>{label}</span>;
+}
+
+/**
+ * DI-7.3: Full network-roles tab — shows all assertions with provenance.
+ * Historical assertions displayed chronologically; never collapsed.
+ */
+function NetworkRolesTab({
+  networkRoles,
+  networkMemberships,
+  language,
+}: {
+  networkRoles: NetworkRoleRow[];
+  networkMemberships: NetworkMembershipRow[];
+  language: "th" | "en";
+}) {
+  const { t } = useT();
+
+  return (
+    <div className="space-y-6">
+      {/* บทบาทในเครือข่ายยาเสพติด */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">{t("di.profile.tabNetworkRoles")}</h2>
+        {networkRoles.length === 0 ? (
+          <Card>
+            <CardBody>
+              <p className="text-sm text-muted">{t("di.networkRole.empty")}</p>
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {networkRoles.map((nr) => (
+              <Card key={nr.id}>
+                <CardBody className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-foreground">
+                      {isValidDrugNetworkRole(nr.role)
+                        ? language === "th"
+                          ? DRUG_NETWORK_ROLE_LABELS[nr.role].labelTh
+                          : DRUG_NETWORK_ROLE_LABELS[nr.role].labelEn
+                        : nr.role}
+                    </span>
+                    {isValidDrugNetworkRoleVerificationStatus(nr.verificationStatus) ? (
+                      <VerificationBadge status={nr.verificationStatus} language={language} />
+                    ) : null}
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
+                    {nr.source ? (
+                      <div>
+                        <dt className="text-muted">{t("di.networkRole.source")}</dt>
+                        <dd className="text-foreground">
+                          {nr.source in DRUG_NETWORK_ROLE_SOURCE_LABELS
+                            ? language === "th"
+                              ? DRUG_NETWORK_ROLE_SOURCE_LABELS[nr.source as keyof typeof DRUG_NETWORK_ROLE_SOURCE_LABELS].labelTh
+                              : DRUG_NETWORK_ROLE_SOURCE_LABELS[nr.source as keyof typeof DRUG_NETWORK_ROLE_SOURCE_LABELS].labelEn
+                            : nr.source}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {nr.sourceCaseId ? (
+                      <div>
+                        <dt className="text-muted">{t("di.networkRole.sourceCase")}</dt>
+                        <dd className="font-mono text-foreground">{nr.sourceCaseId}</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt className="text-muted">{t("di.networkRole.recordedBy")}</dt>
+                      <dd className="text-foreground">{nr.createdByName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted">{t("di.networkRole.recordedAt")}</dt>
+                      <dd className="text-foreground">{formatDate(String(nr.createdAt), language)}</dd>
+                    </div>
+                  </dl>
+                  {nr.note ? <p className="text-sm text-muted">{nr.note}</p> : null}
+                  {nr.verificationStatus === "UNVERIFIED" && nr.source === "TESTIMONY" ? (
+                    <p className="text-xs text-serious">ข้อมูลนี้มาจากคำให้การ — ยังไม่ได้รับการยืนยันจากหลักฐานอื่น</p>
+                  ) : null}
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* เครือข่าย / กลุ่มที่เกี่ยวข้อง */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">{t("di.networkGroup.sectionLabel")}</h2>
+        {networkMemberships.length === 0 ? (
+          <Card>
+            <CardBody>
+              <p className="text-sm text-muted">{t("di.networkGroup.empty")}</p>
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {networkMemberships.map((m) => (
+              <Card key={m.id}>
+                <CardBody className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-foreground">{m.networkGroupName ?? m.networkGroupId}</p>
+                    {m.source ? <p className="text-sm text-muted">{t("di.networkRole.source")}: {m.source}</p> : null}
+                    {m.status ? <p className="text-sm text-muted">{t("di.networkRole.verificationStatus")}: {m.status}</p> : null}
+                    {m.note ? <p className="text-sm text-muted">{m.note}</p> : null}
+                  </div>
+                  <div className="text-right text-xs text-muted">
+                    {m.firstObservedAt ? <p>พบครั้งแรก: {formatDate(String(m.firstObservedAt), language)}</p> : null}
+                    {m.lastObservedAt ? <p>พบล่าสุด: {formatDate(String(m.lastObservedAt), language)}</p> : null}
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

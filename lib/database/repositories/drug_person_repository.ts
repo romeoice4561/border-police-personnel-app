@@ -14,8 +14,14 @@ import type { DatabaseClient, DrugPerson, DrugPersonIdentifier, DrugPersonAlias 
 export interface DrugPersonCreateInput {
   id: string;
   primaryFullName: string;
+  /** DI-7.2: dedicated nickname — optional; defaults to null */
+  nickname?: string | null;
   nationality: string | null;
+  /** DI-7.2: MALE / FEMALE / UNKNOWN — optional; defaults to null */
+  sex?: string | null;
   dateOfBirth: Date | null;
+  /** DI-7.2: only when dateOfBirth is null — optional; defaults to null */
+  approximateAge?: number | null;
   notes: string | null;
   createdBy: string;
   createdByName: string;
@@ -29,7 +35,18 @@ export class DrugPersonRepository {
   }
 
   create(input: DrugPersonCreateInput): Promise<DrugPerson> {
-    return this.db.drugPerson.create({ data: { ...input, updatedBy: null, updatedByName: null, status: "ACTIVE", mergedIntoPersonId: null } });
+    return this.db.drugPerson.create({
+      data: {
+        nickname: null,
+        sex: null,
+        approximateAge: null,
+        ...input,
+        updatedBy: null,
+        updatedByName: null,
+        status: "ACTIVE",
+        mergedIntoPersonId: null,
+      },
+    });
   }
 
   async addIdentifier(personId: string, type: string, value: string, notes: string | null, createdBy: string): Promise<DrugPersonIdentifier> {
@@ -101,14 +118,40 @@ export class DrugPersonRepository {
     return this.db.drugPerson.update({ where: { id: personId }, data: { status: "MERGED", mergedIntoPersonId } });
   }
 
-  /** DI-2 Section 21: profile edit — canonical name/nationality/DOB/notes. Identifier/alias edits go through addIdentifier/addAlias above, never through this generic update, so those additions can carry their own audit trail entries. */
+  /** DI-2 Section 21 / DI-7.2: profile edit — canonical identity fields. Identifier/alias edits go through addIdentifier/addAlias, so those additions can carry their own audit trail entries. */
   async updateProfile(
     personId: string,
-    input: { primaryFullName?: string; nationality?: string | null; dateOfBirth?: Date | null; notes?: string | null },
+    input: {
+      primaryFullName?: string;
+      nickname?: string | null;
+      nationality?: string | null;
+      sex?: string | null;
+      dateOfBirth?: Date | null;
+      approximateAge?: number | null;
+      notes?: string | null;
+    },
     updatedBy: string,
     updatedByName: string
   ): Promise<DrugPerson> {
     return this.db.drugPerson.update({ where: { id: personId }, data: { ...input, updatedBy, updatedByName } });
+  }
+
+  // ── DI-7.2: Network Memberships ────────────────────────────────────────────
+
+  networkMembershipsForPerson(personId: string) {
+    return this.db.drugPersonNetworkMembership.findMany({
+      where: { personId },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  // ── DI-7.3: Network Roles ──────────────────────────────────────────────────
+
+  networkRolesForPerson(personId: string) {
+    return this.db.drugPersonNetworkRole.findMany({
+      where: { personId },
+      orderBy: { createdAt: "asc" },
+    });
   }
 
   /**
