@@ -42,10 +42,12 @@ import {
   DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS,
   DRUG_CASE_PERSON_ROLES,
   DRUG_CASE_PERSON_ROLE_LABELS,
+  DRUG_PERSON_IDENTIFIER_TYPE_LABELS,
   isValidDrugPersonSex,
   isValidDrugNetworkRole,
   isValidDrugNetworkRoleVerificationStatus,
   isValidDrugCasePersonRole,
+  isValidDrugPersonIdentifierType,
 } from "@/lib/drug_intelligence/drug_person_options";
 import type { DrugPersonAdvancedSearchResult, DrugPersonSearchMatchedField } from "@/lib/drug_intelligence/drug_intelligence_client";
 
@@ -122,8 +124,12 @@ function DrugPersonAdvancedSearchContent() {
     updateParams({ [paramKey]: arr.length ? arr.join(",") : undefined });
   }
 
+  /** Clear all search/filter state. Preserves the current sort order. */
   function clearAllFilters() {
-    router.push("/drug-intelligence/persons", { scroll: false });
+    const next = new URLSearchParams();
+    if (sort !== "RELEVANCE") next.set("sort", sort);
+    const qs = next.toString();
+    router.push(qs ? `/drug-intelligence/persons?${qs}` : "/drug-intelligence/persons", { scroll: false });
   }
 
   // ── Build search query from URL params ───────────────────────────────────
@@ -564,8 +570,8 @@ function DrugPersonAdvancedSearchContent() {
         </div>
       )}
 
-      {/* ── Active filter chips ────────────────────────────────────────────── */}
-      {chips.length > 0 && (
+      {/* ── Active filter chips + Clear All ──────────────────────────────── */}
+      {(chips.length > 0 || hasActiveFilters) && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted">{t("di.advSearch.activeFiltersLabel")}:</span>
           {chips.map((chip) => (
@@ -584,6 +590,15 @@ function DrugPersonAdvancedSearchContent() {
               </button>
             </span>
           ))}
+          {/* Compact clear-all beside chips */}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            aria-label={t("di.advSearch.clearAllFilters")}
+            className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted transition-colors hover:border-serious/50 hover:bg-serious/10 hover:text-serious"
+          >
+            {t("di.advSearch.clearAllFilters")}
+          </button>
         </div>
       )}
 
@@ -676,8 +691,12 @@ function PersonResultCard({ item }: { item: DrugPersonAdvancedSearchResult }) {
   const extraAliases   = item.aliasCount - shownAliases.length;
 
   const MAX_SHOWN_ROLES = 3;
-  const shownRoles     = item.networkRoleSummary.slice(0, MAX_SHOWN_ROLES);
-  const extraRoles     = item.networkRoleSummary.length - shownRoles.length;
+  // Map raw enum values → Thai labels before displaying
+  const roleLabelsTh = item.networkRoleSummary.map((r) =>
+    isValidDrugNetworkRole(r) ? DRUG_NETWORK_ROLE_LABELS[r].labelTh : r
+  );
+  const shownRoles = roleLabelsTh.slice(0, MAX_SHOWN_ROLES);
+  const extraRoles = roleLabelsTh.length - shownRoles.length;
 
   const demographics = [
     sexLabel,
@@ -771,7 +790,9 @@ function PersonResultCard({ item }: { item: DrugPersonAdvancedSearchResult }) {
       {/* ── Identifier preview ───────────────────────────────────────────── */}
       {item.identifierPreview && (
         <p className="font-mono text-xs text-muted">
-          {item.identifierPreview.type}:{" "}
+          {isValidDrugPersonIdentifierType(item.identifierPreview.type)
+            ? DRUG_PERSON_IDENTIFIER_TYPE_LABELS[item.identifierPreview.type].labelTh
+            : item.identifierPreview.type}:{" "}
           <span className="text-foreground">
             {presentIdentifierValue(item.identifierPreview.value, canViewFull)}
           </span>

@@ -125,3 +125,30 @@ export const DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS: Record<DrugNetworkRol
 export function isValidDrugNetworkRoleVerificationStatus(value: string): value is DrugNetworkRoleVerificationStatus {
   return (DRUG_NETWORK_ROLE_VERIFICATION_STATUSES as readonly string[]).includes(value);
 }
+
+export function isValidDrugNetworkRoleSource(value: string): value is DrugNetworkRoleSource {
+  return (DRUG_NETWORK_ROLE_SOURCES as readonly string[]).includes(value);
+}
+
+// ── Relationship / association status (phones, SIMs, devices, vehicles) ───────
+// Maps DrugRelationshipStatus Prisma enum to Thai labels used in person profile
+// tables (Phones tab, Devices tab, etc.).
+
+export const DRUG_RELATIONSHIP_STATUSES = [
+  "CONFIRMED",
+  "OBSERVED",
+  "REPORTED",
+  "SYSTEM_SUGGESTED",
+] as const;
+export type DrugRelationshipStatus = (typeof DRUG_RELATIONSHIP_STATUSES)[number];
+
+export const DRUG_RELATIONSHIP_STATUS_LABELS: Record<DrugRelationshipStatus, { labelTh: string; labelEn: string }> = {
+  CONFIRMED:        { labelTh: "ยืนยันแล้ว",          labelEn: "Confirmed"         },
+  OBSERVED:         { labelTh: "พบจากการสังเกต",       labelEn: "Observed"          },
+  REPORTED:         { labelTh: "แจ้งรายงาน",            labelEn: "Reported"          },
+  SYSTEM_SUGGESTED: { labelTh: "ระบบแนะนำ",             labelEn: "System Suggested"  },
+};
+
+export function isValidDrugRelationshipStatus(value: string): value is DrugRelationshipStatus {
+  return (DRUG_RELATIONSHIP_STATUSES as readonly string[]).includes(value);
+}

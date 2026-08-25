@@ -2436,6 +2436,7 @@ export const DICTIONARY = {
   "di.advSearch.searchPlaceholder":   tr("ชื่อ / ชื่อเล่น / นามแฝง / เลขประจำตัว / โทรศัพท์", "Name / Nickname / Alias / ID / Phone"),
   "di.advSearch.advancedFilters":     tr("ตัวกรองเพิ่มเติม", "Advanced Filters"),
   "di.advSearch.clearFilters":        tr("ล้างตัวกรอง", "Clear Filters"),
+  "di.advSearch.clearAllFilters":     tr("ล้างตัวกรองทั้งหมด", "Clear All Filters"),
   "di.advSearch.resultCount":         tr("พบ {count} ราย", "Found {count} persons"),
   "di.advSearch.emptyTitle":          tr("ไม่พบบุคคล", "No persons found"),
   "di.advSearch.emptySearchTitle":    tr("ไม่พบบุคคลที่ตรงกับเงื่อนไขนี้", "No persons match these criteria"),

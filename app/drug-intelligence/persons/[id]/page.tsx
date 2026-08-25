@@ -44,11 +44,16 @@ import {
   DRUG_NETWORK_ROLE_LABELS,
   isValidDrugNetworkRole,
   DRUG_NETWORK_ROLE_SOURCE_LABELS,
+  isValidDrugNetworkRoleSource,
   DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS,
   isValidDrugNetworkRoleVerificationStatus,
+  DRUG_RELATIONSHIP_STATUS_LABELS,
+  isValidDrugRelationshipStatus,
 } from "@/lib/drug_intelligence/drug_person_options";
+import { DRUG_CASE_STATUS_META } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type {
   DrugPersonProfileResponse,
@@ -574,13 +579,27 @@ function NetworkRolesTab({
                 <CardBody className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-foreground">{m.networkGroupName ?? m.networkGroupId}</p>
-                    {m.source ? <p className="text-sm text-muted">{t("di.networkRole.source")}: {m.source}</p> : null}
-                    {m.status ? <p className="text-sm text-muted">{t("di.networkRole.verificationStatus")}: {m.status}</p> : null}
+                    {m.source ? (
+                      <p className="text-sm text-muted">
+                        {t("di.networkRole.source")}:{" "}
+                        {isValidDrugNetworkRoleSource(m.source)
+                          ? DRUG_NETWORK_ROLE_SOURCE_LABELS[m.source].labelTh
+                          : m.source}
+                      </p>
+                    ) : null}
+                    {m.status ? (
+                      <p className="text-sm text-muted">
+                        {t("di.networkRole.verificationStatus")}:{" "}
+                        {isValidDrugNetworkRoleVerificationStatus(m.status)
+                          ? DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[m.status].labelTh
+                          : m.status}
+                      </p>
+                    ) : null}
                     {m.note ? <p className="text-sm text-muted">{m.note}</p> : null}
                   </div>
                   <div className="text-right text-xs text-muted">
-                    {m.firstObservedAt ? <p>พบครั้งแรก: {formatDate(String(m.firstObservedAt), language)}</p> : null}
-                    {m.lastObservedAt ? <p>พบล่าสุด: {formatDate(String(m.lastObservedAt), language)}</p> : null}
+                    {m.firstObservedAt ? <p>พบครั้งแรก: {formatDiDate(String(m.firstObservedAt))}</p> : null}
+                    {m.lastObservedAt ? <p>พบล่าสุด: {formatDiDate(String(m.lastObservedAt))}</p> : null}
                   </div>
                 </CardBody>
               </Card>
@@ -625,7 +644,11 @@ function CasesTab({ cases, language }: { cases: DrugCaseLinkSummary[]; language:
           <p className="mt-1 text-xs text-muted">
             {link.case?.arrestDate ? toGregorianDateInputValue(link.case.arrestDate) : "—"} · {link.case?.province || "—"}
           </p>
-          {link.case?.status ? <p className="mt-1 text-xs text-muted">{link.case.status}</p> : null}
+          {link.case?.status ? (
+            <p className="mt-1 text-xs text-muted">
+              {DRUG_CASE_STATUS_META[link.case.status as keyof typeof DRUG_CASE_STATUS_META]?.labelTh ?? link.case.status}
+            </p>
+          ) : null}
         </Link>
       ))}
     </div>
@@ -660,9 +683,15 @@ function PhonesTab({ phones, sims, canViewFull }: { phones: DrugPersonPhoneRow[]
                       "—"
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted">{phone.firstSeenAt ? new Date(phone.firstSeenAt).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3 text-muted">{phone.lastSeenAt ? new Date(phone.lastSeenAt).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3 text-muted">{phone.status}</td>
+                  <td className="px-4 py-3 text-muted">{phone.firstSeenAt ? formatDiDate(String(phone.firstSeenAt)) : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{phone.lastSeenAt ? formatDiDate(String(phone.lastSeenAt)) : "—"}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {phone.status
+                      ? (isValidDrugRelationshipStatus(phone.status)
+                          ? DRUG_RELATIONSHIP_STATUS_LABELS[phone.status].labelTh
+                          : phone.status)
+                      : "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -704,7 +733,7 @@ function DevicesTab({ devices, canViewFull }: { devices: DrugPersonDeviceRow[]; 
               <p className="font-medium text-foreground">{[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}</p>
               {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
               <p className="text-xs text-muted">
-                {d.firstSeenAt ? new Date(d.firstSeenAt).toLocaleDateString() : "—"} – {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleDateString() : "—"}
+                {d.firstSeenAt ? formatDiDate(String(d.firstSeenAt)) : "—"} – {d.lastSeenAt ? formatDiDate(String(d.lastSeenAt)) : "—"}
               </p>
               {/* Section 6: neutral wording — never "เป็นเจ้าของ" (owner) unless the relationship explicitly supports it, which DrugPersonDevice never does. */}
               <p className="text-xs text-muted">{t("di.profile.relationAssociated")}</p>
@@ -728,7 +757,7 @@ function VehiclesTab({ vehicles }: { vehicles: DrugPersonVehicleRow[] }) {
               <p className="font-medium text-foreground">{v.vehicle?.registrationNumber || "—"}</p>
               <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
               <p className="text-xs text-muted">
-                {v.firstSeenAt ? new Date(v.firstSeenAt).toLocaleDateString() : "—"} – {v.lastSeenAt ? new Date(v.lastSeenAt).toLocaleDateString() : "—"}
+                {v.firstSeenAt ? formatDiDate(String(v.firstSeenAt)) : "—"} – {v.lastSeenAt ? formatDiDate(String(v.lastSeenAt)) : "—"}
               </p>
             </CardBody>
           </Card>
