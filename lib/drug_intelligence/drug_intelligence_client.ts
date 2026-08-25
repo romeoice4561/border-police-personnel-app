@@ -651,7 +651,7 @@ export interface DrugPersonMergePreview {
   survivorName: string;
   mergedPersonId: string;
   mergedName: string;
-  movedCounts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; identifiers: number; aliases: number };
+  movedCounts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; identifiers: number; aliases: number; networkMemberships: number; networkRoles: number };
   skippedDuplicateCaseLinks: number;
 }
 

@@ -70,6 +70,8 @@ export interface DrugPersonMergePreview {
     vehicles: number;
     identifiers: number;
     aliases: number;
+    networkMemberships: number;
+    networkRoles: number;
   };
   /** Cases both persons are already independently linked to — these are SKIPPED (not duplicated) during the actual merge, per Section 17. */
   skippedDuplicateCaseLinks: number;
@@ -99,13 +101,15 @@ export class DrugPersonMergeService {
     const mergedCaseIds = (mergedCaseLinks as Array<{ caseId: string }>).map((r) => r.caseId);
     const skippedDuplicateCaseLinks = mergedCaseIds.filter((id) => survivorCaseIds.has(id)).length;
 
-    const [phones, sims, devices, vehicles, identifiers, aliases] = await Promise.all([
+    const [phones, sims, devices, vehicles, identifiers, aliases, networkMemberships, networkRoles] = await Promise.all([
       this.db.drugCasePhone.count({ where: { personId: mergedPersonId } }),
       this.db.drugCaseSim.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonDevice.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonVehicle.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonIdentifier.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonAlias.count({ where: { personId: mergedPersonId } }),
+      this.db.drugPersonNetworkMembership.count({ where: { personId: mergedPersonId } }),
+      this.db.drugPersonNetworkRole.count({ where: { personId: mergedPersonId } }),
     ]);
 
     return {
@@ -113,7 +117,7 @@ export class DrugPersonMergeService {
       survivorName: survivor.primaryFullName,
       mergedPersonId,
       mergedName: merged.primaryFullName,
-      movedCounts: { cases: mergedCaseIds.length - skippedDuplicateCaseLinks, phones, sims, devices, vehicles, identifiers, aliases },
+      movedCounts: { cases: mergedCaseIds.length - skippedDuplicateCaseLinks, phones, sims, devices, vehicles, identifiers, aliases, networkMemberships, networkRoles },
       skippedDuplicateCaseLinks,
     };
   }
@@ -142,7 +146,7 @@ export class DrugPersonMergeService {
       if (merged.status === "MERGED") throw new DrugPersonAlreadyMergedError(request.mergedPersonId);
 
       // Snapshot BEFORE any mutation, for the DrugPersonMerge.detail trace (Section 16 — enough to reconstruct what was absorbed for a future admin Unmerge).
-      const [mergedIdentifiers, mergedAliases, mergedCaseLinks, mergedPhoneLinks, mergedSimLinks, mergedPersonDeviceLinks, mergedCaseDeviceLinks, mergedPersonVehicleLinks, mergedCaseVehicleLinks] =
+      const [mergedIdentifiers, mergedAliases, mergedCaseLinks, mergedPhoneLinks, mergedSimLinks, mergedPersonDeviceLinks, mergedCaseDeviceLinks, mergedPersonVehicleLinks, mergedCaseVehicleLinks, mergedNetworkMemberships, mergedNetworkRoles] =
         await Promise.all([
           personRepo.identifiersForPerson(merged.id),
           personRepo.aliasesForPerson(merged.id),
@@ -153,6 +157,8 @@ export class DrugPersonMergeService {
           tx.drugCaseDevice.findMany({ where: { personId: merged.id } }),
           tx.drugPersonVehicle.findMany({ where: { personId: merged.id } }),
           tx.drugCaseVehicle.findMany({ where: { personId: merged.id } }),
+          tx.drugPersonNetworkMembership.findMany({ where: { personId: merged.id } }),
+          tx.drugPersonNetworkRole.findMany({ where: { personId: merged.id } }),
         ]);
 
       const snapshot = {
@@ -220,6 +226,31 @@ export class DrugPersonMergeService {
       await tx.drugPersonVehicle.deleteMany({ where: { personId: merged.id } });
       await tx.drugCaseVehicle.updateMany({ where: { personId: merged.id }, data: { personId: survivor.id } });
 
+      // ── Network memberships: dedupe on networkGroupId — one durable membership per (person, group) ──
+      const survivorGroupIds = new Set(
+        (await tx.drugPersonNetworkMembership.findMany({ where: { personId: survivor.id } }) as Array<{ networkGroupId: string }>).map((r) => r.networkGroupId)
+      );
+      let movedNetworkMemberships = 0;
+      for (const m of mergedNetworkMemberships as Array<{ networkGroupId: string; source: string | null; status: string | null; note: string | null; firstObservedAt: Date | null; lastObservedAt: Date | null; createdBy: string }>) {
+        if (survivorGroupIds.has(m.networkGroupId)) continue;
+        await tx.drugPersonNetworkMembership.create({
+          data: { personId: survivor.id, networkGroupId: m.networkGroupId, source: m.source, status: m.status, note: m.note, firstObservedAt: m.firstObservedAt, lastObservedAt: m.lastObservedAt, createdBy: m.createdBy },
+        });
+        survivorGroupIds.add(m.networkGroupId);
+        movedNetworkMemberships += 1;
+      }
+      await tx.drugPersonNetworkMembership.deleteMany({ where: { personId: merged.id } });
+
+      // ── Network role assertions: all move — no structural uniqueness constraint; preserve sourceCaseId, source, verificationStatus, provenance ──
+      let movedNetworkRoles = 0;
+      for (const r of mergedNetworkRoles as Array<{ sourceCaseId: string | null; role: string; source: string | null; verificationStatus: string; note: string | null; createdBy: string; createdByName: string }>) {
+        await tx.drugPersonNetworkRole.create({
+          data: { personId: survivor.id, sourceCaseId: r.sourceCaseId, role: r.role, source: r.source, verificationStatus: r.verificationStatus, note: r.note, createdBy: r.createdBy, createdByName: r.createdByName },
+        });
+        movedNetworkRoles += 1;
+      }
+      await tx.drugPersonNetworkRole.deleteMany({ where: { personId: merged.id } });
+
       // ── Identifiers & aliases: UNION, never deduplicated to a single "best" value — Section 21/23's "รองรับหลาย Identifier"/"รองรับหลายรายการ" applies equally to merge-time consolidation. Exact-duplicate (type,value) or fullName rows are skipped so a merge never doubles up an identical row. ──
       const survivorIdentifiers = await personRepo.identifiersForPerson(survivor.id);
       const survivorIdentifierKeys = new Set((survivorIdentifiers as Array<{ type: string; value: string }>).map((r) => `${r.type}:${r.value}`));
@@ -259,7 +290,7 @@ export class DrugPersonMergeService {
         reason: request.reason,
         detail: {
           ...snapshot,
-          movedCounts: { cases: movedCases, phones: mergedPhoneLinks.length, sims: mergedSimLinks.length, devices: mergedPersonDeviceLinks.length, vehicles: mergedPersonVehicleLinks.length, identifiers: movedIdentifiers, aliases: movedAliases },
+          movedCounts: { cases: movedCases, phones: mergedPhoneLinks.length, sims: mergedSimLinks.length, devices: mergedPersonDeviceLinks.length, vehicles: mergedPersonVehicleLinks.length, identifiers: movedIdentifiers, aliases: movedAliases, networkMemberships: movedNetworkMemberships, networkRoles: movedNetworkRoles },
           skippedCaseDuplicates,
           caseDeviceLinksRepointed: mergedCaseDeviceLinks.length,
           caseVehicleLinksRepointed: mergedCaseVehicleLinks.length,
@@ -271,7 +302,10 @@ export class DrugPersonMergeService {
       // ── Persistent review decision (Section 19): mark the pair MERGED so it never resurfaces, superseding any prior CONFIRMED_DUPLICATE/NOT_SAME on the same pair. ──
       const [personAId, personBId] = orderPersonPair(survivor.id, merged.id);
       const existingReview = await reviewRepo.findForPair(personAId, personBId);
-      if (!existingReview) {
+      if (existingReview) {
+        // Upgrade any existing CONFIRMED_DUPLICATE (or NOT_SAME) decision to MERGED so the pair never resurfaces in the queue.
+        await reviewRepo.update(existingReview.id, { decision: "MERGED", reviewedBy: request.actorId, reviewedByName: request.actorName, notes: request.reason ?? existingReview.notes });
+      } else {
         await reviewRepo.create({
           id: generateDrugId(),
           personAId,
@@ -291,7 +325,7 @@ export class DrugPersonMergeService {
         action: "person_merged",
         actorId: request.actorId,
         actorName: request.actorName,
-        detail: `mergedPersonId=${merged.id} cases=${movedCases} identifiers=${movedIdentifiers} aliases=${movedAliases} reason=${request.reason ?? "-"}`,
+        detail: `mergedPersonId=${merged.id} cases=${movedCases} identifiers=${movedIdentifiers} aliases=${movedAliases} networkMemberships=${movedNetworkMemberships} networkRoles=${movedNetworkRoles} reason=${request.reason ?? "-"}`,
       });
 
       return { mergeId };

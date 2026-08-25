@@ -44,6 +44,11 @@ export class DrugPersonMatchReviewRepository {
     });
   }
 
+  /** Section 19/merge: update an existing review row — used by merge to upgrade CONFIRMED_DUPLICATE → MERGED. */
+  async update(id: string, data: Partial<Pick<DrugPersonMatchReviewCreateInput, "decision" | "reviewedBy" | "reviewedByName" | "notes">>): Promise<DrugPersonMatchReview> {
+    return this.db.drugPersonMatchReview.update({ where: { id }, data });
+  }
+
   /** Duplicate Review Queue (Section 13): every pair still awaiting a decision is derived live by the service layer (matching engine minus already-reviewed pairs) — this method returns only the persisted decisions, for filtering that live list. */
   findAll(): Promise<DrugPersonMatchReview[]> {
     return this.db.drugPersonMatchReview.findMany({});

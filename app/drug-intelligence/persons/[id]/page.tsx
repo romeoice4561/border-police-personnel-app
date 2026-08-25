@@ -16,7 +16,6 @@ import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, AlertTriangle, Plus, 
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
@@ -221,10 +220,19 @@ function DrugPersonProfileContent() {
             </span>
           ) : null}
           {data.dataQuality.some((f) => f.code === "POTENTIAL_DUPLICATE") ? (
-            <Badge tone="warning">
-              <AlertTriangle className="mr-1 h-3 w-3" aria-hidden="true" />
-              {t("di.profile.dqPotentialDuplicate")}
-            </Badge>
+            <Link href="/drug-intelligence/review/duplicates" className="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/5 px-2.5 py-1 text-xs font-medium text-warning hover:bg-warning/10 transition-colors">
+              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+              {t("di.profile.duplicateBadge")}
+            </Link>
+          ) : null}
+          {data.counts.cases >= 2 ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab("cases")}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:border-accent/50 hover:text-accent transition-colors"
+            >
+              {t("di.profile.multiCaseHistory")} ({data.counts.cases})
+            </button>
           ) : null}
         </CardBody>
       </Card>
@@ -238,11 +246,13 @@ function DrugPersonProfileContent() {
         <DrugKpiTile label={t("di.profile.kpiLocations")} value={data.counts.locations} icon={MapPin} onClick={() => setActiveTab("locations")} />
       </div>
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5">
+      <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5">
         {TABS.map((tab) => (
           <button
             key={tab.key}
+            role="tab"
             type="button"
+            aria-selected={activeTab === tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
@@ -1005,7 +1015,7 @@ function PotentialDuplicatesPreview({ personId, actorId, language }: { personId:
   return (
     <div className="space-y-2 border-t border-border pt-3">
       {potentialDuplicates.data.candidates.map((c) => (
-        <div key={c.personId} className="rounded-lg border border-border bg-surface p-3">
+        <div key={c.personId} className="rounded-lg border border-border bg-surface p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Link href={`/drug-intelligence/persons/${encodeURIComponent(c.personId)}`} className="text-sm font-medium text-accent hover:underline">
               {c.primaryFullName}
@@ -1013,9 +1023,14 @@ function PotentialDuplicatesPreview({ personId, actorId, language }: { personId:
             <DrugMatchConfidenceBadge confidence={c.confidence} />
           </div>
           <DrugMatchSignalsList signals={c.signals} confidence={c.confidence} />
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/drug-intelligence/review/duplicates/compare?a=${encodeURIComponent(personId)}&b=${encodeURIComponent(c.personId)}`}>
+              {t("di.profile.potentialDuplicateLink")}
+            </Link>
+          </Button>
         </div>
       ))}
-      <Button asChild variant="outline" size="sm">
+      <Button asChild variant="ghost" size="sm">
         <Link href="/drug-intelligence/review/duplicates">{t("di.matchReview.title")}</Link>
       </Button>
     </div>

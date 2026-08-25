@@ -364,7 +364,18 @@ function DrugAlertCenterContent() {
             ) : null}
 
             <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-              {selectedAlert.entityType === "PERSON" ? (
+              {/* HIGH_CONFIDENCE_DUPLICATE: deep-link directly to compare page when candidate id available */}
+              {selectedAlert.alertType === "HIGH_CONFIDENCE_DUPLICATE" &&
+               selectedAlert.entityType === "PERSON" &&
+               selectedAlert.relatedPersonIds &&
+               selectedAlert.relatedPersonIds.length > 0 ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/drug-intelligence/review/duplicates/compare?a=${encodeURIComponent(selectedAlert.entityId)}&b=${encodeURIComponent(selectedAlert.relatedPersonIds[0])}`}>
+                    <UserCircle className="h-4 w-4" aria-hidden="true" />
+                    {t("di.alert.openCompareLink")}
+                  </Link>
+                </Button>
+              ) : selectedAlert.entityType === "PERSON" ? (
                 <Button asChild size="sm" variant="outline">
                   <Link href={`/drug-intelligence/persons/${encodeURIComponent(selectedAlert.entityId)}`}>
                     <UserCircle className="h-4 w-4" aria-hidden="true" />

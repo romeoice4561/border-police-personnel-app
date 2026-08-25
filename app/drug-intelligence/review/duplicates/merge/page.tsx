@@ -128,6 +128,8 @@ function DrugPersonMergeContent() {
                 <MovedCountItem labelKey="di.merge.movedSims" value={preview.data.movedCounts.sims} />
                 <MovedCountItem labelKey="di.merge.movedDevices" value={preview.data.movedCounts.devices} />
                 <MovedCountItem labelKey="di.merge.movedVehicles" value={preview.data.movedCounts.vehicles} />
+                <MovedCountItem labelKey="di.merge.movedNetworkMemberships" value={preview.data.movedCounts.networkMemberships} />
+                <MovedCountItem labelKey="di.merge.movedNetworkRoles" value={preview.data.movedCounts.networkRoles} />
               </dl>
               {preview.data.skippedDuplicateCaseLinks > 0 ? (
                 <p className="flex items-center gap-2 text-sm text-muted">
@@ -189,7 +191,7 @@ function DrugPersonMergeContent() {
   );
 }
 
-function MovedCountItem({ labelKey, value }: { labelKey: "di.merge.movedCases" | "di.merge.movedAliases" | "di.merge.movedIdentifiers" | "di.merge.movedPhones" | "di.merge.movedSims" | "di.merge.movedDevices" | "di.merge.movedVehicles"; value: number }) {
+function MovedCountItem({ labelKey, value }: { labelKey: "di.merge.movedCases" | "di.merge.movedAliases" | "di.merge.movedIdentifiers" | "di.merge.movedPhones" | "di.merge.movedSims" | "di.merge.movedDevices" | "di.merge.movedVehicles" | "di.merge.movedNetworkMemberships" | "di.merge.movedNetworkRoles"; value: number }) {
   const { t } = useT();
   return (
     <div>
