@@ -1633,6 +1633,7 @@ model DrugPerson {
   @@index([mergedIntoPersonId])
   @@index([nickname])
   @@index([sex])
+  @@index([nationality])
 }
 
 /// DI-2 Section 16.
@@ -1711,6 +1712,7 @@ model DrugCasePerson {
   @@index([caseId])
   @@index([personId])
   @@index([linkedOfficerId])
+  @@index([role])
 }
 
 /// Section 6: a normalized phone number as its own entity — never

@@ -1278,6 +1278,108 @@ export const drugIntelligenceClient = {
   async getTimelineCorrelations(actorId: string, query: DrugTimelineListQuery & { timeWindowDays?: number }): Promise<{ correlations: DrugTimelineCorrelation[] }> {
     return (await request<{ correlations: DrugTimelineCorrelation[] }>(`/drug-intelligence/timeline/correlations${toQueryString({ actorId, ...query })}`)).data;
   },
+
+  // ── DI-7.2: Network groups ────────────────────────────────────────────────
+
+  /** Returns all canonical network groups (ordered by name) for filter pickers. */
+  async getNetworkGroups(actorId: string): Promise<{ id: string; name: string }[]> {
+    const data = await request<{ id: string; name: string }[]>(
+      `/drug-intelligence/network-groups${toQueryString({ actorId })}`,
+    );
+    return data.data;
+  },
+
+  // ── DI-7.4: Advanced Person Search ──────────────────────────────────────
+
+  async advancedPersonSearch(
+    actorId: string,
+    query: DrugPersonAdvancedSearchQuery
+  ): Promise<{ items: DrugPersonAdvancedSearchResult[]; meta: PageMeta }> {
+    const params: Record<string, string | number | undefined> = {
+      actorId,
+      query: query.query,
+      sex: query.sex,
+      nationality: query.nationality,
+      ageMin: query.ageMin,
+      ageMax: query.ageMax,
+      networkGroupIds: query.networkGroupIds?.join(","),
+      networkRoles: query.networkRoles?.join(","),
+      networkRoleSources: query.networkRoleSources?.join(","),
+      verificationStatuses: query.verificationStatuses?.join(","),
+      caseRoles: query.caseRoles?.join(","),
+      minCaseCount: query.minCaseCount,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      province: query.province,
+      battalionId: query.battalionId,
+      companyId: query.companyId,
+      sort: query.sort,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+    const { data, meta } = await request<DrugPersonAdvancedSearchResult[]>(
+      `/drug-intelligence/persons/search${toQueryString(params)}`
+    );
+    return { items: data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
 };
 
 export { ApiClientError } from "@/lib/ui/api_client";
+
+// ── DI-7.4: Advanced Person Search types ─────────────────────────────────
+
+export interface DrugPersonSearchMatchedField {
+  field: "NAME" | "NICKNAME" | "ALIAS" | "IDENTIFIER" | "PHONE";
+  matchType: "EXACT" | "PREFIX" | "PARTIAL";
+  maskedValue: string;
+}
+
+export interface DrugPersonAdvancedSearchResult {
+  id: string;
+  primaryFullName: string;
+  nickname: string | null;
+  sex: string | null;
+  nationality: string | null;
+  dateOfBirth: string | null;
+  approximateAge: number | null;
+  displayAge: number | null;
+  isAgeApproximate: boolean;
+  status: string;
+  aliases: string[];
+  aliasCount: number;
+  identifierPreview: { type: string; value: string } | null;
+  caseCount: number;
+  phoneCount: number;
+  networkRoleSummary: string[];
+  networkGroups: { id: string; name: string }[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+  hasPotentialDuplicate: boolean;
+  /** ID of the first duplicate candidate — use with item.id to build ?a=&b= for the DI-2 compare page. */
+  potentialDuplicateCandidateId: string | null;
+  matchedFields: DrugPersonSearchMatchedField[];
+}
+
+export interface DrugPersonAdvancedSearchQuery {
+  query?: string;
+  sex?: string;
+  nationality?: string;
+  ageMin?: number;
+  ageMax?: number;
+  networkGroupIds?: string[];
+  networkRoles?: string[];
+  networkRoleSources?: string[];
+  verificationStatuses?: string[];
+  caseRoles?: string[];
+  minCaseCount?: number;
+  /** ISO 8601 date-time string, e.g. "2024-01-01T00:00:00Z". */
+  dateFrom?: string;
+  /** ISO 8601 date-time string. */
+  dateTo?: string;
+  province?: string;
+  battalionId?: number;
+  companyId?: number;
+  sort?: "RELEVANCE" | "NAME_ASC" | "CASE_COUNT_DESC" | "LAST_SEEN_DESC" | "AGE_ASC" | "AGE_DESC";
+  page?: number;
+  pageSize?: number;
+}

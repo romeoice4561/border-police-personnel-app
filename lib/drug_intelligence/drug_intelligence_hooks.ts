@@ -45,6 +45,8 @@ import {
   type DrugTimelineListResponse,
   type DrugGeographicAggregateRow,
   type DrugTimelineCorrelation,
+  type DrugPersonAdvancedSearchQuery,
+  type DrugPersonAdvancedSearchResult,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export interface DrugPageMeta {
@@ -84,6 +86,8 @@ export const drugQueryKeys = {
   timeline: (actorId: string | null, query: DrugTimelineListQuery) => ["drug-timeline", actorId, query] as const,
   timelineGeographic: (actorId: string | null, query: DrugTimelineListQuery) => ["drug-timeline-geographic", actorId, query] as const,
   timelineCorrelations: (actorId: string | null, query: DrugTimelineListQuery & { timeWindowDays?: number }) => ["drug-timeline-correlations", actorId, query] as const,
+  // DI-7.4
+  advancedPersonSearch: (actorId: string | null, query: DrugPersonAdvancedSearchQuery) => ["drug-advanced-person-search", actorId, query] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -412,5 +416,39 @@ export function useDrugTimelineCorrelations(actorId: string | null, query: DrugT
     queryKey: drugQueryKeys.timelineCorrelations(actorId, query),
     queryFn: () => drugIntelligenceClient.getTimelineCorrelations(actorId as string, query),
     enabled: Boolean(actorId),
+  });
+}
+
+// ── DI-7.4: Advanced Person Search ────────────────────────────────────────
+
+/**
+ * Multi-criteria advanced person search. Keeps previous data while a new
+ * query is in-flight so the results list doesn't flash empty on every
+ * filter change.
+ */
+export function useDrugPersonAdvancedSearch(
+  actorId: string | null,
+  query: DrugPersonAdvancedSearchQuery
+): UseQueryResult<{ items: DrugPersonAdvancedSearchResult[]; meta: DrugPageMeta }> {
+  return useQuery({
+    queryKey: drugQueryKeys.advancedPersonSearch(actorId, query),
+    queryFn: async () => {
+      const result = await drugIntelligenceClient.advancedPersonSearch(actorId as string, query);
+      return { items: result.items, meta: result.meta as DrugPageMeta };
+    },
+    enabled: Boolean(actorId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** DI-7.4: Fetch all canonical network groups for the filter picker. */
+export function useDrugNetworkGroups(
+  actorId: string | null
+): UseQueryResult<{ id: string; name: string }[]> {
+  return useQuery({
+    queryKey: ["drug-network-groups", actorId],
+    queryFn: () => drugIntelligenceClient.getNetworkGroups(actorId as string),
+    enabled: Boolean(actorId),
+    staleTime: 5 * 60 * 1000, // 5 min — groups change rarely
   });
 }

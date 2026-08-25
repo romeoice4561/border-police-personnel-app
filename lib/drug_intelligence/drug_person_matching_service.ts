@@ -217,6 +217,56 @@ export class DrugPersonMatchingService {
   }
 
   /**
+   * Advanced Person Search (DI-7.4) supplement to
+   * findPersonIdsWithPotentialDuplicates(). Returns the SAME flagged-person
+   * set PLUS a Map<personId, firstCandidateId> so the search result card can
+   * link directly to the existing DI-2 compare page (?a=&b=) rather than just
+   * the generic review queue.
+   *
+   * Runs exactly the same O(n) identity-build + O(n²) comparison loop — so
+   * callers who need both the Set and the Map should prefer this method and
+   * derive the Set themselves (pairsMap.has(id)).
+   */
+  async findDuplicatePairFirstCandidateMap(): Promise<Map<string, string>> {
+    const pool = await this.personRepo.findAllActive();
+    const identities = new Map<string, DrugMatchableIdentity>();
+    for (const person of pool) {
+      const identity = await this.buildIdentityForPerson(person.id);
+      if (identity) identities.set(person.id, identity);
+    }
+
+    const allReviews = await this.reviewRepo.findAll();
+    const notSamePairs = new Set(
+      (allReviews as Array<{ personAId: string; personBId: string; decision: string }>)
+        .filter((r) => r.decision === "NOT_SAME")
+        .map((r) => `${r.personAId}:${r.personBId}`)
+    );
+
+    const firstCandidate = new Map<string, string>(); // personId → first candidate's id
+    for (let i = 0; i < pool.length; i += 1) {
+      for (let j = i + 1; j < pool.length; j += 1) {
+        const personA = pool[i];
+        const personB = pool[j];
+        const identityA = identities.get(personA.id);
+        const identityB = identities.get(personB.id);
+        if (!identityA || !identityB) continue;
+
+        const [orderedA, orderedB] = orderPersonPair(personA.id, personB.id);
+        if (notSamePairs.has(`${orderedA}:${orderedB}`)) continue;
+
+        const signals = computeDrugMatchSignals(identityA, identityB);
+        if (signals.length === 0) continue;
+        const confidence = deriveMatchConfidence(signals);
+        if (confidence === "HIGH" || confidence === "MEDIUM") {
+          if (!firstCandidate.has(personA.id)) firstCandidate.set(personA.id, personB.id);
+          if (!firstCandidate.has(personB.id)) firstCandidate.set(personB.id, personA.id);
+        }
+      }
+    }
+    return firstCandidate;
+  }
+
+  /**
    * Person Directory's "อาจซ้ำ" badge (Section 9) needs, for EVERY row, "does
    * this person have at least one unresolved HIGH/MEDIUM match anywhere in
    * the pool?" — computing that via per-row findCandidates() calls was
