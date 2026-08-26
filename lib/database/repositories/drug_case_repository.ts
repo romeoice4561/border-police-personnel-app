@@ -115,6 +115,20 @@ export class DrugCaseRepository {
     return this.db.drugCase.findUnique({ where: { id } });
   }
 
+  /**
+   * Phase DI-7.7: batch case lookup for "cases an officer participated in"
+   * (officerId -> DrugCaseOfficer[] -> caseIds -> this). Same
+   * Promise.all-fan-out-per-id convention as DrugCaseOfficerRepository.forCases
+   * and DrugCaseService.getCase()'s own batch lookups — the DatabaseClient
+   * contract has no `where: { in: [...] }` support (the InMemoryDatabaseClient
+   * test fake only does strict per-key equality), so a single IN query isn't
+   * available here.
+   */
+  async findByIds(ids: string[]): Promise<DrugCase[]> {
+    const rows = await Promise.all(ids.map((id) => this.findById(id)));
+    return rows.filter((row): row is DrugCase => row !== null);
+  }
+
   create(input: DrugCaseCreateInput): Promise<DrugCase> {
     return this.db.drugCase.create({
       data: {

@@ -37,6 +37,7 @@ import { OfficerPersonalTimelineCard } from "@/components/officer/officer_person
 import { OfficerRetirementIntelligenceCard } from "@/components/officer/officer_retirement_intelligence_card";
 import { OfficerCommanderActions } from "@/components/officer/officer_commander_actions";
 import { OfficerTrainingIntelligenceCard } from "@/components/officer/officer_training_intelligence_card";
+import { OfficerDrugArrestPerformanceCard } from "@/components/officer/officer_drug_arrest_performance_card";
 import { ProfileEditor, PersonalInformationEditor } from "@/components/officer/profile_editor";
 import { BasicInformationSection } from "@/components/officer/basic_information_section";
 import { CareerSection } from "@/components/officer/career_section";
@@ -65,6 +66,7 @@ import { OfficerQualityCard } from "@/components/officer/officer_quality_card";
 import { ProfileCompletenessCard } from "@/components/officer/profile_completeness_card";
 import { OfficerDocumentReadinessCard } from "@/components/officer/officer_document_readiness_card";
 import type { OfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
+import type { OfficerDrugArrestPerformanceView } from "@/lib/drug_intelligence/officer_drug_arrest_performance_client";
 import { ProfileActionsCard } from "@/components/officer/profile_actions_card";
 import { OfficerIntelligenceCard } from "@/components/intelligence/officer_intelligence_card";
 import { OfficerRestrictedProfile } from "@/components/officer/officer_restricted_profile";
@@ -105,6 +107,16 @@ export interface OfficerWorkspaceProps {
   orgTree: OrgTree;
   /** Phase 44: the active skill catalog (categories + skills + levels) for the skills accordion editor. */
   skillCatalog: SkillCatalog;
+  /**
+   * Phase DI-7.7: this officer's drug-arrest participation/performance
+   * summary, composed + serialized server-side (zero extra client I/O).
+   * null means either no drug.read permission gate has resolved yet
+   * (irrelevant here — the CARD itself gates on can("drug.read")) or the
+   * officer genuinely has zero DrugCaseOfficer rows. Omit-safe: absent on
+   * `/officers/new` (mode="create") since a not-yet-created officer has no
+   * officerId to look up.
+   */
+  drugArrestPerformance?: OfficerDrugArrestPerformanceView | null;
   /**
    * Phase XX.1: workspace mode. Omit on `/officers/[id]` — existing view/edit
    * behavior is unchanged. `"create"` locks editors on `/officers/new`.
@@ -161,6 +173,7 @@ function OfficerFullWorkspace({
   officerIntelligence,
   documentIntelligence,
   skillCatalog,
+  drugArrestPerformance,
   canEdit,
   canViewFinancial,
   mode = "view",
@@ -470,6 +483,8 @@ function OfficerFullWorkspace({
       )}
 
       {!hideIntelCards ? <OfficerTrainingIntelligenceCard viewModel={officerIntelligence} /> : null}
+
+      {!isCreate ? <OfficerDrugArrestPerformanceCard summary={drugArrestPerformance ?? null} /> : null}
 
       <div className="grid gap-6 sm:grid-cols-2">
         {showEditors ? (

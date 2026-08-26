@@ -23,6 +23,8 @@ import { buildOfficerProfileIntelligence } from "@/lib/server/commander_intellig
 import { composeOfficerIntelligenceViewModel } from "@/lib/officer_intelligence/view_model";
 import { redactOfficerForClient } from "@/lib/officer_profile/officer_financial_redaction";
 import { composeOfficerDocumentIntelligence } from "@/lib/integration/documents/document_intelligence_contract";
+import { getDrugIntelligenceContainer } from "@/lib/drug_intelligence/drug_intelligence_container";
+import { serializeOfficerDrugArrestPerformance } from "@/lib/drug_intelligence/officer_drug_arrest_performance_client";
 import { officerFullName } from "@/lib/ui/officer_summary";
 import { OfficerWorkspace } from "@/components/officer/officer_workspace";
 import { OfficersBackLink } from "@/components/officer/officers_back_link";
@@ -36,12 +38,23 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function OfficerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const officerId = decodeURIComponent(id);
-  const [officer, knownUnits, organizationEngine, portrait, skillCatalog] = await Promise.all([
+  const [officer, knownUnits, organizationEngine, portrait, skillCatalog, drugArrestPerformance] = await Promise.all([
     getOfficerProfile(officerId),
     getKnownUnits(),
     loadOrganizationEngine(),
     resolveOfficerPortrait(officerId),
     getSkillCatalog(),
+    // Phase DI-7.7: fetched unconditionally here (same convention as
+    // `intelligence`/`documentIntelligence` below) — the drug-intelligence
+    // permission gate happens client-side in OfficerWorkspace, matching how
+    // every other permission check on this page (officers.view*, drug.read
+    // elsewhere in the app) already works, since this route has no
+    // server-verifiable session (see redactOfficerForClient's doc comment
+    // further down). Never fetched for /officers/new (no officerId yet).
+    (async () => {
+      const { officerDrugArrestPerformanceService } = await getDrugIntelligenceContainer();
+      return officerDrugArrestPerformanceService.getPerformanceSummary(officerId);
+    })(),
   ]);
 
   if (!officer) {
@@ -102,6 +115,7 @@ export default async function OfficerDetailPage({ params }: { params: Promise<{ 
         officerIntelligence={officerIntelligence}
         documentIntelligence={documentIntelligence}
         skillCatalog={skillCatalog}
+        drugArrestPerformance={drugArrestPerformance ? serializeOfficerDrugArrestPerformance(drugArrestPerformance) : null}
       />
     </div>
   );

@@ -23,6 +23,7 @@ import { DrugEntityDetailService } from "@/lib/drug_intelligence/drug_entity_det
 import { DrugNetworkGraphService } from "@/lib/drug_intelligence/drug_network_graph_service";
 import { DrugIntelligenceAlertService } from "@/lib/drug_intelligence/drug_intelligence_alert_service";
 import { DrugTimelineService } from "@/lib/drug_intelligence/drug_timeline_service";
+import { OfficerDrugArrestPerformanceService } from "@/lib/drug_intelligence/officer_drug_arrest_performance_service";
 
 export interface DrugIntelligenceContainer {
   /** Raw DatabaseClient — passed to handlers that manage their own repositories directly (e.g. DI-7.2/7.3 network group/role handlers). */
@@ -44,6 +45,8 @@ export interface DrugIntelligenceContainer {
   alertService: DrugIntelligenceAlertService;
   /** Phase DI-7: Timeline & Geographic Intelligence. */
   timelineService: DrugTimelineService;
+  /** Phase DI-7.7: Officer Drug-Arrest Performance read model — Officer Profile integration + future Commander Dashboard drill-down. */
+  officerDrugArrestPerformanceService: OfficerDrugArrestPerformanceService;
 }
 
 /** Builds the container from any DatabaseClient (real or fake). Pure — no I/O. */
@@ -62,6 +65,7 @@ export function createDrugIntelligenceContainer(client: DatabaseClient): DrugInt
     networkGraphService: new DrugNetworkGraphService(client),
     alertService: new DrugIntelligenceAlertService(client),
     timelineService: new DrugTimelineService(client),
+    officerDrugArrestPerformanceService: new OfficerDrugArrestPerformanceService({ db: client }),
   };
 }
 

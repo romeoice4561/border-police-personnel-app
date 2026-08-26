@@ -2572,6 +2572,27 @@ export const DICTIONARY = {
   "di.workspace.unitsAndTeamTitle":    tr("หน่วยและชุดจับกุม", "Units & Arrest Team"),
   "di.workspace.internalOfficerTag":   tr("กำลังพล", "Personnel"),
   "di.workspace.manualOfficerTag":     tr("ข้อมูลที่กรอกในคดี", "Entered for This Case"),
+
+  // DI-7.7: Officer Drug-Arrest Performance card (Officer Profile integration)
+  "officer.drugArrestPerformance.title":                  tr("ผลงานการจับกุมยาเสพติด", "Drug-Arrest Performance"),
+  "officer.drugArrestPerformance.emptyTitle":              tr("ยังไม่มีผลงานการจับกุมยาเสพติด", "No Drug-Arrest Participation Yet"),
+  "officer.drugArrestPerformance.emptyMessage":            tr("เจ้าหน้าที่ท่านนี้ยังไม่มีข้อมูลการมีส่วนร่วมในคดียาเสพติดในระบบ", "This officer has no recorded drug-case participation in the system."),
+  "officer.drugArrestPerformance.totalCases":              tr("จำนวนคดีที่มีส่วนร่วม", "Cases Participated"),
+  "officer.drugArrestPerformance.leadCases":                tr("จำนวนคดีที่เป็นหัวหน้าชุดจับกุม", "Cases as Team Lead"),
+  "officer.drugArrestPerformance.arrestingOfficerCases":    tr("จำนวนคดีที่เป็นผู้จับกุม", "Cases as Arresting Officer"),
+  "officer.drugArrestPerformance.latestArrestDate":         tr("วันที่มีผลงานล่าสุด", "Latest Case Date"),
+  "officer.drugArrestPerformance.aggregateSeizedTitle":     tr("ของกลางในคดีที่มีส่วนร่วม", "Seizures From Cases Participated In"),
+  "officer.drugArrestPerformance.aggregateSeizedCaveat":    tr("ยอดรวมของกลางจากทุกคดีที่เจ้าหน้าที่มีส่วนร่วม ไม่ได้หมายความว่าเจ้าหน้าที่เป็นผู้จับกุมของกลางทั้งหมดด้วยตนเอง", "Totals from every case this officer participated in — not a claim that the officer personally seized the entire amount."),
+  "officer.drugArrestPerformance.colCaseNumber":            tr("เลขคดี", "Case No."),
+  "officer.drugArrestPerformance.colArrestDate":            tr("วันที่จับกุม", "Arrest Date"),
+  "officer.drugArrestPerformance.colLocation":              tr("สถานที่", "Location"),
+  "officer.drugArrestPerformance.colLeadUnit":              tr("หน่วยจับกุมหลัก", "Lead Unit"),
+  "officer.drugArrestPerformance.colRole":                  tr("บทบาท", "Role"),
+  "officer.drugArrestPerformance.colDefendants":            tr("จำนวนผู้ต้องหา", "Defendants"),
+  "officer.drugArrestPerformance.colSeized":                tr("ของกลาง", "Seized"),
+  "officer.drugArrestPerformance.colStatus":                tr("สถานะคดี", "Status"),
+  "officer.drugArrestPerformance.colWorkspace":              tr("ดูคดี", "View Case"),
+  "officer.drugArrestPerformance.openCase":                 tr("เปิดคดี", "Open Case"),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;
