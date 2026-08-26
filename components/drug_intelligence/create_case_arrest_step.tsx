@@ -143,6 +143,97 @@ export function CreateCaseArrestStep({
         </CardBody>
       </Card>
 
+      {/* DI-7.6 Section 7: Lead Arrest Unit — a DISTINCT concept from the
+          reporting unit above (Section 0). "ใช้หน่วยเดียวกับหน่วยรายงาน" copies
+          the already-resolved reporting-unit selection rather than requiring
+          the operator to pick it twice. */}
+      <Card>
+        <CardBody className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.arrestUnit.sectionLabel")}</p>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={draft.sameAsReportingUnit}
+              onChange={(e) => onChange({ sameAsReportingUnit: e.target.checked })}
+              className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+            />
+            {t("di.arrestUnit.sameAsReporting")}
+          </label>
+
+          {!draft.sameAsReportingUnit ? (
+            !draft.useLeadManualUnit ? (
+              <>
+                {organizationEngine ? (
+                  <OrgHierarchyPicker
+                    organizationEngine={organizationEngine}
+                    value={{
+                      headquartersId: draft.leadHeadquartersId,
+                      headquartersText: draft.leadHeadquartersText,
+                      regionId: draft.leadRegionId,
+                      regionText: draft.leadRegionText,
+                      battalionId: draft.leadBattalionId,
+                      battalionText: draft.leadBattalionText,
+                      companyId: draft.leadCompanyId,
+                      companyText: draft.leadCompanyText,
+                    }}
+                    onChange={(v) =>
+                      onChange({
+                        leadHeadquartersId: v.headquartersId,
+                        leadHeadquartersText: v.headquartersText,
+                        leadRegionId: v.regionId,
+                        leadRegionText: v.regionText,
+                        leadBattalionId: v.battalionId,
+                        leadBattalionText: v.battalionText,
+                        leadCompanyId: v.companyId,
+                        leadCompanyText: v.companyText,
+                      })
+                    }
+                  />
+                ) : (
+                  <p className="text-sm text-muted">{t("common.loading")}</p>
+                )}
+                <button
+                  type="button"
+                  className="text-xs text-accent hover:underline"
+                  onClick={() =>
+                    onChange({
+                      useLeadManualUnit: true,
+                      leadHeadquartersId: null,
+                      leadRegionId: null,
+                      leadBattalionId: null,
+                      leadCompanyId: null,
+                    })
+                  }
+                >
+                  {t("di.org.fallbackOption")}
+                </button>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">
+                  <span>{t("di.org.manualLabel")}</span>
+                  <button
+                    type="button"
+                    className="ml-auto text-xs text-accent hover:underline"
+                    onClick={() => onChange({ useLeadManualUnit: false, leadManualUnitText: "" })}
+                  >
+                    {t("di.org.switchToCanonical")}
+                  </button>
+                </div>
+                <input
+                  className={inputCls}
+                  value={draft.leadManualUnitText}
+                  onChange={(e) => onChange({ leadManualUnitText: e.target.value })}
+                  placeholder={t("di.hint.orgOther")}
+                />
+                <HelperText>{t("di.org.manualHelperText")}</HelperText>
+              </div>
+            )
+          ) : null}
+        </CardBody>
+      </Card>
+
       {/* Location */}
       <Card>
         <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

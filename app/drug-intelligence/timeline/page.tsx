@@ -392,6 +392,19 @@ function TimelineEventDetail({ event }: { event: DrugTimelineEvent }) {
           </ul>
         </div>
       ) : null}
+      {event.leadUnitText || event.participatingUnitCount > 0 || event.officerCount > 0 ? (
+        <div>
+          <p className="text-xs font-medium text-muted">{t("di.review.leadUnitLabel")}</p>
+          <p className="text-sm text-foreground">{event.leadUnitText || "—"}</p>
+          {event.participatingUnitCount > 0 || event.officerCount > 0 ? (
+            <p className="mt-1 text-xs text-muted">
+              {event.participatingUnitCount > 0 ? `${t("di.review.participatingUnitsLabel")}: ${event.participatingUnitCount}` : ""}
+              {event.participatingUnitCount > 0 && event.officerCount > 0 ? " · " : ""}
+              {event.officerCount > 0 ? `${t("di.review.arrestTeamLabel")}: ${event.officerCount}` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {event.seizedItemCount > 0 ? (
         <div>
           <p className="text-xs font-medium text-muted">{t("di.timeline.seizedSummary")}</p>

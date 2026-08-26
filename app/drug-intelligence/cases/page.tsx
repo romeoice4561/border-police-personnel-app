@@ -226,6 +226,11 @@ function DrugCaseTable({ rows }: { rows: DrugCaseListRow[] }) {
                 <td className="px-4 py-3 text-muted">{row.arrestDate ? toGregorianDateInputValue(row.arrestDate) : "—"}</td>
                 <td className="px-4 py-3 text-muted">
                   <span className="line-clamp-2 wrap-break-word">{row.reportingUnitText || "—"}</span>
+                  {row.leadUnitText && row.leadUnitText !== row.reportingUnitText ? (
+                    <span className="mt-0.5 block line-clamp-1 wrap-break-word text-xs text-muted/70" title={t("di.review.leadUnitLabel")}>
+                      {t("di.review.leadUnitLabel")}: {row.leadUnitText}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3 text-muted">{row.province || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{row.personCount}</td>

@@ -28,6 +28,12 @@ export interface DrugCaseCreateInput {
   battalionId: number | null;
   companyId: number | null;
   reportingUnitText: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — distinct from the reporting-unit fields above. Optional (defaults to null) so pre-DI-7.6 callers/tests keep compiling unchanged. */
+  leadHeadquartersId?: number | null;
+  leadRegionId?: number | null;
+  leadBattalionId?: number | null;
+  leadCompanyId?: number | null;
+  leadUnitText?: string | null;
   province: string | null;
   district: string | null;
   subdistrict: string | null;
@@ -50,6 +56,11 @@ export interface DrugCasePatch {
   battalionId?: number | null;
   companyId?: number | null;
   reportingUnitText?: string | null;
+  leadHeadquartersId?: number | null;
+  leadRegionId?: number | null;
+  leadBattalionId?: number | null;
+  leadCompanyId?: number | null;
+  leadUnitText?: string | null;
   province?: string | null;
   district?: string | null;
   subdistrict?: string | null;
@@ -82,6 +93,19 @@ export interface DrugCaseListParams {
   companyId?: number;
   arrestDateFrom?: Date;
   arrestDateTo?: Date;
+  /**
+   * Phase DI-7.6 Section 13: backend filter foundation for the future
+   * Commander Dashboard — not necessarily exposed in the current list UI.
+   * Lead-unit filters match DrugCase's own lead* columns directly;
+   * participatingUnitId/officerId/officerRole require joining the
+   * DrugCaseParticipatingUnit/DrugCaseOfficer tables, resolved in the
+   * service layer (see DrugCaseService.listCases) rather than here, since
+   * this repository's `list()` only ever queries DrugCase's own columns.
+   */
+  leadHeadquartersId?: number;
+  leadRegionId?: number;
+  leadBattalionId?: number;
+  leadCompanyId?: number;
 }
 
 export class DrugCaseRepository {
@@ -92,7 +116,18 @@ export class DrugCaseRepository {
   }
 
   create(input: DrugCaseCreateInput): Promise<DrugCase> {
-    return this.db.drugCase.create({ data: { ...input, updatedBy: null, updatedByName: null } });
+    return this.db.drugCase.create({
+      data: {
+        ...input,
+        leadHeadquartersId: input.leadHeadquartersId ?? null,
+        leadRegionId: input.leadRegionId ?? null,
+        leadBattalionId: input.leadBattalionId ?? null,
+        leadCompanyId: input.leadCompanyId ?? null,
+        leadUnitText: input.leadUnitText ?? null,
+        updatedBy: null,
+        updatedByName: null,
+      },
+    });
   }
 
   async update(id: string, patch: DrugCasePatch): Promise<DrugCase | null> {
@@ -122,6 +157,10 @@ export class DrugCaseRepository {
     if (params.regionId !== undefined) where.regionId = params.regionId;
     if (params.battalionId !== undefined) where.battalionId = params.battalionId;
     if (params.companyId !== undefined) where.companyId = params.companyId;
+    if (params.leadHeadquartersId !== undefined) where.leadHeadquartersId = params.leadHeadquartersId;
+    if (params.leadRegionId !== undefined) where.leadRegionId = params.leadRegionId;
+    if (params.leadBattalionId !== undefined) where.leadBattalionId = params.leadBattalionId;
+    if (params.leadCompanyId !== undefined) where.leadCompanyId = params.leadCompanyId;
 
     const all = await this.db.drugCase.findMany({ where, orderBy: { createdAt: "desc" } });
 

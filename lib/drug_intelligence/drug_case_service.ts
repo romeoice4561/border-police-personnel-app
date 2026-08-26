@@ -31,6 +31,8 @@ import { DrugEntityRepository } from "@/lib/database/repositories/drug_entity_re
 import { DrugAuditLogRepository } from "@/lib/database/repositories/drug_audit_log_repository";
 import { DrugNetworkGroupRepository } from "@/lib/database/repositories/drug_network_group_repository";
 import { DrugPersonNetworkRoleRepository } from "@/lib/database/repositories/drug_person_network_role_repository";
+import { DrugCaseParticipatingUnitRepository } from "@/lib/database/repositories/drug_case_participating_unit_repository";
+import { DrugCaseOfficerRepository } from "@/lib/database/repositories/drug_case_officer_repository";
 import { findDrugPersonDuplicateCandidates } from "@/lib/drug_intelligence/drug_duplicate_check";
 import { normalizePhoneMatchingKey } from "@/lib/drug_intelligence/phone_matching_key";
 import {
@@ -96,6 +98,11 @@ export class DrugCaseService {
         battalionId: input.battalionId,
         companyId: input.companyId,
         reportingUnitText: input.reportingUnitText,
+        leadHeadquartersId: input.leadHeadquartersId ?? null,
+        leadRegionId: input.leadRegionId ?? null,
+        leadBattalionId: input.leadBattalionId ?? null,
+        leadCompanyId: input.leadCompanyId ?? null,
+        leadUnitText: input.leadUnitText ?? null,
         province: input.province,
         district: input.district,
         subdistrict: input.subdistrict,
@@ -114,6 +121,68 @@ export class DrugCaseService {
         actorName: input.actorName,
         detail: `caseNumber=${input.caseNumber}`,
       });
+
+      // Phase DI-7.6: หน่วยจับกุมหลัก is recorded on the DrugCase row itself
+      // (above) — a single audit entry captures that assignment as part of
+      // case creation, distinct from "participating unit" entries below.
+      if (input.leadHeadquartersId || input.leadRegionId || input.leadBattalionId || input.leadCompanyId || input.leadUnitText) {
+        await auditRepo.record({
+          entityType: "DrugCase",
+          entityId: caseId,
+          action: "arrest_unit_set",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: input.leadUnitText ? `manual=${input.leadUnitText}` : `companyId=${input.leadCompanyId} battalionId=${input.leadBattalionId} regionId=${input.leadRegionId} headquartersId=${input.leadHeadquartersId}`,
+        });
+      }
+
+      const participatingUnitRepo = new DrugCaseParticipatingUnitRepository(tx);
+      for (const unit of input.participatingUnits ?? []) {
+        const created = await participatingUnitRepo.create({
+          caseId,
+          headquartersId: unit.headquartersId,
+          regionId: unit.regionId,
+          battalionId: unit.battalionId,
+          companyId: unit.companyId,
+          unitText: unit.unitText,
+          role: unit.role,
+          note: unit.note,
+          createdBy: input.actorId,
+          createdByName: input.actorName,
+        });
+        await auditRepo.record({
+          entityType: "DrugCaseParticipatingUnit",
+          entityId: created.id,
+          action: "participating_unit_added",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: `case=${caseId} role=${unit.role}`,
+        });
+      }
+
+      const caseOfficerRepo = new DrugCaseOfficerRepository(tx);
+      for (const officer of input.officers ?? []) {
+        const created = await caseOfficerRepo.create({
+          caseId,
+          officerId: officer.officerId,
+          manualRank: officer.manualRank,
+          manualFullName: officer.manualFullName,
+          manualPosition: officer.manualPosition,
+          manualUnitText: officer.manualUnitText,
+          role: officer.role,
+          note: officer.note,
+          createdBy: input.actorId,
+          createdByName: input.actorName,
+        });
+        await auditRepo.record({
+          entityType: "DrugCaseOfficer",
+          entityId: created.id,
+          action: "case_officer_added",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: `case=${caseId} role=${officer.role}`,
+        });
+      }
 
       for (const personInput of input.persons) {
         let personId: string;
@@ -487,6 +556,31 @@ export class DrugCaseService {
       }))
     );
 
+    // Phase DI-7.6: หน่วยและชุดจับกุม — participating units are display-ready
+    // as-is (unitText IS the stored column, same reportingUnitText
+    // convention — no server-side derivation). Officers batch-resolve their
+    // canonical Officer summary (internal rows only — manual/external rows
+    // have officerId=null and stay null here, rendered from their manual*
+    // fields instead).
+    const participatingUnitRepo = new DrugCaseParticipatingUnitRepository(this.db);
+    const caseOfficerRepo = new DrugCaseOfficerRepository(this.db);
+    const [participatingUnits, caseOfficerRows] = await Promise.all([
+      participatingUnitRepo.forCase(caseId),
+      caseOfficerRepo.forCase(caseId),
+    ]);
+
+    const internalOfficerIds = [...new Set(caseOfficerRows.map((row) => row.officerId).filter((id): id is string => id !== null))];
+    const officerEntries = await Promise.all(internalOfficerIds.map((id) => this.db.officer.findUnique({ where: { officerId: id } })));
+    const officerByOfficerId = new Map(
+      officerEntries
+        .filter((o): o is NonNullable<typeof o> => o !== null)
+        .map((o) => [o.officerId, { officerId: o.officerId, rank: o.rank, firstName: o.firstName, lastName: o.lastName, currentUnit: o.currentUnit }])
+    );
+    const officers = caseOfficerRows.map((row) => ({
+      ...row,
+      officer: row.officerId ? (officerByOfficerId.get(row.officerId) ?? null) : null,
+    }));
+
     return {
       case: drugCase,
       persons,
@@ -496,6 +590,8 @@ export class DrugCaseService {
       vehicles,
       seizedItems,
       locations,
+      participatingUnits,
+      officers,
       personCount: persons.length,
       phoneCount: phones.length,
       simCount: sims.length,
@@ -525,12 +621,62 @@ export class DrugCaseService {
     companyId?: number;
     arrestDateFrom?: Date;
     arrestDateTo?: Date;
+    leadHeadquartersId?: number;
+    leadRegionId?: number;
+    leadBattalionId?: number;
+    leadCompanyId?: number;
+    /**
+     * Phase DI-7.6 Section 13: these three require joining
+     * DrugCaseParticipatingUnit/DrugCaseOfficer, which DrugCaseRepository.list()
+     * cannot express (it only queries DrugCase's own columns) — resolved here
+     * as a caseId allow-list applied AFTER pagination-free base fetch, same
+     * "resolve matching ids first, then filter" shape DrugCaseRepository's
+     * own findCaseIdsMatchingQuery uses for the free-text search box.
+     */
+    participatingUnitCompanyId?: number;
+    officerId?: string;
+    officerRole?: string;
   }) {
     const caseRepo = new DrugCaseRepository(this.db);
-    const { rows, total } = await caseRepo.list(params);
+    const { leadHeadquartersId, leadRegionId, leadBattalionId, leadCompanyId, participatingUnitCompanyId, officerId, officerRole, ...baseParams } = params;
+    const { rows: allMatchingRows, total: baseTotal } = await caseRepo.list({
+      ...baseParams,
+      page: 1,
+      pageSize: Number.MAX_SAFE_INTEGER,
+      leadHeadquartersId,
+      leadRegionId,
+      leadBattalionId,
+      leadCompanyId,
+    });
+
+    let filteredRows = allMatchingRows;
+    if (participatingUnitCompanyId !== undefined) {
+      const participatingUnitRepo = new DrugCaseParticipatingUnitRepository(this.db);
+      const matches = await Promise.all(
+        filteredRows.map(async (row) => {
+          const units = await participatingUnitRepo.forCase(row.id);
+          return units.some((u) => u.companyId === participatingUnitCompanyId);
+        })
+      );
+      filteredRows = filteredRows.filter((_, i) => matches[i]);
+    }
+    if (officerId !== undefined || officerRole !== undefined) {
+      const caseOfficerRepo = new DrugCaseOfficerRepository(this.db);
+      const matches = await Promise.all(
+        filteredRows.map(async (row) => {
+          const officers = await caseOfficerRepo.forCase(row.id);
+          return officers.some((o) => (officerId === undefined || o.officerId === officerId) && (officerRole === undefined || o.role === officerRole));
+        })
+      );
+      filteredRows = filteredRows.filter((_, i) => matches[i]);
+    }
+
+    const total = filteredRows.length === allMatchingRows.length ? baseTotal : filteredRows.length;
+    const start = (params.page - 1) * params.pageSize;
+    const pageRows = filteredRows.slice(start, start + params.pageSize);
 
     const enriched = await Promise.all(
-      rows.map(async (row) => {
+      pageRows.map(async (row) => {
         const [personCount, seizedItems] = await Promise.all([
           caseRepo.countPersonsForCase(row.id),
           caseRepo.seizedItemsForCase(row.id),

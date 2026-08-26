@@ -43,6 +43,10 @@ export interface DrugTimelineEvent {
   longitude: number | null;
   hasCoordinates: boolean;
   reportingUnitText: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — distinct from reportingUnitText above. Never treated as a criminal-intelligence entity (Section 24: police personnel are not timeline "intelligence entities"). */
+  leadUnitText: string | null;
+  participatingUnitCount: number;
+  officerCount: number;
   personCount: number;
   persons: Array<{ personId: string; primaryFullName: string; role: string }>;
   phoneCount: number;

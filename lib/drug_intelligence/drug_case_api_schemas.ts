@@ -17,6 +17,7 @@ import { DRUG_CASE_PERSON_ROLES, DRUG_NETWORK_ROLE_VERIFICATION_STATUSES } from 
 import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_options";
 import { DRUG_CATEGORIES, DRUG_MEASUREMENT_KINDS } from "@/lib/drug_intelligence/drug_seized_item_options";
+import { DRUG_CASE_OFFICER_ROLES, DRUG_CASE_UNIT_ROLES } from "@/lib/drug_intelligence/drug_case_officer_options";
 
 const MAX_FIELD = 500;
 
@@ -198,6 +199,52 @@ const seizedItemSchema = z
     }
   });
 
+/**
+ * Phase DI-7.6 Section 8: หน่วยร่วมจับกุม — canonical org id(s) plus an
+ * always-populated unitText display label (mirrors reportingUnitText's
+ * convention: the client sends either manual fallback text or the picker's
+ * resolved canonical label, never both merged, never left empty). The
+ * superRefine rejects a row with no unitText at all, matching the
+ * seizedItem/location schemas' pattern for ambiguous/empty input.
+ */
+const participatingUnitSchema = z
+  .object({
+    headquartersId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+    regionId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+    battalionId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+    companyId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+    unitText: optionalText,
+    role: z.enum(DRUG_CASE_UNIT_ROLES).default("PARTICIPATING"),
+    note: optionalText,
+  })
+  .superRefine((v, ctx) => {
+    if (!v.headquartersId && !v.regionId && !v.battalionId && !v.companyId && !v.unitText) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either a canonical org id or unitText must be provided" });
+    }
+  });
+
+/**
+ * Phase DI-7.6 Section 6/9: ชุดจับกุม member — EITHER an internal officerId
+ * (Officer.officerId business key, never a numeric id) OR manual external
+ * fields. Same XOR-shaped validation convention as personSchema's
+ * existingPersonId/newPerson pair.
+ */
+const caseOfficerSchema = z
+  .object({
+    officerId: optionalText,
+    manualRank: optionalText,
+    manualFullName: optionalText,
+    manualPosition: optionalText,
+    manualUnitText: optionalText,
+    role: z.enum(DRUG_CASE_OFFICER_ROLES),
+    note: optionalText,
+  })
+  .superRefine((v, ctx) => {
+    if (!v.officerId && !v.manualFullName) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either officerId or manualFullName must be provided" });
+    }
+  });
+
 const locationSchema = z.object({
   name: optionalText,
   addressText: optionalText,
@@ -221,6 +268,12 @@ export const drugCaseCreateSchema = z.object({
   battalionId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
   companyId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
   reportingUnitText: optionalText,
+  // Phase DI-7.6: หน่วยจับกุมหลัก — distinct from the reporting-unit fields above.
+  leadHeadquartersId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+  leadRegionId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+  leadBattalionId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+  leadCompanyId: z.coerce.number().int().positive().nullable().optional().transform((v) => v ?? null),
+  leadUnitText: optionalText,
   province: optionalText,
   district: optionalText,
   subdistrict: optionalText,
@@ -231,6 +284,9 @@ export const drugCaseCreateSchema = z.object({
   persons: z.array(personSchema).default([]),
   seizedItems: z.array(seizedItemSchema).default([]),
   locations: z.array(locationSchema).default([]),
+  // Phase DI-7.6: participating units and arrest team — both optional/empty-array-safe (Section 9/18: old cases/flows without team data must keep working).
+  participatingUnits: z.array(participatingUnitSchema).default([]),
+  officers: z.array(caseOfficerSchema).default([]),
 });
 
 export type DrugCaseCreateBody = z.infer<typeof drugCaseCreateSchema>;
@@ -249,4 +305,12 @@ export const drugCaseListQuerySchema = z.object({
   companyId: z.coerce.number().int().positive().optional(),
   arrestDateFrom: z.string().trim().optional(),
   arrestDateTo: z.string().trim().optional(),
+  // Phase DI-7.6 Section 13: backend filter foundation for the future Commander Dashboard.
+  leadHeadquartersId: z.coerce.number().int().positive().optional(),
+  leadRegionId: z.coerce.number().int().positive().optional(),
+  leadBattalionId: z.coerce.number().int().positive().optional(),
+  leadCompanyId: z.coerce.number().int().positive().optional(),
+  participatingUnitCompanyId: z.coerce.number().int().positive().optional(),
+  officerId: z.string().trim().optional(),
+  officerRole: z.enum(DRUG_CASE_OFFICER_ROLES).optional(),
 });

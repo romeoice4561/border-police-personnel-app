@@ -30,6 +30,7 @@ import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intellige
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
 import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
+import { DRUG_CASE_UNIT_ROLE_LABELS, isValidDrugCaseUnitRole, DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
 import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type {
@@ -190,7 +191,7 @@ function FutureFeaturesNote() {
 }
 
 function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
-  const { t } = useT();
+  const { t, language } = useT();
   return (
     <div className="space-y-3">
       <DrugCaseAlertSummary caseId={data.case.id} />
@@ -203,6 +204,7 @@ function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
         latitude={data.case.latitude}
         longitude={data.case.longitude}
       />
+      <DrugCaseUnitsAndTeamCard data={data} language={language} />
       <Card>
         <CardBody className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>
@@ -211,6 +213,76 @@ function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
         </CardBody>
       </Card>
     </div>
+  );
+}
+
+/** Section 11: หน่วยและชุดจับกุม — reporting/lead/participating units plus arrest-team members, with internal officers linked to their profile and external officers clearly tagged. */
+function DrugCaseUnitsAndTeamCard({ data, language }: { data: DrugCaseDetailResponse; language: "th" | "en" }) {
+  const { t } = useT();
+  return (
+    <Card>
+      <CardBody className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.unitsAndTeamTitle")}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-muted">{t("di.review.reportingUnitLabel")}</p>
+            <p className="text-sm text-foreground">{data.case.reportingUnitText || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted">{t("di.review.leadUnitLabel")}</p>
+            <p className="text-sm text-foreground">{data.case.leadUnitText || "—"}</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 text-xs text-muted">{t("di.review.participatingUnitsLabel")}</p>
+          {data.participatingUnits.length === 0 ? (
+            <p className="text-sm text-foreground">{t("di.review.none")}</p>
+          ) : (
+            <ul className="space-y-1 text-sm text-foreground">
+              {data.participatingUnits.map((u) => (
+                <li key={u.id} className="flex items-center gap-2">
+                  <span>{u.unitText || "—"}</span>
+                  <span className="text-xs text-muted">
+                    ({isValidDrugCaseUnitRole(u.role) ? DRUG_CASE_UNIT_ROLE_LABELS[u.role][language === "th" ? "labelTh" : "labelEn"] : u.role})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-1 text-xs text-muted">{t("di.review.arrestTeamLabel")}</p>
+          {data.officers.length === 0 ? (
+            <p className="text-sm text-foreground">{t("di.review.none")}</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {data.officers.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center gap-2">
+                  {o.officer ? (
+                    <Link href={`/officers/${encodeURIComponent(o.officer.officerId)}`} className="text-accent hover:underline">
+                      {o.officer.rank} {o.officer.firstName} {o.officer.lastName}
+                    </Link>
+                  ) : (
+                    <span className="text-foreground">
+                      {o.manualRank ? `${o.manualRank} ` : ""}
+                      {o.manualFullName || "—"}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted">
+                    ({isValidDrugCaseOfficerRole(o.role) ? DRUG_CASE_OFFICER_ROLE_LABELS[o.role][language === "th" ? "labelTh" : "labelEn"] : o.role})
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${o.officer ? "bg-good/10 text-good" : "bg-warning/10 text-warning"}`}>
+                    {o.officer ? t("di.workspace.internalOfficerTag") : t("di.workspace.manualOfficerTag")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

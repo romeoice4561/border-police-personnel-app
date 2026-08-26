@@ -25,6 +25,7 @@ import { useGenerateDrugAlerts } from "@/lib/drug_intelligence/drug_intelligence
 import { drugIntelligenceClient, ApiClientError, type DrugIntelligenceAlert } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { createEmptyDraft, buildCreateCaseRequest, validateDraft, type CreateCaseDraft } from "@/lib/drug_intelligence/create_case_draft";
 import { CreateCaseArrestStep } from "@/components/drug_intelligence/create_case_arrest_step";
+import { CreateCaseUnitsStep } from "@/components/drug_intelligence/create_case_units_step";
 import { CreateCasePersonsStep } from "@/components/drug_intelligence/create_case_persons_step";
 import { CreateCaseSeizedStep } from "@/components/drug_intelligence/create_case_seized_step";
 import { CreateCaseLocationsStep } from "@/components/drug_intelligence/create_case_locations_step";
@@ -32,6 +33,7 @@ import { CreateCaseReviewStep } from "@/components/drug_intelligence/create_case
 
 const STEPS = [
   { key: "arrest", labelKey: "di.create.stepArrest" },
+  { key: "units", labelKey: "di.create.stepUnits" },
   { key: "persons", labelKey: "di.create.stepPersons" },
   { key: "seized", labelKey: "di.create.stepSeized" },
   { key: "locations", labelKey: "di.create.stepLocations" },
@@ -189,6 +191,9 @@ export default function CreateDrugCasePage() {
       <div>
         {currentStep.key === "arrest" ? (
           <CreateCaseArrestStep draft={draft} onChange={patchDraft} organizationEngine={organizationEngine} />
+        ) : null}
+        {currentStep.key === "units" ? (
+          <CreateCaseUnitsStep draft={draft} onChange={patchDraft} organizationEngine={organizationEngine} />
         ) : null}
         {currentStep.key === "persons" ? <CreateCasePersonsStep persons={draft.persons} onChange={(persons) => patchDraft({ persons })} /> : null}
         {currentStep.key === "seized" ? <CreateCaseSeizedStep items={draft.seizedItems} onChange={(seizedItems) => patchDraft({ seizedItems })} /> : null}

@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useDraftAlertSummary } from "@/components/drug_intelligence/use_draft_alert_summary";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
+import { DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
 import type { CreateCaseDraft, ValidationError } from "@/lib/drug_intelligence/create_case_draft";
 
 /**
@@ -33,6 +34,24 @@ function locationRoleLabel(role: string, language: "th" | "en"): string {
   if (!isValidDrugLocationRole(role)) return role;
   const meta = DRUG_LOCATION_ROLE_LABELS[role];
   return language === "th" ? meta.labelTh : meta.labelEn;
+}
+
+function officerRoleLabel(role: string, language: "th" | "en"): string {
+  if (!isValidDrugCaseOfficerRole(role)) return role;
+  const meta = DRUG_CASE_OFFICER_ROLE_LABELS[role];
+  return language === "th" ? meta.labelTh : meta.labelEn;
+}
+
+/** Section 10: the same derivation buildCreateCaseRequest() uses for the wire-level leadUnitText, kept in sync so the review summary never disagrees with what will actually be submitted. */
+function leadUnitDisplayText(draft: CreateCaseDraft): string | null {
+  if (draft.sameAsReportingUnit) {
+    return draft.useManualUnit
+      ? (draft.manualUnitText.trim() || null)
+      : (draft.companyText || draft.battalionText || draft.regionText || draft.headquartersText || null);
+  }
+  return draft.useLeadManualUnit
+    ? (draft.leadManualUnitText.trim() || null)
+    : (draft.leadCompanyText || draft.leadBattalionText || draft.leadRegionText || draft.leadHeadquartersText || null);
 }
 
 export function CreateCaseReviewStep({
@@ -115,6 +134,48 @@ export function CreateCaseReviewStep({
           <p className="text-sm text-muted">
             {draft.arrestDate || "—"} {draft.arrestTime ? `(${draft.arrestTime})` : ""} · {draft.province || "—"}
           </p>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.unitsAndTeamTitle")}</p>
+          <p className="text-sm text-foreground">
+            <span className="text-muted">{t("di.review.reportingUnitLabel")}: </span>
+            {draft.useManualUnit ? (draft.manualUnitText || "—") : (draft.companyText || draft.battalionText || draft.regionText || draft.headquartersText || "—")}
+          </p>
+          <p className="text-sm text-foreground">
+            <span className="text-muted">{t("di.review.leadUnitLabel")}: </span>
+            {leadUnitDisplayText(draft) || "—"}
+          </p>
+          <div>
+            <p className="text-sm text-muted">{t("di.review.participatingUnitsLabel")}:</p>
+            {draft.participatingUnits.length === 0 ? (
+              <p className="text-sm text-foreground">{t("di.review.none")}</p>
+            ) : (
+              <ul className="space-y-0.5 text-sm text-foreground">
+                {draft.participatingUnits.map((u) => (
+                  <li key={u.key}>
+                    - {u.useManualUnit ? (u.manualUnitText || "—") : (u.companyText || u.battalionText || u.regionText || u.headquartersText || "—")}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-sm text-muted">{t("di.review.arrestTeamLabel")}:</p>
+            {draft.officers.length === 0 ? (
+              <p className="text-sm text-foreground">{t("di.review.none")}</p>
+            ) : (
+              <ul className="space-y-0.5 text-sm text-foreground">
+                {draft.officers.map((o) => (
+                  <li key={o.key}>
+                    - {o.officerId ? o.officerLabel : o.manualFullName || "—"} — {officerRoleLabel(o.role, language)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </CardBody>
       </Card>
 

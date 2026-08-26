@@ -130,6 +130,8 @@ export interface DrugCaseListRow {
   arrestDate: string | null;
   province: string | null;
   reportingUnitText: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — stored directly, exactly like reportingUnitText (client-derived: manual text OR the picker's resolved label chain, never re-derived server-side). */
+  leadUnitText: string | null;
   updatedAt: string;
   personCount: number;
   seizedItemCount: number;
@@ -148,6 +150,14 @@ export interface DrugCaseListQuery {
   companyId?: number;
   arrestDateFrom?: string;
   arrestDateTo?: string;
+  /** Phase DI-7.6 Section 13: backend filter foundation — not necessarily exposed in the current list UI. */
+  leadHeadquartersId?: number;
+  leadRegionId?: number;
+  leadBattalionId?: number;
+  leadCompanyId?: number;
+  participatingUnitCompanyId?: number;
+  officerId?: string;
+  officerRole?: string;
 }
 
 export interface DrugPersonSummary {
@@ -284,6 +294,12 @@ export interface DrugCaseDetail {
   battalionId: number | null;
   companyId: number | null;
   reportingUnitText: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — distinct from the reporting-unit fields above. */
+  leadHeadquartersId: number | null;
+  leadRegionId: number | null;
+  leadBattalionId: number | null;
+  leadCompanyId: number | null;
+  leadUnitText: string | null;
   province: string | null;
   district: string | null;
   subdistrict: string | null;
@@ -299,6 +315,40 @@ export interface DrugCaseDetail {
   updatedAt: string;
 }
 
+/** Phase DI-7.6: หน่วยร่วมจับกุม (participating unit) row. unitText mirrors reportingUnitText's convention — always populated client-side (manual fallback or the picker's resolved canonical label), never re-derived server-side. */
+export interface DrugCaseParticipatingUnitRow {
+  id: string;
+  caseId: string;
+  headquartersId: number | null;
+  regionId: number | null;
+  battalionId: number | null;
+  companyId: number | null;
+  unitText: string | null;
+  role: string;
+  note: string | null;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+}
+
+/** Phase DI-7.6: ชุดจับกุม (arrest-team member) row, resolved for display. */
+export interface DrugCaseOfficerRow {
+  id: string;
+  caseId: string;
+  officerId: string | null;
+  manualRank: string | null;
+  manualFullName: string | null;
+  manualPosition: string | null;
+  manualUnitText: string | null;
+  role: string;
+  note: string | null;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+  /** Resolved canonical Officer summary — null for manual/external rows or if the officerId no longer resolves. */
+  officer: { officerId: string; rank: string; firstName: string; lastName: string; currentUnit: string | null } | null;
+}
+
 export interface DrugCaseDetailResponse {
   case: DrugCaseDetail;
   persons: DrugCasePersonRow[];
@@ -308,6 +358,8 @@ export interface DrugCaseDetailResponse {
   vehicles: DrugCaseVehicleRow[];
   seizedItems: DrugSeizedItemRow[];
   locations: DrugCaseLocationRow[];
+  participatingUnits: DrugCaseParticipatingUnitRow[];
+  officers: DrugCaseOfficerRow[];
   personCount: number;
   phoneCount: number;
   simCount: number;
@@ -371,6 +423,12 @@ export interface DrugCaseCreateRequest {
   battalionId?: number | null;
   companyId?: number | null;
   reportingUnitText?: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — distinct from the reporting-unit fields above. */
+  leadHeadquartersId?: number | null;
+  leadRegionId?: number | null;
+  leadBattalionId?: number | null;
+  leadCompanyId?: number | null;
+  leadUnitText?: string | null;
   province?: string | null;
   district?: string | null;
   subdistrict?: string | null;
@@ -379,6 +437,26 @@ export interface DrugCaseCreateRequest {
   longitude?: number | null;
   narrative?: string | null;
   persons: DrugCaseCreatePersonInput[];
+  /** Phase DI-7.6: หน่วยร่วมจับกุม — zero or many. */
+  participatingUnits: Array<{
+    headquartersId?: number | null;
+    regionId?: number | null;
+    battalionId?: number | null;
+    companyId?: number | null;
+    unitText?: string | null;
+    role: string;
+    note?: string | null;
+  }>;
+  /** Phase DI-7.6: ชุดจับกุม / เจ้าหน้าที่ผู้ร่วมปฏิบัติ — zero or many, optional per Section 9. */
+  officers: Array<{
+    officerId?: string | null;
+    manualRank?: string | null;
+    manualFullName?: string | null;
+    manualPosition?: string | null;
+    manualUnitText?: string | null;
+    role: string;
+    note?: string | null;
+  }>;
   seizedItems: Array<{
     drugCategory: string;
     otherDrugCategoryLabel?: string | null;
@@ -978,6 +1056,10 @@ export interface DrugTimelineEvent {
   longitude: number | null;
   hasCoordinates: boolean;
   reportingUnitText: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — distinct from reportingUnitText above. */
+  leadUnitText: string | null;
+  participatingUnitCount: number;
+  officerCount: number;
   personCount: number;
   persons: DrugTimelineEventPersonRow[];
   phoneCount: number;

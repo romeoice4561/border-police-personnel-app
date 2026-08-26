@@ -157,6 +157,38 @@ export interface LocationDraft {
   notes: string;
 }
 
+/** DI-7.6: หน่วยร่วมจับกุม — one canonical-or-manual unit row, with a role/note. */
+export interface ParticipatingUnitDraft {
+  key: string;
+  headquartersId: number | null;
+  headquartersText: string;
+  regionId: number | null;
+  regionText: string;
+  battalionId: number | null;
+  battalionText: string;
+  companyId: number | null;
+  companyText: string;
+  useManualUnit: boolean;
+  manualUnitText: string;
+  role: string;
+  note: string;
+}
+
+/** DI-7.6: ชุดจับกุม member — internal officer (by officerId) or manual external fields. */
+export interface CaseOfficerDraft {
+  key: string;
+  /** When set, this row is an internal officer picked via "เลือกจากกำลังพล". */
+  officerId: string | null;
+  /** Display label for the picked internal officer (rank + name + unit) — never sent to the API, UI convenience only. */
+  officerLabel: string | null;
+  manualRank: string;
+  manualFullName: string;
+  manualPosition: string;
+  manualUnitText: string;
+  role: string;
+  note: string;
+}
+
 export interface CreateCaseDraft {
   caseNumber: string;
   title: string;
@@ -179,6 +211,25 @@ export interface CreateCaseDraft {
   useManualUnit: boolean;
   /** Free text displayed with "ข้อมูลหน่วยที่กรอกเอง" label — only used when useManualUnit is true. */
   manualUnitText: string;
+  /**
+   * DI-7.6: หน่วยจับกุมหลัก — a DISTINCT concept from the reporting-unit
+   * fields above (Section 0: reporting unit vs. lead arrest unit). Same
+   * canonical-picker + manual-fallback shape. `sameAsReportingUnit` is a
+   * convenience toggle (Section 7's "ใช้หน่วยเดียวกับหน่วยรายงาน") — when
+   * true, buildCreateCaseRequest() copies the reporting-unit fields into the
+   * lead-unit wire fields at submit time rather than duplicating state here.
+   */
+  sameAsReportingUnit: boolean;
+  leadHeadquartersId: number | null;
+  leadHeadquartersText: string;
+  leadRegionId: number | null;
+  leadRegionText: string;
+  leadBattalionId: number | null;
+  leadBattalionText: string;
+  leadCompanyId: number | null;
+  leadCompanyText: string;
+  useLeadManualUnit: boolean;
+  leadManualUnitText: string;
   province: string;
   district: string;
   subdistrict: string;
@@ -189,6 +240,10 @@ export interface CreateCaseDraft {
   persons: PersonDraft[];
   seizedItems: SeizedItemDraft[];
   locations: LocationDraft[];
+  /** DI-7.6: หน่วยร่วมจับกุม — zero or many. */
+  participatingUnits: ParticipatingUnitDraft[];
+  /** DI-7.6: ชุดจับกุม — zero or many, entirely optional (Section 9). */
+  officers: CaseOfficerDraft[];
 }
 
 export function createEmptyPersonDraft(): PersonDraft {
@@ -248,6 +303,38 @@ export function createEmptyLocationDraft(): LocationDraft {
   return { key: nextDraftKey(), name: "", addressText: "", province: "", district: "", subdistrict: "", latitude: "", longitude: "", role: "ARREST_LOCATION", notes: "" };
 }
 
+export function createEmptyParticipatingUnitDraft(): ParticipatingUnitDraft {
+  return {
+    key: nextDraftKey(),
+    headquartersId: null,
+    headquartersText: "",
+    regionId: null,
+    regionText: "",
+    battalionId: null,
+    battalionText: "",
+    companyId: null,
+    companyText: "",
+    useManualUnit: false,
+    manualUnitText: "",
+    role: "PARTICIPATING",
+    note: "",
+  };
+}
+
+export function createEmptyCaseOfficerDraft(): CaseOfficerDraft {
+  return {
+    key: nextDraftKey(),
+    officerId: null,
+    officerLabel: null,
+    manualRank: "",
+    manualFullName: "",
+    manualPosition: "",
+    manualUnitText: "",
+    role: "ARRESTING_OFFICER",
+    note: "",
+  };
+}
+
 export function createEmptyDraft(): CreateCaseDraft {
   return {
     caseNumber: "",
@@ -265,6 +352,17 @@ export function createEmptyDraft(): CreateCaseDraft {
     companyText: "",
     useManualUnit: false,
     manualUnitText: "",
+    sameAsReportingUnit: false,
+    leadHeadquartersId: null,
+    leadHeadquartersText: "",
+    leadRegionId: null,
+    leadRegionText: "",
+    leadBattalionId: null,
+    leadBattalionText: "",
+    leadCompanyId: null,
+    leadCompanyText: "",
+    useLeadManualUnit: false,
+    leadManualUnitText: "",
     province: "",
     district: "",
     subdistrict: "",
@@ -275,6 +373,8 @@ export function createEmptyDraft(): CreateCaseDraft {
     persons: [],
     seizedItems: [],
     locations: [],
+    participatingUnits: [],
+    officers: [],
   };
 }
 
@@ -435,6 +535,28 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
     reportingUnitText: draft.useManualUnit
       ? (draft.manualUnitText.trim() || null)
       : (draft.companyText || draft.battalionText || draft.regionText || draft.headquartersText || null),
+    // DI-7.6 Section 7: "ใช้หน่วยเดียวกับหน่วยรายงาน" — when checked, copy the
+    // ALREADY-RESOLVED reporting-unit fields verbatim rather than requiring
+    // the operator to duplicate the picker selection.
+    ...(draft.sameAsReportingUnit
+      ? {
+          leadHeadquartersId: draft.useManualUnit ? null : draft.headquartersId,
+          leadRegionId: draft.useManualUnit ? null : draft.regionId,
+          leadBattalionId: draft.useManualUnit ? null : draft.battalionId,
+          leadCompanyId: draft.useManualUnit ? null : draft.companyId,
+          leadUnitText: draft.useManualUnit
+            ? (draft.manualUnitText.trim() || null)
+            : (draft.companyText || draft.battalionText || draft.regionText || draft.headquartersText || null),
+        }
+      : {
+          leadHeadquartersId: draft.useLeadManualUnit ? null : draft.leadHeadquartersId,
+          leadRegionId: draft.useLeadManualUnit ? null : draft.leadRegionId,
+          leadBattalionId: draft.useLeadManualUnit ? null : draft.leadBattalionId,
+          leadCompanyId: draft.useLeadManualUnit ? null : draft.leadCompanyId,
+          leadUnitText: draft.useLeadManualUnit
+            ? (draft.leadManualUnitText.trim() || null)
+            : (draft.leadCompanyText || draft.leadBattalionText || draft.leadRegionText || draft.leadHeadquartersText || null),
+        }),
     province: draft.province.trim() || null,
     district: draft.district.trim() || null,
     subdistrict: draft.subdistrict.trim() || null,
@@ -474,6 +596,34 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
       role: loc.role,
       notes: loc.notes.trim() || null,
     })),
+    participatingUnits: draft.participatingUnits
+      // A row with no unit chosen (canonical or manual) and no id at all is
+      // an untouched "+ เพิ่มหน่วยร่วมจับกุม" row — dropped rather than sent as
+      // an ambiguous empty unit (mirrors the seizedItems filter above).
+      .filter((u) => (u.useManualUnit ? u.manualUnitText.trim() : u.headquartersId || u.regionId || u.battalionId || u.companyId))
+      .map((u) => ({
+        headquartersId: u.useManualUnit ? null : u.headquartersId,
+        regionId: u.useManualUnit ? null : u.regionId,
+        battalionId: u.useManualUnit ? null : u.battalionId,
+        companyId: u.useManualUnit ? null : u.companyId,
+        unitText: u.useManualUnit
+          ? (u.manualUnitText.trim() || null)
+          : (u.companyText || u.battalionText || u.regionText || u.headquartersText || null),
+        role: u.role,
+        note: u.note.trim() || null,
+      })),
+    officers: draft.officers
+      // An untouched "+ เพิ่มเจ้าหน้าที่" row (no internal officer picked, no manual name typed) is dropped — Section 9: the team section is entirely optional.
+      .filter((o) => o.officerId || o.manualFullName.trim())
+      .map((o) => ({
+        officerId: o.officerId,
+        manualRank: o.officerId ? null : (o.manualRank.trim() || null),
+        manualFullName: o.officerId ? null : (o.manualFullName.trim() || null),
+        manualPosition: o.officerId ? null : (o.manualPosition.trim() || null),
+        manualUnitText: o.officerId ? null : (o.manualUnitText.trim() || null),
+        role: o.role,
+        note: o.note.trim() || null,
+      })),
     actorId,
     actorName,
   };

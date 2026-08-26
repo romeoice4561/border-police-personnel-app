@@ -107,6 +107,28 @@ export interface DrugCaseLocationInput {
   notes: string | null;
 }
 
+/** Phase DI-7.6 Section 8: หน่วยร่วมจับกุม input — canonical org id(s) plus an always-populated display unitText (manual fallback text, or the picker's resolved canonical label — mirrors reportingUnitText/leadUnitText's convention). */
+export interface DrugCaseParticipatingUnitInput {
+  headquartersId: number | null;
+  regionId: number | null;
+  battalionId: number | null;
+  companyId: number | null;
+  unitText: string | null;
+  role: string;
+  note: string | null;
+}
+
+/** Phase DI-7.6 Section 6/9: ชุดจับกุม member input — EITHER officerId (Officer.officerId business key) OR manual external fields. */
+export interface DrugCaseOfficerInput {
+  officerId: string | null;
+  manualRank: string | null;
+  manualFullName: string | null;
+  manualPosition: string | null;
+  manualUnitText: string | null;
+  role: string;
+  note: string | null;
+}
+
 /** One Create Case submission. */
 export interface DrugCaseCreateRequest {
   caseNumber: string;
@@ -119,6 +141,12 @@ export interface DrugCaseCreateRequest {
   battalionId: number | null;
   companyId: number | null;
   reportingUnitText: string | null;
+  /** Phase DI-7.6: หน่วยจับกุมหลัก — distinct from the reporting-unit fields above. Optional (defaults to null/[]) so pre-DI-7.6 callers/tests keep compiling unchanged (Section 18/26AD: old cases without team data must keep working). */
+  leadHeadquartersId?: number | null;
+  leadRegionId?: number | null;
+  leadBattalionId?: number | null;
+  leadCompanyId?: number | null;
+  leadUnitText?: string | null;
   province: string | null;
   district: string | null;
   subdistrict: string | null;
@@ -129,6 +157,9 @@ export interface DrugCaseCreateRequest {
   persons: DrugCasePersonInput[];
   seizedItems: DrugCaseSeizedItemInput[];
   locations: DrugCaseLocationInput[];
+  /** Phase DI-7.6: participating units and arrest team — both optional (Section 9/18). */
+  participatingUnits?: DrugCaseParticipatingUnitInput[];
+  officers?: DrugCaseOfficerInput[];
   actorId: string;
   actorName: string;
 }

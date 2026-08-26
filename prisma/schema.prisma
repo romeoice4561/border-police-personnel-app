@@ -507,6 +507,9 @@ model Headquarters {
   officers  Officer[]
   /// Phase DI-1: DrugCase.headquartersId opposite relation (additive; Headquarters' own behavior is unchanged).
   drugCases DrugCase[]
+  /// Phase DI-7.6: DrugCase.leadHeadquartersId opposite relation (additive).
+  drugCasesAsLeadUnit          DrugCase[]                  @relation("DrugCaseLeadHeadquarters")
+  drugCaseParticipatingUnits   DrugCaseParticipatingUnit[]
 
   @@index([displayOrder])
 }
@@ -536,6 +539,9 @@ model Region {
   aliases    OrganizationAlias[]
   /// Phase DI-1: DrugCase.regionId opposite relation (additive).
   drugCases  DrugCase[]
+  /// Phase DI-7.6: DrugCase.leadRegionId opposite relation (additive).
+  drugCasesAsLeadUnit        DrugCase[]                  @relation("DrugCaseLeadRegion")
+  drugCaseParticipatingUnits DrugCaseParticipatingUnit[]
 
   @@index([headquartersId])
 }
@@ -559,6 +565,9 @@ model Battalion {
   aliases   OrganizationAlias[]
   /// Phase DI-1: DrugCase.battalionId opposite relation (additive).
   drugCases DrugCase[]
+  /// Phase DI-7.6: DrugCase.leadBattalionId opposite relation (additive).
+  drugCasesAsLeadUnit        DrugCase[]                  @relation("DrugCaseLeadBattalion")
+  drugCaseParticipatingUnits DrugCaseParticipatingUnit[]
 
   @@index([regionId])
 }
@@ -582,6 +591,9 @@ model Company {
   aliases   OrganizationAlias[]
   /// Phase DI-1: DrugCase.companyId opposite relation (additive).
   drugCases DrugCase[]
+  /// Phase DI-7.6: DrugCase.leadCompanyId opposite relation (additive).
+  drugCasesAsLeadUnit        DrugCase[]                  @relation("DrugCaseLeadCompany")
+  drugCaseParticipatingUnits DrugCaseParticipatingUnit[]
 
   @@index([battalionId])
 }
@@ -1495,6 +1507,31 @@ model DrugCase {
   companyId         Int?
   reportingUnitText String?
 
+  /// Phase DI-7.6: หน่วยจับกุมหลัก (lead arrest unit) — a DISTINCT concept from
+  /// the reporting unit above. Mirrors the reporting-unit columns exactly
+  /// (canonical org hierarchy + "หน่วยอื่น / ไม่พบหน่วย" manual fallback via
+  /// leadUnitManualText), including the SetNull cascade so removing an org
+  /// master row can never block or cascade into a DrugCase. Named relations
+  /// are required because Headquarters/Region/Battalion/Company already have
+  /// one implicit DrugCase[] relation (reporting unit) — a second relation to
+  /// the same model pair must be explicitly named to disambiguate.
+  leadHeadquarters   Headquarters? @relation("DrugCaseLeadHeadquarters", fields: [leadHeadquartersId], references: [id], onDelete: SetNull)
+  leadHeadquartersId Int?
+  leadRegion         Region?       @relation("DrugCaseLeadRegion", fields: [leadRegionId], references: [id], onDelete: SetNull)
+  leadRegionId       Int?
+  leadBattalion      Battalion?    @relation("DrugCaseLeadBattalion", fields: [leadBattalionId], references: [id], onDelete: SetNull)
+  leadBattalionId    Int?
+  leadCompany        Company?      @relation("DrugCaseLeadCompany", fields: [leadCompanyId], references: [id], onDelete: SetNull)
+  leadCompanyId      Int?
+  /// Mirrors reportingUnitText's convention exactly: ALWAYS populated by the
+  /// client — either the manual fallback text ("ข้อมูลหน่วยที่กรอกเอง") when no
+  /// canonical unit matches, or the picker's resolved label chain
+  /// (company/battalion/region/headquarters text) when one does. This is the
+  /// single source of truth for DISPLAY; the lead*Id columns above exist
+  /// purely for filtering/joins and are never used to re-derive this text
+  /// server-side (no org-table joins anywhere in this module).
+  leadUnitText String?
+
   province     String?
   district     String?
   subdistrict  String?
@@ -1520,6 +1557,10 @@ model DrugCase {
   locations            DrugCaseLocation[]
   relationships        DrugRelationship[]      @relation("RelationshipSourceCase")
   personNetworkRoles   DrugPersonNetworkRole[]
+  /// Phase DI-7.6: participating units (0..N) — see DrugCaseParticipatingUnit doc comment.
+  participatingUnits   DrugCaseParticipatingUnit[]
+  /// Phase DI-7.6: arrest-team officers (0..N) — see DrugCaseOfficer doc comment.
+  officers             DrugCaseOfficer[]
 
   @@index([caseNumber])
   @@index([status])
@@ -1529,7 +1570,119 @@ model DrugCase {
   @@index([regionId])
   @@index([battalionId])
   @@index([companyId])
+  @@index([leadHeadquartersId])
+  @@index([leadRegionId])
+  @@index([leadBattalionId])
+  @@index([leadCompanyId])
   @@index([createdBy])
+}
+
+/// Phase DI-7.6: หน่วยร่วมจับกุม (participating unit) — a unit OTHER than the
+/// case's own lead arrest unit that took part in the operation. Each row is
+/// independently canonical-org-linked OR manual-fallback text, exactly like
+/// DrugCase's reporting/lead unit fields — never forces an external
+/// organization (ป.ป.ส., ฝ่ายปกครอง, ทหาร, ...) into the BPP org hierarchy.
+/// role is a closed, small vocabulary (Section 4) — real Postgres enum,
+/// matching DrugCaseStatus/DrugCasePersonRole's convention for genuinely
+/// closed sets (contrast DrugPersonNetworkRole.role, which stays a free
+/// String because criminal-network roles are an open/emergent vocabulary).
+enum DrugCaseUnitRole {
+  LEAD
+  PARTICIPATING
+  INVESTIGATION_SUPPORT
+  INTELLIGENCE_SUPPORT
+  OTHER
+}
+
+model DrugCaseParticipatingUnit {
+  id     String   @id @default(cuid())
+  case   DrugCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+
+  headquarters   Headquarters? @relation(fields: [headquartersId], references: [id], onDelete: SetNull)
+  headquartersId Int?
+  region         Region?       @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  regionId       Int?
+  battalion      Battalion?    @relation(fields: [battalionId], references: [id], onDelete: SetNull)
+  battalionId    Int?
+  company        Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId      Int?
+  /// Mirrors DrugCase.leadUnitText/reportingUnitText's convention exactly:
+  /// ALWAYS populated by the client — either free text for a unit outside
+  /// the canonical org tree (e.g. "สภ.ท่าแซะ", "ป.ป.ส.", "ฝ่ายปกครอง อ.ท่าแซะ")
+  /// or the picker's resolved canonical label — never auto-creates an org
+  /// master row, and never re-derived server-side from the *Id columns
+  /// above (which exist purely for filtering/joins).
+  unitText String?
+
+  role DrugCaseUnitRole @default(PARTICIPATING)
+  note String?
+
+  createdAt     DateTime @default(now())
+  createdBy     String
+  createdByName String
+
+  @@index([caseId])
+  @@index([headquartersId])
+  @@index([regionId])
+  @@index([battalionId])
+  @@index([companyId])
+}
+
+/// Phase DI-7.6: ชุดจับกุม / เจ้าหน้าที่ผู้ร่วมปฏิบัติ (arrest-team member) — one
+/// officer's participation in one case, with their operational role on THIS
+/// case (Section 3: ARREST_TEAM_LEAD / ARRESTING_OFFICER / INVESTIGATOR /
+/// INTELLIGENCE_OFFICER / CASE_COORDINATOR / EVIDENCE_OFFICER / SUPPORT /
+/// OTHER). Deliberately separate from DrugCasePerson.role (suspect/witness)
+/// and DrugPersonNetworkRole (criminal-network role) — an officer here is
+/// NEVER a DrugPerson node (Section 22/23: no officer-domain mixing, no
+/// criminal-network edges).
+///
+/// officerId mirrors DrugCasePerson.linkedOfficerId's established
+/// convention EXACTLY: a String business-key reference to Officer.officerId
+/// (never Officer's numeric `id`), so this table never forces a
+/// migration/lock on the Personnel schema and Personnel is completely
+/// unaffected whether or not any row here is ever populated. Nullable —
+/// external/non-BPP participants are represented via the manual* fields
+/// instead, and manual fallback NEVER auto-creates a canonical Officer row
+/// (Section 6).
+enum DrugCaseOfficerRole {
+  ARREST_TEAM_LEAD
+  ARRESTING_OFFICER
+  INVESTIGATOR
+  INTELLIGENCE_OFFICER
+  CASE_COORDINATOR
+  EVIDENCE_OFFICER
+  SUPPORT
+  OTHER
+}
+
+model DrugCaseOfficer {
+  id     String   @id @default(cuid())
+  case   DrugCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+
+  officerId      String?
+  manualRank     String?
+  manualFullName String?
+  manualPosition String?
+  manualUnitText String?
+
+  role DrugCaseOfficerRole
+  note String?
+
+  createdAt     DateTime @default(now())
+  createdBy     String
+  createdByName String
+
+  /// Section 16: prevents duplicate identical (case, officer, role) rows for
+  /// INTERNAL officers. Postgres treats NULL as distinct in a unique index,
+  /// so multiple manual/external rows (officerId = null) on the same case
+  /// remain unaffected — they are intentionally NOT deduplicated here
+  /// (Section 16: "Do not aggressively merge distinct external records").
+  @@unique([caseId, officerId, role])
+  @@index([caseId])
+  @@index([officerId])
 }
 
 /// Section 3: a real, internally-identified person. Never keyed by national
