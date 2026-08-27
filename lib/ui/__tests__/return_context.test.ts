@@ -94,3 +94,79 @@ test("Case Workspace -> Network link construction forwards a valid Map returnTo 
   const restored = getSafeReturnTo(new URLSearchParams(query));
   assert.equal(restored, mapReturnUrl);
 });
+
+// ── DI-8.1.2: Timeline return-context (reuse the same helper, do not fork security) ──
+
+test("A: valid map returnTo is accepted on a Timeline URL", () => {
+  const params = new URLSearchParams({
+    caseId: "qa-map-001",
+    returnTo: "/drug-intelligence/map",
+  });
+  assert.equal(getSafeReturnTo(params), "/drug-intelligence/map");
+});
+
+test("B: map return URL with query params is preserved on Timeline", () => {
+  const mapReturnUrl = "/drug-intelligence/map?province=ชุมพร&status=OPEN";
+  const params = new URLSearchParams({
+    caseId: "qa-map-001",
+    returnTo: mapReturnUrl,
+  });
+  assert.equal(getSafeReturnTo(params), mapReturnUrl);
+});
+
+test("C: missing returnTo on Timeline yields no contextual Back-to-Map action", () => {
+  const params = new URLSearchParams({ caseId: "qa-map-001", groupMode: "DAY" });
+  assert.equal(getSafeReturnTo(params), null);
+});
+
+test("D: invalid external returnTo on Timeline is rejected", () => {
+  const params = new URLSearchParams({
+    caseId: "qa-map-001",
+    returnTo: "https://evil.example/phish",
+  });
+  assert.equal(getSafeReturnTo(params), null);
+});
+
+test("E: protocol-relative returnTo on Timeline is rejected", () => {
+  const params = new URLSearchParams({
+    caseId: "qa-map-001",
+    returnTo: "//evil.example/drug-intelligence/map",
+  });
+  assert.equal(getSafeReturnTo(params), null);
+});
+
+test("F: Timeline → Case forwards a valid map returnTo", () => {
+  const caseId = "qa-map-001";
+  const mapReturnUrl = "/drug-intelligence/map?province=ชุมพร";
+  const caseUrl = withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(caseId)}`, mapReturnUrl);
+  assert.equal(caseUrl, `/drug-intelligence/cases/qa-map-001?returnTo=${encodeURIComponent(mapReturnUrl)}`);
+  const restored = getSafeReturnTo(new URLSearchParams(caseUrl.split("?")[1]));
+  assert.equal(restored, mapReturnUrl);
+});
+
+test("G: Timeline → Network forwards a valid map returnTo", () => {
+  const caseId = "qa-map-001";
+  const mapReturnUrl = "/drug-intelligence/map?province=ชุมพร";
+  const networkUrl = withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`, mapReturnUrl);
+  assert.equal(
+    networkUrl,
+    `/drug-intelligence/network?focusType=CASE&focusId=qa-map-001&returnTo=${encodeURIComponent(mapReturnUrl)}`
+  );
+  const restored = getSafeReturnTo(new URLSearchParams(networkUrl.split("?")[1]));
+  assert.equal(restored, mapReturnUrl);
+});
+
+test("H: Timeline query/filter state remains intact alongside returnTo", () => {
+  const params = new URLSearchParams({
+    caseId: "qa-map-001",
+    groupMode: "DAY",
+    sort: "NEWEST_FIRST",
+    province: "ชุมพร",
+    returnTo: "/drug-intelligence/map?province=ชุมพร",
+  });
+  assert.equal(getSafeReturnTo(params), "/drug-intelligence/map?province=ชุมพร");
+  assert.equal(params.get("caseId"), "qa-map-001");
+  assert.equal(params.get("groupMode"), "DAY");
+  assert.equal(params.get("sort"), "NEWEST_FIRST");
+  assert.equal(params.get("province"), "ชุมพร");
+});

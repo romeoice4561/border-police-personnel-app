@@ -309,6 +309,9 @@ test("AD: seizure groups in a marker never combine COUNT and MASS for the same c
   const ice = groups.find((g) => g.drugCategory === "CRYSTAL_METHAMPHETAMINE");
   assert.equal(yaba?.totalCount, 120000);
   assert.equal(ice?.totalWeightKilograms, 2.5);
+  assert.equal(yaba?.displayTh, "ยาบ้า 120,000 เม็ด");
+  assert.equal(ice?.displayTh, "ไอซ์ 2.5 กก.");
+  assert.ok(!yaba?.displayTh.includes("รายการ"));
 });
 
 // ── AE: raw enum labels absent ────────────────────────────────────────

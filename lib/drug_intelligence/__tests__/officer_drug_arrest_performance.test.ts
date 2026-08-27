@@ -216,7 +216,7 @@ test("K: seizures of the SAME category+measurementKind across multiple cases sum
   ]);
   assert.equal(groups.length, 1);
   assert.equal(groups[0].totalCount, 370000);
-  assert.equal(groups[0].displayTh, "ยาบ้า 370,000 รายการ");
+  assert.equal(groups[0].displayTh, "ยาบ้า 370,000");
 });
 
 test("L: COUNT and MASS rows for the SAME category are NEVER summed together — kept as separate groups", () => {
@@ -239,8 +239,28 @@ test("L2: different categories are never combined into one figure (ยาบ้�
   assert.equal(groups.length, 2);
   const yaba = groups.find((g) => g.drugCategory === "METHAMPHETAMINE_TABLET");
   const ice = groups.find((g) => g.drugCategory === "CRYSTAL_METHAMPHETAMINE");
-  assert.equal(yaba?.displayTh, "ยาบ้า 370,000 รายการ");
+  assert.equal(yaba?.displayTh, "ยาบ้า 370,000");
   assert.equal(ice?.displayTh, "ไอซ์ 5.4 กก.");
+});
+
+test("COUNT rows with a stored เม็ด unit format as เม็ด, never รายการ", () => {
+  const groups = groupSeizedItemFacts([
+    { drugCategory: "METHAMPHETAMINE_TABLET", otherDrugCategoryLabel: null, measurementKind: "COUNT", normalizedCount: 5000, normalizedWeightGrams: null, displayUnit: "เม็ด" },
+  ]);
+  assert.equal(groups[0].displayTh, "ยาบ้า 5,000 เม็ด");
+  assert.ok(!groups[0].displayTh.includes("รายการ"));
+});
+
+test("COUNT rows with different stored units stay in separate groups", () => {
+  const groups = groupSeizedItemFacts([
+    { drugCategory: "OTHER", otherDrugCategoryLabel: "ยาแก้ไอ", measurementKind: "COUNT", normalizedCount: 12, normalizedWeightGrams: null, displayUnit: "ขวด" },
+    { drugCategory: "OTHER", otherDrugCategoryLabel: "ยาแก้ไอ", measurementKind: "COUNT", normalizedCount: 250, normalizedWeightGrams: null, displayUnit: "มล." },
+  ]);
+  assert.equal(groups.length, 2);
+  const bottle = groups.find((g) => g.displayUnit === "ขวด");
+  const ml = groups.find((g) => g.displayUnit === "มล.");
+  assert.equal(bottle?.displayTh, "อื่น ๆ 12 ขวด");
+  assert.equal(ml?.displayTh, "อื่น ๆ 250 มล.");
 });
 
 // ── O: officer remains separate from DrugPerson ─────────────────────────

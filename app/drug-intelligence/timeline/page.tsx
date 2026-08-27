@@ -36,6 +36,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugTimeline, useDrugTimelineGeographic } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { normalizeThaiPersonnelDateForSave, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import type { DrugTimelineEvent, DrugTimelineSortDirection, DrugTimelineGroupMode } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 type ViewMode = "TIMELINE" | "GEOGRAPHIC";
@@ -75,6 +76,7 @@ function DrugTimelineContent() {
   const vehicleId = searchParams.get("vehicleId") ?? undefined;
   const sort = (searchParams.get("sort") as DrugTimelineSortDirection | null) ?? "NEWEST_FIRST";
   const groupMode = (searchParams.get("groupMode") as DrugTimelineGroupMode | null) ?? "DAY";
+  const returnTo = getSafeReturnTo(searchParams);
 
   const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<ViewMode>("TIMELINE");
@@ -120,7 +122,20 @@ function DrugTimelineContent() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t("di.timeline.title")} description={t("di.timeline.description")} />
+      <PageHeader
+        title={t("di.timeline.title")}
+        description={t("di.timeline.description")}
+        actions={
+          returnTo ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={returnTo}>
+                <MapPinned className="h-4 w-4" aria-hidden="true" />
+                {t("di.map.actionBackToMap")}
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       {!canView ? (
         <ErrorState title={t("di.alert.permissionDenied")} />
@@ -291,7 +306,7 @@ function DrugTimelineContent() {
       )}
 
       <Drawer open={Boolean(selectedEvent)} onClose={() => setSelectedEvent(null)} titleId="drug-timeline-event-detail" title={t("di.timeline.eventDetailTitle")}>
-        {selectedEvent ? <TimelineEventDetail event={selectedEvent} /> : null}
+        {selectedEvent ? <TimelineEventDetail event={selectedEvent} returnTo={returnTo} /> : null}
       </Drawer>
     </div>
   );
@@ -359,7 +374,7 @@ function TimelineEventCard({ event, onSelect }: { event: DrugTimelineEvent; onSe
   );
 }
 
-function TimelineEventDetail({ event }: { event: DrugTimelineEvent }) {
+function TimelineEventDetail({ event, returnTo }: { event: DrugTimelineEvent; returnTo: string | null }) {
   const { t } = useT();
   return (
     <div className="space-y-4">
@@ -420,13 +435,13 @@ function TimelineEventDetail({ event }: { event: DrugTimelineEvent }) {
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         <Button asChild size="sm" variant="outline">
-          <Link href={`/drug-intelligence/cases/${encodeURIComponent(event.caseId)}`}>
+          <Link href={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(event.caseId)}`, returnTo)}>
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
             {t("di.timeline.openCase")}
           </Link>
         </Button>
         <Button asChild size="sm" variant="outline">
-          <Link href={`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(event.caseId)}`}>
+          <Link href={withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(event.caseId)}`, returnTo)}>
             <NetworkIcon className="h-4 w-4" aria-hidden="true" />
             {t("di.timeline.openNetwork")}
           </Link>

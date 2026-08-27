@@ -34,6 +34,13 @@ export interface DrugSeizedItemAnalyticsFacts {
   normalizedCount: number | null;
   /** Present when measurementKind = MASS; ALWAYS grams — the value to sum for mass-based aggregation. */
   normalizedWeightGrams: number | null;
+  /**
+   * Evidence-as-recorded display unit for COUNT rows (เม็ด, ขวด, มล., ซอง, …).
+   * Optional so existing callers that only had quantity/weight still compile;
+   * when present it is the SAME `DrugSeizedItem.unit` Case Workspace and
+   * Timeline already render — never invented, never replaced with "รายการ".
+   */
+  displayUnit?: string | null;
 }
 
 export interface DrugSeizedItemAnalyticsView extends DrugSeizedItemAnalyticsFacts {
@@ -63,4 +70,31 @@ export function resolveDrugSeizedItemAnalyticsView(facts: DrugSeizedItemAnalytic
     measurementKindLabelEn: kindLabels.labelEn,
     normalizedWeightKilograms: facts.normalizedWeightGrams !== null ? gramsToKilograms(facts.normalizedWeightGrams) : null,
   };
+}
+
+/**
+ * Canonical Thai quantity/unit line used by Map, officer performance, and
+ * any future commander rollup. Matches Case Workspace / Timeline:
+ *   COUNT + stored unit → "ยาบ้า 5,000 เม็ด"
+ *   MASS                → "ไอซ์ 2.5 กก."  (grams→kg is the only conversion)
+ * Never substitutes a generic "รายการ" when a real unit exists, and never
+ * invents a unit when none was stored.
+ */
+export function formatSeizedItemDisplayTh(args: {
+  categoryLabelTh: string;
+  measurementKind: DrugMeasurementKind;
+  normalizedCount: number | null;
+  normalizedWeightKilograms: number | null;
+  displayUnit?: string | null;
+}): string {
+  if (args.measurementKind === "COUNT" && args.normalizedCount !== null) {
+    const qty = args.normalizedCount.toLocaleString("th-TH");
+    const unit = args.displayUnit?.trim();
+    return unit ? `${args.categoryLabelTh} ${qty} ${unit}` : `${args.categoryLabelTh} ${qty}`;
+  }
+  if (args.measurementKind === "MASS" && args.normalizedWeightKilograms !== null) {
+    const kg = args.normalizedWeightKilograms.toLocaleString("th-TH", { maximumFractionDigits: 2 });
+    return `${args.categoryLabelTh} ${kg} กก.`;
+  }
+  return args.categoryLabelTh;
 }

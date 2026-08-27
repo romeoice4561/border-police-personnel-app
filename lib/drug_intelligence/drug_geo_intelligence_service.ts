@@ -145,6 +145,7 @@ export class DrugGeoIntelligenceService {
             measurementKind: item.measurementKind as DrugMeasurementKind,
             normalizedCount: item.measurementKind === "COUNT" && item.quantity !== null && item.quantity !== undefined ? Number(item.quantity) : null,
             normalizedWeightGrams: item.measurementKind === "MASS" && item.weightGrams !== null && item.weightGrams !== undefined ? Number(item.weightGrams) : null,
+            displayUnit: item.unit ?? null,
           },
         ];
       });

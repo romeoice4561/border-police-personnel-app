@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gramsToKilograms, kilogramsToGrams, resolveDrugSeizedItemAnalyticsView } from "@/lib/drug_intelligence/drug_seized_item_analytics";
+import { gramsToKilograms, kilogramsToGrams, resolveDrugSeizedItemAnalyticsView, formatSeizedItemDisplayTh } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 
 test("gramsToKilograms converts the canonical persisted unit to the display unit", () => {
   assert.equal(gramsToKilograms(642750), 642.75);
@@ -57,4 +57,68 @@ test("resolveDrugSeizedItemAnalyticsView for OTHER preserves the free-text label
   assert.equal(view.drugCategory, "OTHER");
   assert.equal(view.otherDrugCategoryLabel, "สารสังเคราะห์ชนิดใหม่");
   assert.equal(view.categoryLabelTh, "อื่น ๆ");
+});
+
+test("formatSeizedItemDisplayTh COUNT uses the stored unit (เม็ด), never รายการ", () => {
+  const view = resolveDrugSeizedItemAnalyticsView({
+    drugCategory: "METHAMPHETAMINE_TABLET",
+    otherDrugCategoryLabel: null,
+    measurementKind: "COUNT",
+    normalizedCount: 5000,
+    normalizedWeightGrams: null,
+    displayUnit: "เม็ด",
+  });
+  assert.equal(
+    formatSeizedItemDisplayTh({
+      categoryLabelTh: view.categoryLabelTh,
+      measurementKind: view.measurementKind,
+      normalizedCount: view.normalizedCount,
+      normalizedWeightKilograms: view.normalizedWeightKilograms,
+      displayUnit: view.displayUnit,
+    }),
+    "ยาบ้า 5,000 เม็ด"
+  );
+});
+
+test("formatSeizedItemDisplayTh MASS uses canonical กก. conversion", () => {
+  const view = resolveDrugSeizedItemAnalyticsView({
+    drugCategory: "CRYSTAL_METHAMPHETAMINE",
+    otherDrugCategoryLabel: null,
+    measurementKind: "MASS",
+    normalizedCount: null,
+    normalizedWeightGrams: 2500,
+  });
+  assert.equal(
+    formatSeizedItemDisplayTh({
+      categoryLabelTh: view.categoryLabelTh,
+      measurementKind: view.measurementKind,
+      normalizedCount: view.normalizedCount,
+      normalizedWeightKilograms: view.normalizedWeightKilograms,
+      displayUnit: view.displayUnit,
+    }),
+    "ไอซ์ 2.5 กก."
+  );
+});
+
+test("formatSeizedItemDisplayTh preserves a stored liquid/custom COUNT unit", () => {
+  assert.equal(
+    formatSeizedItemDisplayTh({
+      categoryLabelTh: "อื่น ๆ",
+      measurementKind: "COUNT",
+      normalizedCount: 12,
+      normalizedWeightKilograms: null,
+      displayUnit: "ขวด",
+    }),
+    "อื่น ๆ 12 ขวด"
+  );
+  assert.equal(
+    formatSeizedItemDisplayTh({
+      categoryLabelTh: "เคตามีน",
+      measurementKind: "COUNT",
+      normalizedCount: 250,
+      normalizedWeightKilograms: null,
+      displayUnit: "มล.",
+    }),
+    "เคตามีน 250 มล."
+  );
 });

@@ -17,6 +17,7 @@
 
 import {
   resolveDrugSeizedItemAnalyticsView,
+  formatSeizedItemDisplayTh,
   type DrugSeizedItemAnalyticsFacts,
 } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole, type DrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
@@ -43,7 +44,7 @@ export interface OfficerDrugArrestCaseSummary {
   seizedItems: OfficerDrugArrestSeizureGroup[];
 }
 
-/** One (drugCategory, measurementKind) group — COUNT and MASS are never combined into a single number (Section 5's explicit constraint). */
+/** One (drugCategory, measurementKind) group — COUNT and MASS are never combined into a single number (Section 5's explicit constraint). COUNT rows with different stored display units (เม็ด vs ขวด) stay in separate groups so units are never mixed. */
 export interface OfficerDrugArrestSeizureGroup {
   drugCategory: string;
   categoryLabelTh: string;
@@ -53,7 +54,9 @@ export interface OfficerDrugArrestSeizureGroup {
   /** Sum of normalizedWeightGrams across matching rows — populated only when measurementKind = MASS. Grams remain the persisted unit (matches DrugSeizedItem.weightGrams's own convention). */
   totalWeightGrams: number | null;
   totalWeightKilograms: number | null;
-  /** "ยาบ้า 370,000 เม็ด" / "ไอซ์ 5.4 กก." — pre-formatted, Thai, unit-correct. */
+  /** Stored COUNT display unit (เม็ด, ขวด, มล., …) — null for MASS groups. */
+  displayUnit: string | null;
+  /** "ยาบ้า 370,000 เม็ด" / "ไอซ์ 5.4 กก." — pre-formatted via formatSeizedItemDisplayTh, Thai, unit-correct. */
   displayTh: string;
 }
 
@@ -110,7 +113,9 @@ export function groupSeizedItemFacts(items: DrugSeizedItemAnalyticsFacts[]): Off
   const groups = new Map<string, OfficerDrugArrestSeizureGroup>();
   for (const item of items) {
     const view = resolveDrugSeizedItemAnalyticsView(item);
-    const key = `${view.drugCategory}::${view.measurementKind}`;
+    const displayUnit = view.measurementKind === "COUNT" ? (view.displayUnit?.trim() || null) : null;
+    // COUNT groups by stored unit so 5,000 เม็ด and 10 ขวด never become one number.
+    const key = `${view.drugCategory}::${view.measurementKind}::${displayUnit ?? ""}`;
     const existing = groups.get(key);
     if (existing) {
       if (view.measurementKind === "COUNT" && view.normalizedCount !== null) {
@@ -128,18 +133,20 @@ export function groupSeizedItemFacts(items: DrugSeizedItemAnalyticsFacts[]): Off
         totalCount: view.measurementKind === "COUNT" ? view.normalizedCount : null,
         totalWeightGrams: view.measurementKind === "MASS" ? view.normalizedWeightGrams : null,
         totalWeightKilograms: view.measurementKind === "MASS" && view.normalizedWeightGrams !== null ? view.normalizedWeightGrams / 1000 : null,
+        displayUnit,
         displayTh: "",
       });
     }
   }
   const result = [...groups.values()];
   for (const g of result) {
-    g.displayTh =
-      g.measurementKind === "COUNT" && g.totalCount !== null
-        ? `${g.categoryLabelTh} ${g.totalCount.toLocaleString("th-TH")} รายการ`
-        : g.measurementKind === "MASS" && g.totalWeightKilograms !== null
-          ? `${g.categoryLabelTh} ${g.totalWeightKilograms.toLocaleString("th-TH", { maximumFractionDigits: 2 })} กก.`
-          : g.categoryLabelTh;
+    g.displayTh = formatSeizedItemDisplayTh({
+      categoryLabelTh: g.categoryLabelTh,
+      measurementKind: g.measurementKind,
+      normalizedCount: g.totalCount,
+      normalizedWeightKilograms: g.totalWeightKilograms,
+      displayUnit: g.displayUnit,
+    });
   }
   return result;
 }
