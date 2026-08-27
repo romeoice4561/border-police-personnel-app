@@ -12,6 +12,7 @@
 
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { kilogramsToGrams } from "@/lib/drug_intelligence/drug_seized_item_analytics";
+import { LATITUDE_MIN, LATITUDE_MAX, LONGITUDE_MIN, LONGITUDE_MAX } from "@/lib/drug_intelligence/drug_coordinate_validation";
 import type { DrugCaseCreateRequest, DrugCaseCreatePersonInput } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 let draftKeyCounter = 0;
@@ -402,10 +403,44 @@ export interface ValidationError {
   message: string;
 }
 
+/**
+ * Thai-friendly pre-flight check for one lat/long pair. Mirrors the RULE
+ * enforced by withCoordinatePair() (both-or-neither; -90..90 / -180..180)
+ * using its own exported range constants as the single source of truth —
+ * this does not re-implement the rule, it only front-runs it with a
+ * friendlier message so the user isn't round-tripped to the server for an
+ * obvious mistake. The server-side Zod schema remains authoritative.
+ */
+function validateCoordinatePair(latitude: string, longitude: string, step: string, label: string, errors: ValidationError[]): void {
+  const hasLat = latitude.trim() !== "";
+  const hasLng = longitude.trim() !== "";
+  if (hasLat !== hasLng) {
+    errors.push({ step, message: `${label}: ต้องกรอกละติจูดและลองจิจูดพร้อมกันทั้งคู่ หรือเว้นว่างทั้งสองช่อง` });
+    return;
+  }
+  if (hasLat) {
+    const lat = Number(latitude);
+    if (!Number.isFinite(lat) || lat < LATITUDE_MIN || lat > LATITUDE_MAX) {
+      errors.push({ step, message: `${label}: ละติจูดต้องอยู่ระหว่าง ${LATITUDE_MIN} ถึง ${LATITUDE_MAX}` });
+    }
+  }
+  if (hasLng) {
+    const lng = Number(longitude);
+    if (!Number.isFinite(lng) || lng < LONGITUDE_MIN || lng > LONGITUDE_MAX) {
+      errors.push({ step, message: `${label}: ลองจิจูดต้องอยู่ระหว่าง ${LONGITUDE_MIN} ถึง ${LONGITUDE_MAX}` });
+    }
+  }
+}
+
 export function validateDraft(draft: CreateCaseDraft): ValidationError[] {
   const errors: ValidationError[] = [];
   if (!draft.caseNumber.trim()) errors.push({ step: "arrest", message: "กรุณากรอกเลขคดี" });
   if (!draft.title.trim()) errors.push({ step: "arrest", message: "กรุณากรอกชื่อ/หัวข้อคดี" });
+
+  validateCoordinatePair(draft.latitude, draft.longitude, "arrest", "พิกัดจุดจับกุม", errors);
+  draft.locations.forEach((location, index) => {
+    validateCoordinatePair(location.latitude, location.longitude, "locations", `สถานที่ลำดับที่ ${index + 1}`, errors);
+  });
 
   draft.persons.forEach((person, index) => {
     if (!person.existingPersonId && !person.primaryFullName.trim()) {

@@ -87,6 +87,8 @@ export interface DrugCaseListParams {
   query?: string;
   status?: string;
   province?: string;
+  /** Phase DI-8 Section 11: district filter — exact match, same convention as province. */
+  district?: string;
   headquartersId?: number;
   regionId?: number;
   battalionId?: number;
@@ -167,6 +169,7 @@ export class DrugCaseRepository {
     const where: Record<string, unknown> = {};
     if (params.status) where.status = params.status;
     if (params.province) where.province = params.province;
+    if (params.district) where.district = params.district;
     if (params.headquartersId !== undefined) where.headquartersId = params.headquartersId;
     if (params.regionId !== undefined) where.regionId = params.regionId;
     if (params.battalionId !== undefined) where.battalionId = params.battalionId;

@@ -12,7 +12,7 @@
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, AlertTriangle, Plus, Network, History } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, MapPinned, AlertTriangle, Plus, Network, History } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -187,6 +187,14 @@ function DrugPersonProfileContent() {
                 {t("di.timeline.viewPersonTimeline")}
               </Link>
             </Button>
+            {can("drug.read") ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/drug-intelligence/map?personId=${encodeURIComponent(data.person.id)}`}>
+                  <MapPinned className="h-4 w-4" aria-hidden="true" />
+                  {t("di.map.actionViewOnMap")}
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild variant="ghost" size="sm">
               <Link href="/drug-intelligence/persons">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />

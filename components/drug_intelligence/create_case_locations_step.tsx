@@ -7,7 +7,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
-import { Field, inputCls } from "@/components/drug_intelligence/create_case_field";
+import { Field, HelperText, inputCls } from "@/components/drug_intelligence/create_case_field";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_options";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
@@ -59,12 +59,35 @@ export function CreateCaseLocationsStep({ locations, onChange }: { locations: Lo
               <Field label={t("di.field.subdistrict")}>
                 <input className={inputCls} value={location.subdistrict} onChange={(e) => update(index, { subdistrict: e.target.value })} />
               </Field>
-              <Field label={t("di.field.latitude")}>
-                <input className={inputCls} value={location.latitude} onChange={(e) => update(index, { latitude: e.target.value })} inputMode="decimal" />
-              </Field>
-              <Field label={t("di.field.longitude")}>
-                <input className={inputCls} value={location.longitude} onChange={(e) => update(index, { longitude: e.target.value })} inputMode="decimal" />
-              </Field>
+              <div className="space-y-1">
+                <Field label={t("di.field.latitude")}>
+                  <input
+                    className={inputCls}
+                    value={location.latitude}
+                    onChange={(e) => update(index, { latitude: e.target.value })}
+                    inputMode="decimal"
+                    placeholder={t("di.hint.latitude")}
+                  />
+                </Field>
+                <HelperText>{t("di.hint.latitude")}</HelperText>
+              </div>
+              <div className="space-y-1">
+                <Field label={t("di.field.longitude")}>
+                  <input
+                    className={inputCls}
+                    value={location.longitude}
+                    onChange={(e) => update(index, { longitude: e.target.value })}
+                    inputMode="decimal"
+                    placeholder={t("di.hint.longitude")}
+                  />
+                </Field>
+                <HelperText>{t("di.hint.longitude")}</HelperText>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3 space-y-0.5 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted">{t("di.map.coordinateHelperText")}</p>
+                <p className="text-xs text-muted">{t("di.map.coordinatePairRule")}</p>
+                <p className="text-xs text-muted">{t("di.map.coordinateRangeRule")}</p>
+              </div>
             </div>
           </CardBody>
         </Card>

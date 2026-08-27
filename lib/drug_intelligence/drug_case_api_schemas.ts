@@ -18,6 +18,7 @@ import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_perso
 import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_options";
 import { DRUG_CATEGORIES, DRUG_MEASUREMENT_KINDS } from "@/lib/drug_intelligence/drug_seized_item_options";
 import { DRUG_CASE_OFFICER_ROLES, DRUG_CASE_UNIT_ROLES } from "@/lib/drug_intelligence/drug_case_officer_options";
+import { withCoordinatePair } from "@/lib/drug_intelligence/drug_coordinate_validation";
 
 const MAX_FIELD = 500;
 
@@ -245,19 +246,19 @@ const caseOfficerSchema = z
     }
   });
 
-const locationSchema = z.object({
+// Phase DI-8 Section 8: shared coordinate-pair rule (range + both-or-neither) — see drug_coordinate_validation.ts.
+const locationSchema = withCoordinatePair({
   name: optionalText,
   addressText: optionalText,
   province: optionalText,
   district: optionalText,
   subdistrict: optionalText,
-  latitude: z.coerce.number().nullable().optional().transform((v) => v ?? null),
-  longitude: z.coerce.number().nullable().optional().transform((v) => v ?? null),
   role: z.enum(DRUG_LOCATION_ROLES),
   notes: optionalText,
 });
 
-export const drugCaseCreateSchema = z.object({
+// Phase DI-8 Section 8: shared coordinate-pair rule applied to the case's own top-level latitude/longitude (see drug_coordinate_validation.ts).
+export const drugCaseCreateSchema = withCoordinatePair({
   caseNumber: z.string().trim().min(1, "Case number is required").max(MAX_FIELD),
   title: z.string().trim().min(1, "Title is required").max(MAX_FIELD),
   status: z.enum(DRUG_CASE_STATUSES).default("OPEN"),
@@ -278,8 +279,6 @@ export const drugCaseCreateSchema = z.object({
   district: optionalText,
   subdistrict: optionalText,
   locationName: optionalText,
-  latitude: z.coerce.number().nullable().optional().transform((v) => v ?? null),
-  longitude: z.coerce.number().nullable().optional().transform((v) => v ?? null),
   narrative: optionalText,
   persons: z.array(personSchema).default([]),
   seizedItems: z.array(seizedItemSchema).default([]),
@@ -313,4 +312,32 @@ export const drugCaseListQuerySchema = z.object({
   participatingUnitCompanyId: z.coerce.number().int().positive().optional(),
   officerId: z.string().trim().optional(),
   officerRole: z.enum(DRUG_CASE_OFFICER_ROLES).optional(),
+});
+
+/**
+ * Phase DI-8, Section 11/32: GET /api/drug-intelligence/map query params.
+ * Extends the case-list filter surface with district, drugCategory, and
+ * personId (Section 21's deep-link) — every filter persists in the URL
+ * (Section 29), so this schema is also the single source of truth for
+ * which query keys the map page reads/writes.
+ */
+export const drugGeoQuerySchema = z.object({
+  status: z.enum(DRUG_CASE_STATUSES).optional(),
+  province: z.string().trim().optional(),
+  district: z.string().trim().optional(),
+  headquartersId: z.coerce.number().int().positive().optional(),
+  regionId: z.coerce.number().int().positive().optional(),
+  battalionId: z.coerce.number().int().positive().optional(),
+  companyId: z.coerce.number().int().positive().optional(),
+  arrestDateFrom: z.string().trim().optional(),
+  arrestDateTo: z.string().trim().optional(),
+  leadHeadquartersId: z.coerce.number().int().positive().optional(),
+  leadRegionId: z.coerce.number().int().positive().optional(),
+  leadBattalionId: z.coerce.number().int().positive().optional(),
+  leadCompanyId: z.coerce.number().int().positive().optional(),
+  participatingUnitCompanyId: z.coerce.number().int().positive().optional(),
+  officerId: z.string().trim().optional(),
+  officerRole: z.enum(DRUG_CASE_OFFICER_ROLES).optional(),
+  drugCategory: z.enum(DRUG_CATEGORIES).optional(),
+  personId: z.string().trim().optional(),
 });

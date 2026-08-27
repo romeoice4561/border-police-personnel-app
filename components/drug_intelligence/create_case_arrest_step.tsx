@@ -281,6 +281,11 @@ export function CreateCaseArrestStep({
             </Field>
             <HelperText>{t("di.hint.longitude")}</HelperText>
           </div>
+          <div className="sm:col-span-2 lg:col-span-3 space-y-0.5 rounded-md border border-border bg-muted/30 px-3 py-2">
+            <p className="text-xs text-muted">{t("di.map.coordinateHelperText")}</p>
+            <p className="text-xs text-muted">{t("di.map.coordinatePairRule")}</p>
+            <p className="text-xs text-muted">{t("di.map.coordinateRangeRule")}</p>
+          </div>
         </CardBody>
       </Card>
 

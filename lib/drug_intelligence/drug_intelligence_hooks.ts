@@ -48,6 +48,7 @@ import {
   type DrugPersonAdvancedSearchQuery,
   type DrugPersonAdvancedSearchResult,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugGeoResultView } from "@/lib/drug_intelligence/drug_geo_client";
 
 export interface DrugPageMeta {
   page: number;
@@ -88,6 +89,8 @@ export const drugQueryKeys = {
   timelineCorrelations: (actorId: string | null, query: DrugTimelineListQuery & { timeWindowDays?: number }) => ["drug-timeline-correlations", actorId, query] as const,
   // DI-7.4
   advancedPersonSearch: (actorId: string | null, query: DrugPersonAdvancedSearchQuery) => ["drug-advanced-person-search", actorId, query] as const,
+  // DI-8
+  geo: (actorId: string | null, query: DrugGeoQueryParams) => ["drug-geo", actorId, query] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -450,5 +453,17 @@ export function useDrugNetworkGroups(
     queryFn: () => drugIntelligenceClient.getNetworkGroups(actorId as string),
     enabled: Boolean(actorId),
     staleTime: 5 * 60 * 1000, // 5 min — groups change rarely
+  });
+}
+
+// ── DI-8: Geographic / Map Intelligence ───────────────────────────────────
+
+/** Keeps previous results while a new filter combination is in-flight, so the map/list don't flash empty on every filter change (same convention as useDrugPersonAdvancedSearch). */
+export function useDrugGeoResult(actorId: string | null, query: DrugGeoQueryParams): UseQueryResult<DrugGeoResultView> {
+  return useQuery({
+    queryKey: drugQueryKeys.geo(actorId, query),
+    queryFn: () => fetchDrugGeoResult(actorId as string, query),
+    enabled: Boolean(actorId),
+    placeholderData: keepPreviousData,
   });
 }

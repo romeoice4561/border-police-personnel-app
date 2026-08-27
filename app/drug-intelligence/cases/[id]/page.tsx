@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, Network, History } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -118,6 +118,14 @@ export default function DrugCaseWorkspacePage() {
                 {t("di.timeline.navLabel")}
               </Link>
             </Button>
+            {can("drug.read") ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
+                  <MapPinned className="h-4 w-4" aria-hidden="true" />
+                  {t("di.map.actionOpenOnMap")}
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild variant="ghost" size="sm">
               <Link href="/drug-intelligence/cases">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -181,12 +189,34 @@ export default function DrugCaseWorkspacePage() {
   );
 }
 
-function FutureFeaturesNote() {
+/**
+ * Phase DI-8.1 Section 2: compact coordinate/location summary + "เปิดบนแผนที่"
+ * action. Deliberately does NOT duplicate the geo read model's coordinate
+ * precedence (DrugCase vs. ARREST_LOCATION DrugLocation) — this reads only
+ * DrugCase's own latitude/longitude, which is the SAME first-priority
+ * source that precedence rule checks first; a case whose only coordinates
+ * live on an ARREST_LOCATION row (not the case itself) will correctly show
+ * "ยังไม่มีพิกัดที่บันทึกไว้" here even though it still appears on the map —
+ * this card is a case-row-level summary, not a duplicate of the map's own
+ * resolution logic.
+ */
+function DrugCaseCoordinateSummary({ caseId, latitude, longitude }: { caseId: string; latitude: string | null; longitude: string | null }) {
   const { t } = useT();
+  const hasCoordinates = latitude !== null && longitude !== null;
+
   return (
-    <p className="mt-6 border-t border-border pt-4 text-xs text-muted">
-      {t("di.workspace.futureFeatures")}: {t("di.workspace.futureMap")}
-    </p>
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.map.coordinateSummaryTitle")}</p>
+        <p className="mt-0.5 text-sm text-foreground">{hasCoordinates ? `${latitude}, ${longitude}` : t("di.map.noCoordinatesRecorded")}</p>
+      </div>
+      <Button asChild variant="outline" size="sm">
+        <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
+          <MapPinned className="h-4 w-4" aria-hidden="true" />
+          {t("di.map.actionOpenOnMap")}
+        </Link>
+      </Button>
+    </div>
   );
 }
 
@@ -209,7 +239,7 @@ function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
         <CardBody className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>
           <p className="whitespace-pre-wrap text-sm text-foreground">{data.case.narrative || "—"}</p>
-          <FutureFeaturesNote />
+          <DrugCaseCoordinateSummary caseId={data.case.id} latitude={data.case.latitude} longitude={data.case.longitude} />
         </CardBody>
       </Card>
     </div>

@@ -23,7 +23,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Calendar, ChevronDown, ChevronUp, Users, Phone, Smartphone, Car, Package, MapPin, Network as NetworkIcon, FileSpreadsheet, BellRing, ArrowUpDown, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network as NetworkIcon, FileSpreadsheet, BellRing, ArrowUpDown, LayoutGrid, Map as MapIcon } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -429,6 +429,12 @@ function TimelineEventDetail({ event }: { event: DrugTimelineEvent }) {
           <Link href={`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(event.caseId)}`}>
             <NetworkIcon className="h-4 w-4" aria-hidden="true" />
             {t("di.timeline.openNetwork")}
+          </Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(event.caseId)}`}>
+            <MapPinned className="h-4 w-4" aria-hidden="true" />
+            {t("di.map.actionOpenOnMap")}
           </Link>
         </Button>
         {event.hasUnreviewedAlert ? (
