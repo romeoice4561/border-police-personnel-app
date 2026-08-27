@@ -98,7 +98,7 @@ export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitT
             }}
             eventHandlers={{ click: () => onSelectMarker(marker.caseId) }}
           >
-            <Popup>{renderPopup(marker)}</Popup>
+            <Popup className="di-geo-popup">{renderPopup(marker)}</Popup>
           </CircleMarker>
         ))}
       </MapContainer>

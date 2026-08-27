@@ -150,6 +150,15 @@ function DrugIntelligenceMapContent({
 }) {
   const { t } = useT();
   const query = useMemo(() => filterStateToQueryParams(filters), [filters]);
+
+  // Section 6 (DI-8.1.1): the current filtered/deep-linked map URL, reusing
+  // DI-8's own filter-state <-> URLSearchParams serialization — never a
+  // second, ad-hoc URL-state encoding — so "return to map" restores the
+  // exact same filtered view the user navigated away from.
+  const mapReturnUrl = useMemo(() => {
+    const params = drugGeoFilterStateToSearchParams(filters);
+    return params.toString() ? `/drug-intelligence/map?${params.toString()}` : "/drug-intelligence/map";
+  }, [filters]);
   const geoQuery = useDrugGeoResult(actorId, query);
 
   const activeFilterCount = useMemo(() => (isDrugGeoFilterStateEmpty(filters) ? 0 : Object.entries(filters).filter(([, v]) => v !== null && v !== "").length), [filters]);
@@ -278,7 +287,7 @@ function DrugIntelligenceMapContent({
               selectedCaseId={selectedCaseId}
               onSelectMarker={handleSelectMarker}
               fitToken={fitToken}
-              renderPopup={(marker) => <DrugGeoMarkerPopup marker={marker} />}
+              renderPopup={(marker) => <DrugGeoMarkerPopup marker={marker} returnTo={mapReturnUrl} />}
               heightClassName={expanded ? "h-full w-full" : undefined}
             />
           )

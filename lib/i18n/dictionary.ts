@@ -2654,6 +2654,7 @@ export const DICTIONARY = {
   "di.map.actionViewTimeline":     tr("ดูไทม์ไลน์", "View Timeline"),
   "di.map.actionViewOnMap":        tr("ดูบนแผนที่", "View on Map"),
   "di.map.actionOpenOnMap":        tr("เปิดบนแผนที่", "Open on Map"),
+  "di.map.actionBackToMap":        tr("กลับแผนที่ข่าวกรอง", "Back to Intelligence Map"),
   "di.map.noCoordinatesRecorded":  tr("ยังไม่มีพิกัดที่บันทึกไว้", "No coordinates recorded yet"),
   "di.map.coordinateSummaryTitle": tr("พิกัด/สถานที่", "Coordinates/Location"),
   "di.map.provinceBreakdownTitle": tr("สรุปตามพื้นที่", "Geographic Summary"),

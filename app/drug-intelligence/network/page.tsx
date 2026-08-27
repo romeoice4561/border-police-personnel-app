@@ -12,9 +12,10 @@
 
 import { Suspense, useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import "@xyflow/react/dist/style.css";
 import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useReactFlow, useNodesState, useEdgesState, type Edge, type Node } from "@xyflow/react";
-import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags } from "lucide-react";
+import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags, MapPinned } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -35,6 +36,7 @@ import { buildDrugNetworkFlowGraph, mergePreservingManualPositions, type DrugNet
 import { resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
+import { getSafeReturnTo } from "@/lib/ui/return_context";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -90,6 +92,10 @@ function DrugNetworkContent() {
   const selectedNodeTypes = nodeTypesParam ? (nodeTypesParam.split(",") as DrugGraphNodeType[]) : undefined;
   const relationshipTypesParam = searchParams.get("relationshipTypes");
   const selectedRelationshipTypes = relationshipTypesParam ? (relationshipTypesParam.split(",") as DrugGraphRelationshipType[]) : undefined;
+  // Section 5/8 (DI-8.1.1): only shows the "back to map" action when the
+  // user actually arrived from Map/Case with a validated returnTo — never
+  // fabricated for a normal/direct Network visit.
+  const returnTo = getSafeReturnTo(searchParams);
 
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -270,10 +276,20 @@ function DrugNetworkContent() {
         title={t("di.network.title")}
         description={t("di.network.description")}
         actions={
-          <Button variant="outline" size="sm" onClick={() => setShowFindConnection((v) => !v)}>
-            <GitCompare className="h-4 w-4" aria-hidden="true" />
-            {t("di.network.findConnection")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {returnTo ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={returnTo}>
+                  <MapPinned className="h-4 w-4" aria-hidden="true" />
+                  {t("di.map.actionBackToMap")}
+                </Link>
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={() => setShowFindConnection((v) => !v)}>
+              <GitCompare className="h-4 w-4" aria-hidden="true" />
+              {t("di.network.findConnection")}
+            </Button>
+          </div>
         }
       />
 

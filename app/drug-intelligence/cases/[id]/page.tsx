@@ -11,9 +11,10 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History } from "lucide-react";
+import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -76,6 +77,8 @@ function locationRoleLabel(role: string, language: "th" | "en"): string {
 export default function DrugCaseWorkspacePage() {
   const params = useParams<{ id: string }>();
   const caseId = decodeURIComponent(params.id);
+  const searchParams = useSearchParams();
+  const returnTo = getSafeReturnTo(searchParams);
   const { user, can } = useAuth();
   const { t, language } = useT();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("overview");
@@ -106,8 +109,16 @@ export default function DrugCaseWorkspacePage() {
         description={data.case.title}
         actions={
           <div className="flex flex-wrap gap-2">
+            {returnTo ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={returnTo}>
+                  <MapPinned className="h-4 w-4" aria-hidden="true" />
+                  {t("di.map.actionBackToMap")}
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild variant="outline" size="sm">
-              <Link href={`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`}>
+              <Link href={withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`, returnTo)}>
                 <Network className="h-4 w-4" aria-hidden="true" />
                 {t("di.network.openNetwork")}
               </Link>

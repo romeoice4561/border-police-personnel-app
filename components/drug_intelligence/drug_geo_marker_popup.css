@@ -1,0 +1,33 @@
+/**
+ * DrugGeoMarkerPopup readability fix (Phase DI-8.1.1, Defect A).
+ *
+ * Leaflet's popup DOM (.leaflet-popup-*) is rendered by Leaflet itself, not
+ * React — it never receives the app's --foreground/--muted CSS variables in
+ * a way that tracks the active theme, and leaflet.css hardcodes a white
+ * wrapper background. DrugGeoMarkerPopup's content used theme tokens meant
+ * for a DARK surface (near-white text in the dark/midnight-black themes),
+ * which on Leaflet's white background is nearly invisible.
+ *
+ * Fix: make the popup an intentionally light, theme-independent surface
+ * (option A) — scoped to only markers using the "di-geo-popup" className
+ * (see drug_geo_map_canvas.tsx), so this never affects Leaflet popups
+ * elsewhere or the rest of the app's theme system.
+ */
+
+.di-geo-popup .leaflet-popup-content-wrapper {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 0.75rem;
+}
+
+.di-geo-popup .leaflet-popup-tip {
+  background: #ffffff;
+}
+
+.di-geo-popup .leaflet-popup-close-button {
+  color: #334155 !important;
+}
+
+.di-geo-popup .leaflet-popup-close-button:hover {
+  color: #0f172a !important;
+}

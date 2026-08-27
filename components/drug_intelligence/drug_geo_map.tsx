@@ -12,6 +12,7 @@
 
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
+import "@/components/drug_intelligence/drug_geo_marker_popup.css";
 import { Loader2 } from "lucide-react";
 import type { DrugGeoMapCanvasProps } from "@/components/drug_intelligence/drug_geo_map_canvas";
 
