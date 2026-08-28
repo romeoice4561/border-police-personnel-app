@@ -21,6 +21,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
 import { DRUG_CASE_STATUSES, DRUG_CASE_STATUS_META } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_CATEGORIES, DRUG_CATEGORY_LABELS } from "@/lib/drug_intelligence/drug_seized_item_options";
+import { DRUG_GEO_TIME_PERIODS, resolveDrugGeoTimePeriodRange, drugGeoTimePeriodLabel, type DrugGeoTimePeriod } from "@/lib/drug_intelligence/drug_geo_time_period";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import type { DrugGeoFilterState } from "@/lib/drug_intelligence/drug_geo_filter_state";
 
@@ -33,10 +34,20 @@ export function DrugGeoFilterPanel({
   onChange: (patch: Partial<DrugGeoFilterState>) => void;
   organizationEngine: OrganizationEngine | undefined;
 }) {
-  const { t } = useT();
+  const { t, language } = useT();
 
   const statusOptions = [{ value: "", label: t("di.map.filterAny") }, ...DRUG_CASE_STATUSES.map((s) => ({ value: s, label: DRUG_CASE_STATUS_META[s].labelTh }))];
   const categoryOptions = [{ value: "", label: t("di.map.filterAny") }, ...DRUG_CATEGORIES.map((c) => ({ value: c, label: DRUG_CATEGORY_LABELS[c].labelTh }))];
+  // CUSTOM isn't a clickable preset — it's the implicit state whenever the
+  // user types their own dateFrom/dateTo below, so only the 4 COMPUTED
+  // presets get a button; "กำหนดช่วงเอง" is communicated by the date inputs
+  // themselves being directly editable, not by a 5th no-op button.
+  const timePeriodOptions = DRUG_GEO_TIME_PERIODS.filter((p): p is Exclude<DrugGeoTimePeriod, "CUSTOM"> => p !== "CUSTOM").map((p) => ({ value: p, label: drugGeoTimePeriodLabel(p, language) }));
+
+  function handleTimePeriodChange(period: Exclude<DrugGeoTimePeriod, "CUSTOM">) {
+    const range = resolveDrugGeoTimePeriodRange(period);
+    onChange({ dateFrom: range.dateFrom, dateTo: range.dateTo });
+  }
 
   const reportingOrgValue: OrgHierarchyValue = {
     headquartersId: filters.headquartersId,
@@ -61,6 +72,20 @@ export function DrugGeoFilterPanel({
 
   return (
     <div className="space-y-4">
+      <Field label={t("di.map.filterTimePeriod")}>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("di.map.filterTimePeriod")}>
+          {timePeriodOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleTimePeriodChange(opt.value)}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </Field>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label={t("di.map.filterDateFrom")} htmlFor="geo-dateFrom">
           <input id="geo-dateFrom" type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={filters.dateFrom} onChange={(e) => onChange({ dateFrom: e.target.value })} />

@@ -54,6 +54,7 @@ import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_i
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import type {
   DrugPersonProfileResponse,
   DrugCaseLinkSummary,
@@ -113,6 +114,10 @@ function DrugPersonProfileContent() {
   const personId = decodeURIComponent(params.id);
   const searchParams = useSearchParams();
   const justMerged = searchParams.get("merged") !== null;
+  // Section 14/15 (DI-8.2): only shows the "back to map" action when the
+  // user actually arrived from the Map's "ดูผู้เกี่ยวข้อง"/deep-link with a
+  // validated returnTo — never fabricated for a normal/direct Person Profile visit.
+  const returnTo = getSafeReturnTo(searchParams);
   const { user, can } = useAuth();
   const { t, language } = useT();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("overview");
@@ -175,8 +180,16 @@ function DrugPersonProfileContent() {
         description={t("di.profile.personId") + ": " + data.person.id}
         actions={
           <div className="flex flex-wrap gap-2">
+            {returnTo ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={returnTo}>
+                  <MapPinned className="h-4 w-4" aria-hidden="true" />
+                  {t("di.map.actionBackToMap")}
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild variant="outline" size="sm">
-              <Link href={`/drug-intelligence/network?focusType=PERSON&focusId=${encodeURIComponent(data.person.id)}`}>
+              <Link href={withReturnTo(`/drug-intelligence/network?focusType=PERSON&focusId=${encodeURIComponent(data.person.id)}`, returnTo)}>
                 <Network className="h-4 w-4" aria-hidden="true" />
                 {t("di.network.openNetwork")}
               </Link>

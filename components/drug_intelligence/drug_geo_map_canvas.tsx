@@ -8,15 +8,22 @@
  *
  * Marker design (Section 15): plain circle markers, neutral project accent
  * color — never risk/severity-colored. The selected marker gets a visible
- * emphasis ring, never a "danger" color scheme. No clustering in this first
- * version (Section 16) — the QA-scale dataset does not need it yet; documented
- * as deferred, not silently skipped.
+ * emphasis ring, never a "danger" color scheme.
+ *
+ * Clustering (Phase DI-8.2, Section 8/13): an opt-in "ความหนาแน่น" view
+ * mode groups nearby markers into a grid-bucket cluster bubble
+ * (lib/drug_intelligence/drug_geo_cluster.ts) — deliberately NOT a
+ * react-leaflet-cluster/leaflet.markercluster dependency (unconfirmed
+ * compatibility with react-leaflet@5/React 19), and deliberately NOT a
+ * heatmap (no interpolation/guessed density — every cluster's position is
+ * the exact centroid of its real, stored-coordinate members).
  */
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
-import type { LatLngBoundsExpression } from "leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap, useMapEvent } from "react-leaflet";
+import { divIcon, type LatLngBoundsExpression } from "leaflet";
+import { computeDrugGeoClusters } from "@/lib/drug_intelligence/drug_geo_cluster";
 import type { DrugGeoCaseMarkerView } from "@/lib/drug_intelligence/drug_geo_client";
 
 // Thailand-wide default view (Section 28) — a sensible national center/zoom,
@@ -62,6 +69,31 @@ function FitBoundsController({ markers, selectedCaseId, fitToken }: { markers: D
   return null;
 }
 
+/** Tracks the current zoom level into React state so cluster bucket size can react to zoom/pan without prop-drilling a Leaflet map instance. */
+function ZoomTracker({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onZoomChange(map.getZoom());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- report the initial zoom once on mount; subsequent changes come from the zoomend event below
+  }, []);
+  useMapEvent("zoomend", (e) => onZoomChange(e.target.getZoom()));
+  return null;
+}
+
+/** Thai-only, matching this file's existing convention of hardcoding Thai text locally rather than importing useT() into a Leaflet-internals-heavy client canvas (same pattern as drug_geo_marker_popup.tsx's own date formatter). */
+function clusterAriaLabel(count: number): string {
+  return `กลุ่มคดี ${count.toLocaleString("th-TH")} คดี กดเพื่อขยาย`;
+}
+
+function clusterDivIcon(count: number, ariaLabel: string) {
+  const size = count >= 10 ? 40 : count >= 5 ? 34 : 28;
+  return divIcon({
+    html: `<div role="button" tabindex="0" aria-label="${ariaLabel}" style="display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:${MARKER_COLOR};color:#ffffff;font-weight:600;font-size:12px;border:2px solid #ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.35);cursor:pointer;">${count}</div>`,
+    className: "di-geo-cluster-icon",
+    iconSize: [size, size],
+  });
+}
+
 export interface DrugGeoMapCanvasProps {
   markers: DrugGeoCaseMarkerView[];
   selectedCaseId: string | null;
@@ -69,13 +101,18 @@ export interface DrugGeoMapCanvasProps {
   fitToken: number;
   renderPopup: (marker: DrugGeoCaseMarkerView) => React.ReactNode;
   heightClassName?: string;
+  /** Section 8/13 (DI-8.2): opt-in "ความหนาแน่น" view — grid-bucket clustering, off by default so the original point view is unchanged when omitted. */
+  clusterMode?: boolean;
 }
 
-export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitToken, renderPopup, heightClassName }: DrugGeoMapCanvasProps) {
+export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitToken, renderPopup, heightClassName, clusterMode = false }: DrugGeoMapCanvasProps) {
   const initialCenter = useMemo<[number, number]>(() => {
     if (markers.length === 1) return [markers[0].latitude, markers[0].longitude];
     return THAILAND_CENTER;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- initial mount value only; FitBoundsController owns subsequent view changes
+
+  const [zoom, setZoom] = useState(THAILAND_DEFAULT_ZOOM);
+  const clusters = useMemo(() => (clusterMode ? computeDrugGeoClusters(markers, zoom) : []), [clusterMode, markers, zoom]);
 
   return (
     <div className={heightClassName ?? "h-[70vh] min-h-[420px] w-full overflow-hidden rounded-xl border border-border"}>
@@ -85,23 +122,91 @@ export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitT
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBoundsController markers={markers} selectedCaseId={selectedCaseId} fitToken={fitToken} />
-        {markers.map((marker) => (
-          <CircleMarker
-            key={marker.caseId}
-            center={[marker.latitude, marker.longitude]}
-            radius={marker.caseId === selectedCaseId ? 11 : 8}
-            pathOptions={{
-              color: marker.caseId === selectedCaseId ? MARKER_SELECTED_COLOR : MARKER_COLOR,
-              fillColor: marker.caseId === selectedCaseId ? MARKER_SELECTED_COLOR : MARKER_COLOR,
-              fillOpacity: 0.85,
-              weight: marker.caseId === selectedCaseId ? 3 : 2,
-            }}
-            eventHandlers={{ click: () => onSelectMarker(marker.caseId) }}
-          >
-            <Popup className="di-geo-popup">{renderPopup(marker)}</Popup>
-          </CircleMarker>
-        ))}
+        {clusterMode ? <ZoomTracker onZoomChange={setZoom} /> : null}
+        {clusterMode
+          ? clusters.map((cluster) =>
+              cluster.markers.length === 1 ? (
+                <ClusterSingleMarker key={cluster.clusterId} marker={cluster.markers[0]} selectedCaseId={selectedCaseId} onSelectMarker={onSelectMarker} renderPopup={renderPopup} />
+              ) : (
+                <ClusterBubbleMarker
+                  key={cluster.clusterId}
+                  latitude={cluster.latitude}
+                  longitude={cluster.longitude}
+                  count={cluster.markers.length}
+                  ariaLabel={clusterAriaLabel(cluster.markers.length)}
+                />
+              )
+            )
+          : markers.map((marker) => (
+              <CircleMarker
+                key={marker.caseId}
+                center={[marker.latitude, marker.longitude]}
+                radius={marker.caseId === selectedCaseId ? 11 : 8}
+                pathOptions={{
+                  color: marker.caseId === selectedCaseId ? MARKER_SELECTED_COLOR : MARKER_COLOR,
+                  fillColor: marker.caseId === selectedCaseId ? MARKER_SELECTED_COLOR : MARKER_COLOR,
+                  fillOpacity: 0.85,
+                  weight: marker.caseId === selectedCaseId ? 3 : 2,
+                }}
+                eventHandlers={{ click: () => onSelectMarker(marker.caseId) }}
+              >
+                <Popup className="di-geo-popup">{renderPopup(marker)}</Popup>
+              </CircleMarker>
+            ))}
       </MapContainer>
     </div>
+  );
+}
+
+/** A cluster bubble — clicking OR pressing Enter/Space zooms in on its centroid so the underlying points separate out (Section 8: "click/zoom: expand into underlying points"; Section 21: keyboard-accessible, not click-only). Uses useMap() rather than reaching into Leaflet's Marker event target for the map instance. */
+function ClusterBubbleMarker({ latitude, longitude, count, ariaLabel }: { latitude: number; longitude: number; count: number; ariaLabel: string }) {
+  const map = useMap();
+  const expand = () => map.setView([latitude, longitude], Math.min(map.getZoom() + 2, 18), { animate: true });
+  return (
+    <Marker
+      position={[latitude, longitude]}
+      icon={clusterDivIcon(count, ariaLabel)}
+      eventHandlers={{
+        click: expand,
+        add: (e) => {
+          const el = e.target.getElement();
+          el?.addEventListener("keydown", (ke: KeyboardEvent) => {
+            if (ke.key === "Enter" || ke.key === " ") {
+              ke.preventDefault();
+              expand();
+            }
+          });
+        },
+      }}
+    />
+  );
+}
+
+/** A cluster bucket that happens to contain exactly one marker renders as a normal point marker (same visual language as the non-cluster view), not a size-1 cluster bubble. */
+function ClusterSingleMarker({
+  marker,
+  selectedCaseId,
+  onSelectMarker,
+  renderPopup,
+}: {
+  marker: DrugGeoCaseMarkerView;
+  selectedCaseId: string | null;
+  onSelectMarker: (caseId: string) => void;
+  renderPopup: (marker: DrugGeoCaseMarkerView) => React.ReactNode;
+}) {
+  return (
+    <CircleMarker
+      center={[marker.latitude, marker.longitude]}
+      radius={marker.caseId === selectedCaseId ? 11 : 8}
+      pathOptions={{
+        color: marker.caseId === selectedCaseId ? MARKER_SELECTED_COLOR : MARKER_COLOR,
+        fillColor: marker.caseId === selectedCaseId ? MARKER_SELECTED_COLOR : MARKER_COLOR,
+        fillOpacity: 0.85,
+        weight: marker.caseId === selectedCaseId ? 3 : 2,
+      }}
+      eventHandlers={{ click: () => onSelectMarker(marker.caseId) }}
+    >
+      <Popup className="di-geo-popup">{renderPopup(marker)}</Popup>
+    </CircleMarker>
   );
 }

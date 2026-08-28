@@ -1,19 +1,26 @@
 /**
- * Drug Intelligence Map (Phase DI-8).
+ * Drug Intelligence Analysis Map (Phase DI-8, extended DI-8.1/8.1.1/8.2).
  *
- * "แผนที่ข่าวกรองยาเสพติด" — the map is the dominant surface (Section 4);
- * Leaflet + OpenStreetMap tiles, no API key. Filters persist in the URL
- * (Section 29) via useRouter/useSearchParams so refresh/back/forward
- * restore the exact same view (Section 36 V/W). Expanded mode (Section 5)
- * uses a fixed-position in-app overlay rather than the browser Fullscreen
- * API — simpler, and preserves filter access/exit button reliably across
- * browsers.
+ * "แผนที่วิเคราะห์ข่าวกรองยาเสพติด" — the map is the dominant surface
+ * (Section 4); Leaflet + OpenStreetMap tiles, no API key. Filters persist
+ * in the URL (Section 29) via useRouter/useSearchParams so refresh/back/
+ * forward restore the exact same view (Section 36 V/W). Expanded mode
+ * (Section 5) uses a fixed-position in-app overlay rather than the browser
+ * Fullscreen API — simpler, and preserves filter access/exit button
+ * reliably across browsers.
+ *
+ * DI-8.2 additions: a right-side analysis panel (top provinces, seizure
+ * summary, monthly trend — all computed CLIENT-SIDE from the already-
+ * fetched result, no new API/aggregation), removable filter chips, a time-
+ * period preset selector, and an opt-in dependency-free cluster view mode
+ * — see each new component's own doc comment for why no new backend
+ * endpoint or npm dependency was needed.
  */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Maximize2, MapPinned, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Maximize2, MapPinned, ChevronDown, ChevronUp, X, RefreshCw, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -23,16 +30,24 @@ import { useT } from "@/components/i18n/language_provider";
 import { useOrganizationEngine } from "@/lib/ui/hooks";
 import { useDrugGeoResult } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { DrugGeoFilterPanel } from "@/components/drug_intelligence/drug_geo_filter_panel";
+import { DrugGeoFilterChips } from "@/components/drug_intelligence/drug_geo_filter_chips";
 import { DrugGeoMap } from "@/components/drug_intelligence/drug_geo_map";
 import { DrugGeoMarkerPopup } from "@/components/drug_intelligence/drug_geo_marker_popup";
 import { DrugGeoResultList } from "@/components/drug_intelligence/drug_geo_result_list";
 import { DrugGeoProvinceBreakdown } from "@/components/drug_intelligence/drug_geo_province_breakdown";
+import { DrugGeoTopProvincesPanel } from "@/components/drug_intelligence/drug_geo_top_provinces_panel";
+import { DrugGeoSeizureSummaryPanel } from "@/components/drug_intelligence/drug_geo_seizure_summary_panel";
+import { DrugGeoTimeTrendChart } from "@/components/drug_intelligence/drug_geo_time_trend_chart";
 import {
   drugGeoFilterStateFromSearchParams,
   drugGeoFilterStateToSearchParams,
   isDrugGeoFilterStateEmpty,
   type DrugGeoFilterState,
 } from "@/lib/drug_intelligence/drug_geo_filter_state";
+import { deriveDrugGeoFilterChips } from "@/lib/drug_intelligence/drug_geo_filter_chips";
+import { combineDrugGeoSeizureGroups } from "@/lib/drug_intelligence/drug_geo_seizure_summary";
+import { computeDrugGeoMonthlyTrend } from "@/lib/drug_intelligence/drug_geo_time_trend";
+import { computeDrugGeoDefendantCount, computeDrugGeoUnitCount } from "@/lib/drug_intelligence/drug_geo_summary_extra";
 import type { DrugGeoQueryParams } from "@/lib/drug_intelligence/drug_geo_client";
 
 const VIEW_MODES = ["MAP", "LIST", "PROVINCE"] as const;
@@ -68,6 +83,8 @@ export default function DrugIntelligenceMapPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("MAP");
   const [expanded, setExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  const [showAnalysisPanel, setShowAnalysisPanel] = useState(true);
+  const [clusterMode, setClusterMode] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [fitToken, setFitToken] = useState(0);
 
@@ -105,6 +122,10 @@ export default function DrugIntelligenceMapPage() {
       setExpanded={setExpanded}
       showFilters={showFilters}
       setShowFilters={setShowFilters}
+      showAnalysisPanel={showAnalysisPanel}
+      setShowAnalysisPanel={setShowAnalysisPanel}
+      clusterMode={clusterMode}
+      setClusterMode={setClusterMode}
       selectedCaseId={selectedCaseId}
       setSelectedCaseId={setSelectedCaseId}
       fitToken={fitToken}
@@ -125,6 +146,10 @@ function DrugIntelligenceMapContent({
   setExpanded,
   showFilters,
   setShowFilters,
+  showAnalysisPanel,
+  setShowAnalysisPanel,
+  clusterMode,
+  setClusterMode,
   selectedCaseId,
   setSelectedCaseId,
   fitToken,
@@ -141,6 +166,10 @@ function DrugIntelligenceMapContent({
   setExpanded: (v: boolean) => void;
   showFilters: boolean;
   setShowFilters: (v: boolean) => void;
+  showAnalysisPanel: boolean;
+  setShowAnalysisPanel: (v: boolean) => void;
+  clusterMode: boolean;
+  setClusterMode: (v: boolean) => void;
   selectedCaseId: string | null;
   setSelectedCaseId: (id: string | null) => void;
   fitToken: number;
@@ -162,6 +191,7 @@ function DrugIntelligenceMapContent({
   const geoQuery = useDrugGeoResult(actorId, query);
 
   const activeFilterCount = useMemo(() => (isDrugGeoFilterStateEmpty(filters) ? 0 : Object.entries(filters).filter(([, v]) => v !== null && v !== "").length), [filters]);
+  const filterChips = useMemo(() => deriveDrugGeoFilterChips(filters, organizationEngine), [filters, organizationEngine]);
 
   const handleSelectMarker = useCallback((caseId: string) => setSelectedCaseId(caseId), [setSelectedCaseId]);
   const handleFitToScreen = useCallback(() => setFitToken((n) => n + 1), [setFitToken]);
@@ -198,6 +228,17 @@ function DrugIntelligenceMapContent({
   const periodLabel =
     filters.dateFrom || filters.dateTo ? `${filters.dateFrom || "…"} – ${filters.dateTo || "…"}` : t("di.map.kpiPeriodAll");
 
+  // Section 3/10/11/12 (DI-8.2): every figure below is computed CLIENT-SIDE
+  // from the already-fetched geoQuery.data — no new API call, no new
+  // backend aggregation. markerCount-scoped (defendants, seizures) vs.
+  // all-cases-scoped (unit count, trend) intentionally differ, matching
+  // what each underlying view model actually carries (see
+  // drug_geo_summary_extra.ts / drug_geo_time_trend.ts doc comments).
+  const defendantCount = computeDrugGeoDefendantCount(markers);
+  const unitCount = computeDrugGeoUnitCount([...markers, ...noCoordinateCases]);
+  const seizureSummary = combineDrugGeoSeizureGroups(markers.map((m) => m.seizedItems));
+  const monthlyTrend = computeDrugGeoMonthlyTrend([...markers, ...noCoordinateCases]);
+
   const content = (
     <div className={expanded ? "flex h-full flex-col gap-3 p-3" : "space-y-5"}>
       {!expanded ? (
@@ -205,14 +246,22 @@ function DrugIntelligenceMapContent({
           title={t("di.map.title")}
           description={t("di.map.subtitle")}
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {activeFilterCount > 0 ? (
                 <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
                   {t("di.map.activeFilters")}: {activeFilterCount}
                 </span>
               ) : null}
+              <Button variant="ghost" size="sm" onClick={() => geoQuery.refetch()}>
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                {t("di.map.refreshData")}
+              </Button>
               <Button variant="ghost" size="sm" onClick={clearAll} disabled={activeFilterCount === 0}>
                 {t("di.map.clearAll")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowAnalysisPanel(!showAnalysisPanel)} aria-pressed={showAnalysisPanel}>
+                {showAnalysisPanel ? <PanelRightClose className="h-4 w-4" aria-hidden="true" /> : <PanelRightOpen className="h-4 w-4" aria-hidden="true" />}
+                {t("di.map.toggleAnalysisPanel")}
               </Button>
             </div>
           }
@@ -223,11 +272,15 @@ function DrugIntelligenceMapContent({
         <div className="rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">{t("di.map.personDeepLinkNotice")}</div>
       ) : null}
 
+      {!expanded && filterChips.length > 0 ? <DrugGeoFilterChips chips={filterChips} onRemove={applyFilters} /> : null}
+
       {!expanded ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           <KpiTile label={t("di.map.kpiTotalCases")} value={summary.totalCases} />
-          <KpiTile label={t("di.map.kpiMarkerCount")} value={summary.markerCount} />
+          <KpiTile label={t("di.map.kpiDefendantCount")} value={defendantCount} />
           <KpiTile label={t("di.map.kpiProvinceCount")} value={summary.provinceCount} />
+          <KpiTile label={t("di.map.kpiUnitCount")} value={unitCount} />
+          <KpiTile label={t("di.map.kpiMarkerCount")} value={summary.markerCount} />
           <KpiTile label={t("di.map.kpiNoCoordinateCount")} value={summary.noCoordinateCount} />
           <div className="rounded-xl border border-border bg-neutral-bg p-3">
             <p className="text-xs text-muted">{t("di.map.kpiPeriod")}</p>
@@ -249,17 +302,40 @@ function DrugIntelligenceMapContent({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
-          {VIEW_MODES.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === mode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
-            >
-              {mode === "MAP" ? t("di.map.viewModeMap") : mode === "LIST" ? t("di.map.viewModeList") : t("di.map.viewModeProvince")}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
+            {VIEW_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === mode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
+              >
+                {mode === "MAP" ? t("di.map.viewModeMap") : mode === "LIST" ? t("di.map.viewModeList") : t("di.map.viewModeProvince")}
+              </button>
+            ))}
+          </div>
+          {/* Section 8/13 (DI-8.2): "จุดจับกุม" (points) vs. "ความหนาแน่น" (grid-bucket cluster density) — only meaningful in MAP view mode. */}
+          {viewMode === "MAP" ? (
+            <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
+              <button
+                type="button"
+                onClick={() => setClusterMode(false)}
+                aria-pressed={!clusterMode}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${!clusterMode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
+              >
+                {t("di.map.viewModePoints")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setClusterMode(true)}
+                aria-pressed={clusterMode}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${clusterMode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
+              >
+                {t("di.map.viewModeCluster")}
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {viewMode === "MAP" ? (
@@ -277,48 +353,76 @@ function DrugIntelligenceMapContent({
         </div>
       </div>
 
-      <div className={expanded ? "min-h-0 flex-1" : ""}>
-        {viewMode === "MAP" ? (
-          markers.length === 0 ? (
-            <EmptyState title={t("di.map.emptyMap")} icon={<MapPinned className="h-8 w-8" />} />
-          ) : (
-            <DrugGeoMap
-              markers={markers}
-              selectedCaseId={selectedCaseId}
-              onSelectMarker={handleSelectMarker}
-              fitToken={fitToken}
-              renderPopup={(marker) => <DrugGeoMarkerPopup marker={marker} returnTo={mapReturnUrl} />}
-              heightClassName={expanded ? "h-full w-full" : undefined}
-            />
-          )
-        ) : viewMode === "LIST" ? (
-          <DrugGeoResultList markers={markers} noCoordinateCases={noCoordinateCases} selectedCaseId={selectedCaseId} onSelectMarker={handleSelectMarker} />
-        ) : (
-          <DrugGeoProvinceBreakdown rows={provinceBreakdown} onSelectProvince={handleSelectProvince} />
-        )}
-      </div>
+      <div className={expanded ? "min-h-0 flex-1" : "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"}>
+        <div className={expanded ? "flex h-full flex-col gap-3" : "space-y-5"}>
+          <div className={expanded ? "min-h-0 flex-1" : ""}>
+            {viewMode === "MAP" ? (
+              markers.length === 0 ? (
+                <EmptyState title={t("di.map.emptyMap")} icon={<MapPinned className="h-8 w-8" />} />
+              ) : (
+                <DrugGeoMap
+                  markers={markers}
+                  selectedCaseId={selectedCaseId}
+                  onSelectMarker={handleSelectMarker}
+                  fitToken={fitToken}
+                  renderPopup={(marker) => <DrugGeoMarkerPopup marker={marker} returnTo={mapReturnUrl} />}
+                  heightClassName={expanded ? "h-full w-full" : undefined}
+                  clusterMode={clusterMode}
+                />
+              )
+            ) : viewMode === "LIST" ? (
+              <DrugGeoResultList markers={markers} noCoordinateCases={noCoordinateCases} selectedCaseId={selectedCaseId} onSelectMarker={handleSelectMarker} />
+            ) : (
+              <DrugGeoProvinceBreakdown rows={provinceBreakdown} onSelectProvince={handleSelectProvince} />
+            )}
+          </div>
 
-      {!expanded && viewMode === "MAP" ? (
-        <div>
-          <p className="mb-2 text-sm font-semibold text-foreground">{t("di.map.resultListTitle")}</p>
-          <DrugGeoResultList markers={markers} noCoordinateCases={noCoordinateCases} selectedCaseId={selectedCaseId} onSelectMarker={handleSelectMarker} />
+          {!expanded && viewMode === "MAP" ? (
+            <div>
+              <p className="mb-2 text-sm font-semibold text-foreground">{t("di.map.resultListTitle")}</p>
+              <DrugGeoResultList markers={markers} noCoordinateCases={noCoordinateCases} selectedCaseId={selectedCaseId} onSelectMarker={handleSelectMarker} />
+            </div>
+          ) : null}
+
+          {!expanded && noCoordinateCases.length > 0 && viewMode !== "LIST" ? (
+            <Card>
+              <CardBody>
+                <p className="mb-2 text-sm font-semibold text-foreground">{t("di.map.noCoordinateSectionTitle")}</p>
+                <ul className="space-y-1 text-sm text-muted">
+                  {noCoordinateCases.map((c) => (
+                    <li key={c.caseId}>
+                      {c.caseNumber} — {c.title}
+                    </li>
+                  ))}
+                </ul>
+              </CardBody>
+            </Card>
+          ) : null}
         </div>
-      ) : null}
 
-      {!expanded && noCoordinateCases.length > 0 && viewMode !== "LIST" ? (
-        <Card>
-          <CardBody>
-            <p className="mb-2 text-sm font-semibold text-foreground">{t("di.map.noCoordinateSectionTitle")}</p>
-            <ul className="space-y-1 text-sm text-muted">
-              {noCoordinateCases.map((c) => (
-                <li key={c.caseId}>
-                  {c.caseNumber} — {c.title}
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      ) : null}
+        {!expanded && showAnalysisPanel ? (
+          <div className="space-y-4">
+            <Card>
+              <CardBody className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{t("di.map.topProvincesTitle")}</p>
+                <DrugGeoTopProvincesPanel rows={provinceBreakdown} />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{t("di.map.seizureSummaryTitle")}</p>
+                <DrugGeoSeizureSummaryPanel groups={seizureSummary} />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{t("di.map.trendTitle")}</p>
+                <DrugGeoTimeTrendChart buckets={monthlyTrend} />
+              </CardBody>
+            </Card>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 

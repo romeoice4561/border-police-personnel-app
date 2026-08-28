@@ -9,11 +9,13 @@
  */
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/components/i18n/language_provider";
 import { withReturnTo } from "@/lib/ui/return_context";
+import { DrugGeoPersonsDrawer } from "@/components/drug_intelligence/drug_geo_persons_drawer";
 import type { DrugGeoCaseMarkerView } from "@/lib/drug_intelligence/drug_geo_client";
 
 function formatIsoDateTh(iso: string | null): string {
@@ -29,6 +31,7 @@ function formatIsoDateTh(iso: string | null): string {
 
 export function DrugGeoMarkerPopup({ marker, returnTo }: { marker: DrugGeoCaseMarkerView; returnTo?: string }) {
   const { t } = useT();
+  const [personsDrawerOpen, setPersonsDrawerOpen] = useState(false);
 
   return (
     <div className="w-64 space-y-2 text-sm">
@@ -99,8 +102,8 @@ export function DrugGeoMarkerPopup({ marker, returnTo }: { marker: DrugGeoCaseMa
           <Link href={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(marker.caseId)}`, returnTo)}>{t("di.map.actionOpenCase")}</Link>
         </Button>
         {marker.suspectCount > 0 ? (
-          <Button asChild size="sm" variant="outline" className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100">
-            <Link href={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(marker.caseId)}`, returnTo)}>{t("di.map.actionViewPersons")}</Link>
+          <Button size="sm" variant="outline" className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100" onClick={() => setPersonsDrawerOpen(true)}>
+            {t("di.map.actionViewPersons")}
           </Button>
         ) : null}
         <Button asChild size="sm" variant="outline" className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100">
@@ -110,6 +113,14 @@ export function DrugGeoMarkerPopup({ marker, returnTo }: { marker: DrugGeoCaseMa
           <Link href={withReturnTo(`/drug-intelligence/timeline?caseId=${encodeURIComponent(marker.caseId)}`, returnTo)}>{t("di.map.actionViewTimeline")}</Link>
         </Button>
       </div>
+
+      <DrugGeoPersonsDrawer
+        open={personsDrawerOpen}
+        onClose={() => setPersonsDrawerOpen(false)}
+        caseNumber={marker.caseNumber}
+        persons={marker.personSummaries}
+        returnTo={returnTo}
+      />
     </div>
   );
 }
