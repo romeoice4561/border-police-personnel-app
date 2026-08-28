@@ -1,9 +1,16 @@
 /**
- * Node detail panel content (Phase DI-5, Section 10). Rendered inside the
- * shared Drawer primitive. Per-entity-type fields per the spec; every
- * entity type gets an "open detail/profile/case" link to its canonical
- * page (Section 10/14) and — where applicable — an "expand" action handed
- * back to the parent canvas.
+ * Node detail panel content (Phase DI-5, Section 10; polished DI-9.1
+ * Section 9). Rendered inside the shared Drawer primitive. Per-entity-type
+ * fields per the spec; every entity type gets an "open detail/profile/case"
+ * link to its canonical page (Section 10/14) and — where applicable — an
+ * "expand" action handed back to the parent canvas.
+ *
+ * DI-9.1 additions: an explicit entity-type heading (was previously only
+ * implied by icon/shape on the canvas, not restated in the drawer itself),
+ * and PHONE/SIM metadata rows (carrier, IMSI) that the original DI-5 drawer
+ * omitted despite the underlying DrugGraphNodeMetadata already carrying
+ * them for DEVICE/VEHICLE/CASE/LOCATION. No new backend calls — every field
+ * shown here already exists on the node the canvas already fetched.
  */
 "use client";
 
@@ -13,7 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import { drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes";
+import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 function formatDate(value: string | null, language: "th" | "en"): string {
   if (!value) return "—";
@@ -29,6 +38,7 @@ export function DrugNetworkNodeDetail({ node, onExpand }: { node: DrugGraphNode;
   return (
     <div className="space-y-4">
       <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[node.type] as TranslationKey)}</p>
         <p className="text-lg font-semibold text-foreground">{node.label}</p>
         {node.secondaryLabel ? <p className="text-sm text-muted">{node.secondaryLabel}</p> : null}
       </div>
@@ -62,6 +72,28 @@ export function DrugNetworkNodeDetail({ node, onExpand }: { node: DrugGraphNode;
           <dt className="text-xs text-muted">{t("di.entity.sourceCases")}</dt>
           <dd className="text-foreground">{node.caseCount}</dd>
         </div>
+        {node.metadata.type === "PHONE" && node.metadata.carrier ? (
+          <div>
+            <dt className="text-xs text-muted">{t("di.entity.carrier")}</dt>
+            <dd className="text-foreground">{node.metadata.carrier}</dd>
+          </div>
+        ) : null}
+        {node.metadata.type === "SIM" ? (
+          <>
+            {node.metadata.imsi ? (
+              <div>
+                <dt className="text-xs text-muted">{t("di.entity.imsi")}</dt>
+                <dd className="text-foreground">{node.metadata.imsi}</dd>
+              </div>
+            ) : null}
+            {node.metadata.carrier ? (
+              <div>
+                <dt className="text-xs text-muted">{t("di.entity.carrier")}</dt>
+                <dd className="text-foreground">{node.metadata.carrier}</dd>
+              </div>
+            ) : null}
+          </>
+        ) : null}
         {node.metadata.type === "DEVICE" ? (
           <div>
             <dt className="text-xs text-muted">{t("di.entity.brand")}</dt>

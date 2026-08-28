@@ -7,6 +7,18 @@
  * Never claims proof of association (Section "mission") — every node/edge
  * label and drawer routes through the neutral wording DI-5's typed
  * contract already enforces structurally (edgeKind, explanation facts).
+ *
+ * DI-9.1 — Workspace shell: View Mode (default, unchanged experience) vs
+ * Analyst Mode (currently a SCAFFOLD ONLY — a mode badge + a "more tools
+ * coming" placeholder card; no drawing/annotation/waypoint/undo/pin/save
+ * functionality exists yet, per DI-9 Round A's approved phase sequence).
+ * Mode is local component state, never persisted (no localStorage, no DB,
+ * no URL param) — it never changes graph factual data, never triggers a
+ * refetch, and never resets filters/selection/manual node positions.
+ * Analyst Mode requires `drug.edit`, mirroring the exact same permission
+ * tier this app already uses everywhere else to gate "can see beyond the
+ * read-only view" (e.g. Map's/Case Workspace's own canViewFull checks) —
+ * intentionally NOT a new permission string.
  */
 "use client";
 
@@ -15,9 +27,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@xyflow/react/dist/style.css";
 import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useReactFlow, useNodesState, useEdgesState, type Edge, type Node } from "@xyflow/react";
-import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags, MapPinned } from "lucide-react";
+import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags, MapPinned, Eye, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
+import { DrugNetworkStatusBar } from "@/components/drug_intelligence/drug_network_status_bar";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -44,6 +57,9 @@ const ALL_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE",
 const NODE_TYPES = { drugGraphNode: DrugNetworkGraphNode };
 const HARD_MAX_NODES = 150;
 
+/** DI-9.1 Section 3: View Mode is the default, unchanged DI-5 experience. Analyst Mode is currently a scaffold only — see the file's top doc comment. */
+type DrugNetworkWorkspaceMode = "VIEW" | "ANALYST";
+
 const LAYOUT_BUTTONS: { mode: DrugNetworkLayoutMode; icon: typeof LayoutGrid; labelKey: TranslationKey }[] = [
   { mode: "AUTO", icon: LayoutGrid, labelKey: "di.network.layoutAuto" },
   { mode: "PERSON_CENTERED", icon: UserCircle, labelKey: "di.network.layoutPersonCentered" },
@@ -52,6 +68,20 @@ const LAYOUT_BUTTONS: { mode: DrugNetworkLayoutMode; icon: typeof LayoutGrid; la
   { mode: "GROUP_BY_TYPE", icon: Layers, labelKey: "di.network.layoutGroupByType" },
   { mode: "COMPACT", icon: Shrink, labelKey: "di.network.layoutCompact" },
 ];
+
+// DI-9.1 Section 7/8: the status bar shows the RESOLVED layout mode, which
+// (unlike LAYOUT_BUTTONS above) can be "PATH" — the internal-only mode
+// Find Connection's "เปิดในผัง" switches to, never shown as its own
+// toolbar button. This map covers every value resolveAutoLayoutMode /
+// resolvedLayoutMode can actually produce.
+const RESOLVED_LAYOUT_LABEL_KEY: Record<Exclude<DrugNetworkLayoutMode, "AUTO">, TranslationKey> = {
+  PERSON_CENTERED: "di.network.layoutPersonCentered",
+  CASE_CENTERED: "di.network.layoutCaseCentered",
+  HIERARCHICAL: "di.network.layoutHierarchical",
+  GROUP_BY_TYPE: "di.network.layoutGroupByType",
+  COMPACT: "di.network.layoutCompact",
+  PATH: "di.network.layoutPath",
+};
 
 const LABEL_MODE_OPTIONS: { value: DrugNetworkLabelMode; labelKey: TranslationKey }[] = [
   { value: "ALL", labelKey: "di.network.labelModeAll" },
@@ -96,6 +126,15 @@ function DrugNetworkContent() {
   // user actually arrived from Map/Case with a validated returnTo — never
   // fabricated for a normal/direct Network visit.
   const returnTo = getSafeReturnTo(searchParams);
+
+  // DI-9.1: View/Analyst mode — local UI state only (Section 5's explicit
+  // instruction: no DB persistence, no localStorage without a strong
+  // existing pattern justifying it — none exists for this kind of
+  // per-session UI toggle elsewhere in this codebase, so plain useState is
+  // correct). Never written to the URL — switching modes must never look
+  // like a "new page" to the browser history/back-forward stack, and must
+  // never trigger the neighborhood/path queries to refetch.
+  const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
 
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -269,6 +308,14 @@ function DrugNetworkContent() {
   }
 
   const canViewNetwork = can("drug.read");
+  // DI-9.1 Section 4: Analyst Mode reuses the SAME permission tier every
+  // other DI page already uses to gate "sees more than the plain read-only
+  // view" (drug.edit) — never a new permission string. A user without
+  // drug.edit can never enter Analyst Mode, even if local state were
+  // somehow set to "ANALYST" (defensive: the toggle itself is also hidden
+  // for them, see below).
+  const canUseAnalystMode = can("drug.edit");
+  const effectiveWorkspaceMode: DrugNetworkWorkspaceMode = canUseAnalystMode ? workspaceMode : "VIEW";
 
   return (
     <div className="space-y-5">
@@ -276,7 +323,7 @@ function DrugNetworkContent() {
         title={t("di.network.title")}
         description={t("di.network.description")}
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {returnTo ? (
               <Button asChild variant="outline" size="sm">
                 <Link href={returnTo}>
@@ -289,9 +336,39 @@ function DrugNetworkContent() {
               <GitCompare className="h-4 w-4" aria-hidden="true" />
               {t("di.network.findConnection")}
             </Button>
+            {canViewNetwork && canUseAnalystMode ? (
+              <div role="group" aria-label={t("di.network.modeSwitcherLabel")} className="flex rounded-lg border border-border bg-surface p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceMode("VIEW")}
+                  aria-pressed={effectiveWorkspaceMode === "VIEW"}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${effectiveWorkspaceMode === "VIEW" ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
+                >
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                  {t("di.network.modeView")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceMode("ANALYST")}
+                  aria-pressed={effectiveWorkspaceMode === "ANALYST"}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${effectiveWorkspaceMode === "ANALYST" ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  {t("di.network.modeAnalyst")}
+                </button>
+              </div>
+            ) : null}
           </div>
         }
       />
+
+      {effectiveWorkspaceMode === "ANALYST" ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">
+          <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="font-semibold">{t("di.network.modeAnalystBadge")}</span>
+          <span className="text-accent/80">{t("di.network.analystToolsComingSoon")}</span>
+        </div>
+      ) : null}
 
       {!canViewNetwork ? (
         <ErrorState title={t("di.network.permissionDenied")} />
@@ -644,6 +721,15 @@ function DrugNetworkContent() {
                   ) : null}
                 </div>
               </div>
+
+              <DrugNetworkStatusBar
+                nodeCount={neighborhood.data.nodes.length}
+                edgeCount={neighborhood.data.edges.length}
+                selectedLabel={selectedNode?.label ?? (selectedEdge ? t(DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[selectedEdge.relationshipType] as TranslationKey) : null)}
+                layoutLabel={t(RESOLVED_LAYOUT_LABEL_KEY[resolvedLayoutMode])}
+                truncated={neighborhood.data.truncated}
+              />
+
               <div className="flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" onClick={handleBackToStart}>
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -659,7 +745,13 @@ function DrugNetworkContent() {
         {selectedNode ? <DrugNetworkNodeDetail node={selectedNode} onExpand={() => expandFromNode(selectedNode)} /> : null}
       </Drawer>
       <Drawer open={Boolean(selectedEdge)} onClose={() => setSelectedEdge(null)} titleId="drug-network-edge-detail" title={t("di.network.edgeDetailTitle")}>
-        {selectedEdge ? <DrugNetworkEdgeDetail edge={selectedEdge} /> : null}
+        {selectedEdge ? (
+          <DrugNetworkEdgeDetail
+            edge={selectedEdge}
+            sourceNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.source) ?? null}
+            targetNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.target) ?? null}
+          />
+        ) : null}
       </Drawer>
     </div>
   );

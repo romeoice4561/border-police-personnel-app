@@ -2109,6 +2109,27 @@ export const DICTIONARY = {
   "di.network.summaryCases": tr("คดี", "Cases"),
   "di.network.summaryInferred": tr("ความเชื่อมโยงที่อนุมาน", "Inferred links"),
   "di.network.truncatedNotice": tr("แสดงผลบางส่วน — มีรายการที่เกี่ยวข้องมากกว่านี้ กรุณาจำกัดตัวกรองเพื่อดูเพิ่มเติม", "Partial view — more related entities exist. Narrow the filters to see more."),
+  "di.network.truncatedShort": tr("แสดงผลบางส่วน — ถึงขีดจำกัดของผัง", "Partial view — reached the network limit"),
+  // DI-9.1: View/Analyst mode scaffold — no drawing/annotation tools exist
+  // yet (see the component's own doc comment); this is presentation-only
+  // state, never persisted, never affecting factual graph data.
+  "di.network.modeView": tr("โหมดดูเครือข่าย", "View Mode"),
+  "di.network.modeAnalyst": tr("โหมดนักวิเคราะห์", "Analyst Mode"),
+  "di.network.modeSwitcherLabel": tr("โหมดการใช้งาน", "Workspace mode"),
+  "di.network.modeAnalystBadge": tr("นักวิเคราะห์", "Analyst"),
+  "di.network.analystToolsComingSoon": tr("เครื่องมือวิเคราะห์ขั้นสูงจะเพิ่มในขั้นถัดไป", "Advanced analyst tools will be added in a future update"),
+  "di.network.analystModeDenied": tr("คุณไม่มีสิทธิ์ใช้งานโหมดนักวิเคราะห์", "You don't have permission to use Analyst Mode"),
+  // DI-9.1: status bar
+  "di.network.statusNodes": tr("โหนด", "Nodes"),
+  "di.network.statusEdges": tr("ความเชื่อมโยง", "Edges"),
+  "di.network.statusSelected": tr("เลือก", "Selected"),
+  "di.network.statusZoom": tr("ซูม", "Zoom"),
+  "di.network.statusLayout": tr("ผัง", "Layout"),
+  "di.network.statusNoneSelected": tr("ไม่มีรายการที่เลือก", "Nothing selected"),
+  // DI-9.1: edge inspector — source/target entity labels
+  "di.network.edgeBetween": tr("ระหว่าง", "Between"),
+  "di.network.edgeFrom": tr("จาก", "From"),
+  "di.network.edgeTo": tr("ถึง", "To"),
   "di.network.filters": tr("ตัวกรอง", "Filters"),
   "di.network.filterNodeTypes": tr("ประเภทรายการ", "Entity types"),
   "di.network.filterRelationshipTypes": tr("ประเภทความเชื่อมโยง", "Relationship types"),
