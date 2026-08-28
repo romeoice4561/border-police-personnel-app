@@ -3,7 +3,8 @@
  *
  * "แผนที่วิเคราะห์ข่าวกรองยาเสพติด" — the map is the dominant surface
  * (Section 4); Leaflet + OpenStreetMap tiles, no API key. Filters persist
- * in the URL (Section 29) via useRouter/useSearchParams so refresh/back/
+ * in the URL (Section 29) — read via useSearchParams, written via a real
+ * browser navigation (see the DI-8.2.1 note below) — so refresh/back/
  * forward restore the exact same view (Section 36 V/W). Expanded mode
  * (Section 5) uses a fixed-position in-app overlay rather than the browser
  * Fullscreen API — simpler, and preserves filter access/exit button
@@ -15,11 +16,48 @@
  * period preset selector, and an opt-in dependency-free cluster view mode
  * — see each new component's own doc comment for why no new backend
  * endpoint or npm dependency was needed.
+ *
+ * DI-8.2.1 fix (production-only Clear All / filter defect): loading this
+ * page directly from a URL that already carries query params (e.g. a
+ * personId/caseId/province deep link, a bookmark, or a hard refresh) left
+ * the Next.js client router's internal navigation cache for this route
+ * permanently unable to process any LATER same-pathname router.push()/
+ * replace() call — every filter change AND Clear All silently no-op'd:
+ * history.pushState was never invoked, the URL never changed, and no
+ * console error was raised. Client-state-only interactions (view mode,
+ * expand, refetch) were unaffected since they never call the router.
+ *
+ * Reproduced identically against a local `next build && next start`
+ * production build and the live Vercel deployment; NEVER under `next dev`.
+ * The page was also the one useSearchParams() consumer in this app
+ * missing a <Suspense> boundary (now added, matching every other page's
+ * convention) — but that alone did NOT fix the defect; router.push,
+ * router.replace, router.refresh, a manual history.pushState alongside
+ * router.push, wrapping the call in startTransition, an absolute-URL
+ * target, and a self-referential router.replace()-on-mount "priming" call
+ * were all tried and all failed identically. The router's internal
+ * same-pathname navigation handling for this exact page is broken in this
+ * Next.js build for this specific "hard load with search params" case, and
+ * nothing short of bypassing the client router removes the symptom.
+ *
+ * Fix: applyFilters/clearAll now perform a real browser navigation
+ * (window.location.assign) instead of a Next.js client-side
+ * router.push()/replace() for this one page's filter-changing actions —
+ * this reliably updates the URL and reloads with the new filters/cleared
+ * state every time, at the cost of a full page reload per filter change
+ * (previously instant). Given the defect makes the ENTIRE filter panel
+ * silently non-functional for any user who arrives via this app's own
+ * personId/caseId/returnTo deep-link conventions — not a rare edge case —
+ * reliability was prioritized over instant client-side updates. Back/
+ * Forward/Refresh are native browser behavior and are unaffected either
+ * way; chips/time-presets/org-hierarchy/returnTo/cluster mode/analysis
+ * panels all read their state fresh from the URL on every load, so they
+ * are unaffected by how the URL got there.
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Maximize2, MapPinned, ChevronDown, ChevronUp, X, RefreshCw, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -74,7 +112,14 @@ function filterStateToQueryParams(state: DrugGeoFilterState): DrugGeoQueryParams
 }
 
 export default function DrugIntelligenceMapPage() {
-  const router = useRouter();
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <DrugIntelligenceMapPageContent />
+    </Suspense>
+  );
+}
+
+function DrugIntelligenceMapPageContent() {
   const searchParams = useSearchParams();
   const { user, can } = useAuth();
   const { t } = useT();
@@ -90,18 +135,25 @@ export default function DrugIntelligenceMapPage() {
 
   const filters = useMemo(() => drugGeoFilterStateFromSearchParams(searchParams), [searchParams]);
 
+  // DI-8.2.1: a real browser navigation, not router.push/replace — see the
+  // file's top doc comment for why. Kept as ONE shared helper so both
+  // call sites stay identical rather than drifting.
+  const navigateToMapUrl = useCallback((url: string) => {
+    window.location.assign(url);
+  }, []);
+
   const applyFilters = useCallback(
     (patch: Partial<DrugGeoFilterState>) => {
       const next = { ...filters, ...patch };
       const params = drugGeoFilterStateToSearchParams(next);
-      router.push(`/drug-intelligence/map${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+      navigateToMapUrl(`/drug-intelligence/map${params.toString() ? `?${params.toString()}` : ""}`);
     },
-    [filters, router]
+    [filters, navigateToMapUrl]
   );
 
   const clearAll = useCallback(() => {
-    router.push("/drug-intelligence/map", { scroll: false });
-  }, [router]);
+    navigateToMapUrl("/drug-intelligence/map");
+  }, [navigateToMapUrl]);
 
   if (!can("drug.read")) {
     return (
