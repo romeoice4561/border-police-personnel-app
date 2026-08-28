@@ -303,6 +303,7 @@ function flowNode(id: string, position: { x: number; y: number }): FlowNode {
       isFocus: false,
       density: "STANDARD",
       dimmed: false,
+      pinned: false,
     },
   };
 }

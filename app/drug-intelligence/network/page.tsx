@@ -9,16 +9,23 @@
  * contract already enforces structurally (edgeKind, explanation facts).
  *
  * DI-9.1 — Workspace shell: View Mode (default, unchanged experience) vs
- * Analyst Mode (currently a SCAFFOLD ONLY — a mode badge + a "more tools
- * coming" placeholder card; no drawing/annotation/waypoint/undo/pin/save
- * functionality exists yet, per DI-9 Round A's approved phase sequence).
- * Mode is local component state, never persisted (no localStorage, no DB,
- * no URL param) — it never changes graph factual data, never triggers a
- * refetch, and never resets filters/selection/manual node positions.
+ * Analyst Mode. Mode is local component state, never persisted (no
+ * localStorage, no DB, no URL param) — it never changes graph factual
+ * data, never triggers a refetch, and never resets filters/selection.
  * Analyst Mode requires `drug.edit`, mirroring the exact same permission
  * tier this app already uses everywhere else to gate "can see beyond the
  * read-only view" (e.g. Map's/Case Workspace's own canViewFull checks) —
  * intentionally NOT a new permission string.
+ *
+ * DI-9.2 — Analyst Mode's first real editing capability: node pinning,
+ * whole-board drag lock, and pinned-aware auto-layout. `pinnedNodeIds` is
+ * PRESENTATION STATE ONLY (a plain Set<string> in local component state) —
+ * never added to DrugGraphNode, never sent to any API, never persisted
+ * (reload loses it — by design, saved persistence is DI-9.5). See
+ * lib/drug_intelligence/drug_network_graph_pinning.ts for the pure
+ * position-merge logic. Board lock (`boardLocked`) is a distinct concept:
+ * it temporarily disables xyflow's own node dragging entirely, whereas a
+ * pinned node stays draggable and only gets excluded from auto-layout.
  */
 "use client";
 
@@ -27,7 +34,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@xyflow/react/dist/style.css";
 import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useReactFlow, useNodesState, useEdgesState, type Edge, type Node } from "@xyflow/react";
-import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags, MapPinned, Eye, Sparkles } from "lucide-react";
+import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags, MapPinned, Eye, Sparkles, PinOff, Lock, Unlock } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { DrugNetworkStatusBar } from "@/components/drug_intelligence/drug_network_status_bar";
@@ -47,6 +54,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { useDrugNetworkNeighborhood, useDrugNetworkPath } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { buildDrugNetworkFlowGraph, mergePreservingManualPositions, type DrugNetworkFlowNodeData, type FlowNode, type FlowEdge, type DrugNetworkLabelMode, type DrugNetworkNodeDensity } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import { resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
+import { applyPinnedPositions, prunePinnedNodeIds } from "@/lib/drug_intelligence/drug_network_graph_pinning";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo } from "@/lib/ui/return_context";
@@ -135,6 +143,15 @@ function DrugNetworkContent() {
   // like a "new page" to the browser history/back-forward stack, and must
   // never trigger the neighborhood/path queries to refetch.
   const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
+
+  // DI-9.2 Section 2/19: presentation state only — a plain Set<string>,
+  // never persisted (no localStorage/DB/URL), lost on reload by design.
+  // Survives View<->Analyst mode switches (Section 13) because it lives at
+  // this same component level, untouched by the mode toggle itself.
+  const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
+  // DI-9.2 Section 7: a separate concept from pinning — disables xyflow's
+  // own node dragging entirely while active. Also local-only.
+  const [boardLocked, setBoardLocked] = useState(false);
 
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -226,6 +243,21 @@ function DrugNetworkContent() {
   });
   const lastQuerySignatureRef = useRef<string | null>(null);
 
+  // DI-9.2 Section 12/20: whenever the graph's node set changes, drop pin
+  // ids for nodes no longer present — a separate, single-purpose effect
+  // (rather than folded into the build effect below) so the only work it
+  // ever does is this one conditional setState, per React's own guidance
+  // against mixing setState with other synchronous effect work.
+  useEffect(() => {
+    if (!neighborhood.data) return;
+    const currentNodeIds = new Set(neighborhood.data.nodes.map((n) => n.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: pruning pin ids in sync with the externally-fetched node set (established pattern, see use_officer_workspace.ts)
+    setPinnedNodeIds((current) => {
+      const pruned = prunePinnedNodeIds(current, currentNodeIds);
+      return pruned.size === current.size ? current : pruned;
+    });
+  }, [neighborhood.data]);
+
   useEffect(() => {
     if (!neighborhood.data) {
       setFlowNodes([]);
@@ -233,20 +265,38 @@ function DrugNetworkContent() {
       lastQuerySignatureRef.current = null;
       return;
     }
+    // Pruned locally (not read from state) so this effect never depends on
+    // — or needs to wait a render for — the sibling pruning effect above;
+    // a node id that's about to be pruned from state is never a real pin.
+    const currentNodeIds = new Set(neighborhood.data.nodes.map((n) => n.id));
+    const effectivePinnedNodeIds = prunePinnedNodeIds(pinnedNodeIds, currentNodeIds);
+
     const built = buildDrugNetworkFlowGraph(neighborhood.data, (key) => t(key), selectedNode?.id ?? null, selectedEdge?.id ?? null, {
       layoutMode: resolvedLayoutMode,
       labelMode,
       nodeDensity,
       pathNodeIdsInOrder: pathViewNodeIds ?? undefined,
+      pinnedNodeIds: effectivePinnedNodeIds,
     });
     const isNewQuery = lastQuerySignatureRef.current !== querySignature;
     lastQuerySignatureRef.current = querySignature;
 
-    setFlowNodes((current) => mergePreservingManualPositions(built.flowNodes, current, isNewQuery));
+    setFlowNodes((current) => {
+      if (!isNewQuery) return mergePreservingManualPositions(built.flowNodes, current, false);
+      // DI-9.2 Section 8/11: "จัดผังใหม่" (and any other querySignature
+      // change) recomputes layout for every UNPINNED node while pinned
+      // nodes keep their exact current on-screen position — never a full
+      // reset that would silently un-fix a pinned node (Section 11's
+      // explicit "จัดผังใหม่ must never silently remove pins" rule).
+      const computedPositions = new Map(built.flowNodes.map((n) => [n.id, n.position]));
+      const currentPositions = new Map(current.map((n) => [n.id, n.position]));
+      const merged = applyPinnedPositions(computedPositions, currentPositions, effectivePinnedNodeIds);
+      return built.flowNodes.map((n) => ({ ...n, position: merged.get(n.id) ?? n.position }));
+    });
     setFlowEdges(built.flowEdges);
     if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds]);
 
   function handleNodeClick(_event: unknown, node: Node) {
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
@@ -273,6 +323,27 @@ function DrugNetworkContent() {
 
   function handleRearrange() {
     setRearrangeToken((v) => v + 1);
+  }
+
+  // DI-9.2 Section 4/20: pin/unpin is a plain Set toggle — no API call, no
+  // URL change, no layout recompute triggered directly (the badge update
+  // happens via the effect's pinnedNodeIds dependency, which takes the
+  // cheap !isNewQuery merge path — see the effect above).
+  function togglePinNode(nodeId: string) {
+    setPinnedNodeIds((current) => {
+      const next = new Set(current);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }
+
+  // DI-9.2 Section 11: a separate, explicit action from "จัดผังใหม่" — a
+  // user who pinned nodes expects them to stay pinned when merely
+  // re-running the layout. Clearing all pins then lets a subsequent
+  // rearrange move every node, since none remain excluded.
+  function clearAllPins() {
+    setPinnedNodeIds(new Set());
   }
 
   /**
@@ -689,6 +760,38 @@ function DrugNetworkContent() {
                 </CardBody>
               </Card>
 
+              {effectiveWorkspaceMode === "ANALYST" ? (
+                <Card>
+                  <CardBody className="py-3">
+                    {/* Pin/unpin for the selected node lives in the node inspector
+                        drawer only (Section 14) — a toolbar-level pin button here
+                        would sit directly under that same drawer's full-screen
+                        modal backdrop (the shared Drawer primitive, also used by
+                        the edge inspector) and so could never actually be reached
+                        by a click once a node is selected. Lock/Clear-pins have no
+                        such conflict since neither depends on selectedNode. */}
+                    <div role="group" aria-label={t("di.network.analystControlsLabel")} className="flex flex-wrap items-center gap-1.5">
+                      <Sparkles className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBoardLocked((v) => !v)}
+                        aria-pressed={boardLocked}
+                      >
+                        {boardLocked ? <Unlock className="h-4 w-4" aria-hidden="true" /> : <Lock className="h-4 w-4" aria-hidden="true" />}
+                        {boardLocked ? t("di.network.unlockBoard") : t("di.network.lockBoard")}
+                      </Button>
+                      {pinnedNodeIds.size > 0 ? (
+                        <Button variant="ghost" size="sm" onClick={clearAllPins}>
+                          <PinOff className="h-4 w-4" aria-hidden="true" />
+                          {t("di.network.clearAllPins")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardBody>
+                </Card>
+              ) : null}
+
               <div className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]" aria-describedby="drug-network-canvas-summary">
                 <ReactFlow
                   nodes={flowNodes}
@@ -702,6 +805,7 @@ function DrugNetworkContent() {
                   fitView
                   minZoom={0.2}
                   maxZoom={2}
+                  nodesDraggable={!boardLocked}
                   proOptions={{ hideAttribution: true }}
                 >
                   <Background />
@@ -728,6 +832,8 @@ function DrugNetworkContent() {
                 selectedLabel={selectedNode?.label ?? (selectedEdge ? t(DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[selectedEdge.relationshipType] as TranslationKey) : null)}
                 layoutLabel={t(RESOLVED_LAYOUT_LABEL_KEY[resolvedLayoutMode])}
                 truncated={neighborhood.data.truncated}
+                pinnedCount={effectiveWorkspaceMode === "ANALYST" ? pinnedNodeIds.size : undefined}
+                boardLocked={effectiveWorkspaceMode === "ANALYST" ? boardLocked : undefined}
               />
 
               <div className="flex flex-wrap gap-2">
@@ -742,7 +848,14 @@ function DrugNetworkContent() {
       )}
 
       <Drawer open={Boolean(selectedNode)} onClose={() => setSelectedNode(null)} titleId="drug-network-node-detail" title={t("di.network.nodeDetailTitle")}>
-        {selectedNode ? <DrugNetworkNodeDetail node={selectedNode} onExpand={() => expandFromNode(selectedNode)} /> : null}
+        {selectedNode ? (
+          <DrugNetworkNodeDetail
+            node={selectedNode}
+            onExpand={() => expandFromNode(selectedNode)}
+            pinned={pinnedNodeIds.has(selectedNode.id)}
+            onTogglePin={effectiveWorkspaceMode === "ANALYST" ? () => togglePinNode(selectedNode.id) : undefined}
+          />
+        ) : null}
       </Drawer>
       <Drawer open={Boolean(selectedEdge)} onClose={() => setSelectedEdge(null)} titleId="drug-network-edge-detail" title={t("di.network.edgeDetailTitle")}>
         {selectedEdge ? (

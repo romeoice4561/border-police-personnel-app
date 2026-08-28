@@ -1,9 +1,10 @@
 /**
  * Node detail panel content (Phase DI-5, Section 10; polished DI-9.1
- * Section 9). Rendered inside the shared Drawer primitive. Per-entity-type
- * fields per the spec; every entity type gets an "open detail/profile/case"
- * link to its canonical page (Section 10/14) and — where applicable — an
- * "expand" action handed back to the parent canvas.
+ * Section 9; DI-9.2 Section 14 adds a presentation-state pin section).
+ * Rendered inside the shared Drawer primitive. Per-entity-type fields per
+ * the spec; every entity type gets an "open detail/profile/case" link to
+ * its canonical page (Section 10/14) and — where applicable — an "expand"
+ * action handed back to the parent canvas.
  *
  * DI-9.1 additions: an explicit entity-type heading (was previously only
  * implied by icon/shape on the canvas, not restated in the drawer itself),
@@ -11,11 +12,17 @@
  * omitted despite the underlying DrugGraphNodeMetadata already carrying
  * them for DEVICE/VEHICLE/CASE/LOCATION. No new backend calls — every field
  * shown here already exists on the node the canvas already fetched.
+ *
+ * DI-9.2 addition: an optional "สถานะบนผัง" (board status) section shown
+ * only in Analyst Mode (`onTogglePin` present) — pin/unpin is presentation
+ * state, deliberately rendered in its own bordered block, visually and
+ * semantically separate from the factual identity/risk/case fields above
+ * it (Section 14's explicit instruction not to mix the two).
  */
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
@@ -29,7 +36,19 @@ function formatDate(value: string | null, language: "th" | "en"): string {
   return new Date(value).toLocaleDateString(language === "th" ? "th-TH" : "en-US");
 }
 
-export function DrugNetworkNodeDetail({ node, onExpand }: { node: DrugGraphNode; onExpand: () => void }) {
+export function DrugNetworkNodeDetail({
+  node,
+  onExpand,
+  pinned,
+  onTogglePin,
+}: {
+  node: DrugGraphNode;
+  onExpand: () => void;
+  /** DI-9.2: whether this node is currently pinned. Ignored unless `onTogglePin` is provided. */
+  pinned?: boolean;
+  /** DI-9.2: present only in Analyst Mode — omitting it hides the entire pin section (Section 3: no edit affordances in View Mode). */
+  onTogglePin?: () => void;
+}) {
   const { t, language } = useT();
 
   const actionLabel = node.type === "PERSON" ? t("di.network.openProfile") : node.type === "CASE" ? t("di.network.openCase") : t("di.network.openDetail");
@@ -125,6 +144,17 @@ export function DrugNetworkNodeDetail({ node, onExpand }: { node: DrugGraphNode;
           </div>
         ) : null}
       </dl>
+
+      {onTogglePin ? (
+        <div className="space-y-1.5 rounded-lg border border-border bg-neutral-bg/40 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.network.pinStatusTitle")}</p>
+          <p className="text-sm text-foreground">{pinned ? t("di.network.pinStatusPinned") : t("di.network.pinStatusUnpinned")}</p>
+          <Button variant="outline" size="sm" onClick={onTogglePin}>
+            {pinned ? <PinOff className="h-4 w-4" aria-hidden="true" /> : <Pin className="h-4 w-4" aria-hidden="true" />}
+            {pinned ? t("di.network.unpinNode") : t("di.network.pinNode")}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         <Button variant="outline" size="sm" onClick={onExpand}>

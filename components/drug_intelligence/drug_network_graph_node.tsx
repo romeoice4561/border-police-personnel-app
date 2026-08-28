@@ -6,7 +6,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { User, Phone, CreditCard, Smartphone, Car, FileSpreadsheet, MapPin, AlertTriangle } from "lucide-react";
+import { User, Phone, CreditCard, Smartphone, Car, FileSpreadsheet, MapPin, AlertTriangle, Pin } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
@@ -45,7 +45,7 @@ const NODE_TONE: Record<DrugGraphNodeType, string> = {
 };
 
 export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: DrugNetworkFlowNodeData }) {
-  const { graphNode, isFocus, density, dimmed } = data;
+  const { graphNode, isFocus, density, dimmed, pinned } = data;
   const { t } = useT();
   const Icon = NODE_ICON[graphNode.type];
   const hasRisk = graphNode.riskIndicators.length > 0;
@@ -55,9 +55,9 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
     <div
       role="button"
       tabIndex={0}
-      aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${graphNode.label}${isFocus ? ` (${t("di.network.focusNode")})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}`}
+      aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${graphNode.label}${isFocus ? ` (${t("di.network.focusNode")})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}${pinned ? ` (${t("di.network.pinnedNode")})` : ""}`}
       className={cn(
-        "flex min-w-[120px] max-w-[180px] flex-col items-center gap-1 border-2 bg-surface px-3 py-2 text-center shadow-sm transition-[opacity,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "relative flex min-w-[120px] max-w-[180px] flex-col items-center gap-1 border-2 bg-surface px-3 py-2 text-center shadow-sm transition-[opacity,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         isCompact ? "min-w-20 max-w-30 px-2 py-1.5" : "",
         NODE_SHAPE[graphNode.type],
         NODE_TONE[graphNode.type],
@@ -68,6 +68,14 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
     >
       <Handle type="target" position={Position.Top} className="!bg-border" />
       <Handle type="source" position={Position.Bottom} className="!bg-border" />
+      {pinned ? (
+        <span
+          title={t("di.network.pinnedNode")}
+          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface text-accent shadow-sm"
+        >
+          <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />
+        </span>
+      ) : null}
       <div className="flex items-center gap-1.5">
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
         {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
@@ -78,6 +86,7 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         <span className="text-[9px] font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}</span>
       ) : null}
       {isFocus ? <span className="text-[9px] font-semibold uppercase tracking-wide text-critical">{t("di.network.focusNode")}</span> : null}
+      {pinned ? <span className="text-[9px] font-semibold uppercase tracking-wide text-accent">{t("di.network.pinnedNode")}</span> : null}
     </div>
   );
 }

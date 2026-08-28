@@ -1,5 +1,6 @@
 /**
- * DrugNetworkStatusBar (Phase DI-9.1, Section 7/8).
+ * DrugNetworkStatusBar (Phase DI-9.1, Section 7/8; extended DI-9.2 Section
+ * 16 with pin count / board lock state).
  *
  * A compact, always-visible strip of factual workspace state — node/edge
  * counts, current selection, layout mode, zoom%, and a truncated-result
@@ -9,14 +10,19 @@
  * API call, no new state, no recomputation of anything the canvas didn't
  * already have.
  *
- * Responsive (Section 8): desktop shows every metric in one row; on
+ * `pinnedCount`/`boardLocked` are optional and only ever passed in Analyst
+ * Mode (View Mode has no editing controls, so these metrics would be
+ * meaningless clutter there — Section 16).
+ *
+ * Responsive (Section 8/16): desktop shows every metric in one row; on
  * narrow viewports only the highest-value items (nodes/edges/truncated)
- * remain, so this never causes horizontal overflow at 390px.
+ * remain, so this never causes horizontal overflow at 390px. Pin/lock
+ * details collapse on mobile along with the other secondary metrics.
  */
 "use client";
 
 import { useViewport } from "@xyflow/react";
-import { Info } from "lucide-react";
+import { Info, Lock } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
 
 export interface DrugNetworkStatusBarProps {
@@ -26,9 +32,13 @@ export interface DrugNetworkStatusBarProps {
   selectedLabel: string | null;
   layoutLabel: string;
   truncated: boolean;
+  /** DI-9.2 Section 16: number of currently-pinned nodes. Omit (or 0) outside Analyst Mode. */
+  pinnedCount?: number;
+  /** DI-9.2 Section 16: whether the board is currently drag-locked. */
+  boardLocked?: boolean;
 }
 
-export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layoutLabel, truncated }: DrugNetworkStatusBarProps) {
+export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layoutLabel, truncated, pinnedCount, boardLocked }: DrugNetworkStatusBarProps) {
   const { t } = useT();
   const { zoom } = useViewport();
   const zoomPercent = Math.round(zoom * 100);
@@ -50,6 +60,17 @@ export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layo
       <span className="hidden sm:inline">
         {t("di.network.statusZoom")}: <span className="font-medium text-foreground">{zoomPercent}%</span>
       </span>
+      {typeof pinnedCount === "number" && pinnedCount > 0 ? (
+        <span className="hidden sm:inline">
+          {t("di.network.statusPinned")}: <span className="font-medium text-foreground">{pinnedCount.toLocaleString()}</span>
+        </span>
+      ) : null}
+      {boardLocked ? (
+        <span className="hidden items-center gap-1 font-medium text-foreground sm:inline-flex">
+          <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+          {t("di.network.statusBoardLocked")}
+        </span>
+      ) : null}
       {truncated ? (
         <span role="status" className="ml-auto flex items-center gap-1 font-medium text-warning">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

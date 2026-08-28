@@ -30,6 +30,8 @@ export interface DrugNetworkFlowNodeData extends Record<string, unknown> {
   density: DrugNetworkNodeDensity;
   /** Section 17: dims (never removes) nodes not directly connected to the current selection. Always false when nothing is selected. */
   dimmed: boolean;
+  /** DI-9.2 Section 5: presentation-only — true when this node's position is excluded from auto-layout. Never part of DrugGraphNode/the factual DTO. */
+  pinned: boolean;
 }
 
 export interface FlowNode extends Node {
@@ -62,6 +64,8 @@ export interface BuildFlowGraphOptions {
   nodeDensity: DrugNetworkNodeDensity;
   /** Present only for the PATH layout mode — the ordered node ids of the found path (Section 10). */
   pathNodeIdsInOrder?: string[];
+  /** DI-9.2 Section 5/13: presentation-only pin state, read here only to mark node data for the badge — never influences computed positions (that happens separately via applyPinnedPositions). Defaults to empty. */
+  pinnedNodeIds?: ReadonlySet<string>;
 }
 
 function toLayoutNode(n: DrugGraphNode): LayoutNodeInput {
@@ -108,6 +112,7 @@ export function buildDrugNetworkFlowGraph(
       isFocus: n.id === neighborhood.focus.entityId,
       density: options.nodeDensity,
       dimmed: directlyConnectedIds ? !directlyConnectedIds.has(n.id) : false,
+      pinned: options.pinnedNodeIds?.has(n.id) ?? false,
     },
   }));
 
