@@ -26,6 +26,17 @@
  * position-merge logic. Board lock (`boardLocked`) is a distinct concept:
  * it temporarily disables xyflow's own node dragging entirely, whereas a
  * pinned node stays draggable and only gets excluded from auto-layout.
+ *
+ * DI-9.3 — manual edge routing/waypoints. `edgeRoutes` (keyed by factual
+ * edge id) is ALSO PRESENTATION STATE ONLY, same rules as pinning: never
+ * added to DrugGraphEdge, never sent to any API, never persisted. See
+ * lib/drug_intelligence/drug_network_edge_routing.ts for the pure route
+ * geometry/state helpers and components/drug_intelligence/
+ * drug_network_routed_edge.tsx for the custom xyflow edge renderer used
+ * ONLY for an edge that currently has an active non-AUTO route with at
+ * least one waypoint — every other edge renders exactly as it did before
+ * DI-9.3. Board Lock now also disables route editing (Section 19) —
+ * "lock presentation editing of the investigation graph" as a whole.
  */
 "use client";
 
@@ -44,6 +55,7 @@ import { Select } from "@/components/ui/select";
 import { Drawer } from "@/components/ui/drawer";
 import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { DrugNetworkGraphNode } from "@/components/drug_intelligence/drug_network_graph_node";
+import { DrugNetworkRoutedEdge } from "@/components/drug_intelligence/drug_network_routed_edge";
 import { DrugNetworkNodeDetail } from "@/components/drug_intelligence/drug_network_node_detail";
 import { DrugNetworkEdgeDetail } from "@/components/drug_intelligence/drug_network_edge_detail";
 import { DrugNetworkEntityPicker, type DrugNetworkEntitySelection } from "@/components/drug_intelligence/drug_network_entity_picker";
@@ -55,6 +67,16 @@ import { useDrugNetworkNeighborhood, useDrugNetworkPath } from "@/lib/drug_intel
 import { buildDrugNetworkFlowGraph, mergePreservingManualPositions, type DrugNetworkFlowNodeData, type FlowNode, type FlowEdge, type DrugNetworkLabelMode, type DrugNetworkNodeDensity } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import { resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { applyPinnedPositions, prunePinnedNodeIds } from "@/lib/drug_intelligence/drug_network_graph_pinning";
+import {
+  createDefaultEdgeRoute,
+  addEdgeWaypoint,
+  moveEdgeWaypoint,
+  removeEdgeWaypoint,
+  resetEdgeRoute,
+  pruneEdgeRoutes,
+  type DrugNetworkEdgeRouteMode,
+  type DrugNetworkEdgeRoutes,
+} from "@/lib/drug_intelligence/drug_network_edge_routing";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo } from "@/lib/ui/return_context";
@@ -63,6 +85,7 @@ import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const ALL_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE", "LOCATION"];
 const NODE_TYPES = { drugGraphNode: DrugNetworkGraphNode };
+const EDGE_TYPES = { drugRoutedEdge: DrugNetworkRoutedEdge };
 const HARD_MAX_NODES = 150;
 
 /** DI-9.1 Section 3: View Mode is the default, unchanged DI-5 experience. Analyst Mode is currently a scaffold only — see the file's top doc comment. */
@@ -144,14 +167,34 @@ function DrugNetworkContent() {
   // never trigger the neighborhood/path queries to refetch.
   const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
 
+  const canViewNetwork = can("drug.read");
+  // DI-9.1 Section 4: Analyst Mode reuses the SAME permission tier every
+  // other DI page already uses to gate "sees more than the plain read-only
+  // view" (drug.edit) — never a new permission string. A user without
+  // drug.edit can never enter Analyst Mode, even if local state were
+  // somehow set to "ANALYST" (defensive: the toggle itself is also hidden
+  // for them, see below). Computed here (not further down, where it was
+  // in DI-9.1/9.2) so the graph-build effect below — which needs it for
+  // DI-9.3's route-editing gate — can reference it without a temporal
+  // dead zone error.
+  const canUseAnalystMode = can("drug.edit");
+  const effectiveWorkspaceMode: DrugNetworkWorkspaceMode = canUseAnalystMode ? workspaceMode : "VIEW";
+
   // DI-9.2 Section 2/19: presentation state only — a plain Set<string>,
   // never persisted (no localStorage/DB/URL), lost on reload by design.
   // Survives View<->Analyst mode switches (Section 13) because it lives at
   // this same component level, untouched by the mode toggle itself.
   const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
   // DI-9.2 Section 7: a separate concept from pinning — disables xyflow's
-  // own node dragging entirely while active. Also local-only.
+  // own node dragging entirely while active. Also local-only. DI-9.3
+  // Section 19 extends its meaning: also disables route editing (waypoint
+  // drag, add/remove waypoint, route mode change, reset route).
   const [boardLocked, setBoardLocked] = useState(false);
+  // DI-9.3 Section 2: presentation-only manual edge routes, keyed by
+  // factual edge id. Same rules as pinnedNodeIds — never persisted, lost
+  // on reload by design, survives View<->Analyst switches because it
+  // lives at this component level.
+  const [edgeRoutes, setEdgeRoutes] = useState<DrugNetworkEdgeRoutes>({});
 
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -160,6 +203,16 @@ function DrugNetworkContent() {
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<DrugGraphEdge | null>(null);
+  // DI-9.3 Section 8: selection and Drawer VISIBILITY are deliberately
+  // decoupled for edges (unlike nodes, where DI-9.2 found the coupling
+  // harmless). The Drawer's full-screen modal backdrop blocks all canvas
+  // pointer interaction while open, which would otherwise make waypoint
+  // handles unreachable — they render only while an edge is selected, but
+  // an analyst needs to close the inspector and still drag them (spec's
+  // explicit "select -> configure -> close inspector -> manipulate
+  // handles" flow). Selecting an edge always opens the drawer; closing the
+  // drawer hides it WITHOUT clearing selectedEdge, so handles stay live.
+  const [edgeDrawerOpen, setEdgeDrawerOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<DrugNetworkLayoutMode>("AUTO");
   const [labelMode, setLabelMode] = useState<DrugNetworkLabelMode>("SELECTED_ONLY");
   const [nodeDensity, setNodeDensity] = useState<DrugNetworkNodeDensity>("STANDARD");
@@ -243,6 +296,22 @@ function DrugNetworkContent() {
   });
   const lastQuerySignatureRef = useRef<string | null>(null);
 
+  // DI-9.3 Section 11/26: called by the custom edge component on every
+  // waypoint drag move (already-converted graph-space coordinates via
+  // xyflow's screenToFlowPosition) — updates edgeRoutes, the single
+  // source of truth, never xyflow's own internal edge array directly. No
+  // API call, no URL change, no graph refetch (edgeRoutes isn't part of
+  // querySignature). Declared here (before the build effect below, which
+  // references it) rather than alongside the other route handlers further
+  // down, since it's the only one read inside that effect's closure.
+  function handleWaypointDrag(edgeId: string, waypointId: string, position: { x: number; y: number }) {
+    if (boardLocked) return;
+    setEdgeRoutes((current) => ({
+      ...current,
+      [edgeId]: moveEdgeWaypoint(current[edgeId] ?? createDefaultEdgeRoute(), waypointId, position),
+    }));
+  }
+
   // DI-9.2 Section 12/20: whenever the graph's node set changes, drop pin
   // ids for nodes no longer present — a separate, single-purpose effect
   // (rather than folded into the build effect below) so the only work it
@@ -256,6 +325,17 @@ function DrugNetworkContent() {
       const pruned = prunePinnedNodeIds(current, currentNodeIds);
       return pruned.size === current.size ? current : pruned;
     });
+  }, [neighborhood.data]);
+
+  // DI-9.3 Section 17: same single-purpose-effect pattern as pin pruning
+  // above — drop route state for factual edge ids no longer present in
+  // the freshly-fetched graph so a stale route can never apply to an
+  // unrelated edge and never leaves an orphan waypoint handle around.
+  useEffect(() => {
+    if (!neighborhood.data) return;
+    const currentEdgeIds = new Set(neighborhood.data.edges.map((e) => e.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: pruning route state in sync with the externally-fetched edge set (same established pattern as pin pruning above)
+    setEdgeRoutes((current) => pruneEdgeRoutes(current, currentEdgeIds));
   }, [neighborhood.data]);
 
   useEffect(() => {
@@ -277,6 +357,10 @@ function DrugNetworkContent() {
       nodeDensity,
       pathNodeIdsInOrder: pathViewNodeIds ?? undefined,
       pinnedNodeIds: effectivePinnedNodeIds,
+      edgeRoutes,
+      analystMode: effectiveWorkspaceMode === "ANALYST",
+      boardLocked,
+      onWaypointDrag: handleWaypointDrag,
     });
     const isNewQuery = lastQuerySignatureRef.current !== querySignature;
     lastQuerySignatureRef.current = querySignature;
@@ -296,7 +380,7 @@ function DrugNetworkContent() {
     setFlowEdges(built.flowEdges);
     if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes]);
 
   function handleNodeClick(_event: unknown, node: Node) {
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
@@ -308,6 +392,7 @@ function DrugNetworkContent() {
     const graphEdge = neighborhood.data?.edges.find((e) => e.id === edge.id) ?? null;
     setSelectedEdge(graphEdge);
     setSelectedNode(null);
+    setEdgeDrawerOpen(true);
   }
 
   function expandFromNode(node: DrugGraphNode) {
@@ -346,6 +431,43 @@ function DrugNetworkContent() {
     setPinnedNodeIds(new Set());
   }
 
+  // DI-9.3 Section 10: reliability over cleverness — inserts a waypoint at
+  // the midpoint of the route's current longest segment, using the
+  // SELECTED edge's live on-screen source/target node positions (already
+  // graph-space, from flowNodes) rather than any click coordinate.
+  function handleAddWaypoint(edge: DrugGraphEdge) {
+    if (boardLocked) return;
+    const sourceNode = flowNodes.find((n) => n.id === edge.source);
+    const targetNode = flowNodes.find((n) => n.id === edge.target);
+    if (!sourceNode || !targetNode) return;
+    setEdgeRoutes((current) => ({
+      ...current,
+      [edge.id]: addEdgeWaypoint(current[edge.id] ?? createDefaultEdgeRoute(), sourceNode.position, targetNode.position),
+    }));
+  }
+
+  function handleRemoveWaypoint(edgeId: string, waypointId: string) {
+    if (boardLocked) return;
+    setEdgeRoutes((current) => {
+      const route = current[edgeId];
+      if (!route) return current;
+      return { ...current, [edgeId]: removeEdgeWaypoint(route, waypointId) };
+    });
+  }
+
+  function handleResetRoute(edgeId: string) {
+    if (boardLocked) return;
+    setEdgeRoutes((current) => ({ ...current, [edgeId]: resetEdgeRoute() }));
+  }
+
+  function handleRouteModeChange(edgeId: string, mode: DrugNetworkEdgeRouteMode) {
+    if (boardLocked) return;
+    setEdgeRoutes((current) => ({
+      ...current,
+      [edgeId]: { mode, waypoints: (current[edgeId] ?? createDefaultEdgeRoute()).waypoints },
+    }));
+  }
+
   /**
    * DI-5.3.1 Bug 1 fix — "กลับไปจุดเริ่มต้น" (Back to start), distinct from
    * "จัดผังใหม่" (Re-arrange, which only re-runs the CURRENT layout mode).
@@ -377,16 +499,6 @@ function DrugNetworkContent() {
   function exitPathView() {
     setPathViewNodeIds(null);
   }
-
-  const canViewNetwork = can("drug.read");
-  // DI-9.1 Section 4: Analyst Mode reuses the SAME permission tier every
-  // other DI page already uses to gate "sees more than the plain read-only
-  // view" (drug.edit) — never a new permission string. A user without
-  // drug.edit can never enter Analyst Mode, even if local state were
-  // somehow set to "ANALYST" (defensive: the toggle itself is also hidden
-  // for them, see below).
-  const canUseAnalystMode = can("drug.edit");
-  const effectiveWorkspaceMode: DrugNetworkWorkspaceMode = canUseAnalystMode ? workspaceMode : "VIEW";
 
   return (
     <div className="space-y-5">
@@ -800,6 +912,13 @@ function DrugNetworkContent() {
                   onEdgesChange={onEdgesChange}
                   deleteKeyCode={null}
                   nodeTypes={NODE_TYPES}
+                  edgeTypes={EDGE_TYPES}
+                  // DI-9.3 Section 23: factual edges must never be
+                  // reconnectable to a different entity — no onReconnect
+                  // handler is wired anywhere, and this makes the
+                  // restriction structural rather than relying only on
+                  // that absence.
+                  edgesReconnectable={false}
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
                   fitView
@@ -857,12 +976,24 @@ function DrugNetworkContent() {
           />
         ) : null}
       </Drawer>
-      <Drawer open={Boolean(selectedEdge)} onClose={() => setSelectedEdge(null)} titleId="drug-network-edge-detail" title={t("di.network.edgeDetailTitle")}>
+      <Drawer open={Boolean(selectedEdge) && edgeDrawerOpen} onClose={() => setEdgeDrawerOpen(false)} titleId="drug-network-edge-detail" title={t("di.network.edgeDetailTitle")}>
         {selectedEdge ? (
           <DrugNetworkEdgeDetail
             edge={selectedEdge}
             sourceNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.source) ?? null}
             targetNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.target) ?? null}
+            routeEdit={
+              effectiveWorkspaceMode === "ANALYST"
+                ? {
+                    route: edgeRoutes[selectedEdge.id] ?? createDefaultEdgeRoute(),
+                    boardLocked,
+                    onModeChange: (mode) => handleRouteModeChange(selectedEdge.id, mode),
+                    onAddWaypoint: () => handleAddWaypoint(selectedEdge),
+                    onRemoveWaypoint: (waypointId) => handleRemoveWaypoint(selectedEdge.id, waypointId),
+                    onResetRoute: () => handleResetRoute(selectedEdge.id),
+                  }
+                : undefined
+            }
           />
         ) : null}
       </Drawer>

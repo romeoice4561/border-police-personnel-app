@@ -203,11 +203,15 @@ test("pinned state is carried on the xyflow FlowNode's presentation data, never 
   assert.doesNotMatch(flowAdapterSource, /DrugGraphNode\s*\{[\s\S]{0,10}pinned/);
 });
 
-// --- Q. no annotation/waypoint/save-board feature accidentally introduced ---
-test("no drawing/annotation/waypoint/undo/redo/save-board tokens exist anywhere in the DI-9.2 page source", () => {
-  const forbiddenTokens = ["annotation", "Annotation", "waypoint", "Waypoint", "undo(", "redo(", "Undo(", "Redo(", "saveBoard", "SaveBoard", "drawingTool", "DrawingTool"];
+// --- Q. no annotation/save-board feature accidentally introduced ---
+// Note: "waypoint" was intentionally removed from this forbidden-token list
+// after DI-9.3 legitimately implemented manual edge waypoint routing (see
+// drug_network_edge_routing.test.ts for its own dedicated scope tests).
+// Annotation/undo/redo/save-board remain DI-9.4+ scope and still absent.
+test("no drawing/annotation/undo/redo/save-board tokens exist anywhere in the page source", () => {
+  const forbiddenTokens = ["annotation", "Annotation", "undo(", "redo(", "Undo(", "Redo(", "saveBoard", "SaveBoard", "drawingTool", "DrawingTool"];
   for (const token of forbiddenTokens) {
-    assert.ok(!pageCode.includes(token), `found forbidden token in DI-9.2 page source: "${token}"`);
+    assert.ok(!pageCode.includes(token), `found forbidden token in page source: "${token}"`);
   }
 });
 

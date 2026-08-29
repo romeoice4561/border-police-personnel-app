@@ -98,16 +98,19 @@ test("evidenceCount is displayed as a plain count, never reframed as a confidenc
 });
 
 // --- J. no fake annotation tools exist yet ---
-test("no drawing/annotation/waypoint/undo/redo/save-board controls exist anywhere in the network page yet", () => {
+// Note: "waypoint" was intentionally removed from this forbidden-token list
+// after DI-9.3 legitimately implemented manual edge waypoint routing (see
+// drug_network_edge_routing.test.ts). Annotation/undo/redo/save-board
+// remain out of scope through at least DI-9.3 and are still asserted absent.
+test("no drawing/annotation/undo/redo/save-board controls exist anywhere in the network page yet", () => {
   const forbiddenTokens = [
     "annotation", "Annotation",
-    "waypoint", "Waypoint",
     "undo(", "redo(", "Undo(", "Redo(",
     "saveBoard", "SaveBoard",
     "drawingTool", "DrawingTool",
   ];
   for (const token of forbiddenTokens) {
-    assert.ok(!pageCode.includes(token), `found forbidden DI-9.2+ token in DI-9.1 page source: "${token}"`);
+    assert.ok(!pageCode.includes(token), `found forbidden token in page source: "${token}"`);
   }
 });
 
