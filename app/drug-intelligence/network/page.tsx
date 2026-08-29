@@ -380,7 +380,7 @@ function DrugNetworkContent() {
     setFlowEdges(built.flowEdges);
     if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked]);
 
   function handleNodeClick(_event: unknown, node: Node) {
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
