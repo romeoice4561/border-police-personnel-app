@@ -70,6 +70,7 @@ import {
   type Edge,
   type Node,
   type NodeChange,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import {
   Network as NetworkIcon,
@@ -94,10 +95,12 @@ import {
   Lock,
   Unlock,
   Upload,
+  Printer,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { DrugNetworkStatusBar } from "@/components/drug_intelligence/drug_network_status_bar";
+import { DrugNetworkGroupSelectionBar } from "@/components/drug_intelligence/drug_network_group_selection_bar";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -154,6 +157,8 @@ import {
   updateAnnotation,
   removeAnnotation,
   buildDuplicateAnnotation,
+  partitionBoardSelectionIds,
+  GROUP_DUPLICATE_OFFSET,
   lineAnnotationNodeDimensions,
   validateImageAnnotationFile,
   computeImageAnnotationInitialSize,
@@ -248,7 +253,7 @@ function annotationToFlowNode(
   ann: DrugNetworkAnnotation,
   position: { x: number; y: number },
   size: { width: number; height: number } | undefined,
-  selectedAnnotationId: string | null,
+  isSelected: boolean,
   boardLocked: boolean,
   analystMode: boolean,
   onTextChange: (id: string, text: string) => void,
@@ -274,7 +279,7 @@ function annotationToFlowNode(
     position,
     width: isLine ? lineDims.width : (size?.width ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.width ?? 200),
     height: isLine ? lineDims.height : (size?.height ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.height ?? 120),
-    selected: selectedAnnotationId === ann.id,
+    selected: isSelected,
     selectable: true,
     draggable: analystMode && !boardLocked,
     deletable: false,
@@ -403,6 +408,10 @@ function DrugNetworkContent() {
 
   const [annotations, setAnnotations] = useState<DrugNetworkAnnotation[]>([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  /** DI-9.4.4: ids currently selected on the canvas (factual + annotations). Edges excluded from group move. */
+  const [selectedCanvasIds, setSelectedCanvasIds] = useState<string[]>([]);
+  const selectedCanvasIdsRef = useRef<string[]>([]);
+  selectedCanvasIdsRef.current = selectedCanvasIds;
   const [activeTool, setActiveTool] = useState<DrugNetworkAnalystTool>("SELECT");
   /** Transient notice when annotations are auto-cleared on focus change. */
   const [annotationsClearedNotice, setAnnotationsClearedNotice] = useState(false);
@@ -472,10 +481,9 @@ function DrugNetworkContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, focusType]);
 
-  // ── Escape key: cancel creation / return to SELECT ─────────────────────────
-  // DI-9.4 Section 30: Esc while not focused in an input cancels the pending
-  // line-start or returns to Select — never closes unrelated Drawers.
-  // Section 31: V → Select, H → Pan (non-destructive shortcuts only).
+  // ── Escape / tool shortcuts (DI-9.4) ───────────────────────────────────────
+  // Esc: cancel draw / return to SELECT. V/H: Select/Pan in Analyst when unlocked.
+  // Delete/Backspace for annotations is wired after deleteAnnotation is defined.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
@@ -494,6 +502,7 @@ function DrugNetworkContent() {
         }
         return;
       }
+
       if (effectiveWorkspaceMode !== "ANALYST" || boardLocked) return;
       if (e.key === "v" || e.key === "V") setActiveTool("SELECT");
       if (e.key === "h" || e.key === "H") setActiveTool("PAN");
@@ -696,12 +705,21 @@ function DrugNetworkContent() {
         newFactualNodes = built.flowNodes.map((n) => ({ ...n, position: merged.get(n.id) ?? n.position }));
       }
 
+      // DI-9.4.4: preserve multi-selection across rebuilds (dimming uses primary selectedNode).
+      const selectedSet = new Set(selectedCanvasIdsRef.current);
+      newFactualNodes = newFactualNodes.map((n) => ({
+        ...n,
+        selected: selectedSet.has(n.id),
+        draggable: effectiveWorkspaceMode === "ANALYST" && !boardLocked,
+      }));
+
       // Re-attach annotation nodes with updated callbacks and board-lock state
       const updatedAnnotationNodes = currentAnnotationNodes.map((n) => {
         const ann = getAnnotationFromNode(n);
         if (!ann) return n;
         return {
           ...n,
+          selected: selectedSet.has(n.id),
           draggable: effectiveWorkspaceMode === "ANALYST" && !boardLocked,
           data: {
             ...n.data,
@@ -907,13 +925,17 @@ function DrugNetworkContent() {
     setAnnotations((prev) => [...prev, ann]);
     const flowNode = annotationToFlowNode(
       ann, position, size,
-      ann.id, boardLocked, effectiveWorkspaceMode === "ANALYST",
+      true, boardLocked, effectiveWorkspaceMode === "ANALYST",
       handleAnnotationTextChangeRef.current,
       { autoFocus, screenToFlowPosition, onEndpointDrag: handleEndpointDragRef.current }
     );
     const selectedFlowNode = { ...flowNode, selected: true };
-    setFlowNodes((prev) => [...prev as FlowNode[], selectedFlowNode as FlowNode]);
+    setFlowNodes((prev) => [
+      ...(prev as FlowNode[]).map((n) => ({ ...n, selected: false })),
+      selectedFlowNode as FlowNode,
+    ]);
     setSelectedAnnotationId(ann.id);
+    setSelectedCanvasIds([ann.id]);
     setSelectedNode(null);
     setSelectedEdge(null);
   }
@@ -1027,7 +1049,60 @@ function DrugNetworkContent() {
     setAnnotations((prev) => removeAnnotation(prev, id));
     setFlowNodes((prev) => prev.filter((n) => n.id !== id) as FlowNode[]);
     if (selectedAnnotationId === id) setSelectedAnnotationId(null);
+    setSelectedCanvasIds((prev) => prev.filter((x) => x !== id));
   }, [annotations, boardLocked, selectedAnnotationId]);
+
+  // DI-9.4.4: Delete/Backspace removes selected annotations only (never factual).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isEditable = tag === "input" || tag === "textarea" || (e.target as HTMLElement)?.isContentEditable ||
+        (e.target as HTMLElement)?.getAttribute?.("role") === "combobox";
+      if (isEditable) return;
+      if (effectiveWorkspaceMode !== "ANALYST" || boardLocked) return;
+      const { annotationIds } = partitionBoardSelectionIds(selectedCanvasIds);
+      const targets = annotationIds.length > 0
+        ? annotationIds
+        : selectedAnnotationId && isAnnotationId(selectedAnnotationId)
+          ? [selectedAnnotationId]
+          : [];
+      if (targets.length === 0) return;
+      e.preventDefault();
+      for (const id of targets) deleteAnnotation(id);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [effectiveWorkspaceMode, boardLocked, selectedCanvasIds, selectedAnnotationId, deleteAnnotation]);
+
+  /** DI-9.4.4: delete every selected annotation; factual ids are ignored. */
+  const deleteSelectedAnnotations = useCallback(() => {
+    if (boardLocked || effectiveWorkspaceMode !== "ANALYST") return;
+    const { annotationIds } = partitionBoardSelectionIds(selectedCanvasIds);
+    for (const id of annotationIds) deleteAnnotation(id);
+  }, [boardLocked, effectiveWorkspaceMode, selectedCanvasIds, deleteAnnotation]);
+
+  /** DI-9.4.4: duplicate selected annotations with a shared offset (blob refs retained). */
+  const duplicateSelectedAnnotations = useCallback(() => {
+    if (boardLocked || effectiveWorkspaceMode !== "ANALYST") return;
+    const { annotationIds } = partitionBoardSelectionIds(selectedCanvasIds);
+    for (const id of annotationIds) {
+      const existingNode = flowNodes.find((n) => n.id === id);
+      const existingAnn = annotations.find((a) => a.id === id);
+      if (!existingNode || !existingAnn) continue;
+      const dupAnn = buildDuplicateAnnotation(existingAnn);
+      retainBlobUrl(blobUrlRegistryRef.current, dupAnn.imageSrc);
+      const dupPos = {
+        x: existingNode.position.x + GROUP_DUPLICATE_OFFSET.x,
+        y: existingNode.position.y + GROUP_DUPLICATE_OFFSET.y,
+      };
+      const size =
+        existingNode.width != null && existingNode.height != null
+          ? { width: existingNode.width, height: existingNode.height }
+          : undefined;
+      addAnnotationToCanvas(dupAnn, dupPos, size);
+    }
+  }, [boardLocked, effectiveWorkspaceMode, selectedCanvasIds, flowNodes, annotations]);
 
   // ── Cleanup: revoke remaining blob URLs on unmount ──────────────────────────
   useEffect(() => {
@@ -1057,23 +1132,28 @@ function DrugNetworkContent() {
   }, [annotations, flowNodes, boardLocked]);
 
   // ── Node click handler (factual + annotation) ─────────────────────────────────
-  // DI-9.4 Section 6: selection-state collisions are prevented by clearing the
-  // other type's selection whenever one type is clicked. Annotation selection
-  // clears factual selection (and vice versa) but they use separate state vars.
-  function handleNodeClick(_event: unknown, node: Node) {
+  // DI-9.4.4: Shift+click is additive/toggle via React Flow multiSelectionKeyCode.
+  // App inspector state tracks the primary (last-clicked) entity for the drawer.
+  function handleNodeClick(event: React.MouseEvent, node: Node) {
+    const additive = Boolean(event.shiftKey);
     if (isAnnotationId(node.id)) {
-      // Annotation selected
-      setSelectedAnnotationId(node.id);
-      setSelectedNode(null);
-      setSelectedEdge(null);
-      setEdgeDrawerOpen(false);
+      if (!additive) {
+        setSelectedAnnotationId(node.id);
+        setSelectedNode(null);
+        setSelectedEdge(null);
+        setEdgeDrawerOpen(false);
+      } else {
+        setSelectedAnnotationId(node.id);
+        setSelectedEdge(null);
+        setEdgeDrawerOpen(false);
+      }
       return;
     }
-    // Factual node selected
+    // Factual node selected (primary for inspector)
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
     setSelectedNode(graphNode);
     setSelectedEdge(null);
-    setSelectedAnnotationId(null);
+    if (!additive) setSelectedAnnotationId(null);
   }
 
   function handleEdgeClick(_event: unknown, edge: Edge) {
@@ -1081,6 +1161,7 @@ function DrugNetworkContent() {
     setSelectedEdge(graphEdge);
     setSelectedNode(null);
     setSelectedAnnotationId(null);
+    setSelectedCanvasIds([]);
     setEdgeDrawerOpen(true);
   }
 
@@ -1094,7 +1175,27 @@ function DrugNetworkContent() {
     setSelectedNode(null);
     setSelectedEdge(null);
     setSelectedAnnotationId(null);
+    setSelectedCanvasIds([]);
     handlePaneClick(event);
+  }
+
+  /** DI-9.4.4: sync multi-selection from React Flow (nodes only — edges are not group-movable). */
+  function handleSelectionChange({ nodes }: OnSelectionChangeParams) {
+    const ids = nodes.map((n) => n.id);
+    setSelectedCanvasIds(ids);
+    const { factualIds, annotationIds } = partitionBoardSelectionIds(ids);
+    if (annotationIds.length === 1 && factualIds.length === 0) {
+      setSelectedAnnotationId(annotationIds[0]!);
+    } else if (annotationIds.length === 0) {
+      setSelectedAnnotationId(null);
+    } else if (annotationIds.length > 1) {
+      // Keep last annotation id for inspector fallback; group bar handles multi.
+      setSelectedAnnotationId(annotationIds[annotationIds.length - 1]!);
+    }
+  }
+
+  function handlePrintBoard() {
+    window.print();
   }
 
   function expandFromNode(node: DrugGraphNode) {
@@ -1187,6 +1288,16 @@ function DrugNetworkContent() {
     [annotations, selectedAnnotationId]
   );
 
+  const selectionPartition = useMemo(
+    () => partitionBoardSelectionIds(selectedCanvasIds),
+    [selectedCanvasIds]
+  );
+  const selectionTotal = selectionPartition.factualIds.length + selectionPartition.annotationIds.length;
+  const showSingleAnnotationChrome =
+    Boolean(selectedAnnotation) &&
+    effectiveWorkspaceMode === "ANALYST" &&
+    selectionTotal <= 1;
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -1205,6 +1316,17 @@ function DrugNetworkContent() {
             <Button variant="outline" size="sm" onClick={() => setShowFindConnection((v) => !v)}>
               <GitCompare className="h-4 w-4" aria-hidden="true" />
               {t("di.network.findConnection")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrintBoard}
+              aria-label={t("di.network.printBoard")}
+              data-testid="print-board-btn"
+              data-print-hide
+            >
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              {t("di.network.printBoard")}
             </Button>
             {canViewNetwork && canUseAnalystMode ? (
               <div role="group" aria-label={t("di.network.modeSwitcherLabel")} className="flex rounded-lg border border-border bg-surface p-0.5">
@@ -1612,6 +1734,7 @@ function DrugNetworkContent() {
                 ref={canvasContainerRef}
                 className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]"
                 aria-describedby="drug-network-canvas-summary"
+                data-print-board
                 onPointerDown={handleDrawPointerDown}
                 onPointerMove={handleDrawPointerMove}
                 onPointerUp={handleDrawPointerUp}
@@ -1642,21 +1765,43 @@ function DrugNetworkContent() {
                   />
                 ) : null}
 
-                {/* ── DI-9.4.1: Floating annotation property bar ──────────── */}
-                {selectedAnnotation && effectiveWorkspaceMode === "ANALYST" ? (
-                  <div
-                    className="absolute left-14 right-20 top-2 z-10 sm:left-14"
-                    data-testid="annotation-floating-bar"
-                  >
-                    <DrugNetworkAnnotationFloatingBar
-                      annotation={selectedAnnotation}
-                      boardLocked={boardLocked}
-                      onChange={updateAnnotationData}
-                      onDelete={deleteAnnotation}
-                      onDuplicate={duplicateAnnotation}
-                    />
-                  </div>
-                ) : null}
+                {/* ── DI-9.4.4: group selection bar OR single-annotation floating bar ── */}
+                {(() => {
+                  const { factualIds, annotationIds } = partitionBoardSelectionIds(selectedCanvasIds);
+                  const multi = factualIds.length + annotationIds.length > 1;
+                  if (multi && effectiveWorkspaceMode === "ANALYST") {
+                    return (
+                      <div className="absolute left-14 right-20 top-2 z-10 sm:left-14" data-print-hide>
+                        <DrugNetworkGroupSelectionBar
+                          factualCount={factualIds.length}
+                          annotationCount={annotationIds.length}
+                          boardLocked={boardLocked}
+                          canMutate={effectiveWorkspaceMode === "ANALYST"}
+                          onDeleteAnnotations={deleteSelectedAnnotations}
+                          onDuplicateAnnotations={duplicateSelectedAnnotations}
+                        />
+                      </div>
+                    );
+                  }
+                  if (selectedAnnotation && effectiveWorkspaceMode === "ANALYST" && !multi) {
+                    return (
+                      <div
+                        className="absolute left-14 right-20 top-2 z-10 sm:left-14"
+                        data-testid="annotation-floating-bar-wrap"
+                        data-print-hide
+                      >
+                        <DrugNetworkAnnotationFloatingBar
+                          annotation={selectedAnnotation}
+                          boardLocked={boardLocked}
+                          onChange={updateAnnotationData}
+                          onDelete={deleteAnnotation}
+                          onDuplicate={duplicateAnnotation}
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 <ReactFlow
                   nodes={flowNodes}
@@ -1664,23 +1809,36 @@ function DrugNetworkContent() {
                   onNodesChange={handleNodesChange}
                   onEdgesChange={onEdgesChange}
                   deleteKeyCode={null}
+                  multiSelectionKeyCode="Shift"
+                  selectionOnDrag={effectiveWorkspaceMode === "ANALYST" && activeTool === "SELECT"}
+                  selectionKeyCode={null}
                   nodeTypes={NODE_TYPES}
                   edgeTypes={EDGE_TYPES}
                   edgesReconnectable={false}
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
                   onPaneClick={handlePaneClickWrapper}
+                  onSelectionChange={handleSelectionChange}
                   fitView
                   minZoom={0.2}
                   maxZoom={2}
-                  nodesDraggable={!boardLocked}
-                  panOnDrag={activeTool === "PAN" || activeTool === "SELECT" || effectiveWorkspaceMode === "VIEW"}
+                  nodesDraggable={effectiveWorkspaceMode === "ANALYST" && !boardLocked}
+                  panOnDrag={effectiveWorkspaceMode === "VIEW" || activeTool === "PAN"}
                   style={{ cursor: canvasCursor }}
                   proOptions={{ hideAttribution: true }}
+                  className="di-network-board"
                 >
                   <Background />
-                  <Controls showInteractive={false} />
-                  <MiniMap pannable zoomable className="hidden sm:block" />
+                  <Controls showInteractive={false} className="hidden print:hidden" data-print-hide />
+                  <MiniMap
+                    pannable
+                    zoomable
+                    className="hidden sm:block print:hidden"
+                    bgColor="var(--surface)"
+                    maskColor="color-mix(in srgb, var(--foreground) 18%, transparent)"
+                    nodeColor={(n) => (isAnnotationId(n.id) ? "var(--accent)" : "var(--neutral)")}
+                    data-print-hide
+                  />
                 </ReactFlow>
 
                 {/* DI-9.4.1: Live drawing preview overlay */}
@@ -1716,21 +1874,26 @@ function DrugNetworkContent() {
                 nodeCount={neighborhood.data.nodes.length}
                 edgeCount={neighborhood.data.edges.length}
                 selectedLabel={
-                  selectedAnnotationId
-                    ? null // annotation "selected" is shown in the inspector below, not the status bar
-                    : selectedNode?.label ?? (selectedEdge ? t(DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[selectedEdge.relationshipType] as TranslationKey) : null)
+                  selectionTotal > 1
+                    ? null
+                    : selectedAnnotationId
+                      ? null
+                      : selectedNode?.label ?? (selectedEdge ? t(DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[selectedEdge.relationshipType] as TranslationKey) : null)
                 }
                 layoutLabel={t(RESOLVED_LAYOUT_LABEL_KEY[resolvedLayoutMode])}
                 truncated={neighborhood.data.truncated}
                 pinnedCount={effectiveWorkspaceMode === "ANALYST" ? pinnedNodeIds.size : undefined}
                 boardLocked={effectiveWorkspaceMode === "ANALYST" ? boardLocked : undefined}
                 annotationCount={effectiveWorkspaceMode === "ANALYST" ? annotations.length : undefined}
+                selectionCount={selectionTotal > 0 ? selectionTotal : undefined}
+                selectedFactualCount={selectionTotal > 0 ? selectionPartition.factualIds.length : undefined}
+                selectedAnnotationCount={selectionTotal > 0 ? selectionPartition.annotationIds.length : undefined}
               />
 
               {/* DI-9.4: Annotation inspector (non-modal, inline — avoids backdrop conflict) */}
-              {selectedAnnotation && effectiveWorkspaceMode === "ANALYST" ? (
+              {showSingleAnnotationChrome ? (
                 <DrugNetworkAnnotationInspector
-                  annotation={selectedAnnotation}
+                  annotation={selectedAnnotation!}
                   boardLocked={boardLocked}
                   onChange={updateAnnotationData}
                   onDelete={deleteAnnotation}

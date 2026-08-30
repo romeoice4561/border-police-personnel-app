@@ -229,6 +229,62 @@ body {
   color: var(--foreground);
 }
 
+/* DI-9.4.4: theme MiniMap using design tokens (never hardcode light-only #fff). */
+.react-flow {
+  --xy-minimap-background-color-default: var(--surface);
+  --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --xy-minimap-node-background-color-default: var(--neutral);
+  --xy-minimap-node-stroke-color-default: var(--border);
+}
+
+/* DI-9.4.4: print only the Investigation Board canvas content. */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  [data-print-board],
+  [data-print-board] * {
+    visibility: visible !important;
+  }
+
+  [data-print-board] {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100vh !important;
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  [data-print-hide],
+  .react-flow__controls,
+  .react-flow__minimap,
+  .react-flow__attribution,
+  .react-flow__panel,
+  .react-flow__resize-control,
+  .react-flow__selection,
+  .react-flow__nodesselection,
+  [data-testid="analyst-toolbar"],
+  [data-testid="annotation-floating-bar"],
+  [data-testid="group-selection-bar"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
 /* Phase 46: login card entrance (fade + scale). Additive; no theme change. */
 @keyframes fadeScaleIn {
   from {

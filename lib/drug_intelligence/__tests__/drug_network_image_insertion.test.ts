@@ -196,10 +196,9 @@ describe("K: Board Lock prevents resize", () => {
 describe("L: View Mode no editing", () => {
   test("toolbar and floating bar only in Analyst Mode", () => {
     assert.match(pageSource, /effectiveWorkspaceMode === "ANALYST" \? \(\s*<DrugNetworkAnalystToolbar/);
-    assert.match(
-      pageSource,
-      /selectedAnnotation && effectiveWorkspaceMode === "ANALYST" \?[\s\S]*DrugNetworkAnnotationFloatingBar/
-    );
+    // DI-9.4.4: single-annotation floating bar gated by showSingleAnnotationChrome
+    assert.match(pageSource, /showSingleAnnotationChrome/);
+    assert.match(pageSource, /DrugNetworkAnnotationFloatingBar/);
   });
 });
 

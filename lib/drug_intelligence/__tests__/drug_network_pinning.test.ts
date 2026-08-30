@@ -135,7 +135,8 @@ test("pinnedNodeIds state is declared once at the page level, not reset or reini
 
 // --- H/I/J. board lock disables dragging but not selection/pan/zoom ---
 test("board lock is wired to xyflow's own nodesDraggable prop, never a custom drag-blocking layer", () => {
-  assert.match(pageCode, /nodesDraggable=\{!boardLocked\}/);
+  // DI-9.4.4: also require Analyst Mode so View Mode never allows object movement.
+  assert.match(pageCode, /nodesDraggable=\{effectiveWorkspaceMode === "ANALYST" && !boardLocked\}/);
 });
 
 test("board lock does not gate onNodeClick/onEdgeClick (selection/inspection keep working while locked)", () => {

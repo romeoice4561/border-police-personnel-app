@@ -210,7 +210,8 @@ test("route mode buttons, add-waypoint, remove-waypoint, and reset-route are all
 });
 
 test("<ReactFlow> nodesDraggable already ties into boardLocked (DI-9.2); DI-9.3 adds no separate node-lock path that could diverge", () => {
-  assert.match(pageCode, /nodesDraggable=\{!boardLocked\}/);
+  // DI-9.4.4: Analyst Mode ∧ !boardLocked — View Mode never enables movement.
+  assert.match(pageCode, /nodesDraggable=\{effectiveWorkspaceMode === "ANALYST" && !boardLocked\}/);
 });
 
 // --- V/W. node move + layout/rearrange preserve waypoints ---

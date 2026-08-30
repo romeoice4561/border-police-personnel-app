@@ -2145,6 +2145,14 @@ export const DICTIONARY = {
   "di.network.annotationLockedNotice": tr("ผังล็อกอยู่ — ปลดล็อกเพื่อแก้ไขวัตถุ", "Board is locked — unlock to edit objects"),
   // DI-9.4: status bar annotation count
   "di.network.statusAnnotations": tr("วัตถุวิเคราะห์", "Analyst objects"),
+  // DI-9.4.4: multi-selection / print
+  "di.network.selectionCount": tr("เลือกแล้ว {count} รายการ", "{count} selected"),
+  "di.network.selectionFactualCount": tr("{count} บุคคล/ข้อมูลจริง", "{count} factual"),
+  "di.network.selectionAnnotationCount": tr("{count} หมายเหตุบนผัง", "{count} board notes"),
+  "di.network.groupSelectionLabel": tr("การเลือกกลุ่ม", "Group selection"),
+  "di.network.groupDuplicateAnnotations": tr("ทำสำเนาหมายเหตุบนผัง", "Duplicate board notes"),
+  "di.network.groupDeleteFactualProtected": tr("ข้อมูลจริงไม่ถูกลบ — เลือกหมายเหตุบนผังเพื่อลบ", "Factual data is protected — select board notes to delete"),
+  "di.network.printBoard": tr("พิมพ์ผัง", "Print board"),
   // DI-9.4: canvas drawing hints
   "di.network.drawingHintClick": tr("คลิกบนพื้นหลังเพื่อวางที่นี่", "Click on the canvas background to place here"),
   "di.network.drawingHintLineSecondClick": tr("คลิกอีกครั้งเพื่อกำหนดจุดสิ้นสุด", "Click again to set the endpoint"),

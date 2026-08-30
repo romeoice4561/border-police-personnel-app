@@ -38,12 +38,31 @@ export interface DrugNetworkStatusBarProps {
   boardLocked?: boolean;
   /** DI-9.4: number of analyst annotation objects currently on the canvas. Omit (or 0) outside Analyst Mode. */
   annotationCount?: number;
+  /** DI-9.4.4: total selected movable objects (factual nodes + annotations). */
+  selectionCount?: number;
+  /** DI-9.4.4: selected factual graph nodes in the current multi-selection. */
+  selectedFactualCount?: number;
+  /** DI-9.4.4: selected analyst annotations in the current multi-selection. */
+  selectedAnnotationCount?: number;
 }
 
-export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layoutLabel, truncated, pinnedCount, boardLocked, annotationCount }: DrugNetworkStatusBarProps) {
+export function DrugNetworkStatusBar({
+  nodeCount,
+  edgeCount,
+  selectedLabel,
+  layoutLabel,
+  truncated,
+  pinnedCount,
+  boardLocked,
+  annotationCount,
+  selectionCount,
+  selectedFactualCount,
+  selectedAnnotationCount,
+}: DrugNetworkStatusBarProps) {
   const { t } = useT();
   const { zoom } = useViewport();
   const zoomPercent = Math.round(zoom * 100);
+  const hasMultiSelection = typeof selectionCount === "number" && selectionCount > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-neutral-bg/60 px-3 py-2 text-xs text-muted">
@@ -53,8 +72,26 @@ export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layo
       <span>
         {t("di.network.statusEdges")}: <span className="font-medium text-foreground">{edgeCount.toLocaleString()}</span>
       </span>
-      <span className="hidden sm:inline">
-        {t("di.network.statusSelected")}: <span className="font-medium text-foreground">{selectedLabel ?? t("di.network.statusNoneSelected")}</span>
+      <span className="hidden sm:inline" data-testid="status-selection" aria-live="polite">
+        {hasMultiSelection ? (
+          <>
+            {t("di.network.selectionCount").replace("{count}", String(selectionCount))}
+            {typeof selectedFactualCount === "number" && typeof selectedAnnotationCount === "number" && selectionCount > 1 ? (
+              <span className="text-muted">
+                {" "}
+                ({selectedFactualCount > 0 ? t("di.network.selectionFactualCount").replace("{count}", String(selectedFactualCount)) : null}
+                {selectedFactualCount > 0 && selectedAnnotationCount > 0 ? " · " : null}
+                {selectedAnnotationCount > 0 ? t("di.network.selectionAnnotationCount").replace("{count}", String(selectedAnnotationCount)) : null})
+              </span>
+            ) : selectedLabel ? (
+              <span className="font-medium text-foreground">: {selectedLabel}</span>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {t("di.network.statusSelected")}: <span className="font-medium text-foreground">{selectedLabel ?? t("di.network.statusNoneSelected")}</span>
+          </>
+        )}
       </span>
       <span className="hidden sm:inline">
         {t("di.network.statusLayout")}: <span className="font-medium text-foreground">{layoutLabel}</span>

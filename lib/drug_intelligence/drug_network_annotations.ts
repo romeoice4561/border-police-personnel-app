@@ -312,6 +312,42 @@ export function buildDuplicateAnnotation(ann: DrugNetworkAnnotation): DrugNetwor
   return { ...ann, id: nextAnnotationId() };
 }
 
+// ─── DI-9.4.4 multi-selection helpers (presentation only) ────────────────────
+
+/** Splits a mixed selection into factual graph ids vs analyst annotation ids. */
+export function partitionBoardSelectionIds(ids: readonly string[]): {
+  factualIds: string[];
+  annotationIds: string[];
+} {
+  const factualIds: string[] = [];
+  const annotationIds: string[] = [];
+  for (const id of ids) {
+    if (isAnnotationId(id)) annotationIds.push(id);
+    else factualIds.push(id);
+  }
+  return { factualIds, annotationIds };
+}
+
+/**
+ * Safe Thai microcopy for deleting a mixed selection.
+ * Never claims factual nodes will be deleted.
+ */
+export function mixedSelectionDeleteLabelTh(annotationCount: number, factualCount: number): string {
+  if (annotationCount <= 0) return "ไม่มีหมายเหตุบนผังที่ลบได้";
+  if (factualCount > 0) return `ลบหมายเหตุบนผัง ${annotationCount} รายการ`;
+  return `ลบหมายเหตุบนผัง ${annotationCount} รายการ`;
+}
+
+/** English companion for tests / bilingual UI. */
+export function mixedSelectionDeleteLabelEn(annotationCount: number, factualCount: number): string {
+  if (annotationCount <= 0) return "No deletable board annotations";
+  if (factualCount > 0) return `Delete ${annotationCount} board annotations`;
+  return `Delete ${annotationCount} board annotations`;
+}
+
+/** Default group-duplicate offset in graph space (px). */
+export const GROUP_DUPLICATE_OFFSET = { x: 24, y: 24 } as const;
+
 // ─── Classification helpers ──────────────────────────────────────────────────
 
 /** True when the annotation is a filled/stroked shape (RECTANGLE or ELLIPSE). */
