@@ -48,6 +48,8 @@ export type DrugNetworkAnalystTool =
  * For LINE and ARROW, `endOffset` is the vector from the node's xyflow
  * `position` (= start point) to the end point (graph-space pixels).
  */
+export type DrugNetworkAnnotationStrokeDash = "solid" | "dashed" | "dotted";
+
 export interface DrugNetworkAnnotation {
   id: string;
   type: DrugNetworkAnnotationType;
@@ -57,6 +59,8 @@ export interface DrugNetworkAnnotation {
   fillColor: string;
   /** Stroke width in pixels (0 for TEXT). */
   strokeWidth: number;
+  /** Stroke dash style for lines, arrows, and shape borders. */
+  strokeDash?: DrugNetworkAnnotationStrokeDash;
   /** Text content for TEXT annotations. */
   text?: string;
   /** Font size in pixels for TEXT annotations. */
@@ -89,12 +93,14 @@ export const ANNOTATION_DEFAULT_FILL_COLORS = [
 
 export const ANNOTATION_STROKE_WIDTHS = [1, 2, 4, 6] as const;
 export const ANNOTATION_DEFAULT_FONT_SIZES = [12, 14, 16, 20, 24] as const;
+export const ANNOTATION_STROKE_DASHES: DrugNetworkAnnotationStrokeDash[] = ["solid", "dashed", "dotted"];
 
-export const ANNOTATION_DEFAULTS: Pick<DrugNetworkAnnotation, "color" | "fillColor" | "strokeWidth" | "fontSize"> = {
+export const ANNOTATION_DEFAULTS: Pick<DrugNetworkAnnotation, "color" | "fillColor" | "strokeWidth" | "fontSize" | "strokeDash"> = {
   color: "#3b82f6",
   fillColor: "transparent",
   strokeWidth: 2,
   fontSize: 14,
+  strokeDash: "solid",
 };
 
 // ─── Default sizes used when placing a new annotation ─────────────────────────
@@ -129,12 +135,12 @@ export function isAnnotationId(id: string): boolean {
 
 /** Builds a new RECTANGLE annotation with the given defaults. */
 export function createRectangleAnnotation(defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
-  return { id: nextAnnotationId(), type: "RECTANGLE", color: defaults.color, fillColor: defaults.fillColor, strokeWidth: defaults.strokeWidth };
+  return { id: nextAnnotationId(), type: "RECTANGLE", color: defaults.color, fillColor: defaults.fillColor, strokeWidth: defaults.strokeWidth, strokeDash: defaults.strokeDash };
 }
 
 /** Builds a new ELLIPSE annotation. */
 export function createEllipseAnnotation(defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
-  return { id: nextAnnotationId(), type: "ELLIPSE", color: defaults.color, fillColor: defaults.fillColor, strokeWidth: defaults.strokeWidth };
+  return { id: nextAnnotationId(), type: "ELLIPSE", color: defaults.color, fillColor: defaults.fillColor, strokeWidth: defaults.strokeWidth, strokeDash: defaults.strokeDash };
 }
 
 /** Builds a new TEXT annotation. */
@@ -144,12 +150,37 @@ export function createTextAnnotation(defaults = ANNOTATION_DEFAULTS): DrugNetwor
 
 /** Builds a new LINE annotation. `endOffset` is the vector from start to end. */
 export function createLineAnnotation(endOffset: { x: number; y: number }, defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
-  return { id: nextAnnotationId(), type: "LINE", color: defaults.color, fillColor: "transparent", strokeWidth: defaults.strokeWidth, endOffset };
+  return { id: nextAnnotationId(), type: "LINE", color: defaults.color, fillColor: "transparent", strokeWidth: defaults.strokeWidth, strokeDash: defaults.strokeDash, endOffset };
 }
 
 /** Builds a new ARROW annotation. */
 export function createArrowAnnotation(endOffset: { x: number; y: number }, defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
-  return { id: nextAnnotationId(), type: "ARROW", color: defaults.color, fillColor: "transparent", strokeWidth: defaults.strokeWidth, endOffset };
+  return { id: nextAnnotationId(), type: "ARROW", color: defaults.color, fillColor: "transparent", strokeWidth: defaults.strokeWidth, strokeDash: defaults.strokeDash, endOffset };
+}
+
+/**
+ * Computes the SVG bounding box dimensions for a LINE/ARROW annotation.
+ * Used when building/updating flow nodes so the node rect exactly fits the line.
+ */
+export function lineAnnotationNodeDimensions(endOffset: { x: number; y: number }, strokeWidth: number): { width: number; height: number } {
+  const pad = Math.max(strokeWidth * 2, 12);
+  return {
+    width: Math.max(1, Math.abs(endOffset.x)) + pad * 2,
+    height: Math.max(1, Math.abs(endOffset.y)) + pad * 2,
+  };
+}
+
+/**
+ * Returns a CSS strokeDasharray string for an annotation's strokeDash value.
+ * Used in SVG rendering for lines, arrows, and shape borders.
+ */
+export function strokeDashArray(dash: DrugNetworkAnnotationStrokeDash | undefined, strokeWidth: number): string | undefined {
+  const w = Math.max(1, strokeWidth);
+  switch (dash) {
+    case "dashed": return `${w * 4} ${w * 2}`;
+    case "dotted": return `${w} ${w * 2}`;
+    default: return undefined;
+  }
 }
 
 /**

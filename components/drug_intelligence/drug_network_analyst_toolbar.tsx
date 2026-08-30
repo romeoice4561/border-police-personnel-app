@@ -47,32 +47,30 @@ const TOOL_DEFS: ToolDef[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// Tooltip hint shown when a drag-drawing tool is active
+const DRAG_HINT: Partial<Record<DrugNetworkAnalystTool, string>> = {
+  RECTANGLE: "ลากบนผังเพื่อวาดสี่เหลี่ยม",
+  ELLIPSE:   "ลากบนผังเพื่อวาดวงรี",
+  LINE:      "ลากจากจุดเริ่มไปจุดปลายเพื่อวาดเส้น",
+  ARROW:     "ลากจากจุดเริ่มไปจุดปลายเพื่อวาดลูกศร",
+};
+
 export interface DrugNetworkAnalystToolbarProps {
   activeTool: DrugNetworkAnalystTool;
   onToolSelect: (tool: DrugNetworkAnalystTool) => void;
   boardLocked: boolean;
-  /**
-   * Non-null when the user has clicked the first point of a LINE/ARROW and
-   * is waiting to click the endpoint. The toolbar pulses to signal this state.
-   */
-  pendingLineStart?: { x: number; y: number } | null;
 }
 
-export function DrugNetworkAnalystToolbar({ activeTool, onToolSelect, boardLocked, pendingLineStart }: DrugNetworkAnalystToolbarProps) {
+export function DrugNetworkAnalystToolbar({ activeTool, onToolSelect, boardLocked }: DrugNetworkAnalystToolbarProps) {
   const { t } = useT();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  /**
-   * SELECT and PAN are always interactive — they don't create or edit
-   * annotation data. Creation tools are disabled when the board is locked
-   * (DI-9.4 Section 36 Board Lock semantics).
-   */
   function isDisabled(tool: DrugNetworkAnalystTool): boolean {
     return boardLocked && tool !== "SELECT" && tool !== "PAN";
   }
 
   const ActiveIcon = TOOL_DEFS.find((d) => d.tool === activeTool)?.Icon ?? MousePointer2;
-  const isPendingLine = Boolean(pendingLineStart) && (activeTool === "LINE" || activeTool === "ARROW");
+  const isDragTool = activeTool in DRAG_HINT;
 
   function renderToolButton(def: ToolDef, compact = false) {
     const { tool, Icon, labelKey } = def;
@@ -100,8 +98,7 @@ export function DrugNetworkAnalystToolbar({ activeTool, onToolSelect, boardLocke
           isActive
             ? "bg-accent text-accent-fg shadow-sm"
             : "text-muted hover:bg-neutral-bg hover:text-foreground",
-          disabled ? "cursor-not-allowed opacity-40" : "",
-          isPendingLine && isActive ? "animate-pulse ring-2 ring-accent ring-offset-1" : ""
+          disabled ? "cursor-not-allowed opacity-40" : ""
         )}
       >
         <Icon className={cn("shrink-0", compact ? "h-4 w-4" : "h-4 w-4")} aria-hidden />
@@ -114,10 +111,7 @@ export function DrugNetworkAnalystToolbar({ activeTool, onToolSelect, boardLocke
     <>
       {/* ── Desktop: permanent vertical rail ──────────────────────────── */}
       <div
-        className={cn(
-          "absolute bottom-10 left-2 top-2 z-10 hidden flex-col items-center gap-0.5 rounded-xl border border-border bg-surface p-1 shadow-md sm:flex",
-          "data-[toolbar-state=analyst-toolbar]"
-        )}
+        className="absolute bottom-10 left-2 top-2 z-10 hidden flex-col items-center gap-0.5 rounded-xl border border-border bg-surface p-1 shadow-md sm:flex"
         role="radiogroup"
         aria-label={t("di.network.analystToolbarLabel")}
         data-testid="analyst-toolbar"
@@ -130,6 +124,19 @@ export function DrugNetworkAnalystToolbar({ activeTool, onToolSelect, boardLocke
             {renderToolButton(def)}
           </div>
         ))}
+        {/* Draw hint: compact text below toolbar when drag tool is active */}
+        {DRAG_HINT[activeTool] ? (
+          <div className="mt-1 w-full">
+            <div className="h-px w-6 bg-border" aria-hidden />
+            <p
+              className="mt-1 px-0.5 text-center text-[8px] leading-tight text-muted"
+              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", maxHeight: 80 }}
+              aria-live="polite"
+            >
+              {DRAG_HINT[activeTool]}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {/* ── Mobile: compact popover ────────────────────────────────────── */}
@@ -143,7 +150,7 @@ export function DrugNetworkAnalystToolbar({ activeTool, onToolSelect, boardLocke
           data-testid="analyst-toolbar-mobile-toggle"
           className={cn(
             "flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-            isPendingLine ? "ring-2 ring-accent ring-offset-1 animate-pulse" : ""
+            isDragTool ? "ring-2 ring-accent ring-offset-1" : ""
           )}
         >
           <ActiveIcon className="h-4 w-4 shrink-0" aria-hidden />

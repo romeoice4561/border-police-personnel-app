@@ -19,7 +19,7 @@
  */
 "use client";
 
-import { Trash2, Copy } from "lucide-react";
+import { Trash2, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { useT } from "@/components/i18n/language_provider";
 import { Button } from "@/components/ui/button";
@@ -28,9 +28,18 @@ import {
   ANNOTATION_DEFAULT_FILL_COLORS,
   ANNOTATION_STROKE_WIDTHS,
   ANNOTATION_DEFAULT_FONT_SIZES,
+  ANNOTATION_STROKE_DASHES,
   isShapeAnnotation,
+  isLineAnnotation,
   type DrugNetworkAnnotation,
+  type DrugNetworkAnnotationStrokeDash,
 } from "@/lib/drug_intelligence/drug_network_annotations";
+
+const DASH_LABELS: Record<DrugNetworkAnnotationStrokeDash, string> = {
+  solid: "เส้นทึบ",
+  dashed: "เส้นประ",
+  dotted: "เส้นจุด",
+};
 
 // ─── Type labels ──────────────────────────────────────────────────────────────
 
@@ -120,8 +129,10 @@ export function DrugNetworkAnnotationInspector({
 
         {/* Stroke / text color */}
         <div className="min-w-0">
-          <p className="mb-1.5 text-xs font-medium text-muted">{t("di.network.annotationColor")}</p>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("di.network.annotationColor")}>
+          <p className="mb-1.5 text-xs font-medium text-muted">
+            {annotation.type === "TEXT" ? "สีข้อความ" : "สีเส้น"}
+          </p>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={annotation.type === "TEXT" ? "สีข้อความ" : "สีเส้น"}>
             {ANNOTATION_DEFAULT_COLORS.map((c) => (
               <button
                 key={c}
@@ -130,15 +141,23 @@ export function DrugNetworkAnnotationInspector({
                 disabled={locked}
                 onClick={() => !locked && onChange(id, { color: c })}
                 className={cn(
-                  "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
-                  annotation.color === c ? "scale-110 border-foreground" : "border-transparent"
+                  "relative h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
+                  annotation.color === c ? "scale-110 border-accent ring-2 ring-accent ring-offset-1" : "border-transparent"
                 )}
                 style={{
                   background: c,
                   boxShadow: c === "#ffffff" ? "inset 0 0 0 1px #d1d5db" : undefined,
                 }}
                 title={c}
-              />
+              >
+                {annotation.color === c ? (
+                  <Check
+                    className="absolute inset-0 m-auto h-2.5 w-2.5"
+                    style={{ color: c === "#ffffff" || c === "#eab308" ? "#000" : "#fff" }}
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
             ))}
           </div>
         </div>
@@ -146,8 +165,8 @@ export function DrugNetworkAnnotationInspector({
         {/* Fill color (shapes only) */}
         {isShapeAnnotation(annotation.type) ? (
           <div className="min-w-0">
-            <p className="mb-1.5 text-xs font-medium text-muted">{t("di.network.annotationFill")}</p>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("di.network.annotationFill")}>
+            <p className="mb-1.5 text-xs font-medium text-muted">สีพื้น</p>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="สีพื้น">
               {ANNOTATION_DEFAULT_FILL_COLORS.map((c) => (
                 <button
                   key={c}
@@ -156,8 +175,8 @@ export function DrugNetworkAnnotationInspector({
                   disabled={locked}
                   onClick={() => !locked && onChange(id, { fillColor: c })}
                   className={cn(
-                    "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
-                    annotation.fillColor === c ? "scale-110 border-foreground" : "border-border"
+                    "relative h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
+                    annotation.fillColor === c ? "scale-110 border-accent ring-2 ring-accent ring-offset-1" : "border-border"
                   )}
                   style={{
                     background: c === "transparent" ? "transparent" : c,
@@ -165,8 +184,16 @@ export function DrugNetworkAnnotationInspector({
                     backgroundSize: c === "transparent" ? "8px 8px" : undefined,
                     backgroundPosition: c === "transparent" ? "0 0,4px 4px" : undefined,
                   }}
-                  title={c === "transparent" ? "ไม่มีสี" : c}
-                />
+                  title={c === "transparent" ? "โปร่งใส (ไม่มีสีพื้น)" : c}
+                >
+                  {annotation.fillColor === c ? (
+                    <Check
+                      className="absolute inset-0 m-auto h-2.5 w-2.5"
+                      style={{ color: c === "transparent" ? "#6b7280" : "#000" }}
+                      aria-hidden
+                    />
+                  ) : null}
+                </button>
               ))}
             </div>
           </div>
@@ -175,8 +202,8 @@ export function DrugNetworkAnnotationInspector({
         {/* Stroke width (non-text) */}
         {annotation.type !== "TEXT" ? (
           <div>
-            <p className="mb-1.5 text-xs font-medium text-muted">{t("di.network.annotationStroke")}</p>
-            <div className="flex gap-1.5" role="group" aria-label={t("di.network.annotationStroke")}>
+            <p className="mb-1.5 text-xs font-medium text-muted">ความหนาเส้น</p>
+            <div className="flex gap-1.5" role="group" aria-label="ความหนาเส้น">
               {ANNOTATION_STROKE_WIDTHS.map((w) => (
                 <button
                   key={w}
@@ -187,12 +214,39 @@ export function DrugNetworkAnnotationInspector({
                   className={cn(
                     "flex h-7 w-7 items-center justify-center rounded-md border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
                     annotation.strokeWidth === w
-                      ? "border-accent bg-accent/10 text-accent"
+                      ? "border-accent bg-accent/10 text-accent font-bold"
                       : "border-border text-muted hover:bg-neutral-bg"
                   )}
                   title={`${w} px`}
                 >
                   {w}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Dash style (lines, arrows, shapes) */}
+        {(isShapeAnnotation(annotation.type) || isLineAnnotation(annotation.type)) ? (
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted">รูปแบบเส้น</p>
+            <div className="flex gap-1.5" role="group" aria-label="รูปแบบเส้น">
+              {ANNOTATION_STROKE_DASHES.map((dash) => (
+                <button
+                  key={dash}
+                  type="button"
+                  aria-pressed={(annotation.strokeDash ?? "solid") === dash}
+                  disabled={locked}
+                  onClick={() => !locked && onChange(id, { strokeDash: dash })}
+                  className={cn(
+                    "flex h-7 min-w-14 items-center justify-center rounded-md border px-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
+                    (annotation.strokeDash ?? "solid") === dash
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border text-muted hover:bg-neutral-bg"
+                  )}
+                  title={DASH_LABELS[dash]}
+                >
+                  {DASH_LABELS[dash]}
                 </button>
               ))}
             </div>

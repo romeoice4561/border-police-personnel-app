@@ -116,6 +116,7 @@ import {
   DrugNetworkAnnotationLineNode,
 } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DrugNetworkAnnotationInspector } from "@/components/drug_intelligence/drug_network_annotation_inspector";
+import { DrugNetworkAnnotationFloatingBar } from "@/components/drug_intelligence/drug_network_annotation_floating_bar";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugNetworkNeighborhood, useDrugNetworkPath } from "@/lib/drug_intelligence/drug_intelligence_hooks";
@@ -153,6 +154,7 @@ import {
   updateAnnotation,
   removeAnnotation,
   buildDuplicateAnnotation,
+  lineAnnotationNodeDimensions,
   ANNOTATION_DEFAULT_SIZES,
   ANNOTATION_DEFAULTS,
   type DrugNetworkAnnotation,
@@ -230,6 +232,12 @@ function toIsoDate(thaiDate: string): string | undefined {
  * `draggable` is false in View Mode and when the board is locked, matching
  * DI-9.4 Section 20/36 move-lock semantics.
  */
+interface AnnotationFlowNodeExtra {
+  autoFocus?: boolean;
+  screenToFlowPosition?: (pos: { x: number; y: number }) => { x: number; y: number };
+  onEndpointDrag?: (id: string, endpoint: "start" | "end", newGraphPos: { x: number; y: number }) => void;
+}
+
 function annotationToFlowNode(
   ann: DrugNetworkAnnotation,
   position: { x: number; y: number },
@@ -237,37 +245,92 @@ function annotationToFlowNode(
   selectedAnnotationId: string | null,
   boardLocked: boolean,
   analystMode: boolean,
-  onTextChange: (id: string, text: string) => void
+  onTextChange: (id: string, text: string) => void,
+  extra?: AnnotationFlowNodeExtra
 ): Node {
   const isLine = ann.type === "LINE" || ann.type === "ARROW";
   const endOffset = ann.endOffset ?? { x: 80, y: 0 };
-  const pad = Math.max(ann.strokeWidth * 2, 12);
-  const lineW = Math.max(1, Math.abs(endOffset.x)) + pad * 2;
-  const lineH = Math.max(1, Math.abs(endOffset.y)) + pad * 2;
+  const lineDims = lineAnnotationNodeDimensions(endOffset, ann.strokeWidth);
 
   const nodeData: DrugNetworkAnnotationNodeData = {
     annotation: ann,
     boardLocked,
     analystMode,
     onTextChange,
+    autoFocus: extra?.autoFocus,
+    screenToFlowPosition: extra?.screenToFlowPosition,
+    onEndpointDrag: extra?.onEndpointDrag,
   };
 
   return {
     id: ann.id,
     type: annotationFlowNodeType(ann.type),
     position,
-    width: isLine ? lineW : (size?.width ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.width ?? 200),
-    height: isLine ? lineH : (size?.height ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.height ?? 120),
+    width: isLine ? lineDims.width : (size?.width ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.width ?? 200),
+    height: isLine ? lineDims.height : (size?.height ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.height ?? 120),
     selected: selectedAnnotationId === ann.id,
     selectable: true,
     draggable: analystMode && !boardLocked,
-    deletable: false, // Never deleted by xyflow's own Delete key
+    deletable: false,
     data: nodeData,
-    // DI-9.4 Section 25 Z-order: background shapes behind factual nodes,
-    // lines/text above background shapes. zIndex on xyflow nodes is a CSS
-    // z-index applied to the DOM element.
     zIndex: isLine || ann.type === "TEXT" ? 2 : 1,
   };
+}
+
+// ─── Drawing preview overlay (pointer-drag create UX) ────────────────────────
+
+interface DrawingPreviewState {
+  type: DrugNetworkAnalystTool;
+  x1: number; y1: number;
+  x2: number; y2: number;
+  color: string;
+  fillColor: string;
+}
+
+function DrawingPreviewOverlay({ preview }: { preview: DrawingPreviewState }) {
+  const { type, x1, y1, x2, y2, color, fillColor } = preview;
+  const minX = Math.min(x1, x2);
+  const minY = Math.min(y1, y2);
+  const w = Math.abs(x2 - x1);
+  const h = Math.abs(y2 - y1);
+  const fill = fillColor === "transparent" ? "none" : fillColor;
+  const markerId = "drawing-preview-arrow";
+
+  return (
+    <svg
+      style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: 9998 }}
+      aria-hidden
+    >
+      {type === "ARROW" ? (
+        <defs>
+          <marker id={markerId} markerWidth={10} markerHeight={7} refX={9} refY={3.5} orient="auto">
+            <polygon points="0 0,10 3.5,0 7" fill={color} opacity={0.7} />
+          </marker>
+        </defs>
+      ) : null}
+      {type === "RECTANGLE" ? (
+        <rect
+          x={minX} y={minY} width={Math.max(1, w)} height={Math.max(1, h)}
+          rx={6} ry={6}
+          stroke={color} strokeWidth={2} strokeDasharray="6 3" strokeOpacity={0.9}
+          fill={fill} fillOpacity={0.15}
+        />
+      ) : type === "ELLIPSE" ? (
+        <ellipse
+          cx={minX + w / 2} cy={minY + h / 2} rx={Math.max(1, w / 2)} ry={Math.max(1, h / 2)}
+          stroke={color} strokeWidth={2} strokeDasharray="6 3" strokeOpacity={0.9}
+          fill={fill} fillOpacity={0.15}
+        />
+      ) : type === "LINE" || type === "ARROW" ? (
+        <line
+          x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke={color} strokeWidth={2} strokeDasharray="6 3" strokeOpacity={0.9}
+          strokeLinecap="round"
+          markerEnd={type === "ARROW" ? `url(#${markerId})` : undefined}
+        />
+      ) : null}
+    </svg>
+  );
 }
 
 /**
@@ -335,12 +398,30 @@ function DrugNetworkContent() {
   const [annotations, setAnnotations] = useState<DrugNetworkAnnotation[]>([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<DrugNetworkAnalystTool>("SELECT");
-  /** First click position for LINE/ARROW two-click creation (graph-space). */
-  const [pendingLineStart, setPendingLineStart] = useState<{ x: number; y: number } | null>(null);
   /** Transient notice when annotations are auto-cleared on focus change. */
   const [annotationsClearedNotice, setAnnotationsClearedNotice] = useState(false);
   /** Current annotation defaults: color, strokeWidth, fillColor, fontSize. */
   const [annotationDefaults, setAnnotationDefaults] = useState(ANNOTATION_DEFAULTS);
+
+  // ── DI-9.4.1: drag-to-create state ──────────────────────────────────────────
+  const drawingStateRef = useRef<{
+    type: DrugNetworkAnalystTool;
+    startScreen: { x: number; y: number };
+    startGraph: { x: number; y: number };
+    pointerId: number;
+  } | null>(null);
+  const [drawingPreview, setDrawingPreview] = useState<DrawingPreviewState | null>(null);
+  /** Set to true when a drag-draw just completed so handlePaneClick ignores the trailing click. */
+  const justDrewRef = useRef(false);
+
+  // ── Refs for always-fresh values inside stable callbacks ─────────────────────
+  // NOTE: latestFlowNodesRef.current is updated BELOW after flowNodes is declared
+  const latestFlowNodesRef = useRef<FlowNode[]>([]);
+  const boardLockedRef = useRef(boardLocked);
+  boardLockedRef.current = boardLocked;
+  const annotationDefaultsRef = useRef(annotationDefaults);
+  annotationDefaultsRef.current = annotationDefaults;
+  // handleEndpointDrag / handleEndpointDragRef are declared BELOW after flowNodes/setFlowNodes
 
   // Ref to stabilise the text-change callback across renders (avoids rebuilding
   // annotation flow nodes unnecessarily just because the callback reference changed).
@@ -385,8 +466,10 @@ function DrugNetworkContent() {
       if (isEditable) return;
 
       if (e.key === "Escape") {
-        if (pendingLineStart) {
-          setPendingLineStart(null);
+        // Cancel in-progress drag-draw
+        if (drawingStateRef.current) {
+          drawingStateRef.current = null;
+          setDrawingPreview(null);
         }
         if (activeTool !== "SELECT") {
           setActiveTool("SELECT");
@@ -399,7 +482,7 @@ function DrugNetworkContent() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTool, pendingLineStart, effectiveWorkspaceMode, boardLocked]);
+  }, [activeTool, effectiveWorkspaceMode, boardLocked]);
 
   // ── Cursor style for canvas based on active tool ─────────────────────────────
   const canvasCursor = useMemo(() => {
@@ -407,7 +490,8 @@ function DrugNetworkContent() {
     switch (activeTool) {
       case "PAN": return "grab";
       case "SELECT": return "default";
-      default: return "crosshair";
+      case "TEXT": return "text";
+      default: return "crosshair"; // drawing tools
     }
   }, [activeTool, effectiveWorkspaceMode]);
 
@@ -468,6 +552,52 @@ function DrugNetworkContent() {
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
+
+  // Always-fresh refs for stable callbacks (updated synchronously on every render)
+  latestFlowNodesRef.current = flowNodes;
+
+  // ── Stable endpoint-drag callback (declared here so setFlowNodes is in scope) ─
+  const handleEndpointDrag = useCallback((
+    id: string,
+    endpoint: "start" | "end",
+    newGraphPos: { x: number; y: number }
+  ) => {
+    if (boardLockedRef.current) return;
+    const nodes = latestFlowNodesRef.current;
+    const nodeIdx = nodes.findIndex((n) => n.id === id);
+    if (nodeIdx < 0) return;
+    const node = nodes[nodeIdx];
+    const ann = (node.data as unknown as DrugNetworkAnnotationNodeData).annotation;
+    const eo = ann.endOffset ?? { x: 80, y: 0 };
+
+    let newPosition: { x: number; y: number };
+    let newEndOffset: { x: number; y: number };
+
+    if (endpoint === "end") {
+      newPosition = node.position;
+      newEndOffset = { x: newGraphPos.x - node.position.x, y: newGraphPos.y - node.position.y };
+    } else {
+      newPosition = newGraphPos;
+      newEndOffset = { x: node.position.x + eo.x - newGraphPos.x, y: node.position.y + eo.y - newGraphPos.y };
+    }
+
+    const updatedAnn: DrugNetworkAnnotation = { ...ann, endOffset: newEndOffset };
+
+    setFlowNodes((prev) => {
+      const result = [...prev] as FlowNode[];
+      const idx = result.findIndex((n) => n.id === id);
+      if (idx < 0) return prev;
+      result[idx] = {
+        ...result[idx],
+        position: newPosition,
+        data: { ...result[idx].data, annotation: updatedAnn },
+      } as unknown as FlowNode;
+      return result;
+    });
+    setAnnotations((prev) => updateAnnotation(prev, id, { endOffset: newEndOffset }));
+  }, [setFlowNodes, setAnnotations]);
+  const handleEndpointDragRef = useRef(handleEndpointDrag);
+  useEffect(() => { handleEndpointDragRef.current = handleEndpointDrag; }, [handleEndpointDrag]);
 
   const querySignature = JSON.stringify({
     focusType, focusId, depth, dateFrom, dateTo,
@@ -560,6 +690,8 @@ function DrugNetworkContent() {
             boardLocked,
             analystMode: effectiveWorkspaceMode === "ANALYST",
             onTextChange: handleAnnotationTextChangeRef.current,
+            screenToFlowPosition,
+            onEndpointDrag: handleEndpointDragRef.current,
           } as unknown as DrugNetworkAnnotationNodeData,
         };
       });
@@ -631,63 +763,138 @@ function DrugNetworkContent() {
     onNodesChange(changes as NodeChange<FlowNode>[]);
   }
 
-  // ── Canvas pane click: annotation creation ────────────────────────────────────
-  // DI-9.4 Section 8/32: `screenToFlowPosition` converts screen coordinates to
-  // graph-space so annotations are created at the correct pan/zoom position.
+  // ── Canvas pane click: TEXT annotation creation ──────────────────────────────
+  // DI-9.4.1: RECTANGLE/ELLIPSE/LINE/ARROW are created via drag (pointer events).
+  // TEXT is still created by a single click since it has no natural drag dimensions.
   function handlePaneClick(event: React.MouseEvent) {
     if (effectiveWorkspaceMode !== "ANALYST" || boardLocked) return;
-    if (activeTool === "SELECT" || activeTool === "PAN") return;
+    if (activeTool !== "TEXT") return;
 
     const graphPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-
-    if (activeTool === "LINE" || activeTool === "ARROW") {
-      if (!pendingLineStart) {
-        // First click: record start point
-        setPendingLineStart(graphPos);
-        return;
-      }
-      // Second click: create line from start to current click
-      const start = pendingLineStart;
-      const endOffset = { x: graphPos.x - start.x, y: graphPos.y - start.y };
-      const ann = activeTool === "LINE"
-        ? createLineAnnotation(endOffset, annotationDefaults)
-        : createArrowAnnotation(endOffset, annotationDefaults);
-      addAnnotationToCanvas(ann, start);
-      setPendingLineStart(null);
-      setActiveTool("SELECT");
-      return;
-    }
-
-    // Other creation tools: single click to place with default size
-    let ann: DrugNetworkAnnotation;
-    switch (activeTool) {
-      case "RECTANGLE": ann = createRectangleAnnotation(annotationDefaults); break;
-      case "ELLIPSE":   ann = createEllipseAnnotation(annotationDefaults);   break;
-      case "TEXT":      ann = createTextAnnotation(annotationDefaults);       break;
-      default: return;
-    }
-
-    // Center the annotation on the click point
-    const sizeDefaults = ANNOTATION_DEFAULT_SIZES[activeTool as keyof typeof ANNOTATION_DEFAULT_SIZES];
+    const ann = createTextAnnotation(annotationDefaults);
     const pos = {
-      x: graphPos.x - (sizeDefaults?.width ?? 100) / 2,
-      y: graphPos.y - (sizeDefaults?.height ?? 60) / 2,
+      x: graphPos.x - 90,
+      y: graphPos.y - 30,
     };
-    addAnnotationToCanvas(ann, pos);
-    // DI-9.4 Section 29: return to SELECT after placing annotation
+    addAnnotationToCanvas(ann, pos, undefined, true /* autoFocus: enter edit immediately */);
     setActiveTool("SELECT");
   }
 
-  function addAnnotationToCanvas(ann: DrugNetworkAnnotation, position: { x: number; y: number }) {
+  // ── Drag-to-create: pointer event handlers (DI-9.4.1 Section 2-8) ────────────
+  const DRAG_THRESHOLD_PX = 6;
+  const DRAG_TOOLS = new Set<DrugNetworkAnalystTool>(["RECTANGLE", "ELLIPSE", "LINE", "ARROW"]);
+
+  /** Returns true if the pointer event target is on empty canvas (not a node/toolbar). */
+  function isOnCanvasPane(target: EventTarget | null): boolean {
+    if (!target) return false;
+    const el = target as HTMLElement;
+    return (
+      !el.closest(".react-flow__node") &&
+      !el.closest(".react-flow__edge") &&
+      !el.closest(".react-flow__controls") &&
+      !el.closest(".react-flow__minimap") &&
+      !el.closest('[data-testid="analyst-toolbar"]') &&
+      !el.closest('[data-testid="annotation-floating-bar"]')
+    );
+  }
+
+  function handleDrawPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (effectiveWorkspaceMode !== "ANALYST" || boardLocked) return;
+    if (!DRAG_TOOLS.has(activeTool)) return;
+    if (!isOnCanvasPane(e.target)) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const graphPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    drawingStateRef.current = {
+      type: activeTool,
+      startScreen: { x: e.clientX, y: e.clientY },
+      startGraph: graphPos,
+      pointerId: e.pointerId,
+    };
+  }
+
+  function handleDrawPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const ds = drawingStateRef.current;
+    if (!ds) return;
+
+    const dx = e.clientX - ds.startScreen.x;
+    const dy = e.clientY - ds.startScreen.y;
+    if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD_PX) return;
+
+    setDrawingPreview({
+      type: ds.type,
+      x1: ds.startScreen.x, y1: ds.startScreen.y,
+      x2: e.clientX, y2: e.clientY,
+      color: annotationDefaultsRef.current.color,
+      fillColor: annotationDefaultsRef.current.fillColor,
+    });
+  }
+
+  function handleDrawPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const ds = drawingStateRef.current;
+    if (!ds) return;
+
+    drawingStateRef.current = null;
+    setDrawingPreview(null);
+
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
+    const dx = e.clientX - ds.startScreen.x;
+    const dy = e.clientY - ds.startScreen.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < DRAG_THRESHOLD_PX) {
+      // Too small — treat as a missed click, don't create anything
+      return;
+    }
+
+    justDrewRef.current = true;
+
+    const endGraph = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const { startGraph, type } = ds;
+    const defaults = annotationDefaultsRef.current;
+
+    if (type === "LINE" || type === "ARROW") {
+      const endOffset = { x: endGraph.x - startGraph.x, y: endGraph.y - startGraph.y };
+      const ann = type === "LINE"
+        ? createLineAnnotation(endOffset, defaults)
+        : createArrowAnnotation(endOffset, defaults);
+      addAnnotationToCanvas(ann, startGraph);
+    } else {
+      // RECTANGLE or ELLIPSE
+      const minX = Math.min(startGraph.x, endGraph.x);
+      const minY = Math.min(startGraph.y, endGraph.y);
+      const width = Math.max(20, Math.abs(endGraph.x - startGraph.x));
+      const height = Math.max(20, Math.abs(endGraph.y - startGraph.y));
+      const ann = type === "RECTANGLE"
+        ? createRectangleAnnotation(defaults)
+        : createEllipseAnnotation(defaults);
+      addAnnotationToCanvas(ann, { x: minX, y: minY }, { width, height });
+    }
+    setActiveTool("SELECT");
+  }
+
+  function handleDrawPointerCancel() {
+    drawingStateRef.current = null;
+    setDrawingPreview(null);
+  }
+
+  function addAnnotationToCanvas(
+    ann: DrugNetworkAnnotation,
+    position: { x: number; y: number },
+    size?: { width: number; height: number },
+    autoFocus = false
+  ) {
     setAnnotations((prev) => [...prev, ann]);
     const flowNode = annotationToFlowNode(
-      ann, position, undefined,
+      ann, position, size,
       ann.id, boardLocked, effectiveWorkspaceMode === "ANALYST",
-      handleAnnotationTextChangeRef.current
+      handleAnnotationTextChangeRef.current,
+      { autoFocus, screenToFlowPosition, onEndpointDrag: handleEndpointDragRef.current }
     );
-    // Mark as selected on creation
-    const selectedNode = { ...flowNode, selected: true };
-    setFlowNodes((prev) => [...prev as FlowNode[], selectedNode as FlowNode]);
+    const selectedFlowNode = { ...flowNode, selected: true };
+    setFlowNodes((prev) => [...prev as FlowNode[], selectedFlowNode as FlowNode]);
     setSelectedAnnotationId(ann.id);
     setSelectedNode(null);
     setSelectedEdge(null);
@@ -737,9 +944,12 @@ function DrugNetworkContent() {
         };
       }) as FlowNode[]
     );
-    // Update defaults to match the last-used style (Section 16 QoL: new
-    // annotations inherit the style the analyst was last using)
-    setAnnotationDefaults((d) => ({ ...d, ...patch }));
+    // Update defaults to match the last-used STYLE (not geometry) so new
+    // annotations inherit the style the analyst was last using.
+    const { endOffset: _eo, text: _t, imageSrc: _i, caption: _c, ...stylePatch } = patch;
+    if (Object.keys(stylePatch).length > 0) {
+      setAnnotationDefaults((d) => ({ ...d, ...stylePatch }));
+    }
   }, []);
 
   // ── Annotation deletion ───────────────────────────────────────────────────────
@@ -810,6 +1020,11 @@ function DrugNetworkContent() {
 
   // Clicking the canvas background (pane) deselects everything (plus triggers creation)
   function handlePaneClickWrapper(event: React.MouseEvent) {
+    // If a drag-draw just completed, skip this trailing click
+    if (justDrewRef.current) {
+      justDrewRef.current = false;
+      return;
+    }
     setSelectedNode(null);
     setSelectedEdge(null);
     setSelectedAnnotationId(null);
@@ -965,11 +1180,9 @@ function DrugNetworkContent() {
           <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="font-semibold">{t("di.network.modeAnalystBadge")}</span>
           <span className="text-accent/80">
-            {pendingLineStart
-              ? t("di.network.drawingHintLineSecondClick")
-              : activeTool !== "SELECT" && activeTool !== "PAN"
-                ? t("di.network.drawingHintClick")
-                : null}
+            {activeTool !== "SELECT" && activeTool !== "PAN"
+              ? t("di.network.drawingHintClick")
+              : null}
           </span>
         </div>
       ) : null}
@@ -1322,6 +1535,10 @@ function DrugNetworkContent() {
               <div
                 className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]"
                 aria-describedby="drug-network-canvas-summary"
+                onPointerDown={handleDrawPointerDown}
+                onPointerMove={handleDrawPointerMove}
+                onPointerUp={handleDrawPointerUp}
+                onPointerCancel={handleDrawPointerCancel}
               >
                 {/* DI-9.4 Section 3: vertical toolbar — always left of canvas in Analyst Mode */}
                 {effectiveWorkspaceMode === "ANALYST" ? (
@@ -1329,12 +1546,31 @@ function DrugNetworkContent() {
                     activeTool={activeTool}
                     onToolSelect={(tool) => {
                       setActiveTool(tool);
-                      setPendingLineStart(null);
+                      // Cancel any in-progress drag-draw when switching tools
+                      if (drawingStateRef.current) {
+                        drawingStateRef.current = null;
+                        setDrawingPreview(null);
+                      }
                       if (tool === "IMAGE") handleImageToolClick();
                     }}
                     boardLocked={boardLocked}
-                    pendingLineStart={pendingLineStart}
                   />
+                ) : null}
+
+                {/* ── DI-9.4.1: Floating annotation property bar ──────────── */}
+                {selectedAnnotation && effectiveWorkspaceMode === "ANALYST" ? (
+                  <div
+                    className="absolute left-14 right-20 top-2 z-10 sm:left-14"
+                    data-testid="annotation-floating-bar"
+                  >
+                    <DrugNetworkAnnotationFloatingBar
+                      annotation={selectedAnnotation}
+                      boardLocked={boardLocked}
+                      onChange={updateAnnotationData}
+                      onDelete={deleteAnnotation}
+                      onDuplicate={duplicateAnnotation}
+                    />
+                  </div>
                 ) : null}
 
                 <ReactFlow
@@ -1361,6 +1597,9 @@ function DrugNetworkContent() {
                   <Controls showInteractive={false} />
                   <MiniMap pannable zoomable className="hidden sm:block" />
                 </ReactFlow>
+
+                {/* DI-9.4.1: Live drawing preview overlay */}
+                {drawingPreview ? <DrawingPreviewOverlay preview={drawingPreview} /> : null}
 
                 {/* Legend button — top-right */}
                 <div className="absolute right-2 top-2 z-10">
