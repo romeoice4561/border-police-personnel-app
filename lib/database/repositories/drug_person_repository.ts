@@ -10,6 +10,7 @@
  */
 
 import type { DatabaseClient, DrugPerson, DrugPersonIdentifier, DrugPersonAlias } from "@/lib/database/database_types";
+import { normalizePhoneMatchingKey } from "@/lib/drug_intelligence/phone_matching_key";
 
 export interface DrugPersonCreateInput {
   id: string;
@@ -83,9 +84,14 @@ export class DrugPersonRepository {
   }
 
   search(query: string): Promise<DrugPerson[]> {
-    return this.db.drugPerson.findMany({ where: {} }).then((rows) =>
-      rows.filter((r) => r.primaryFullName.toLowerCase().includes(query.toLowerCase()))
-    );
+    const needle = query.trim();
+    if (!needle) return Promise.resolve([]);
+    return this.db.drugPerson.findMany({
+      where: {
+        status: "ACTIVE",
+        primaryFullName: { contains: needle, mode: "insensitive" },
+      },
+    });
   }
 
   /** Section 18's Person Detail Drawer — every phone number link across ALL of this person's cases (not scoped to one case), for the "phones" list. */
@@ -101,16 +107,115 @@ export class DrugPersonRepository {
   // ── DI-2: Entity Resolution additions ──────────────────────────────────
 
   /**
-   * DI-2 Section 7/9: every ACTIVE person, for the Person Directory and the
-   * matching engine's candidate pool. Same "load then filter in JS"
-   * DI-1-established shape as `search()` above (no DB-side text index exists
-   * yet) — acceptable at this module's current data scale, same call already
-   * made for `search()`. MERGED persons are excluded so a resolved duplicate
-   * never resurfaces in the directory or as a fresh matching candidate.
+   * DI-2 Section 7/9: every ACTIVE person, for matching engine candidate pool.
+   * Directory listing should prefer `findActivePage` (DI-9.4.3B) instead of
+   * loading the full active set for UI pagination.
    */
   async findAllActive(): Promise<DrugPerson[]> {
-    const rows = await this.db.drugPerson.findMany({ where: { status: "ACTIVE" } });
-    return rows.filter((r) => r.status === "ACTIVE");
+    return this.db.drugPerson.findMany({ where: { status: "ACTIVE" } });
+  }
+
+  /** DI-9.4.3B: ACTIVE persons page, sorted newest-updated first. */
+  findActivePage(skip: number, take: number): Promise<DrugPerson[]> {
+    return this.db.drugPerson.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { updatedAt: "desc" },
+      skip,
+      take,
+    });
+  }
+
+  countActive(): Promise<number> {
+    return this.db.drugPerson.count({ where: { status: "ACTIVE" } });
+  }
+
+  findByIds(ids: string[]): Promise<DrugPerson[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.db.drugPerson.findMany({ where: { id: { in: ids } } });
+  }
+
+  /** DI-9.4.3B: batch child loads for a page of person ids. */
+  aliasesForPersons(personIds: string[]) {
+    if (personIds.length === 0) return Promise.resolve([] as DrugPersonAlias[]);
+    return this.db.drugPersonAlias.findMany({ where: { personId: { in: personIds } } });
+  }
+
+  identifiersForPersons(personIds: string[]) {
+    if (personIds.length === 0) return Promise.resolve([] as DrugPersonIdentifier[]);
+    return this.db.drugPersonIdentifier.findMany({ where: { personId: { in: personIds } } });
+  }
+
+  casePhonesForPersons(personIds: string[]) {
+    if (personIds.length === 0) return Promise.resolve([] as Array<{ personId: string | null; phoneNumberId: string }>);
+    return this.db.drugCasePhone.findMany({ where: { personId: { in: personIds } } });
+  }
+
+  casePersonsForPersons(personIds: string[]) {
+    if (personIds.length === 0) return Promise.resolve([] as Array<{ personId: string; caseId: string }>);
+    return this.db.drugCasePerson.findMany({ where: { personId: { in: personIds } } });
+  }
+
+  devicesForPersons(personIds: string[]) {
+    if (personIds.length === 0) return Promise.resolve([] as Array<{ personId: string; deviceId: string }>);
+    return this.db.drugPersonDevice.findMany({ where: { personId: { in: personIds } } });
+  }
+
+  /**
+   * DI-9.4.3B: resolve ACTIVE person ids matching directory text query via
+   * DB-side substring contains (name/alias/identifier) + normalized phone.
+   * Preserves Thai contiguous-substring semantics (mode insensitive).
+   */
+  async findActiveIdsMatchingQuery(query: string): Promise<string[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const lower = trimmed.toLowerCase();
+    const phoneKey = normalizePhoneMatchingKey(trimmed);
+
+    const [byName, aliasRows, identifierRows] = await Promise.all([
+      this.db.drugPerson.findMany({
+        where: { status: "ACTIVE", primaryFullName: { contains: trimmed, mode: "insensitive" } },
+        select: { id: true },
+      }),
+      this.db.drugPersonAlias.findMany({
+        where: { fullName: { contains: trimmed, mode: "insensitive" } },
+        select: { personId: true },
+      }),
+      this.db.drugPersonIdentifier.findMany({
+        where: { value: { contains: trimmed, mode: "insensitive" } },
+        select: { personId: true },
+      }),
+    ]);
+
+    const ids = new Set<string>();
+    for (const row of byName) ids.add((row as { id: string }).id);
+    for (const row of aliasRows as Array<{ personId: string }>) ids.add(row.personId);
+    for (const row of identifierRows as Array<{ personId: string }>) ids.add(row.personId);
+
+    if (phoneKey) {
+      const phones = await this.db.drugPhoneNumber.findMany({
+        where: { normalizedNumber: { contains: phoneKey } },
+        select: { id: true },
+      });
+      const phoneIds = (phones as Array<{ id: string }>).map((p) => p.id);
+      if (phoneIds.length > 0) {
+        const links = await this.db.drugCasePhone.findMany({
+          where: { phoneNumberId: { in: phoneIds } },
+          select: { personId: true },
+        });
+        for (const link of links as Array<{ personId: string | null }>) {
+          if (link.personId) ids.add(link.personId);
+        }
+      }
+    }
+
+    // Ensure only ACTIVE persons remain (alias/identifier may point at MERGED).
+    if (ids.size === 0) return [];
+    const active = await this.db.drugPerson.findMany({
+      where: { id: { in: [...ids] }, status: "ACTIVE" },
+      select: { id: true },
+    });
+    void lower; // reserved for future exact-rank helpers
+    return (active as Array<{ id: string }>).map((r) => r.id);
   }
 
   /** DI-2 Section 15/16: marks a person MERGED and points it at the surviving canonical person. Called only from inside the merge service's transaction. */
@@ -163,7 +268,7 @@ export class DrugPersonRepository {
    * as the rest of Section 14's identifier lookups.
    */
   findIdentifiersByValue(value: string): Promise<DrugPersonIdentifier[]> {
-    return this.db.drugPersonIdentifier.findMany({}).then((rows) => rows.filter((r) => r.value === value));
+    return this.db.drugPersonIdentifier.findMany({ where: { value } });
   }
 
   /** DI-3 Section 8: every alias row, for Global Search's broad in-memory alias-name scan. */
@@ -171,8 +276,22 @@ export class DrugPersonRepository {
     return this.db.drugPersonAlias.findMany({});
   }
 
+  /** DI-9.4.3B: alias substring search without loading the full alias table into JS first. */
+  findAliasesContaining(query: string): Promise<DrugPersonAlias[]> {
+    return this.db.drugPersonAlias.findMany({
+      where: { fullName: { contains: query, mode: "insensitive" } },
+    });
+  }
+
   /** DI-3 Section 8: every identifier row, for Global Search's broad in-memory identifier-value substring scan. */
   findAllIdentifiers(): Promise<DrugPersonIdentifier[]> {
     return this.db.drugPersonIdentifier.findMany({});
+  }
+
+  /** DI-9.4.3B: identifier substring search (preserves contiguous-substring semantics). */
+  findIdentifiersContaining(query: string): Promise<DrugPersonIdentifier[]> {
+    return this.db.drugPersonIdentifier.findMany({
+      where: { value: { contains: query, mode: "insensitive" } },
+    });
   }
 }

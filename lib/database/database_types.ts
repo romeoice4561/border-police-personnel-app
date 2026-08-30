@@ -87,6 +87,11 @@ export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
   findMany(args?: {
     where?: Record<string, unknown>;
     orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">>;
+    /** DI-9.4.3B: Prisma-native pagination (skip/take). Optional for backward compatibility. */
+    skip?: number;
+    take?: number;
+    /** DI-9.4.3B: optional column projection. Fakes may ignore. */
+    select?: Record<string, boolean>;
   }): Promise<TRow[]>;
   create(args: { data: TCreate }): Promise<TRow>;
   update(args: { where: TWhereUnique; data: TUpdate }): Promise<TRow>;

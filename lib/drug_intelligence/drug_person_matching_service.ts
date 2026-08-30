@@ -229,11 +229,7 @@ export class DrugPersonMatchingService {
    */
   async findDuplicatePairFirstCandidateMap(): Promise<Map<string, string>> {
     const pool = await this.personRepo.findAllActive();
-    const identities = new Map<string, DrugMatchableIdentity>();
-    for (const person of pool) {
-      const identity = await this.buildIdentityForPerson(person.id);
-      if (identity) identities.set(person.id, identity);
-    }
+    const identities = await this.buildIdentitiesBatched(pool);
 
     const allReviews = await this.reviewRepo.findAll();
     const notSamePairs = new Set(
@@ -242,7 +238,7 @@ export class DrugPersonMatchingService {
         .map((r) => `${r.personAId}:${r.personBId}`)
     );
 
-    const firstCandidate = new Map<string, string>(); // personId → first candidate's id
+    const firstCandidate = new Map<string, string>();
     for (let i = 0; i < pool.length; i += 1) {
       for (let j = i + 1; j < pool.length; j += 1) {
         const personA = pool[i];
@@ -269,28 +265,16 @@ export class DrugPersonMatchingService {
   /**
    * Person Directory's "อาจซ้ำ" badge (Section 9) needs, for EVERY row, "does
    * this person have at least one unresolved HIGH/MEDIUM match anywhere in
-   * the pool?" — computing that via per-row findCandidates() calls was
-   * O(n²) *identity rebuilds* (each findCandidates() call re-derives every
-   * other person's identity from scratch), which measured ~54s at just 26
-   * seeded persons. This method builds every active person's identity
-   * exactly ONCE (O(n) identity builds), then does the O(n²) PAIRWISE
-   * SIGNAL COMPARISON (cheap — pure in-memory signal matching, no DB calls
-   * per pair) — the same shape as findUnresolvedPairs() but returning a
-   * flat Set the directory can look up in O(1) per row instead of a full
-   * candidate list. A NOT_SAME-reviewed pair still counts as "not flagged"
-   * here (matching findCandidates()'s own semantics), but unlike
-   * findUnresolvedPairs() this intentionally does NOT filter out
-   * CONFIRMED_DUPLICATE/MERGED pairs — a person already confirmed-but-not-
-   * yet-merged should still show the directory badge so the confirmation
-   * doesn't silently disappear from view.
+   * the pool?"
+   *
+   * DI-9.4.3B: identity hydration is BATCHED (fixed query count) instead of
+   * per-person serial DB fan-out. Pairwise comparison remains O(n²) in memory
+   * — that CPU cost is acceptable relative to DB RTT; production scale tests
+   * assert query count stays bounded.
    */
   async findPersonIdsWithPotentialDuplicates(): Promise<Set<string>> {
     const pool = await this.personRepo.findAllActive();
-    const identities = new Map<string, DrugMatchableIdentity>();
-    for (const person of pool) {
-      const identity = await this.buildIdentityForPerson(person.id);
-      if (identity) identities.set(person.id, identity);
-    }
+    const identities = await this.buildIdentitiesBatched(pool);
 
     const allReviews = await this.reviewRepo.findAll();
     const notSamePairs = new Set(
@@ -304,7 +288,7 @@ export class DrugPersonMatchingService {
       for (let j = i + 1; j < pool.length; j += 1) {
         const personA = pool[i];
         const personB = pool[j];
-        if (flagged.has(personA.id) && flagged.has(personB.id)) continue; // both already flagged — skip the (still cheap) comparison
+        if (flagged.has(personA.id) && flagged.has(personB.id)) continue;
         const identityA = identities.get(personA.id);
         const identityB = identities.get(personB.id);
         if (!identityA || !identityB) continue;
@@ -324,4 +308,87 @@ export class DrugPersonMatchingService {
 
     return flagged;
   }
+
+  /**
+   * DI-9.4.3B: build matchable identities for a person set with a fixed number
+   * of table scans (not N×7 queries). Used by duplicate-flag computation.
+   */
+  private async buildIdentitiesBatched(pool: Array<{ id: string; primaryFullName: string; dateOfBirth: Date | null }>): Promise<Map<string, DrugMatchableIdentity>> {
+    const ids = pool.map((p) => p.id);
+    if (ids.length === 0) return new Map();
+
+    const [identifierRows, aliasRows, caseLinks, casePhones, personDevices, personVehicles] = await Promise.all([
+      this.personRepo.identifiersForPersons(ids),
+      this.personRepo.aliasesForPersons(ids),
+      this.personRepo.casePersonsForPersons(ids),
+      this.personRepo.casePhonesForPersons(ids),
+      this.db.drugPersonDevice.findMany({ where: { personId: { in: ids } } }),
+      this.db.drugPersonVehicle.findMany({ where: { personId: { in: ids } } }),
+    ]);
+
+    const phoneIds = [...new Set((casePhones as Array<{ phoneNumberId: string }>).map((l) => l.phoneNumberId))];
+    const deviceIds = [...new Set((personDevices as Array<{ deviceId: string }>).map((l) => l.deviceId))];
+    const vehicleIds = [...new Set((personVehicles as Array<{ vehicleId: string }>).map((l) => l.vehicleId))];
+
+    const [phones, devices, vehicles] = await Promise.all([
+      phoneIds.length ? this.db.drugPhoneNumber.findMany({ where: { id: { in: phoneIds } } }) : Promise.resolve([]),
+      deviceIds.length ? this.db.drugDevice.findMany({ where: { id: { in: deviceIds } } }) : Promise.resolve([]),
+      vehicleIds.length ? this.db.drugVehicle.findMany({ where: { id: { in: vehicleIds } } }) : Promise.resolve([]),
+    ]);
+
+    const phoneById = new Map((phones as Array<{ id: string; normalizedNumber: string }>).map((p) => [p.id, p]));
+    const deviceById = new Map((devices as Array<{ id: string; imei1: string | null; imei2: string | null }>).map((d) => [d.id, d]));
+    const vehicleById = new Map((vehicles as Array<{ id: string; vin: string | null }>).map((v) => [v.id, v]));
+
+    const identifiersByPerson = groupByPersonId(identifierRows as Array<{ personId: string; type: string; value: string }>);
+    const aliasesByPerson = groupByPersonId(aliasRows as Array<{ personId: string; fullName: string }>);
+    const casesByPerson = groupByPersonId(caseLinks as Array<{ personId: string; caseId: string }>);
+    const phonesByPerson = groupByPersonId(
+      (casePhones as Array<{ personId: string | null; phoneNumberId: string }>)
+        .filter((l): l is { personId: string; phoneNumberId: string } => Boolean(l.personId))
+    );
+    const devicesByPerson = groupByPersonId(personDevices as Array<{ personId: string; deviceId: string }>);
+    const vehiclesByPerson = groupByPersonId(personVehicles as Array<{ personId: string; vehicleId: string }>);
+
+    const identities = new Map<string, DrugMatchableIdentity>();
+    for (const person of pool) {
+      const normalizedPhones: string[] = [];
+      for (const link of phonesByPerson.get(person.id) ?? []) {
+        const phone = phoneById.get(link.phoneNumberId);
+        if (phone) normalizedPhones.push(phone.normalizedNumber);
+      }
+      const deviceImeis: string[] = [];
+      for (const link of devicesByPerson.get(person.id) ?? []) {
+        const device = deviceById.get(link.deviceId);
+        if (device?.imei1) deviceImeis.push(device.imei1);
+        if (device?.imei2) deviceImeis.push(device.imei2);
+      }
+      const vehicleVins: string[] = [];
+      for (const link of vehiclesByPerson.get(person.id) ?? []) {
+        const vehicle = vehicleById.get(link.vehicleId);
+        if (vehicle?.vin) vehicleVins.push(vehicle.vin);
+      }
+      identities.set(person.id, {
+        identifiers: (identifiersByPerson.get(person.id) ?? []).map((r) => ({ type: r.type, value: r.value })),
+        primaryFullName: person.primaryFullName,
+        aliases: (aliasesByPerson.get(person.id) ?? []).map((r) => r.fullName),
+        dateOfBirth: person.dateOfBirth,
+        normalizedPhones: Array.from(new Set(normalizedPhones)),
+        deviceImeis: Array.from(new Set(deviceImeis)),
+        vehicleVins: Array.from(new Set(vehicleVins)),
+        caseIds: (casesByPerson.get(person.id) ?? []).map((r) => r.caseId),
+      });
+    }
+    return identities;
+  }
+}
+
+function groupByPersonId<T extends { personId: string }>(rows: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = map.get(row.personId) ?? [];
+    list.push(row);
+    map.set(row.personId, list);
+  }
+  return map;
 }

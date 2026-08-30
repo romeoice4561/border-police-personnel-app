@@ -317,6 +317,56 @@ export class DrugEntityRepository {
     return this.db.drugVehicle.findMany({});
   }
 
+  /** DI-9.4.3B: DB-side partial lookups (contiguous substring). */
+  findPhoneNumbersContaining(normalizedFragment: string): Promise<DrugPhoneNumber[]> {
+    return this.db.drugPhoneNumber.findMany({ where: { normalizedNumber: { contains: normalizedFragment } } });
+  }
+  findSimsContaining(fragment: string): Promise<DrugSim[]> {
+    return this.db.drugSim.findMany({
+      where: {
+        OR: [{ iccid: { contains: fragment } }, { imsi: { contains: fragment } }],
+      },
+    });
+  }
+  findDevicesContaining(fragment: string): Promise<DrugDevice[]> {
+    return this.db.drugDevice.findMany({
+      where: {
+        OR: [
+          { imei1: { contains: fragment } },
+          { imei2: { contains: fragment } },
+          { serialNumber: { contains: fragment, mode: "insensitive" } },
+        ],
+      },
+    });
+  }
+  findVehiclesContaining(fragment: string): Promise<DrugVehicle[]> {
+    return this.db.drugVehicle.findMany({
+      where: {
+        OR: [{ registrationNumber: { contains: fragment, mode: "insensitive" } }, { vin: { contains: fragment, mode: "insensitive" } }],
+      },
+    });
+  }
+  findByIdsPhones(ids: string[]): Promise<DrugPhoneNumber[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.db.drugPhoneNumber.findMany({ where: { id: { in: ids } } });
+  }
+  findByIdsSims(ids: string[]): Promise<DrugSim[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.db.drugSim.findMany({ where: { id: { in: ids } } });
+  }
+  findByIdsDevices(ids: string[]): Promise<DrugDevice[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.db.drugDevice.findMany({ where: { id: { in: ids } } });
+  }
+  findByIdsVehicles(ids: string[]): Promise<DrugVehicle[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.db.drugVehicle.findMany({ where: { id: { in: ids } } });
+  }
+  findByIdsLocations(ids: string[]): Promise<DrugLocation[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.db.drugLocation.findMany({ where: { id: { in: ids } } });
+  }
+
   countCasePhonesForPhoneNumber(phoneNumberId: string): Promise<number> {
     return this.db.drugCasePhone.count({ where: { phoneNumberId } });
   }

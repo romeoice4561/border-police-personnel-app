@@ -185,22 +185,46 @@ export class DrugNetworkGraphService {
       if (frontier.length === 0) break;
     }
 
-    // Closing pass (Section 3's "never a mysterious line" — an edge between two nodes that are
-    // BOTH already in this neighborhood must always be included, even if neither side happened to
-    // be the one whose expansion originally discovered the other, e.g. two persons who each
-    // reached the same Case/Phone from different directions). Only re-expands CASE/PHONE/SIM/
-    // DEVICE/VEHICLE/LOCATION nodes that were added as leaves and never got their own turn to
-    // expand — never re-scans the whole visited set redundantly.
-    for (const [key, ref] of visited) {
-      if (expanded.has(key)) continue;
+  // Closing pass (Section 3) — DI-9.4.3B: batch CASE leaf expansion via `in` queries.
+    const pendingClosing = [...visited.entries()].filter(([key]) => !expanded.has(key));
+    const pendingByType = new Map<DrugGraphNodeType, Array<{ key: string; id: string }>>();
+    for (const [key, ref] of pendingClosing) {
       expanded.add(key);
-      const rawEdges = await this.gatherDirectEdges(ref.type, ref.id, mergeCache);
-      for (const raw of rawEdges) {
-        if (request.nodeTypes && !request.nodeTypes.includes(raw.neighborType)) continue;
-        if (request.relationshipTypes && !request.relationshipTypes.includes(raw.edge.relationshipType)) continue;
-        if (!this.withinDateRange(raw.edge, request.dateFrom, request.dateTo)) continue;
-        const neighborKey = nodeKey(raw.neighborType, raw.neighborId);
-        if (visited.has(neighborKey)) this.mergeEdgeIntoMap(edgesByKey, mergedRawIds, raw.edge);
+      const list = pendingByType.get(ref.type) ?? [];
+      list.push({ key, id: ref.id });
+      pendingByType.set(ref.type, list);
+    }
+
+    const casePending = pendingByType.get("CASE") ?? [];
+    if (casePending.length > 0) {
+      const edgesByCase = await this.gatherFromCasesBatched(
+        casePending.map((c) => c.id),
+        mergeCache
+      );
+      for (const { id } of casePending) {
+        for (const raw of edgesByCase.get(id) ?? []) {
+          if (request.nodeTypes && !request.nodeTypes.includes(raw.neighborType)) continue;
+          if (request.relationshipTypes && !request.relationshipTypes.includes(raw.edge.relationshipType)) continue;
+          if (!this.withinDateRange(raw.edge, request.dateFrom, request.dateTo)) continue;
+          const neighborKey = nodeKey(raw.neighborType, raw.neighborId);
+          if (visited.has(neighborKey)) this.mergeEdgeIntoMap(edgesByKey, mergedRawIds, raw.edge);
+        }
+      }
+      pendingByType.delete("CASE");
+    }
+
+    for (const [, refs] of pendingByType) {
+      for (const { id } of refs) {
+        const type = [...visited.values()].find((v) => v.id === id)?.type;
+        if (!type) continue;
+        const rawEdges = await this.gatherDirectEdges(type, id, mergeCache);
+        for (const raw of rawEdges) {
+          if (request.nodeTypes && !request.nodeTypes.includes(raw.neighborType)) continue;
+          if (request.relationshipTypes && !request.relationshipTypes.includes(raw.edge.relationshipType)) continue;
+          if (!this.withinDateRange(raw.edge, request.dateFrom, request.dateTo)) continue;
+          const neighborKey = nodeKey(raw.neighborType, raw.neighborId);
+          if (visited.has(neighborKey)) this.mergeEdgeIntoMap(edgesByKey, mergedRawIds, raw.edge);
+        }
       }
     }
 
@@ -365,67 +389,114 @@ export class DrugNetworkGraphService {
   }
 
   private async gatherFromCase(caseId: string, mergeCache: Map<string, string>): Promise<RawEdge[]> {
+    const map = await this.gatherFromCasesBatched([caseId], mergeCache);
+    return map.get(caseId) ?? [];
+  }
+
+  /** DI-9.4.3B: batch CASE→edge expansion for many case ids (closing pass / frontier). */
+  private async gatherFromCasesBatched(caseIds: string[], mergeCache: Map<string, string>): Promise<Map<string, RawEdge[]>> {
+    const result = new Map<string, RawEdge[]>();
+    if (caseIds.length === 0) return result;
+    for (const id of caseIds) result.set(id, []);
+
     const [personLinks, phoneLinks, simLinks, deviceLinks, vehicleLinks, locationLinks] = await Promise.all([
-      this.casePersonRepo.forCase(caseId),
-      this.caseRepo.casePhonesForCase(caseId),
-      this.caseRepo.caseSimsForCase(caseId),
-      this.caseRepo.caseDevicesForCase(caseId),
-      this.caseRepo.caseVehiclesForCase(caseId),
-      this.caseRepo.caseLocationsForCase(caseId),
+      this.db.drugCasePerson.findMany({ where: { caseId: { in: caseIds } } }),
+      this.db.drugCasePhone.findMany({ where: { caseId: { in: caseIds } } }),
+      this.db.drugCaseSim.findMany({ where: { caseId: { in: caseIds } } }),
+      this.db.drugCaseDevice.findMany({ where: { caseId: { in: caseIds } } }),
+      this.db.drugCaseVehicle.findMany({ where: { caseId: { in: caseIds } } }),
+      this.db.drugCaseLocation.findMany({ where: { caseId: { in: caseIds } } }),
     ]);
 
-    const edges: RawEdge[] = [];
-    for (const link of personLinks) {
-      const canonicalPersonId = await this.resolveCanonicalPersonId(link.personId, mergeCache);
+    const personIds = [...new Set((personLinks as Array<{ personId: string }>).map((l) => l.personId))];
+    await Promise.all(personIds.map((id) => this.resolveCanonicalPersonId(id, mergeCache)));
+
+    for (const link of personLinks as Array<{ id: string; caseId: string; personId: string; role: string }>) {
+      const canonicalPersonId = mergeCache.get(link.personId) ?? (await this.resolveCanonicalPersonId(link.personId, mergeCache));
       if (!canonicalPersonId) continue;
-      edges.push({
+      result.get(link.caseId)!.push({
         neighborType: "PERSON",
         neighborId: canonicalPersonId,
         edge: {
           id: `pc:${link.id}`,
           source: canonicalPersonId,
-          target: caseId,
+          target: link.caseId,
           relationshipType: "PERSON_CASE",
           edgeKind: "DIRECT",
           evidenceCount: 1,
           firstSeenAt: null,
           lastSeenAt: null,
-          sourceCaseIds: [caseId],
+          sourceCaseIds: [link.caseId],
           explanation: { kind: "DIRECT_ROLE", role: link.role },
         },
       });
     }
-    for (const link of phoneLinks) {
-      edges.push(this.directEdge({ id: `cp:${link.id}`, source: caseId, target: link.phoneNumberId, relationshipType: "CASE_PHONE", neighborType: "PHONE", neighborId: link.phoneNumberId, link }));
+    for (const link of phoneLinks as Array<{ id: string; caseId: string; phoneNumberId: string; firstSeenAt?: Date | null; lastSeenAt?: Date | null }>) {
+      result.get(link.caseId)!.push(
+        this.directEdge({
+          id: `cp:${link.id}`,
+          source: link.caseId,
+          target: link.phoneNumberId,
+          relationshipType: "CASE_PHONE",
+          neighborType: "PHONE",
+          neighborId: link.phoneNumberId,
+          link,
+        })
+      );
     }
-    for (const link of simLinks) {
-      edges.push(this.directEdge({ id: `cs:${link.id}`, source: caseId, target: link.simId, relationshipType: "CASE_SIM", neighborType: "SIM", neighborId: link.simId, link }));
+    for (const link of simLinks as Array<{ id: string; caseId: string; simId: string; firstSeenAt?: Date | null; lastSeenAt?: Date | null }>) {
+      result.get(link.caseId)!.push(
+        this.directEdge({
+          id: `cs:${link.id}`,
+          source: link.caseId,
+          target: link.simId,
+          relationshipType: "CASE_SIM",
+          neighborType: "SIM",
+          neighborId: link.simId,
+          link,
+        })
+      );
     }
-    for (const link of deviceLinks) {
-      edges.push(this.directEdge({ id: `cd:${link.id}`, source: caseId, target: link.deviceId, relationshipType: "CASE_DEVICE", neighborType: "DEVICE", neighborId: link.deviceId, link }));
+    for (const link of deviceLinks as Array<{ id: string; caseId: string; deviceId: string; firstSeenAt?: Date | null; lastSeenAt?: Date | null }>) {
+      result.get(link.caseId)!.push(
+        this.directEdge({
+          id: `cd:${link.id}`,
+          source: link.caseId,
+          target: link.deviceId,
+          relationshipType: "CASE_DEVICE",
+          neighborType: "DEVICE",
+          neighborId: link.deviceId,
+          link,
+        })
+      );
     }
-    for (const link of vehicleLinks) {
-      edges.push(this.directEdge({ id: `cv:${link.id}`, source: caseId, target: link.vehicleId, relationshipType: "CASE_VEHICLE", neighborType: "VEHICLE", neighborId: link.vehicleId, link }));
+    for (const link of vehicleLinks as Array<{ id: string; caseId: string; vehicleId: string; firstSeenAt?: Date | null; lastSeenAt?: Date | null }>) {
+      result.get(link.caseId)!.push(
+        this.directEdge({
+          id: `cv:${link.id}`,
+          source: link.caseId,
+          target: link.vehicleId,
+          relationshipType: "CASE_VEHICLE",
+          neighborType: "VEHICLE",
+          neighborId: link.vehicleId,
+          link,
+        })
+      );
     }
-    for (const link of locationLinks) {
-      edges.push({
-        neighborType: "LOCATION",
-        neighborId: link.locationId,
-        edge: {
-          id: `cl:${link.caseId}:${link.locationId}`,
-          source: caseId,
+    for (const link of locationLinks as Array<{ id: string; caseId: string; locationId: string; firstSeenAt?: Date | null; lastSeenAt?: Date | null }>) {
+      result.get(link.caseId)!.push(
+        this.directEdge({
+          id: `cl:${link.id}`,
+          source: link.caseId,
           target: link.locationId,
           relationshipType: "CASE_LOCATION",
-          edgeKind: "DIRECT",
-          evidenceCount: 1,
-          firstSeenAt: null,
-          lastSeenAt: null,
-          sourceCaseIds: [caseId],
-          explanation: { kind: "DIRECT_LINK" },
-        },
-      });
+          neighborType: "LOCATION",
+          neighborId: link.locationId,
+          link,
+        })
+      );
     }
-    return edges;
+    return result;
   }
 
   private async gatherFromPhone(phoneNumberId: string, mergeCache: Map<string, string>): Promise<RawEdge[]> {
@@ -544,14 +615,15 @@ export class DrugNetworkGraphService {
       byType.set(ref.type, list);
     }
 
+    // DI-9.4.3B: batch entity hydration via `id IN (...)` instead of N findUnique calls.
     const [persons, phones, sims, devices, vehicles, cases, locations, duplicateIds] = await Promise.all([
-      Promise.all((byType.get("PERSON") ?? []).map((id) => this.personRepo.findById(id))),
-      Promise.all((byType.get("PHONE") ?? []).map((id) => this.entityRepo.findPhoneNumberById(id))),
-      Promise.all((byType.get("SIM") ?? []).map((id) => this.entityRepo.findSimById(id))),
-      Promise.all((byType.get("DEVICE") ?? []).map((id) => this.entityRepo.findDeviceById(id))),
-      Promise.all((byType.get("VEHICLE") ?? []).map((id) => this.entityRepo.findVehicleById(id))),
-      Promise.all((byType.get("CASE") ?? []).map((id) => this.caseRepo.findById(id))),
-      Promise.all((byType.get("LOCATION") ?? []).map((id) => this.entityRepo.findLocationById(id))),
+      this.personRepo.findByIds(byType.get("PERSON") ?? []),
+      this.entityRepo.findByIdsPhones(byType.get("PHONE") ?? []),
+      this.entityRepo.findByIdsSims(byType.get("SIM") ?? []),
+      this.entityRepo.findByIdsDevices(byType.get("DEVICE") ?? []),
+      this.entityRepo.findByIdsVehicles(byType.get("VEHICLE") ?? []),
+      this.caseRepo.findByIds(byType.get("CASE") ?? []),
+      this.entityRepo.findByIdsLocations(byType.get("LOCATION") ?? []),
       (byType.get("PERSON") ?? []).length > 0 ? this.matchingService.findPersonIdsWithPotentialDuplicates() : Promise.resolve(new Set<string>()),
     ]);
 
@@ -591,27 +663,53 @@ export class DrugNetworkGraphService {
 
   private async batchCaseCounts(byType: Map<DrugGraphNodeType, string[]>): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
-    const jobs: Array<Promise<void>> = [];
+    const personIds = byType.get("PERSON") ?? [];
+    const phoneIds = byType.get("PHONE") ?? [];
+    const simIds = byType.get("SIM") ?? [];
+    const deviceIds = byType.get("DEVICE") ?? [];
+    const vehicleIds = byType.get("VEHICLE") ?? [];
+    const locationIds = byType.get("LOCATION") ?? [];
 
-    for (const id of byType.get("PERSON") ?? []) {
-      jobs.push(this.casePersonRepo.forPerson(id).then((links) => void counts.set(nodeKey("PERSON", id), links.length)));
+    // DI-9.4.3B: one findMany per type instead of one count query per node.
+    const [personLinks, phoneLinks, simLinks, deviceLinks, vehicleLinks, locationLinks] = await Promise.all([
+      personIds.length ? this.db.drugCasePerson.findMany({ where: { personId: { in: personIds } } }) : Promise.resolve([]),
+      phoneIds.length ? this.db.drugCasePhone.findMany({ where: { phoneNumberId: { in: phoneIds } } }) : Promise.resolve([]),
+      simIds.length ? this.db.drugCaseSim.findMany({ where: { simId: { in: simIds } } }) : Promise.resolve([]),
+      deviceIds.length ? this.db.drugCaseDevice.findMany({ where: { deviceId: { in: deviceIds } } }) : Promise.resolve([]),
+      vehicleIds.length ? this.db.drugCaseVehicle.findMany({ where: { vehicleId: { in: vehicleIds } } }) : Promise.resolve([]),
+      locationIds.length ? this.db.drugCaseLocation.findMany({ where: { locationId: { in: locationIds } } }) : Promise.resolve([]),
+    ]);
+
+    for (const id of personIds) counts.set(nodeKey("PERSON", id), 0);
+    for (const link of personLinks as Array<{ personId: string }>) {
+      const key = nodeKey("PERSON", link.personId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    for (const id of byType.get("PHONE") ?? []) {
-      jobs.push(this.entityRepo.countCasePhonesForPhoneNumber(id).then((n) => void counts.set(nodeKey("PHONE", id), n)));
+    for (const id of phoneIds) counts.set(nodeKey("PHONE", id), 0);
+    for (const link of phoneLinks as Array<{ phoneNumberId: string }>) {
+      const key = nodeKey("PHONE", link.phoneNumberId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    for (const id of byType.get("SIM") ?? []) {
-      jobs.push(this.entityRepo.countCaseSimsForSim(id).then((n) => void counts.set(nodeKey("SIM", id), n)));
+    for (const id of simIds) counts.set(nodeKey("SIM", id), 0);
+    for (const link of simLinks as Array<{ simId: string }>) {
+      const key = nodeKey("SIM", link.simId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    for (const id of byType.get("DEVICE") ?? []) {
-      jobs.push(this.entityRepo.countCaseDevicesForDevice(id).then((n) => void counts.set(nodeKey("DEVICE", id), n)));
+    for (const id of deviceIds) counts.set(nodeKey("DEVICE", id), 0);
+    for (const link of deviceLinks as Array<{ deviceId: string }>) {
+      const key = nodeKey("DEVICE", link.deviceId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    for (const id of byType.get("VEHICLE") ?? []) {
-      jobs.push(this.entityRepo.countCaseVehiclesForVehicle(id).then((n) => void counts.set(nodeKey("VEHICLE", id), n)));
+    for (const id of vehicleIds) counts.set(nodeKey("VEHICLE", id), 0);
+    for (const link of vehicleLinks as Array<{ vehicleId: string }>) {
+      const key = nodeKey("VEHICLE", link.vehicleId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    for (const id of byType.get("LOCATION") ?? []) {
-      jobs.push(this.entityRepo.caseLocationsForLocation(id).then((links) => void counts.set(nodeKey("LOCATION", id), (links as unknown[]).length)));
+    for (const id of locationIds) counts.set(nodeKey("LOCATION", id), 0);
+    for (const link of locationLinks as Array<{ locationId: string }>) {
+      const key = nodeKey("LOCATION", link.locationId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    await Promise.all(jobs);
     return counts;
   }
 

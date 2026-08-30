@@ -17,7 +17,7 @@
  * below so every write still gets its own explicit audit action.
  */
 
-import type { DatabaseClient } from "@/lib/database/database_types";
+import type { DatabaseClient, DrugPerson } from "@/lib/database/database_types";
 import { DrugPersonRepository } from "@/lib/database/repositories/drug_person_repository";
 import { DrugCasePersonRepository } from "@/lib/database/repositories/drug_case_person_repository";
 import { DrugCaseRepository } from "@/lib/database/repositories/drug_case_repository";
@@ -26,7 +26,6 @@ import { DrugAuditLogRepository } from "@/lib/database/repositories/drug_audit_l
 import { DrugPersonMergeRepository } from "@/lib/database/repositories/drug_person_merge_repository";
 import { DrugPersonNetworkRoleRepository } from "@/lib/database/repositories/drug_person_network_role_repository";
 import { DrugPersonMatchingService } from "@/lib/drug_intelligence/drug_person_matching_service";
-import { normalizePhoneMatchingKey } from "@/lib/drug_intelligence/phone_matching_key";
 import { DrugPersonNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
 
 export interface DrugPersonDataQualityFlag {
@@ -337,85 +336,97 @@ export interface DrugPersonDirectoryRow {
 /** Section 7-9's Person Directory listing — a distinct, smaller service since it's read-heavy and list-shaped, not profile-shaped. */
 export class DrugPersonDirectoryService {
   private readonly personRepo: DrugPersonRepository;
-  private readonly casePersonRepo: DrugCasePersonRepository;
   private readonly matchingService: DrugPersonMatchingService;
 
   constructor(private readonly db: DatabaseClient) {
     this.personRepo = new DrugPersonRepository(db);
-    this.casePersonRepo = new DrugCasePersonRepository(db);
     this.matchingService = new DrugPersonMatchingService(db);
   }
 
   async list(query: DrugPersonDirectoryQuery): Promise<{ rows: DrugPersonDirectoryRow[]; total: number }> {
-    const active = await this.personRepo.findAllActive();
+    const page = Math.max(1, query.page);
+    const pageSize = Math.max(1, query.pageSize);
+    const skip = (page - 1) * pageSize;
+    const text = query.query?.trim();
 
-    const normalizedQuery = query.query?.trim().toLowerCase();
-    const normalizedPhoneQuery = query.query ? normalizePhoneMatchingKey(query.query) : "";
+    // DI-9.4.3B: FILTER → SORT → PAGE in DB (or over matched id set), then
+    // BATCH-ENRICH only the page. Never enrich-all-then-slice.
+    let pagePersons: DrugPerson[];
+    let total: number;
 
-    let matchedIds: Set<string> | null = null;
-    if (normalizedQuery) {
-      matchedIds = new Set<string>();
-      for (const person of active) {
-        if (person.primaryFullName.toLowerCase().includes(normalizedQuery)) matchedIds.add(person.id);
-        const aliases = await this.personRepo.aliasesForPerson(person.id);
-        if ((aliases as Array<{ fullName: string }>).some((a) => a.fullName.toLowerCase().includes(normalizedQuery!))) matchedIds.add(person.id);
-        const identifiers = await this.personRepo.identifiersForPerson(person.id);
-        if ((identifiers as Array<{ value: string }>).some((i) => i.value.toLowerCase().includes(normalizedQuery!))) matchedIds.add(person.id);
-        if (normalizedPhoneQuery) {
-          const phoneLinks = await this.personRepo.casePhonesForPerson(person.id);
-          for (const link of phoneLinks as Array<{ phoneNumberId: string }>) {
-            const phone = await this.db.drugPhoneNumber.findUnique({ where: { id: link.phoneNumberId } });
-            if (phone && (phone as { normalizedNumber: string }).normalizedNumber.includes(normalizedPhoneQuery)) {
-              matchedIds.add(person.id);
-              break;
-            }
-          }
-        }
-      }
+    if (text) {
+      const matchedIds = await this.personRepo.findActiveIdsMatchingQuery(text);
+      const matched = await this.personRepo.findByIds(matchedIds);
+      matched.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      total = matched.length;
+      pagePersons = matched.slice(skip, skip + pageSize);
+    } else {
+      total = await this.personRepo.countActive();
+      pagePersons = await this.personRepo.findActivePage(skip, pageSize);
     }
 
-    const filtered = matchedIds ? active.filter((p) => matchedIds!.has(p.id)) : active;
+    if (pagePersons.length === 0) return { rows: [], total };
 
-    // Computed ONCE per request (every active person's identity built exactly
-    // once) rather than per-row — see findPersonIdsWithPotentialDuplicates()'s
-    // own comment for the O(n²)-identity-rebuild bug this replaced (measured
-    // ~54s at 26 seeded persons before this fix).
-    const potentialDuplicateIds = await this.matchingService.findPersonIdsWithPotentialDuplicates();
+    const pageIds = pagePersons.map((p) => p.id);
+    const [aliases, identifiers, caseLinks, phoneLinks, deviceLinks, potentialDuplicateIds] = await Promise.all([
+      this.personRepo.aliasesForPersons(pageIds),
+      this.personRepo.identifiersForPersons(pageIds),
+      this.personRepo.casePersonsForPersons(pageIds),
+      this.personRepo.casePhonesForPersons(pageIds),
+      this.personRepo.devicesForPersons(pageIds),
+      // Matching semantics preserved (HIGH/MEDIUM unresolved flags). Query
+      // count is now batched; still runs against the full ACTIVE pool so a
+      // page row's badge remains accurate vs the whole population.
+      this.matchingService.findPersonIdsWithPotentialDuplicates(),
+    ]);
 
-    const rows: DrugPersonDirectoryRow[] = [];
-    for (const person of filtered) {
-      const [aliases, identifiers, caseLinks, phoneLinks, deviceLinks] = await Promise.all([
-        this.personRepo.aliasesForPerson(person.id),
-        this.personRepo.identifiersForPerson(person.id),
-        this.casePersonRepo.forPerson(person.id),
-        this.personRepo.casePhonesForPerson(person.id),
-        this.db.drugPersonDevice.findMany({ where: { personId: person.id } }),
-      ]);
+    const aliasesByPerson = new Map<string, Array<{ fullName: string; isPrimary: boolean }>>();
+    for (const row of aliases as Array<{ personId: string; fullName: string; isPrimary: boolean }>) {
+      const list = aliasesByPerson.get(row.personId) ?? [];
+      list.push(row);
+      aliasesByPerson.set(row.personId, list);
+    }
+    const identifiersByPerson = new Map<string, Array<{ type: string; value: string }>>();
+    for (const row of identifiers as Array<{ personId: string; type: string; value: string }>) {
+      const list = identifiersByPerson.get(row.personId) ?? [];
+      list.push(row);
+      identifiersByPerson.set(row.personId, list);
+    }
+    const caseCountByPerson = new Map<string, number>();
+    for (const row of caseLinks as Array<{ personId: string }>) {
+      caseCountByPerson.set(row.personId, (caseCountByPerson.get(row.personId) ?? 0) + 1);
+    }
+    const phoneCountByPerson = new Map<string, number>();
+    for (const row of phoneLinks as Array<{ personId: string | null }>) {
+      if (!row.personId) continue;
+      phoneCountByPerson.set(row.personId, (phoneCountByPerson.get(row.personId) ?? 0) + 1);
+    }
+    const deviceCountByPerson = new Map<string, number>();
+    for (const row of deviceLinks as Array<{ personId: string }>) {
+      deviceCountByPerson.set(row.personId, (deviceCountByPerson.get(row.personId) ?? 0) + 1);
+    }
 
-      const hasPotentialDuplicate = potentialDuplicateIds.has(person.id);
-
-      const primaryAlias = (aliases as Array<{ fullName: string; isPrimary: boolean }>).find((a) => !a.isPrimary)?.fullName ?? null;
-      const identifierPreview = (identifiers as Array<{ type: string; value: string }>)[0] ?? null;
-
-      rows.push({
+    const rows: DrugPersonDirectoryRow[] = pagePersons.map((person) => {
+      const personAliases = aliasesByPerson.get(person.id) ?? [];
+      const personIdentifiers = identifiersByPerson.get(person.id) ?? [];
+      const primaryAlias = personAliases.find((a) => !a.isPrimary)?.fullName ?? null;
+      const identifierPreview = personIdentifiers[0] ?? null;
+      return {
         id: person.id,
         primaryFullName: person.primaryFullName,
         status: person.status,
-        aliasCount: aliases.length,
+        aliasCount: personAliases.length,
         primaryAlias,
         identifierPreview: identifierPreview ? { type: identifierPreview.type, value: identifierPreview.value } : null,
-        caseCount: caseLinks.length,
-        phoneCount: phoneLinks.length,
-        deviceCount: deviceLinks.length,
+        caseCount: caseCountByPerson.get(person.id) ?? 0,
+        phoneCount: phoneCountByPerson.get(person.id) ?? 0,
+        deviceCount: deviceCountByPerson.get(person.id) ?? 0,
         firstSeenAt: person.createdAt,
         lastSeenAt: person.updatedAt,
-        hasPotentialDuplicate,
-      });
-    }
+        hasPotentialDuplicate: potentialDuplicateIds.has(person.id),
+      };
+    });
 
-    rows.sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime());
-
-    const start = (query.page - 1) * query.pageSize;
-    return { rows: rows.slice(start, start + query.pageSize), total: rows.length };
+    return { rows, total };
   }
 }

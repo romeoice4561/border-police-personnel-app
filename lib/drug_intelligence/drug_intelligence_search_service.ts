@@ -179,59 +179,81 @@ export class DrugIntelligenceSearchService {
       if (!matches.has(person.id)) matches.set(person.id, { person, matchedField, matchedValue, strength });
     }
 
-    // Exact identifier value match tried first (Section 19 priority 1).
+    // Exact identifier value match tried first (Section 19 priority 1) — DB equality.
     const identifierRows = await this.personRepo.findIdentifiersByValue(query);
     if (identifierRows.length > 0) {
       const personIds = [...new Set(identifierRows.map((r) => r.personId))];
-      const persons = await Promise.all(personIds.map((id) => this.personRepo.findById(id)));
+      const persons = await this.personRepo.findByIds(personIds);
       for (const p of persons) {
-        if (p) record(p, "IDENTIFIER", query, "EXACT");
+        if (p.status === "ACTIVE") record(p, "IDENTIFIER", query, "EXACT");
       }
     }
 
-    // Broad name/alias substring scan — every ACTIVE person (MERGED excluded — Section 20, never surfaced as a separate active result).
-    const active = await this.personRepo.findAllActive();
-    for (const person of active) {
+    // DI-9.4.3B: DB-side name/alias contains (Thai contiguous substring preserved).
+    const [byName, aliasHits] = await Promise.all([
+      this.db.drugPerson.findMany({
+        where: { status: "ACTIVE", primaryFullName: { contains: query, mode: "insensitive" } },
+      }),
+      this.personRepo.findAliasesContaining(query),
+    ]);
+    for (const person of byName) {
       if (person.primaryFullName.toLowerCase() === lower) {
         record(person, "PRIMARY_NAME", person.primaryFullName, "EXACT");
-      } else if (person.primaryFullName.toLowerCase().includes(lower)) {
+      } else {
         record(person, "PRIMARY_NAME", person.primaryFullName, "PARTIAL");
       }
     }
-    const allAliases = await this.personRepo.findAllAliases();
-    for (const alias of allAliases) {
-      if (matches.has(alias.personId)) continue;
-      if (alias.fullName.toLowerCase().includes(lower)) {
-        const person = active.find((p) => p.id === alias.personId);
-        if (person) record(person, "ALIAS", alias.fullName, alias.fullName.toLowerCase() === lower ? "EXACT" : "PARTIAL");
+    if (aliasHits.length > 0) {
+      const aliasPersonIds = [...new Set(aliasHits.map((a) => a.personId))];
+      const aliasPersons = await this.personRepo.findByIds(aliasPersonIds);
+      const byId = new Map(aliasPersons.filter((p) => p.status === "ACTIVE").map((p) => [p.id, p]));
+      for (const alias of aliasHits) {
+        if (matches.has(alias.personId)) continue;
+        const person = byId.get(alias.personId);
+        if (!person) continue;
+        record(person, "ALIAS", alias.fullName, alias.fullName.toLowerCase() === lower ? "EXACT" : "PARTIAL");
       }
     }
 
     if (matches.size === 0) return [];
 
-    // hasPotentialDuplicate computed ONCE for the whole active pool (Section
-    // 25/41 — the exact fix DI-2's Directory page already established:
-    // findPersonIdsWithPotentialDuplicates() builds every active person's
-    // identity exactly once, however many rows end up needing the flag.
-    // Calling findCandidates() per MATCHED person instead was tried and
-    // measured WORSE at scale — a broad name query can realistically match a
-    // large fraction of the pool (e.g. a common first name), and each
-    // findCandidates() call independently re-scans the whole pool, so
-    // matched-count × pool-size quickly exceeds the pool-only O(n) cost this
-    // whole-pool precompute pays exactly once regardless of match count.
     const potentialDuplicateIds = await this.matchingService.findPersonIdsWithPotentialDuplicates();
+    const matchedList = [...matches.values()];
+    const matchedIds = matchedList.map((m) => m.person.id);
+    const [allCaseLinks, allAliases] = await Promise.all([
+      this.personRepo.casePersonsForPersons(matchedIds),
+      this.personRepo.aliasesForPersons(matchedIds),
+    ]);
+    const caseCountBy = new Map<string, number>();
+    for (const link of allCaseLinks as Array<{ personId: string }>) {
+      caseCountBy.set(link.personId, (caseCountBy.get(link.personId) ?? 0) + 1);
+    }
+    const aliasesBy = new Map<string, Array<{ fullName: string; isPrimary: boolean }>>();
+    for (const row of allAliases as Array<{ personId: string; fullName: string; isPrimary: boolean }>) {
+      const list = aliasesBy.get(row.personId) ?? [];
+      list.push(row);
+      aliasesBy.set(row.personId, list);
+    }
 
     const results = await Promise.all(
-      [...matches.values()].map(async ({ person, matchedField, matchedValue, strength }) => {
-        const [caseLinks, aliases] = await Promise.all([this.casePersonRepo.forPerson(person.id), this.personRepo.aliasesForPerson(person.id)]);
-        const primaryAlias = (aliases as Array<{ fullName: string; isPrimary: boolean }>).find((a) => !a.isPrimary)?.fullName ?? null;
-
+      matchedList.map(async ({ person, matchedField, matchedValue, strength }) => {
+        const personAliases = aliasesBy.get(person.id) ?? [];
+        const primaryAlias = personAliases.find((a) => !a.isPrimary)?.fullName ?? null;
         const canonicalTarget =
           person.status === "MERGED" && person.mergedIntoPersonId
             ? await this.resolveCanonicalPersonLabel(person.mergedIntoPersonId)
             : null;
-
-        return this.buildPersonResult(person, matchedField, matchedValue, strength, caseLinks.length, primaryAlias, potentialDuplicateIds.has(person.id), canonicalTarget, options);
+        return this.buildPersonResult(
+          person,
+          matchedField,
+          matchedValue,
+          strength,
+          caseCountBy.get(person.id) ?? 0,
+          primaryAlias,
+          potentialDuplicateIds.has(person.id),
+          canonicalTarget,
+          options
+        );
       })
     );
 
@@ -287,13 +309,11 @@ export class DrugIntelligenceSearchService {
     }
 
     if (normalizedQuery && normalizedQuery.length >= 4) {
-      const all = await this.entityRepo.findAllPhoneNumbers();
-      for (const phone of all) {
+      const partial = await this.entityRepo.findPhoneNumbersContaining(normalizedQuery);
+      for (const phone of partial) {
         if (seen.has(phone.id)) continue;
-        if (phone.normalizedNumber.includes(normalizedQuery)) {
-          seen.add(phone.id);
-          results.push(await this.buildPhoneResult(phone.id, phone.normalizedNumber, "PARTIAL", options));
-        }
+        seen.add(phone.id);
+        results.push(await this.buildPhoneResult(phone.id, phone.normalizedNumber, "PARTIAL", options));
       }
     }
 
@@ -341,13 +361,11 @@ export class DrugIntelligenceSearchService {
     }
 
     if (query.length >= 4) {
-      const all = await this.entityRepo.findAllSims();
-      for (const sim of all) {
+      const partial = await this.entityRepo.findSimsContaining(query);
+      for (const sim of partial) {
         if (seen.has(sim.id)) continue;
-        if (sim.iccid?.includes(query) || sim.imsi?.includes(query)) {
-          seen.add(sim.id);
-          results.push(await this.buildSimResult(sim.id, sim.iccid, sim.imsi, sim.iccid?.includes(query) ? "ICCID" : "IMSI", "PARTIAL", options));
-        }
+        seen.add(sim.id);
+        results.push(await this.buildSimResult(sim.id, sim.iccid, sim.imsi, sim.iccid?.includes(query) ? "ICCID" : "IMSI", "PARTIAL", options));
       }
     }
 
@@ -416,8 +434,8 @@ export class DrugIntelligenceSearchService {
     }
 
     if (query.length >= 4) {
-      const all = await this.entityRepo.findAllDevices();
-      for (const device of all) {
+      const partial = await this.entityRepo.findDevicesContaining(query);
+      for (const device of partial) {
         if (seen.has(device.id)) continue;
         const imei1Match = device.imei1?.includes(query);
         const imei2Match = device.imei2?.includes(query);
@@ -502,11 +520,11 @@ export class DrugIntelligenceSearchService {
     }
 
     if (normalizedReg.length >= 2) {
-      const all = await this.entityRepo.findAllVehicles();
-      for (const vehicle of all) {
+      const partial = await this.entityRepo.findVehiclesContaining(query);
+      for (const vehicle of partial) {
         if (seen.has(vehicle.id)) continue;
-        const regMatch = vehicle.registrationNumber?.includes(normalizedReg);
-        const vinMatch = vehicle.vin?.toUpperCase().includes(normalizedVin);
+        const regMatch = vehicle.registrationNumber?.toLowerCase().includes(normalizedReg.toLowerCase()) || vehicle.registrationNumber?.includes(normalizedReg);
+        const vinMatch = Boolean(normalizedVin) && Boolean(vehicle.vin?.toUpperCase().includes(normalizedVin));
         if (regMatch || vinMatch) {
           seen.add(vehicle.id);
           results.push(
@@ -551,10 +569,17 @@ export class DrugIntelligenceSearchService {
   // ── CASE (Section 8) — case number, title ──
   private async searchCases(query: string, filters: DrugSearchFilters | undefined): Promise<DrugSearchResult[]> {
     const lower = query.toLowerCase();
-    const all = await this.caseRepo.findAllCases();
+    const hits = await this.db.drugCase.findMany({
+      where: {
+        OR: [
+          { caseNumber: { contains: query, mode: "insensitive" } },
+          { title: { contains: query, mode: "insensitive" } },
+        ],
+      },
+    });
     const results: DrugSearchResult[] = [];
 
-    for (const drugCase of all) {
+    for (const drugCase of hits) {
       const caseNumberLower = drugCase.caseNumber.toLowerCase();
       const titleLower = drugCase.title.toLowerCase();
       let matchedField: DrugSearchResult["matchedField"] | null = null;

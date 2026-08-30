@@ -33,7 +33,7 @@ class Table {
 
   findMany(where?: Record<string, unknown>): Row[] {
     if (!where) return this.rows.map((r) => ({ ...r }));
-    return this.rows.filter((r) => Object.entries(where).every(([k, v]) => r[k] === v)).map((r) => ({ ...r }));
+    return this.rows.filter((r) => rowMatchesWhere(r, where)).map((r) => ({ ...r }));
   }
 
   create(data: Record<string, unknown>): Row {
@@ -65,13 +65,13 @@ class Table {
       return { count };
     }
     const before = this.rows.length;
-    this.rows = this.rows.filter((r) => !Object.entries(where).every(([k, v]) => r[k] === v));
+    this.rows = this.rows.filter((r) => !rowMatchesWhere(r, where));
     return { count: before - this.rows.length };
   }
 
   count(where?: Record<string, unknown>): number {
     if (!where) return this.rows.length;
-    return this.rows.filter((r) => Object.entries(where).every(([k, v]) => r[k] === v)).length;
+    return this.rows.filter((r) => rowMatchesWhere(r, where)).length;
   }
 
   snapshot(): { rows: Row[]; nextId: number } {
@@ -101,24 +101,81 @@ function applyDefaults(data: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+/** DI-9.4.3B: Prisma-ish where matching for in-memory fakes (equals, in, contains, OR/AND). */
+function rowMatchesWhere(row: Row, where: Record<string, unknown>): boolean {
+  if (Array.isArray(where.OR)) {
+    return (where.OR as Record<string, unknown>[]).some((clause) => rowMatchesWhere(row, clause));
+  }
+  if (Array.isArray(where.AND)) {
+    return (where.AND as Record<string, unknown>[]).every((clause) => rowMatchesWhere(row, clause));
+  }
+  return Object.entries(where).every(([k, v]) => {
+    if (k === "OR" || k === "AND") return true;
+    if (v !== null && typeof v === "object" && !Array.isArray(v) && !(v instanceof Date)) {
+      const ops = v as Record<string, unknown>;
+      if ("in" in ops) {
+        const list = ops.in as unknown[];
+        return list.some((item) => row[k] === item);
+      }
+      if ("contains" in ops) {
+        const needle = String(ops.contains ?? "");
+        const hay = String(row[k] ?? "");
+        if (ops.mode === "insensitive") return hay.toLowerCase().includes(needle.toLowerCase());
+        return hay.includes(needle);
+      }
+      if ("equals" in ops) return row[k] === ops.equals;
+      if ("gt" in ops || "gte" in ops || "lt" in ops || "lte" in ops) {
+        const rv = row[k] as number | Date;
+        if ("gt" in ops && !(rv > (ops.gt as typeof rv))) return false;
+        if ("gte" in ops && !(rv >= (ops.gte as typeof rv))) return false;
+        if ("lt" in ops && !(rv < (ops.lt as typeof rv))) return false;
+        if ("lte" in ops && !(rv <= (ops.lte as typeof rv))) return false;
+        return true;
+      }
+      // Nested composite unique object — fall through to equality on nested keys not used for findMany filters.
+    }
+    return row[k] === v;
+  });
+}
+
 /** Builds a delegate object over a Table matching the ModelDelegate contract. */
 function delegate(table: Table) {
   return {
     async findUnique(args: { where: Record<string, unknown> }) {
       return table.find(args.where);
     },
-    async findMany(args?: { where?: Record<string, unknown>; orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">> }) {
-      const rows = table.findMany(args?.where);
+    async findMany(args?: {
+      where?: Record<string, unknown>;
+      orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">>;
+      skip?: number;
+      take?: number;
+      select?: Record<string, boolean>;
+    }) {
+      let rows = table.findMany(args?.where);
       const orderByRaw = args?.orderBy;
-      const orderBy = Array.isArray(orderByRaw) ? orderByRaw[0] : orderByRaw;
-      if (orderBy) {
-        const [field, dir] = Object.entries(orderBy)[0];
+      const orderByList = Array.isArray(orderByRaw) ? orderByRaw : orderByRaw ? [orderByRaw] : [];
+      if (orderByList.length > 0) {
         rows.sort((a, b) => {
-          const av = a[field] as unknown as number | string;
-          const bv = b[field] as unknown as number | string;
-          if (av === bv) return 0;
-          const cmp = av > bv ? 1 : -1;
-          return dir === "asc" ? cmp : -cmp;
+          for (const orderBy of orderByList) {
+            const [field, dir] = Object.entries(orderBy)[0];
+            const av = a[field] as unknown as number | string | Date;
+            const bv = b[field] as unknown as number | string | Date;
+            if (av === bv) continue;
+            const cmp = av > bv ? 1 : -1;
+            return dir === "asc" ? cmp : -cmp;
+          }
+          return 0;
+        });
+      }
+      if (typeof args?.skip === "number" && args.skip > 0) rows = rows.slice(args.skip);
+      if (typeof args?.take === "number") rows = rows.slice(0, args.take);
+      if (args?.select) {
+        rows = rows.map((row) => {
+          const next: Row = { id: row.id };
+          for (const [field, include] of Object.entries(args.select!)) {
+            if (include) next[field] = row[field];
+          }
+          return next;
         });
       }
       return rows;

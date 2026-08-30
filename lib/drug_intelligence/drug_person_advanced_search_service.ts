@@ -26,6 +26,7 @@ import type {
   DrugPhoneNumber,
 } from "@/lib/database/database_types";
 import { DrugPersonMatchingService } from "@/lib/drug_intelligence/drug_person_matching_service";
+import { DrugPersonRepository } from "@/lib/database/repositories/drug_person_repository";
 import { maskIdentifierValue, maskPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 import { normalizePhoneMatchingKey } from "@/lib/drug_intelligence/phone_matching_key";
 
@@ -163,9 +164,11 @@ function calculateDisplayAge(
 
 export class DrugPersonAdvancedSearchService {
   private readonly matchingService: DrugPersonMatchingService;
+  private readonly personRepo: DrugPersonRepository;
 
   constructor(private readonly db: DatabaseClient) {
     this.matchingService = new DrugPersonMatchingService(db);
+    this.personRepo = new DrugPersonRepository(db);
   }
 
   async search(
@@ -183,19 +186,12 @@ export class DrugPersonAdvancedSearchService {
     const pageSize = Math.min(50, Math.max(1, query.pageSize ?? 20));
     const sort = query.sort ?? "RELEVANCE";
 
-    // ── Step 1: fetch all active persons ────────────────────────────────
-    const allPersons = (await this.db.drugPerson.findMany({
-      where: { status: "ACTIVE" },
-    })) as DrugPerson[];
+    // ── Step 1: ACTIVE persons with DB-side sex filter when present (DI-9.4.3B)
+    const personWhere: Record<string, unknown> = { status: "ACTIVE" };
+    if (query.sex) personWhere.sex = query.sex;
+    let candidates = (await this.db.drugPerson.findMany({ where: personWhere })) as DrugPerson[];
 
-    // ── Step 2: direct-column filters (no joins) ─────────────────────────
-    let candidates = allPersons;
-
-    if (query.sex) {
-      const sexFilter = query.sex;
-      candidates = candidates.filter((p) => p.sex === sexFilter);
-    }
-
+    // ── Step 2: remaining direct-column filters ─────────────────────────
     if (query.nationality) {
       const normNat = query.nationality.trim().toLowerCase();
       candidates = candidates.filter((p) => p.nationality?.toLowerCase().includes(normNat));
@@ -215,7 +211,22 @@ export class DrugPersonAdvancedSearchService {
       });
     }
 
-    // ── Step 3: batch-load all join data ONCE (not per-person) ───────────
+    // Optional text prefilter via DB contains → shrink candidate id set before join loads.
+    const textQuery = query.query?.trim() ?? "";
+    if (textQuery) {
+      const matchedIds = new Set(await this.personRepo.findActiveIdsMatchingQuery(textQuery));
+      // Also keep nickname matches (not covered by findActiveIdsMatchingQuery).
+      for (const p of candidates) {
+        const nick = (p as { nickname?: string | null }).nickname;
+        if (nick && nick.toLowerCase().includes(textQuery.toLowerCase())) matchedIds.add(p.id);
+      }
+      candidates = candidates.filter((p) => matchedIds.has(p.id));
+    }
+
+    const candidateIds = candidates.map((p) => p.id);
+
+    // ── Step 3: batch-load join data for CANDIDATES only (not whole tables)
+    const empty = candidateIds.length === 0;
     const [
       allAliasRows,
       allIdentifierRows,
@@ -223,18 +234,29 @@ export class DrugPersonAdvancedSearchService {
       allMembershipRows,
       allCasePersonRows,
       allCasePhoneRows,
-      allCaseRows,
-      allPhoneNumberRows,
-    ] = await Promise.all([
-      this.db.drugPersonAlias.findMany({}) as Promise<DrugPersonAlias[]>,
-      this.db.drugPersonIdentifier.findMany({}) as Promise<DrugPersonIdentifier[]>,
-      this.db.drugPersonNetworkRole.findMany({}) as Promise<DrugPersonNetworkRole[]>,
-      this.db.drugPersonNetworkMembership.findMany({}) as Promise<DrugPersonNetworkMembership[]>,
-      this.db.drugCasePerson.findMany({}) as Promise<DrugCasePerson[]>,
-      this.db.drugCasePhone.findMany({}) as Promise<DrugCasePhone[]>,
-      this.db.drugCase.findMany({}) as Promise<DrugCase[]>,
-      this.db.drugPhoneNumber.findMany({}) as Promise<DrugPhoneNumber[]>,
-    ]);
+    ] = empty
+      ? [[], [], [], [], [], []]
+      : await Promise.all([
+          this.db.drugPersonAlias.findMany({ where: { personId: { in: candidateIds } } }) as Promise<DrugPersonAlias[]>,
+          this.db.drugPersonIdentifier.findMany({ where: { personId: { in: candidateIds } } }) as Promise<DrugPersonIdentifier[]>,
+          this.db.drugPersonNetworkRole.findMany({ where: { personId: { in: candidateIds } } }) as Promise<DrugPersonNetworkRole[]>,
+          this.db.drugPersonNetworkMembership.findMany({ where: { personId: { in: candidateIds } } }) as Promise<DrugPersonNetworkMembership[]>,
+          this.db.drugCasePerson.findMany({ where: { personId: { in: candidateIds } } }) as Promise<DrugCasePerson[]>,
+          this.db.drugCasePhone.findMany({ where: { personId: { in: candidateIds } } }) as Promise<DrugCasePhone[]>,
+        ]);
+
+    const caseIdsNeeded = [...new Set((allCasePersonRows as DrugCasePerson[]).map((r) => r.caseId))];
+    const phoneIdsNeeded = [...new Set((allCasePhoneRows as DrugCasePhone[]).map((r) => r.phoneNumberId))];
+    const [allCaseRows, allPhoneNumberRows] = empty
+      ? [[], []]
+      : await Promise.all([
+          caseIdsNeeded.length
+            ? (this.db.drugCase.findMany({ where: { id: { in: caseIdsNeeded } } }) as Promise<DrugCase[]>)
+            : Promise.resolve([] as DrugCase[]),
+          phoneIdsNeeded.length
+            ? (this.db.drugPhoneNumber.findMany({ where: { id: { in: phoneIdsNeeded } } }) as Promise<DrugPhoneNumber[]>)
+            : Promise.resolve([] as DrugPhoneNumber[]),
+        ]);
 
     const aliasesByPerson = groupBy(allAliasRows, (a) => a.personId);
     const identifiersByPerson = groupBy(allIdentifierRows, (i) => i.personId);
