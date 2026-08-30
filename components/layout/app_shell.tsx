@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { LayoutDashboard, Users, Search, BarChart3, ClipboardCheck, Images, UserCheck, SlidersHorizontal, UserCircle, PanelLeftClose, PanelLeftOpen, Radar, FileSpreadsheet, Award, ShieldAlert, GitCompareArrows, FilePlus2, ScanSearch, Network, BellRing, History, MapPinned } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { EnvironmentBadge } from "@/components/layout/environment_badge";
@@ -29,6 +29,9 @@ import type { Permission } from "@/lib/auth/roles";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import { SIDEBAR_WIDTH_EXPANDED_CLASS, SIDEBAR_WIDTH_COLLAPSED_CLASS } from "@/lib/layout/sidebar_layout";
 import { useSidebarCollapsed } from "@/lib/layout/use_sidebar_collapsed";
+import { isNavItemHighlighted } from "@/lib/layout/nav_pending";
+
+export { isNavItemHighlighted };
 
 /**
  * A sidebar item's optional live badge (Phase 48A.1 Part C). ONLY populated
@@ -144,19 +147,29 @@ function NavBadge({ value }: { value: number }) {
   );
 }
 
+type NavLinkExtras = {
+  pathname: string;
+  pendingHref: string | null;
+  onNavigate?: (href: string) => void;
+};
+
 /** Expanded-sidebar row: icon + label + optional badge, taller and more legible than the pre-48A.1 row. */
-function NavLink({ href, labelKey, icon: Icon, badge, pathname, onNavigate }: NavItem & { pathname: string; onNavigate?: () => void }) {
+function NavLink({ href, labelKey, icon: Icon, badge, pathname, pendingHref, onNavigate }: NavItem & NavLinkExtras) {
   const { t } = useT();
   const badgeValue = useBadgeValue(badge);
-  const active = pathname === href || pathname.startsWith(`${href}/`);
+  const highlighted = isNavItemHighlighted(pathname, href, pendingHref);
+  const pending = pendingHref === href && !(pathname === href || pathname.startsWith(`${href}/`));
   return (
     <Link
       href={href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
+      onClick={() => onNavigate?.(href)}
+      aria-current={highlighted && !pending ? "page" : undefined}
+      aria-busy={pending || undefined}
+      data-pending={pending ? "true" : undefined}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap",
-        active ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
+        highlighted ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground",
+        pending ? "ring-2 ring-accent/40 ring-offset-1 ring-offset-surface" : ""
       )}
     >
       <Icon className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
@@ -167,20 +180,25 @@ function NavLink({ href, labelKey, icon: Icon, badge, pathname, onNavigate }: Na
 }
 
 /** Collapsed-sidebar row: icon only, wrapped in a Tooltip carrying the label (+ badge count, since a collapsed badge dot alone would lose the number). */
-function NavLinkCollapsed({ href, labelKey, icon: Icon, badge, pathname }: NavItem & { pathname: string }) {
+function NavLinkCollapsed({ href, labelKey, icon: Icon, badge, pathname, pendingHref, onNavigate }: NavItem & NavLinkExtras) {
   const { t } = useT();
   const badgeValue = useBadgeValue(badge);
-  const active = pathname === href || pathname.startsWith(`${href}/`);
+  const highlighted = isNavItemHighlighted(pathname, href, pendingHref);
+  const pending = pendingHref === href && !(pathname === href || pathname.startsWith(`${href}/`));
   const label = badgeValue != null ? `${t(labelKey)} (${badgeValue.toLocaleString()})` : t(labelKey);
   return (
     <Tooltip label={label} className="block w-full">
       <Link
         href={href}
-        aria-current={active ? "page" : undefined}
+        onClick={() => onNavigate?.(href)}
+        aria-current={highlighted && !pending ? "page" : undefined}
+        aria-busy={pending || undefined}
         aria-label={label}
+        data-pending={pending ? "true" : undefined}
         className={cn(
           "relative flex items-center justify-center rounded-lg p-2.5 transition-colors",
-          active ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
+          highlighted ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground",
+          pending ? "ring-2 ring-accent/40 ring-offset-1 ring-offset-surface" : ""
         )}
       >
         <Icon className="h-4.5 w-4.5" aria-hidden="true" />
@@ -209,8 +227,14 @@ function useVisibleNavGroups(): NavGroup[] {
   return [{ titleKey: null, items: [MY_PROFILE_ITEM] }, ...permittedGroups];
 }
 
+type NavGroupExtras = {
+  pathname: string;
+  pendingHref: string | null;
+  onNavigate: (href: string) => void;
+};
+
 /** Desktop sidebar, EXPANDED — grouped with section headers and dividers between groups. */
-function NavGroupsExpanded({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavGroupsExpanded({ pathname, pendingHref, onNavigate }: NavGroupExtras) {
   const { t } = useT();
   const groups = useVisibleNavGroups();
   return (
@@ -221,7 +245,7 @@ function NavGroupsExpanded({ pathname, onNavigate }: { pathname: string; onNavig
             <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted/70">{t(group.titleKey)}</p>
           ) : null}
           {group.items.map((item) => (
-            <NavLink key={item.href} {...item} pathname={pathname} onNavigate={onNavigate} />
+            <NavLink key={item.href} {...item} pathname={pathname} pendingHref={pendingHref} onNavigate={onNavigate} />
           ))}
         </div>
       ))}
@@ -230,14 +254,14 @@ function NavGroupsExpanded({ pathname, onNavigate }: { pathname: string; onNavig
 }
 
 /** Desktop sidebar, COLLAPSED — icon rail, groups separated by a divider (no text headers — there's no room). */
-function NavGroupsCollapsed({ pathname }: { pathname: string }) {
+function NavGroupsCollapsed({ pathname, pendingHref, onNavigate }: NavGroupExtras) {
   const groups = useVisibleNavGroups();
   return (
     <>
       {groups.map((group, index) => (
         <div key={group.titleKey ?? `group-${index}`} className={cn("flex flex-col items-center gap-1", index > 0 && "mt-3 border-t border-border pt-3")}>
           {group.items.map((item) => (
-            <NavLinkCollapsed key={item.href} {...item} pathname={pathname} />
+            <NavLinkCollapsed key={item.href} {...item} pathname={pathname} pendingHref={pendingHref} onNavigate={onNavigate} />
           ))}
         </div>
       ))}
@@ -246,13 +270,13 @@ function NavGroupsCollapsed({ pathname }: { pathname: string }) {
 }
 
 /** Mobile/tablet top-bar nav — flat horizontal-scroll strip (no group headers; grouping doesn't read well in a single scrolling row). */
-function NavLinksMobile({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLinksMobile({ pathname, pendingHref, onNavigate }: NavGroupExtras) {
   const groups = useVisibleNavGroups();
   const items = groups.flatMap((group) => group.items);
   return (
     <>
       {items.map((item) => (
-        <NavLink key={item.href} {...item} pathname={pathname} onNavigate={onNavigate} />
+        <NavLink key={item.href} {...item} pathname={pathname} pendingHref={pendingHref} onNavigate={onNavigate} />
       ))}
     </>
   );
@@ -262,6 +286,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { t } = useT();
   const [collapsed, setCollapsed] = useSidebarCollapsed();
+  // DI-9.4.3A: immediate click feedback before soft navigation completes.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [pendingForPathname, setPendingForPathname] = useState(pathname);
+  // Clear pending highlight once the route has caught up (adjust state during
+  // render when pathname changes — avoids setState-in-effect lint).
+  if (pendingForPathname !== pathname) {
+    setPendingForPathname(pathname);
+    setPendingHref(null);
+  }
 
   // Phase 46: the login route has NO app chrome (no sidebar/nav) — render its
   // content bare. This is the only change to the shell; every other route is
@@ -289,7 +322,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className={cn("flex flex-1 flex-col overflow-y-auto py-3", collapsed ? "items-center px-2" : "px-3")}>
-          {collapsed ? <NavGroupsCollapsed pathname={pathname} /> : <NavGroupsExpanded pathname={pathname} />}
+          {collapsed ? (
+            <NavGroupsCollapsed pathname={pathname} pendingHref={pendingHref} onNavigate={setPendingHref} />
+          ) : (
+            <NavGroupsExpanded pathname={pathname} pendingHref={pendingHref} onNavigate={setPendingHref} />
+          )}
         </nav>
 
         {/* Footer — collapse toggle + environment badge. */}
@@ -338,7 +375,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </div>
           <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
-            <NavLinksMobile pathname={pathname} />
+            <NavLinksMobile pathname={pathname} pendingHref={pendingHref} onNavigate={setPendingHref} />
           </nav>
         </header>
 
