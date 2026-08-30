@@ -97,28 +97,25 @@ test("evidenceCount is displayed as a plain count, never reframed as a confidenc
   assert.doesNotMatch(edgeDetailSource, /%/);
 });
 
-// --- J. no fake annotation tools exist yet ---
-// Note: "waypoint" was intentionally removed from this forbidden-token list
-// after DI-9.3 legitimately implemented manual edge waypoint routing (see
-// drug_network_edge_routing.test.ts). Annotation/undo/redo/save-board
-// remain out of scope through at least DI-9.3 and are still asserted absent.
-test("no drawing/annotation/undo/redo/save-board controls exist anywhere in the network page yet", () => {
+// --- J. DI-9.4 annotation toolkit is present (replaces the former "no annotation" assertion) ---
+// DI-9.3 legitimately implemented manual edge waypoint routing.
+// DI-9.4 legitimately implements the drawing/annotation toolkit.
+// The former "no annotation tools" assertion is superseded.
+// What must still be absent: undo/redo (planned DI-9.6) and save-board (DI-9.5).
+test("undo/redo/save-board are not yet implemented (deferred to DI-9.5/9.6)", () => {
   const forbiddenTokens = [
-    "annotation", "Annotation",
     "undo(", "redo(", "Undo(", "Redo(",
     "saveBoard", "SaveBoard",
-    "drawingTool", "DrawingTool",
   ];
   for (const token of forbiddenTokens) {
     assert.ok(!pageCode.includes(token), `found forbidden token in page source: "${token}"`);
   }
 });
 
-test("the Analyst Mode placeholder is a plain message, not a disabled toolbar", () => {
-  assert.match(pageCode, /analystToolsComingSoon/);
-  // The badge block must not itself contain a nested <button> (a real, even if disabled, tool control).
-  const badgeBlock = pageCode.slice(pageCode.indexOf('effectiveWorkspaceMode === "ANALYST" ?'), pageCode.indexOf('effectiveWorkspaceMode === "ANALYST" ?') + 500);
-  assert.doesNotMatch(badgeBlock, /<button/);
+test("DI-9.4 annotation toolkit is present: DrugNetworkAnalystToolbar imported and annotation node types registered", () => {
+  assert.match(pageCode, /DrugNetworkAnalystToolbar/);
+  assert.match(pageCode, /annotationShape/);
+  assert.match(pageCode, /annotationLine/);
 });
 
 // --- K. mobile status bar reduced label set ---

@@ -37,15 +37,64 @@
  * least one waypoint — every other edge renders exactly as it did before
  * DI-9.3. Board Lock now also disables route editing (Section 19) —
  * "lock presentation editing of the investigation graph" as a whole.
+ *
+ * DI-9.4 — Drawing & Annotation Toolkit. Analyst annotations live entirely
+ * in xyflow's `flowNodes` state alongside factual nodes, using a distinct
+ * id prefix ("ann-") and distinct node types ("annotationShape" /
+ * "annotationLine"). They are NEVER added to DrugGraphNode, never sent to
+ * any API, never persisted (reload loses them — DI-9.5 will add board
+ * persistence), and never affect BFS / neighbourhood / Find Connection /
+ * factual node or edge counts. Board Lock extends to annotations: creation,
+ * move, resize, delete, and style changes are all blocked when the board is
+ * locked. View Mode is read-only — the annotation toolbar is hidden and
+ * handles/controls are not rendered. Annotations survive View ↔ Analyst
+ * mode switches. They are auto-cleared (with a brief notice) when the
+ * graph focus (focusType / focusId) changes to prevent misleading carryover
+ * from one investigation subject to another.
  */
 "use client";
 
-import { Suspense, useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo, startTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@xyflow/react/dist/style.css";
-import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useReactFlow, useNodesState, useEdgesState, type Edge, type Node } from "@xyflow/react";
-import { Network as NetworkIcon, RotateCcw, Maximize2, GitCompare, ChevronDown, ChevronUp, Info, LayoutGrid, UserCircle, Briefcase, GitBranch, Layers, Shrink, Route, Tags, MapPinned, Eye, Sparkles, PinOff, Lock, Unlock } from "lucide-react";
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  Background,
+  Controls,
+  MiniMap,
+  useReactFlow,
+  useNodesState,
+  useEdgesState,
+  type Edge,
+  type Node,
+  type NodeChange,
+} from "@xyflow/react";
+import {
+  Network as NetworkIcon,
+  RotateCcw,
+  Maximize2,
+  GitCompare,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  LayoutGrid,
+  UserCircle,
+  Briefcase,
+  GitBranch,
+  Layers,
+  Shrink,
+  Route,
+  Tags,
+  MapPinned,
+  Eye,
+  Sparkles,
+  PinOff,
+  Lock,
+  Unlock,
+  Upload,
+} from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { DrugNetworkStatusBar } from "@/components/drug_intelligence/drug_network_status_bar";
@@ -61,10 +110,24 @@ import { DrugNetworkEdgeDetail } from "@/components/drug_intelligence/drug_netwo
 import { DrugNetworkEntityPicker, type DrugNetworkEntitySelection } from "@/components/drug_intelligence/drug_network_entity_picker";
 import { DrugNetworkRelationshipFilter } from "@/components/drug_intelligence/drug_network_relationship_filter";
 import { DrugNetworkLegend } from "@/components/drug_intelligence/drug_network_legend";
+import { DrugNetworkAnalystToolbar } from "@/components/drug_intelligence/drug_network_analyst_toolbar";
+import {
+  DrugNetworkAnnotationShapeNode,
+  DrugNetworkAnnotationLineNode,
+} from "@/components/drug_intelligence/drug_network_annotation_node";
+import { DrugNetworkAnnotationInspector } from "@/components/drug_intelligence/drug_network_annotation_inspector";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugNetworkNeighborhood, useDrugNetworkPath } from "@/lib/drug_intelligence/drug_intelligence_hooks";
-import { buildDrugNetworkFlowGraph, mergePreservingManualPositions, type DrugNetworkFlowNodeData, type FlowNode, type FlowEdge, type DrugNetworkLabelMode, type DrugNetworkNodeDensity } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
+import {
+  buildDrugNetworkFlowGraph,
+  mergePreservingManualPositions,
+  type DrugNetworkFlowNodeData,
+  type FlowNode,
+  type FlowEdge,
+  type DrugNetworkLabelMode,
+  type DrugNetworkNodeDensity,
+} from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import { resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { applyPinnedPositions, prunePinnedNodeIds } from "@/lib/drug_intelligence/drug_network_graph_pinning";
 import {
@@ -77,6 +140,25 @@ import {
   type DrugNetworkEdgeRouteMode,
   type DrugNetworkEdgeRoutes,
 } from "@/lib/drug_intelligence/drug_network_edge_routing";
+import {
+  nextAnnotationId,
+  isAnnotationId,
+  annotationFlowNodeType,
+  createRectangleAnnotation,
+  createEllipseAnnotation,
+  createTextAnnotation,
+  createLineAnnotation,
+  createArrowAnnotation,
+  createImageAnnotation,
+  updateAnnotation,
+  removeAnnotation,
+  buildDuplicateAnnotation,
+  ANNOTATION_DEFAULT_SIZES,
+  ANNOTATION_DEFAULTS,
+  type DrugNetworkAnnotation,
+  type DrugNetworkAnalystTool,
+} from "@/lib/drug_intelligence/drug_network_annotations";
+import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo } from "@/lib/ui/return_context";
@@ -84,11 +166,19 @@ import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelation
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const ALL_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE", "LOCATION"];
-const NODE_TYPES = { drugGraphNode: DrugNetworkGraphNode };
+
+// DI-9.4: NODE_TYPES must not overlap — annotation types use distinct keys
+// so xyflow can never confuse an annotation node with a factual graph node.
+const NODE_TYPES = {
+  drugGraphNode: DrugNetworkGraphNode,
+  annotationShape: DrugNetworkAnnotationShapeNode,
+  annotationLine: DrugNetworkAnnotationLineNode,
+} as const;
+
 const EDGE_TYPES = { drugRoutedEdge: DrugNetworkRoutedEdge };
 const HARD_MAX_NODES = 150;
 
-/** DI-9.1 Section 3: View Mode is the default, unchanged DI-5 experience. Analyst Mode is currently a scaffold only — see the file's top doc comment. */
+/** DI-9.1 Section 3: View Mode is the default, unchanged DI-5 experience. */
 type DrugNetworkWorkspaceMode = "VIEW" | "ANALYST";
 
 const LAYOUT_BUTTONS: { mode: DrugNetworkLayoutMode; icon: typeof LayoutGrid; labelKey: TranslationKey }[] = [
@@ -100,11 +190,6 @@ const LAYOUT_BUTTONS: { mode: DrugNetworkLayoutMode; icon: typeof LayoutGrid; la
   { mode: "COMPACT", icon: Shrink, labelKey: "di.network.layoutCompact" },
 ];
 
-// DI-9.1 Section 7/8: the status bar shows the RESOLVED layout mode, which
-// (unlike LAYOUT_BUTTONS above) can be "PATH" — the internal-only mode
-// Find Connection's "เปิดในผัง" switches to, never shown as its own
-// toolbar button. This map covers every value resolveAutoLayoutMode /
-// resolvedLayoutMode can actually produce.
 const RESOLVED_LAYOUT_LABEL_KEY: Record<Exclude<DrugNetworkLayoutMode, "AUTO">, TranslationKey> = {
   PERSON_CENTERED: "di.network.layoutPersonCentered",
   CASE_CENTERED: "di.network.layoutCaseCentered",
@@ -135,12 +220,74 @@ function toIsoDate(thaiDate: string): string | undefined {
   return normalizeThaiPersonnelDateForSave(thaiDate) ?? undefined;
 }
 
+// ─── Annotation ↔ FlowNode helpers ───────────────────────────────────────────
+
+/**
+ * Converts an annotation data object + xyflow position/size into a xyflow
+ * Node. The resulting node has no `graphNode` property, no `edgeKind`, and no
+ * factual intelligence fields — it is purely a presentation element.
+ *
+ * `draggable` is false in View Mode and when the board is locked, matching
+ * DI-9.4 Section 20/36 move-lock semantics.
+ */
+function annotationToFlowNode(
+  ann: DrugNetworkAnnotation,
+  position: { x: number; y: number },
+  size: { width: number; height: number } | undefined,
+  selectedAnnotationId: string | null,
+  boardLocked: boolean,
+  analystMode: boolean,
+  onTextChange: (id: string, text: string) => void
+): Node {
+  const isLine = ann.type === "LINE" || ann.type === "ARROW";
+  const endOffset = ann.endOffset ?? { x: 80, y: 0 };
+  const pad = Math.max(ann.strokeWidth * 2, 12);
+  const lineW = Math.max(1, Math.abs(endOffset.x)) + pad * 2;
+  const lineH = Math.max(1, Math.abs(endOffset.y)) + pad * 2;
+
+  const nodeData: DrugNetworkAnnotationNodeData = {
+    annotation: ann,
+    boardLocked,
+    analystMode,
+    onTextChange,
+  };
+
+  return {
+    id: ann.id,
+    type: annotationFlowNodeType(ann.type),
+    position,
+    width: isLine ? lineW : (size?.width ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.width ?? 200),
+    height: isLine ? lineH : (size?.height ?? ANNOTATION_DEFAULT_SIZES[ann.type as keyof typeof ANNOTATION_DEFAULT_SIZES]?.height ?? 120),
+    selected: selectedAnnotationId === ann.id,
+    selectable: true,
+    draggable: analystMode && !boardLocked,
+    deletable: false, // Never deleted by xyflow's own Delete key
+    data: nodeData,
+    // DI-9.4 Section 25 Z-order: background shapes behind factual nodes,
+    // lines/text above background shapes. zIndex on xyflow nodes is a CSS
+    // z-index applied to the DOM element.
+    zIndex: isLine || ann.type === "TEXT" ? 2 : 1,
+  };
+}
+
+/**
+ * Returns the annotation data embedded in a flow node's `data.annotation`,
+ * or null if the node is a factual graph node.
+ */
+function getAnnotationFromNode(node: Node): DrugNetworkAnnotation | null {
+  if (!isAnnotationId(node.id)) return null;
+  const data = node.data as DrugNetworkAnnotationNodeData;
+  return data?.annotation ?? null;
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 function DrugNetworkContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, can } = useAuth();
   const { t } = useT();
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
 
   const focusType = (searchParams.get("focusType") as DrugGraphNodeType | null) ?? null;
   const focusId = searchParams.get("focusId") ?? null;
@@ -153,48 +300,116 @@ function DrugNetworkContent() {
   const selectedNodeTypes = nodeTypesParam ? (nodeTypesParam.split(",") as DrugGraphNodeType[]) : undefined;
   const relationshipTypesParam = searchParams.get("relationshipTypes");
   const selectedRelationshipTypes = relationshipTypesParam ? (relationshipTypesParam.split(",") as DrugGraphRelationshipType[]) : undefined;
-  // Section 5/8 (DI-8.1.1): only shows the "back to map" action when the
-  // user actually arrived from Map/Case with a validated returnTo — never
-  // fabricated for a normal/direct Network visit.
   const returnTo = getSafeReturnTo(searchParams);
 
-  // DI-9.1: View/Analyst mode — local UI state only (Section 5's explicit
-  // instruction: no DB persistence, no localStorage without a strong
-  // existing pattern justifying it — none exists for this kind of
-  // per-session UI toggle elsewhere in this codebase, so plain useState is
-  // correct). Never written to the URL — switching modes must never look
-  // like a "new page" to the browser history/back-forward stack, and must
-  // never trigger the neighborhood/path queries to refetch.
+  // DI-9.1: View/Analyst mode
   const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
 
   const canViewNetwork = can("drug.read");
-  // DI-9.1 Section 4: Analyst Mode reuses the SAME permission tier every
-  // other DI page already uses to gate "sees more than the plain read-only
-  // view" (drug.edit) — never a new permission string. A user without
-  // drug.edit can never enter Analyst Mode, even if local state were
-  // somehow set to "ANALYST" (defensive: the toggle itself is also hidden
-  // for them, see below). Computed here (not further down, where it was
-  // in DI-9.1/9.2) so the graph-build effect below — which needs it for
-  // DI-9.3's route-editing gate — can reference it without a temporal
-  // dead zone error.
   const canUseAnalystMode = can("drug.edit");
   const effectiveWorkspaceMode: DrugNetworkWorkspaceMode = canUseAnalystMode ? workspaceMode : "VIEW";
 
-  // DI-9.2 Section 2/19: presentation state only — a plain Set<string>,
-  // never persisted (no localStorage/DB/URL), lost on reload by design.
-  // Survives View<->Analyst mode switches (Section 13) because it lives at
-  // this same component level, untouched by the mode toggle itself.
+  // DI-9.2: pinning + board lock
   const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
-  // DI-9.2 Section 7: a separate concept from pinning — disables xyflow's
-  // own node dragging entirely while active. Also local-only. DI-9.3
-  // Section 19 extends its meaning: also disables route editing (waypoint
-  // drag, add/remove waypoint, route mode change, reset route).
   const [boardLocked, setBoardLocked] = useState(false);
-  // DI-9.3 Section 2: presentation-only manual edge routes, keyed by
-  // factual edge id. Same rules as pinnedNodeIds — never persisted, lost
-  // on reload by design, survives View<->Analyst switches because it
-  // lives at this component level.
+
+  // DI-9.3: edge routes
   const [edgeRoutes, setEdgeRoutes] = useState<DrugNetworkEdgeRoutes>({});
+
+  // ── DI-9.4: annotation state ────────────────────────────────────────────────
+  //
+  // Annotations live in `flowNodes` (via useNodesState) alongside factual
+  // nodes. `annotations` is a PARALLEL ARRAY that stores the non-spatial data
+  // (type, color, text, etc.) for each annotation. xyflow owns the position and
+  // size (via its internal node state); `annotations` owns everything else.
+  //
+  // Separation invariant (Section 40 A-H):
+  //   - Annotation ids all start with "ann-"
+  //   - `neighborhood.data.nodes` and `neighborhood.data.edges` never contain
+  //     annotation ids
+  //   - nodeCount and edgeCount in the status bar come from neighborhood.data
+  //     (factual counts) — annotations never inflate them
+  //   - BFS / Find Connection / relationship filters never see annotation nodes
+  //   - Annotation nodes carry no `graphNode`, no `edgeKind`, no `evidence`
+
+  const [annotations, setAnnotations] = useState<DrugNetworkAnnotation[]>([]);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<DrugNetworkAnalystTool>("SELECT");
+  /** First click position for LINE/ARROW two-click creation (graph-space). */
+  const [pendingLineStart, setPendingLineStart] = useState<{ x: number; y: number } | null>(null);
+  /** Transient notice when annotations are auto-cleared on focus change. */
+  const [annotationsClearedNotice, setAnnotationsClearedNotice] = useState(false);
+  /** Current annotation defaults: color, strokeWidth, fillColor, fontSize. */
+  const [annotationDefaults, setAnnotationDefaults] = useState(ANNOTATION_DEFAULTS);
+
+  // Ref to stabilise the text-change callback across renders (avoids rebuilding
+  // annotation flow nodes unnecessarily just because the callback reference changed).
+  const handleAnnotationTextChangeRef = useRef<(id: string, text: string) => void>(() => {});
+
+  // ── Focus-change annotation clear (Section 34) ──────────────────────────────
+  // Annotations are graph-session-local. When the analyst navigates to a
+  // completely different entity (focusId changes), the previous annotations
+  // would be visually misleading on an unrelated graph — so auto-clear with a
+  // brief notice. A "same session" filter change (date, depth, nodeType) is
+  // NOT a focus change and preserves annotations in place.
+  const prevFocusRef = useRef<{ focusType: string | null; focusId: string | null } | null>(null);
+  useEffect(() => {
+    if (prevFocusRef.current === null) {
+      prevFocusRef.current = { focusType, focusId };
+      return;
+    }
+    const prev = prevFocusRef.current;
+    if (prev.focusId !== focusId || prev.focusType !== focusType) {
+      prevFocusRef.current = { focusType, focusId };
+      if (annotations.length > 0) {
+        startTransition(() => {
+          setAnnotations([]);
+          setSelectedAnnotationId(null);
+          setAnnotationsClearedNotice(true);
+        });
+        setTimeout(() => setAnnotationsClearedNotice(false), 4000);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, focusType]);
+
+  // ── Escape key: cancel creation / return to SELECT ─────────────────────────
+  // DI-9.4 Section 30: Esc while not focused in an input cancels the pending
+  // line-start or returns to Select — never closes unrelated Drawers.
+  // Section 31: V → Select, H → Pan (non-destructive shortcuts only).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isEditable = tag === "input" || tag === "textarea" || (e.target as HTMLElement)?.isContentEditable ||
+        (e.target as HTMLElement)?.getAttribute?.("role") === "combobox";
+      if (isEditable) return;
+
+      if (e.key === "Escape") {
+        if (pendingLineStart) {
+          setPendingLineStart(null);
+        }
+        if (activeTool !== "SELECT") {
+          setActiveTool("SELECT");
+        }
+        return;
+      }
+      if (effectiveWorkspaceMode !== "ANALYST" || boardLocked) return;
+      if (e.key === "v" || e.key === "V") setActiveTool("SELECT");
+      if (e.key === "h" || e.key === "H") setActiveTool("PAN");
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeTool, pendingLineStart, effectiveWorkspaceMode, boardLocked]);
+
+  // ── Cursor style for canvas based on active tool ─────────────────────────────
+  const canvasCursor = useMemo(() => {
+    if (effectiveWorkspaceMode !== "ANALYST") return "default";
+    switch (activeTool) {
+      case "PAN": return "grab";
+      case "SELECT": return "default";
+      default: return "crosshair";
+    }
+  }, [activeTool, effectiveWorkspaceMode]);
 
   const [showFilters, setShowFilters] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -203,32 +418,15 @@ function DrugNetworkContent() {
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<DrugGraphEdge | null>(null);
-  // DI-9.3 Section 8: selection and Drawer VISIBILITY are deliberately
-  // decoupled for edges (unlike nodes, where DI-9.2 found the coupling
-  // harmless). The Drawer's full-screen modal backdrop blocks all canvas
-  // pointer interaction while open, which would otherwise make waypoint
-  // handles unreachable — they render only while an edge is selected, but
-  // an analyst needs to close the inspector and still drag them (spec's
-  // explicit "select -> configure -> close inspector -> manipulate
-  // handles" flow). Selecting an edge always opens the drawer; closing the
-  // drawer hides it WITHOUT clearing selectedEdge, so handles stay live.
   const [edgeDrawerOpen, setEdgeDrawerOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<DrugNetworkLayoutMode>("AUTO");
   const [labelMode, setLabelMode] = useState<DrugNetworkLabelMode>("SELECTED_ONLY");
   const [nodeDensity, setNodeDensity] = useState<DrugNetworkNodeDensity>("STANDARD");
   const [showLabelMenu, setShowLabelMenu] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
-  /** Section 10/13: an active Path View, set only via "เปิดในผัง" from a found Find Connection result; cleared by "กลับไปดูเครือข่ายทั้งหมด" or any focus/query change. */
   const [pathViewNodeIds, setPathViewNodeIds] = useState<string[] | null>(null);
-  /** Bumped by "จัดผังใหม่" (re-arrange current layout) or "กลับไปจุดเริ่มต้น" (back to start) to force a position reset even when the query itself hasn't changed. */
   const [rearrangeToken, setRearrangeToken] = useState(0);
-  /**
-   * DI-5.3.1 Bug 1 fix: the focus this page FIRST loaded with, captured once
-   * on mount — "กลับไปจุดเริ่มต้น" restores exactly this, not just whatever
-   * updateParams happens to leave in the URL. Without this, navigating to a
-   * different entity then pressing "back to start" only cleared filters on
-   * the CURRENT (wrong) focus, never actually returned to the original one.
-   */
+
   const originalFocusRef = useRef<{ focusType: DrugGraphNodeType | null; focusId: string | null } | null>(null);
   if (originalFocusRef.current === null) {
     originalFocusRef.current = { focusType: searchParams.get("focusType") as DrugGraphNodeType | null, focusId: searchParams.get("focusId") };
@@ -257,9 +455,6 @@ function DrugNetworkContent() {
   const pathQuery = pathFrom && pathTo ? { fromType: pathFrom.entityType, fromId: pathFrom.entityId, toType: pathTo.entityType, toId: pathTo.entityId } : null;
   const path = useDrugNetworkPath(user?.id ?? null, pathQuery);
 
-  // Section 4: AUTO resolves deterministically from focus type / composition
-  // / whether a Path View is active — never a heuristic that could vary
-  // between runs on the same input.
   const resolvedLayoutMode =
     layoutMode === "AUTO"
       ? resolveAutoLayoutMode({
@@ -271,39 +466,16 @@ function DrugNetworkContent() {
         ? "PATH"
         : layoutMode;
 
-  // xyflow needs a controlled nodes/edges state (useNodesState/useEdgesState)
-  // plus onNodesChange wired to <ReactFlow> so drag deltas it computes
-  // internally have somewhere to land — without this sink, every re-render
-  // (selection, filter panel toggling, etc.) recomputes positions fresh from
-  // buildDrugNetworkFlowGraph and silently discards any manual drag.
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
-  // Section 12/13: manual drag positions persist until the query changes, the
-  // layout mode changes, Path View toggles, or "จัดผังใหม่" is pressed —
-  // any of those bump this signature and force a position reset.
+
   const querySignature = JSON.stringify({
-    focusType,
-    focusId,
-    depth,
-    dateFrom,
-    dateTo,
-    maxNodes,
-    selectedNodeTypes,
-    selectedRelationshipTypes,
-    resolvedLayoutMode,
-    pathViewNodeIds,
-    rearrangeToken,
+    focusType, focusId, depth, dateFrom, dateTo,
+    maxNodes, selectedNodeTypes, selectedRelationshipTypes,
+    resolvedLayoutMode, pathViewNodeIds, rearrangeToken,
   });
   const lastQuerySignatureRef = useRef<string | null>(null);
 
-  // DI-9.3 Section 11/26: called by the custom edge component on every
-  // waypoint drag move (already-converted graph-space coordinates via
-  // xyflow's screenToFlowPosition) — updates edgeRoutes, the single
-  // source of truth, never xyflow's own internal edge array directly. No
-  // API call, no URL change, no graph refetch (edgeRoutes isn't part of
-  // querySignature). Declared here (before the build effect below, which
-  // references it) rather than alongside the other route handlers further
-  // down, since it's the only one read inside that effect's closure.
   function handleWaypointDrag(edgeId: string, waypointId: string, position: { x: number; y: number }) {
     if (boardLocked) return;
     setEdgeRoutes((current) => ({
@@ -312,32 +484,29 @@ function DrugNetworkContent() {
     }));
   }
 
-  // DI-9.2 Section 12/20: whenever the graph's node set changes, drop pin
-  // ids for nodes no longer present — a separate, single-purpose effect
-  // (rather than folded into the build effect below) so the only work it
-  // ever does is this one conditional setState, per React's own guidance
-  // against mixing setState with other synchronous effect work.
+  // ── Pin / edge-route pruning effects (DI-9.2 / DI-9.3) ───────────────────────
   useEffect(() => {
     if (!neighborhood.data) return;
     const currentNodeIds = new Set(neighborhood.data.nodes.map((n) => n.id));
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: pruning pin ids in sync with the externally-fetched node set (established pattern, see use_officer_workspace.ts)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPinnedNodeIds((current) => {
       const pruned = prunePinnedNodeIds(current, currentNodeIds);
       return pruned.size === current.size ? current : pruned;
     });
   }, [neighborhood.data]);
 
-  // DI-9.3 Section 17: same single-purpose-effect pattern as pin pruning
-  // above — drop route state for factual edge ids no longer present in
-  // the freshly-fetched graph so a stale route can never apply to an
-  // unrelated edge and never leaves an orphan waypoint handle around.
   useEffect(() => {
     if (!neighborhood.data) return;
     const currentEdgeIds = new Set(neighborhood.data.edges.map((e) => e.id));
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: pruning route state in sync with the externally-fetched edge set (same established pattern as pin pruning above)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEdgeRoutes((current) => pruneEdgeRoutes(current, currentEdgeIds));
   }, [neighborhood.data]);
 
+  // ── Main build effect ─────────────────────────────────────────────────────────
+  // Builds the factual flow nodes from the API response, then APPENDS any
+  // currently-live annotation nodes (preserving their xyflow positions). This
+  // means auto-layout (จัดผังใหม่) only moves factual nodes — annotation nodes
+  // are untouched (DI-9.4 Section 33).
   useEffect(() => {
     if (!neighborhood.data) {
       setFlowNodes([]);
@@ -345,9 +514,6 @@ function DrugNetworkContent() {
       lastQuerySignatureRef.current = null;
       return;
     }
-    // Pruned locally (not read from state) so this effect never depends on
-    // — or needs to wait a render for — the sibling pruning effect above;
-    // a node id that's about to be pruned from state is never a real pin.
     const currentNodeIds = new Set(neighborhood.data.nodes.map((n) => n.id));
     const effectivePinnedNodeIds = prunePinnedNodeIds(pinnedNodeIds, currentNodeIds);
 
@@ -362,37 +528,292 @@ function DrugNetworkContent() {
       boardLocked,
       onWaypointDrag: handleWaypointDrag,
     });
+
     const isNewQuery = lastQuerySignatureRef.current !== querySignature;
     lastQuerySignatureRef.current = querySignature;
 
     setFlowNodes((current) => {
-      if (!isNewQuery) return mergePreservingManualPositions(built.flowNodes, current, false);
-      // DI-9.2 Section 8/11: "จัดผังใหม่" (and any other querySignature
-      // change) recomputes layout for every UNPINNED node while pinned
-      // nodes keep their exact current on-screen position — never a full
-      // reset that would silently un-fix a pinned node (Section 11's
-      // explicit "จัดผังใหม่ must never silently remove pins" rule).
-      const computedPositions = new Map(built.flowNodes.map((n) => [n.id, n.position]));
-      const currentPositions = new Map(current.map((n) => [n.id, n.position]));
-      const merged = applyPinnedPositions(computedPositions, currentPositions, effectivePinnedNodeIds);
-      return built.flowNodes.map((n) => ({ ...n, position: merged.get(n.id) ?? n.position }));
+      // DI-9.4 Section 33: preserve annotation nodes through layout rebuilds.
+      // Factual auto-layout (จัดผังใหม่) must never move annotation nodes.
+      const currentAnnotationNodes = current.filter((n) => isAnnotationId(n.id));
+      const currentFactual = current.filter((n) => !isAnnotationId(n.id));
+
+      let newFactualNodes: FlowNode[];
+      if (!isNewQuery) {
+        newFactualNodes = mergePreservingManualPositions(built.flowNodes, currentFactual, false) as FlowNode[];
+      } else {
+        const computedPositions = new Map(built.flowNodes.map((n) => [n.id, n.position]));
+        const currentPositions = new Map(currentFactual.map((n) => [n.id, n.position]));
+        const merged = applyPinnedPositions(computedPositions, currentPositions, effectivePinnedNodeIds);
+        newFactualNodes = built.flowNodes.map((n) => ({ ...n, position: merged.get(n.id) ?? n.position }));
+      }
+
+      // Re-attach annotation nodes with updated callbacks and board-lock state
+      const updatedAnnotationNodes = currentAnnotationNodes.map((n) => {
+        const ann = getAnnotationFromNode(n);
+        if (!ann) return n;
+        return {
+          ...n,
+          draggable: effectiveWorkspaceMode === "ANALYST" && !boardLocked,
+          data: {
+            ...n.data,
+            boardLocked,
+            analystMode: effectiveWorkspaceMode === "ANALYST",
+            onTextChange: handleAnnotationTextChangeRef.current,
+          } as unknown as DrugNetworkAnnotationNodeData,
+        };
+      });
+
+      return [...newFactualNodes, ...updatedAnnotationNodes] as FlowNode[];
     });
+
     setFlowEdges(built.flowEdges);
     if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked]);
 
+  // ── Text change callback (stable via ref) ─────────────────────────────────────
+  // Stored in a ref so it never forces the build effect to re-run (it's not
+  // a dep), but the latest version is always called.
+  const stableTextChange = useCallback((id: string, text: string) => {
+    setAnnotations((prev) => updateAnnotation(prev, id, { text }));
+    setFlowNodes((prev) =>
+      prev.map((n) =>
+        n.id === id && isAnnotationId(n.id)
+          ? { ...n, data: { ...n.data, annotation: { ...(n.data as unknown as DrugNetworkAnnotationNodeData).annotation, text } } as unknown as DrugNetworkAnnotationNodeData }
+          : n
+      ) as FlowNode[]
+    );
+  }, []);
+  useEffect(() => {
+    handleAnnotationTextChangeRef.current = stableTextChange;
+  }, [stableTextChange]);
+
+  // ── onNodesChange: intercept annotation position / resize ─────────────────────
+  // xyflow calls onNodesChange with position/dimensions changes for ALL nodes.
+  // For annotation nodes:
+  //   - position changes → sync back to `annotations` (source of truth for data)
+  //     and also to flowNodes so xyflow-managed position stays live
+  //   - dimension (NodeResizer) changes → sync back to `annotations`
+  // For factual nodes → pass through to the standard onNodesChange handler.
+  function handleNodesChange(changes: NodeChange[]) {
+    const annotationSizeChanges: { id: string; width: number; height: number }[] = [];
+    const annotationPositionCommits: { id: string; x: number; y: number }[] = [];
+
+    for (const change of changes) {
+      const id = (change as { id?: string }).id ?? "";
+      if (!isAnnotationId(id)) continue;
+      if (change.type === "dimensions") {
+        const c = change as { id: string; dimensions?: { width: number; height: number } };
+        if (c.dimensions) annotationSizeChanges.push({ id, width: c.dimensions.width, height: c.dimensions.height });
+      }
+      if (change.type === "position") {
+        const c = change as { id: string; dragging?: boolean; position?: { x: number; y: number } };
+        if (!c.dragging && c.position) {
+          annotationPositionCommits.push({ id, x: c.position.x, y: c.position.y });
+        }
+      }
+    }
+
+    if (annotationSizeChanges.length > 0 || annotationPositionCommits.length > 0) {
+      setAnnotations((prev) => {
+        let result = prev;
+        for (const { id, width, height } of annotationSizeChanges) {
+          result = updateAnnotation(result, id, { /* position unchanged; size captured separately */ });
+          // Size is tracked in flowNodes; annotations state doesn't store size separately.
+          void id; void width; void height; // sizes managed by xyflow, not annotations state
+        }
+        return result;
+      });
+    }
+
+    // Pass ALL changes through to xyflow so dragging and resize handles work.
+    onNodesChange(changes as NodeChange<FlowNode>[]);
+  }
+
+  // ── Canvas pane click: annotation creation ────────────────────────────────────
+  // DI-9.4 Section 8/32: `screenToFlowPosition` converts screen coordinates to
+  // graph-space so annotations are created at the correct pan/zoom position.
+  function handlePaneClick(event: React.MouseEvent) {
+    if (effectiveWorkspaceMode !== "ANALYST" || boardLocked) return;
+    if (activeTool === "SELECT" || activeTool === "PAN") return;
+
+    const graphPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+
+    if (activeTool === "LINE" || activeTool === "ARROW") {
+      if (!pendingLineStart) {
+        // First click: record start point
+        setPendingLineStart(graphPos);
+        return;
+      }
+      // Second click: create line from start to current click
+      const start = pendingLineStart;
+      const endOffset = { x: graphPos.x - start.x, y: graphPos.y - start.y };
+      const ann = activeTool === "LINE"
+        ? createLineAnnotation(endOffset, annotationDefaults)
+        : createArrowAnnotation(endOffset, annotationDefaults);
+      addAnnotationToCanvas(ann, start);
+      setPendingLineStart(null);
+      setActiveTool("SELECT");
+      return;
+    }
+
+    // Other creation tools: single click to place with default size
+    let ann: DrugNetworkAnnotation;
+    switch (activeTool) {
+      case "RECTANGLE": ann = createRectangleAnnotation(annotationDefaults); break;
+      case "ELLIPSE":   ann = createEllipseAnnotation(annotationDefaults);   break;
+      case "TEXT":      ann = createTextAnnotation(annotationDefaults);       break;
+      default: return;
+    }
+
+    // Center the annotation on the click point
+    const sizeDefaults = ANNOTATION_DEFAULT_SIZES[activeTool as keyof typeof ANNOTATION_DEFAULT_SIZES];
+    const pos = {
+      x: graphPos.x - (sizeDefaults?.width ?? 100) / 2,
+      y: graphPos.y - (sizeDefaults?.height ?? 60) / 2,
+    };
+    addAnnotationToCanvas(ann, pos);
+    // DI-9.4 Section 29: return to SELECT after placing annotation
+    setActiveTool("SELECT");
+  }
+
+  function addAnnotationToCanvas(ann: DrugNetworkAnnotation, position: { x: number; y: number }) {
+    setAnnotations((prev) => [...prev, ann]);
+    const flowNode = annotationToFlowNode(
+      ann, position, undefined,
+      ann.id, boardLocked, effectiveWorkspaceMode === "ANALYST",
+      handleAnnotationTextChangeRef.current
+    );
+    // Mark as selected on creation
+    const selectedNode = { ...flowNode, selected: true };
+    setFlowNodes((prev) => [...prev as FlowNode[], selectedNode as FlowNode]);
+    setSelectedAnnotationId(ann.id);
+    setSelectedNode(null);
+    setSelectedEdge(null);
+  }
+
+  // ── Image annotation: file input ──────────────────────────────────────────────
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  function handleImageToolClick() {
+    if (activeTool === "IMAGE" && !boardLocked && effectiveWorkspaceMode === "ANALYST") {
+      imageInputRef.current?.click();
+    }
+  }
+
+  function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(file.type)) return;
+    const maxBytes = 10 * 1024 * 1024; // 10 MB
+    if (file.size > maxBytes) return;
+    const objectUrl = URL.createObjectURL(file);
+    const ann = createImageAnnotation(objectUrl);
+    // Place in the center of the current viewport
+    const canvasEl = document.querySelector(".react-flow__pane") as HTMLElement | null;
+    const rect = canvasEl?.getBoundingClientRect();
+    const screenCenter = rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : { x: 400, y: 300 };
+    const pos = screenToFlowPosition(screenCenter);
+    addAnnotationToCanvas(ann, { x: pos.x - 100, y: pos.y - 75 });
+    setActiveTool("SELECT");
+    e.target.value = "";
+  }
+
+  // ── Annotation update (color, strokeWidth, etc.) ──────────────────────────────
+  const updateAnnotationData = useCallback((id: string, patch: Partial<DrugNetworkAnnotation>) => {
+    setAnnotations((prev) => updateAnnotation(prev, id, patch));
+    setFlowNodes((prev) =>
+      prev.map((n) => {
+        if (n.id !== id || !isAnnotationId(n.id)) return n;
+        const current = (n.data as unknown as DrugNetworkAnnotationNodeData).annotation;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            annotation: { ...current, ...patch },
+          } as unknown as DrugNetworkAnnotationNodeData,
+        };
+      }) as FlowNode[]
+    );
+    // Update defaults to match the last-used style (Section 16 QoL: new
+    // annotations inherit the style the analyst was last using)
+    setAnnotationDefaults((d) => ({ ...d, ...patch }));
+  }, []);
+
+  // ── Annotation deletion ───────────────────────────────────────────────────────
+  // Factual node/edge deletion is strictly forbidden (DI-9.4 Section 21).
+  // This guard: only ids starting with "ann-" are ever removed.
+  const deleteAnnotation = useCallback((id: string) => {
+    if (!isAnnotationId(id)) return; // safety guard — never remove factual nodes
+    if (boardLocked) return;
+    // Revoke object URL for IMAGE annotations to free memory (Section 39)
+    const ann = annotations.find((a) => a.id === id);
+    if (ann?.imageSrc?.startsWith("blob:")) {
+      URL.revokeObjectURL(ann.imageSrc);
+    }
+    setAnnotations((prev) => removeAnnotation(prev, id));
+    setFlowNodes((prev) => prev.filter((n) => n.id !== id) as FlowNode[]);
+    if (selectedAnnotationId === id) setSelectedAnnotationId(null);
+  }, [annotations, boardLocked, selectedAnnotationId]);
+
+  // ── Cleanup: revoke all blob URLs on unmount ──────────────────────────────────
+  useEffect(() => {
+    return () => {
+      for (const ann of annotations) {
+        if (ann.imageSrc?.startsWith("blob:")) URL.revokeObjectURL(ann.imageSrc);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Annotation duplication ────────────────────────────────────────────────────
+  const duplicateAnnotation = useCallback((id: string) => {
+    if (!isAnnotationId(id)) return;
+    if (boardLocked) return;
+    const existingNode = flowNodes.find((n) => n.id === id);
+    const existingAnn = annotations.find((a) => a.id === id);
+    if (!existingNode || !existingAnn) return;
+    const dupAnn = buildDuplicateAnnotation(existingAnn);
+    const dupPos = { x: existingNode.position.x + 20, y: existingNode.position.y + 20 };
+    addAnnotationToCanvas(dupAnn, dupPos);
+  }, [annotations, flowNodes, boardLocked]);
+
+  // ── Node click handler (factual + annotation) ─────────────────────────────────
+  // DI-9.4 Section 6: selection-state collisions are prevented by clearing the
+  // other type's selection whenever one type is clicked. Annotation selection
+  // clears factual selection (and vice versa) but they use separate state vars.
   function handleNodeClick(_event: unknown, node: Node) {
+    if (isAnnotationId(node.id)) {
+      // Annotation selected
+      setSelectedAnnotationId(node.id);
+      setSelectedNode(null);
+      setSelectedEdge(null);
+      setEdgeDrawerOpen(false);
+      return;
+    }
+    // Factual node selected
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
     setSelectedNode(graphNode);
     setSelectedEdge(null);
+    setSelectedAnnotationId(null);
   }
 
   function handleEdgeClick(_event: unknown, edge: Edge) {
     const graphEdge = neighborhood.data?.edges.find((e) => e.id === edge.id) ?? null;
     setSelectedEdge(graphEdge);
     setSelectedNode(null);
+    setSelectedAnnotationId(null);
     setEdgeDrawerOpen(true);
+  }
+
+  // Clicking the canvas background (pane) deselects everything (plus triggers creation)
+  function handlePaneClickWrapper(event: React.MouseEvent) {
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setSelectedAnnotationId(null);
+    handlePaneClick(event);
   }
 
   function expandFromNode(node: DrugGraphNode) {
@@ -410,10 +831,6 @@ function DrugNetworkContent() {
     setRearrangeToken((v) => v + 1);
   }
 
-  // DI-9.2 Section 4/20: pin/unpin is a plain Set toggle — no API call, no
-  // URL change, no layout recompute triggered directly (the badge update
-  // happens via the effect's pinnedNodeIds dependency, which takes the
-  // cheap !isNewQuery merge path — see the effect above).
   function togglePinNode(nodeId: string) {
     setPinnedNodeIds((current) => {
       const next = new Set(current);
@@ -423,18 +840,10 @@ function DrugNetworkContent() {
     });
   }
 
-  // DI-9.2 Section 11: a separate, explicit action from "จัดผังใหม่" — a
-  // user who pinned nodes expects them to stay pinned when merely
-  // re-running the layout. Clearing all pins then lets a subsequent
-  // rearrange move every node, since none remain excluded.
   function clearAllPins() {
     setPinnedNodeIds(new Set());
   }
 
-  // DI-9.3 Section 10: reliability over cleverness — inserts a waypoint at
-  // the midpoint of the route's current longest segment, using the
-  // SELECTED edge's live on-screen source/target node positions (already
-  // graph-space, from flowNodes) rather than any click coordinate.
   function handleAddWaypoint(edge: DrugGraphEdge) {
     if (boardLocked) return;
     const sourceNode = flowNodes.find((n) => n.id === edge.source);
@@ -468,15 +877,6 @@ function DrugNetworkContent() {
     }));
   }
 
-  /**
-   * DI-5.3.1 Bug 1 fix — "กลับไปจุดเริ่มต้น" (Back to start), distinct from
-   * "จัดผังใหม่" (Re-arrange, which only re-runs the CURRENT layout mode).
-   * Back to start restores: the ORIGINAL focus entity from when this page
-   * first loaded, the AUTO layout baseline, clears filters, clears the
-   * node/edge selection, exits Path View, and clears any manual drag
-   * positions (via the rearrange token, since the query itself may not
-   * change if the user never navigated away from the original focus).
-   */
   function handleBackToStart() {
     const original = originalFocusRef.current;
     updateParams({
@@ -499,6 +899,12 @@ function DrugNetworkContent() {
   function exitPathView() {
     setPathViewNodeIds(null);
   }
+
+  // ── Currently-selected annotation (for inspector) ─────────────────────────────
+  const selectedAnnotation = useMemo(
+    () => selectedAnnotationId ? annotations.find((a) => a.id === selectedAnnotationId) ?? null : null,
+    [annotations, selectedAnnotationId]
+  );
 
   return (
     <div className="space-y-5">
@@ -545,11 +951,26 @@ function DrugNetworkContent() {
         }
       />
 
+      {/* DI-9.4: annotation-cleared notice (shown briefly after focus change) */}
+      {annotationsClearedNotice ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.network.annotationsClearedOnFocusChange")}
+        </p>
+      ) : null}
+
+      {/* DI-9.4: Analyst Mode banner (replaced "coming soon" with drawing hint) */}
       {effectiveWorkspaceMode === "ANALYST" ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">
           <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="font-semibold">{t("di.network.modeAnalystBadge")}</span>
-          <span className="text-accent/80">{t("di.network.analystToolsComingSoon")}</span>
+          <span className="text-accent/80">
+            {pendingLineStart
+              ? t("di.network.drawingHintLineSecondClick")
+              : activeTool !== "SELECT" && activeTool !== "PAN"
+                ? t("di.network.drawingHintClick")
+                : null}
+          </span>
         </div>
       ) : null}
 
@@ -775,7 +1196,7 @@ function DrugNetworkContent() {
                 </p>
               ) : null}
 
-              {/* Section 18: consolidated Layout / View toolbar — "รูปแบบผัง" */}
+              {/* Layout / View toolbar */}
               <Card>
                 <CardBody className="space-y-3 py-3">
                   <div className="hidden flex-wrap items-center gap-3 sm:flex">
@@ -838,7 +1259,7 @@ function DrugNetworkContent() {
                     </div>
                   </div>
 
-                  {/* Section 20: mobile ~375px — a compact dropdown instead of 6-8 full-width buttons */}
+                  {/* Mobile layout dropdown */}
                   <div className="flex flex-wrap items-center gap-2 sm:hidden">
                     <div className="relative">
                       <Button variant="outline" size="sm" onClick={() => setShowLayoutMenu((v) => !v)} aria-expanded={showLayoutMenu} aria-controls="drug-network-layout-menu-mobile">
@@ -875,13 +1296,6 @@ function DrugNetworkContent() {
               {effectiveWorkspaceMode === "ANALYST" ? (
                 <Card>
                   <CardBody className="py-3">
-                    {/* Pin/unpin for the selected node lives in the node inspector
-                        drawer only (Section 14) — a toolbar-level pin button here
-                        would sit directly under that same drawer's full-screen
-                        modal backdrop (the shared Drawer primitive, also used by
-                        the edge inspector) and so could never actually be reached
-                        by a click once a node is selected. Lock/Clear-pins have no
-                        such conflict since neither depends on selectedNode. */}
                     <div role="group" aria-label={t("di.network.analystControlsLabel")} className="flex flex-wrap items-center gap-1.5">
                       <Sparkles className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
                       <Button
@@ -904,27 +1318,43 @@ function DrugNetworkContent() {
                 </Card>
               ) : null}
 
-              <div className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]" aria-describedby="drug-network-canvas-summary">
+              {/* ── Canvas ─────────────────────────────────────────────────────── */}
+              <div
+                className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]"
+                aria-describedby="drug-network-canvas-summary"
+              >
+                {/* DI-9.4 Section 3: vertical toolbar — always left of canvas in Analyst Mode */}
+                {effectiveWorkspaceMode === "ANALYST" ? (
+                  <DrugNetworkAnalystToolbar
+                    activeTool={activeTool}
+                    onToolSelect={(tool) => {
+                      setActiveTool(tool);
+                      setPendingLineStart(null);
+                      if (tool === "IMAGE") handleImageToolClick();
+                    }}
+                    boardLocked={boardLocked}
+                    pendingLineStart={pendingLineStart}
+                  />
+                ) : null}
+
                 <ReactFlow
                   nodes={flowNodes}
                   edges={flowEdges}
-                  onNodesChange={onNodesChange}
+                  onNodesChange={handleNodesChange}
                   onEdgesChange={onEdgesChange}
                   deleteKeyCode={null}
                   nodeTypes={NODE_TYPES}
                   edgeTypes={EDGE_TYPES}
-                  // DI-9.3 Section 23: factual edges must never be
-                  // reconnectable to a different entity — no onReconnect
-                  // handler is wired anywhere, and this makes the
-                  // restriction structural rather than relying only on
-                  // that absence.
                   edgesReconnectable={false}
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
+                  onPaneClick={handlePaneClickWrapper}
                   fitView
                   minZoom={0.2}
                   maxZoom={2}
                   nodesDraggable={!boardLocked}
+                  panOnDrag={activeTool === "PAN" || activeTool === "SELECT" || effectiveWorkspaceMode === "VIEW"}
+                  style={{ cursor: canvasCursor }}
                   proOptions={{ hideAttribution: true }}
                 >
                   <Background />
@@ -932,6 +1362,7 @@ function DrugNetworkContent() {
                   <MiniMap pannable zoomable className="hidden sm:block" />
                 </ReactFlow>
 
+                {/* Legend button — top-right */}
                 <div className="absolute right-2 top-2 z-10">
                   <Button variant="outline" size="sm" onClick={() => setShowLegend((v) => !v)} aria-expanded={showLegend} aria-controls="drug-network-legend-panel">
                     <Info className="h-4 w-4" aria-hidden="true" />
@@ -945,15 +1376,42 @@ function DrugNetworkContent() {
                 </div>
               </div>
 
+              {/* Hidden file input for Image annotation (Section 14/39) */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="sr-only"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={handleImageFileChange}
+              />
+
               <DrugNetworkStatusBar
                 nodeCount={neighborhood.data.nodes.length}
                 edgeCount={neighborhood.data.edges.length}
-                selectedLabel={selectedNode?.label ?? (selectedEdge ? t(DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[selectedEdge.relationshipType] as TranslationKey) : null)}
+                selectedLabel={
+                  selectedAnnotationId
+                    ? null // annotation "selected" is shown in the inspector below, not the status bar
+                    : selectedNode?.label ?? (selectedEdge ? t(DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[selectedEdge.relationshipType] as TranslationKey) : null)
+                }
                 layoutLabel={t(RESOLVED_LAYOUT_LABEL_KEY[resolvedLayoutMode])}
                 truncated={neighborhood.data.truncated}
                 pinnedCount={effectiveWorkspaceMode === "ANALYST" ? pinnedNodeIds.size : undefined}
                 boardLocked={effectiveWorkspaceMode === "ANALYST" ? boardLocked : undefined}
+                annotationCount={effectiveWorkspaceMode === "ANALYST" ? annotations.length : undefined}
               />
+
+              {/* DI-9.4: Annotation inspector (non-modal, inline — avoids backdrop conflict) */}
+              {selectedAnnotation && effectiveWorkspaceMode === "ANALYST" ? (
+                <DrugNetworkAnnotationInspector
+                  annotation={selectedAnnotation}
+                  boardLocked={boardLocked}
+                  onChange={updateAnnotationData}
+                  onDelete={deleteAnnotation}
+                  onDuplicate={duplicateAnnotation}
+                />
+              ) : null}
 
               <div className="flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" onClick={handleBackToStart}>

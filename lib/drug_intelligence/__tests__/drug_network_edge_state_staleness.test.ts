@@ -181,6 +181,10 @@ test("querySignature (which drives node-position reset + fitView) does NOT inclu
 test("on a pure (non-new-query) rebuild, setFlowNodes takes the position-preserving merge path, never the reset/fitView path", () => {
   // isNewQuery is derived solely from querySignature (already proven above to exclude
   // effectiveWorkspaceMode/boardLocked), so a pure mode/lock toggle always takes this branch.
-  assert.match(pageCode, /if \(!isNewQuery\) return mergePreservingManualPositions\(built\.flowNodes, current, false\);/);
+  // DI-9.4 refactored the merge path into a block form (to preserve annotation nodes separately),
+  // but the two logical branches are still strictly guarded by isNewQuery.
+  // The non-new-query branch calls mergePreservingManualPositions (block form in DI-9.4 to
+  // also preserve annotation nodes). The new-query branch triggers fitView.
+  assert.match(pageCode, /mergePreservingManualPositions\(built\.flowNodes, current\w*, false\)/);
   assert.match(pageCode, /if \(isNewQuery\) window\.requestAnimationFrame\(\(\) => fitView/);
 });

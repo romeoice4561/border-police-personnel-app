@@ -1,0 +1,205 @@
+/**
+ * Analyst annotation data model (Phase DI-9.4).
+ *
+ * Annotations are PRESENTATION STATE ONLY — the data objects live in xyflow
+ * node `data.annotation` (inside the page's `flowNodes` state), never written
+ * to any API, never persisted (a refresh clears them — DI-9.5 will add
+ * board persistence). Annotations MUST NOT:
+ *   - create DrugRelationship
+ *   - alter edgeKind / evidence / source / target
+ *   - enter BFS / neighborhood / Find Connection logic
+ *   - count as factual graph nodes or edges
+ *   - appear in factual search results
+ *
+ * No React / @xyflow/react import — pure data in, data out, so this is
+ * testable without a DOM or provider, matching the existing convention in
+ * drug_network_graph_layout.ts, drug_network_graph_pinning.ts, and
+ * drug_network_edge_routing.ts.
+ */
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type DrugNetworkAnnotationType = "RECTANGLE" | "ELLIPSE" | "TEXT" | "LINE" | "ARROW" | "IMAGE";
+
+/**
+ * Active drawing tool in Analyst Mode.
+ * SELECT / PAN are navigation tools; the rest are creation tools.
+ * State is client-only UI presentation — never persisted, never written to any
+ * API, never included in URL params or graph query signature.
+ */
+export type DrugNetworkAnalystTool =
+  | "SELECT"
+  | "PAN"
+  | "LINE"
+  | "ARROW"
+  | "RECTANGLE"
+  | "ELLIPSE"
+  | "TEXT"
+  | "IMAGE";
+
+/**
+ * Core annotation data object. Position and size live in the xyflow `FlowNode`
+ * that embeds this annotation (in `flowNode.position` and `flowNode.width/
+ * height`) — xyflow manages those authoritative values so user drags and
+ * NodeResizer resize events are handled automatically without any manual sync
+ * loop. This interface carries only the STYLE / CONTENT properties that xyflow
+ * does not itself own.
+ *
+ * For LINE and ARROW, `endOffset` is the vector from the node's xyflow
+ * `position` (= start point) to the end point (graph-space pixels).
+ */
+export interface DrugNetworkAnnotation {
+  id: string;
+  type: DrugNetworkAnnotationType;
+  /** Stroke / text color. */
+  color: string;
+  /** Fill / background color for RECTANGLE and ELLIPSE shapes. "transparent" = no fill. */
+  fillColor: string;
+  /** Stroke width in pixels (0 for TEXT). */
+  strokeWidth: number;
+  /** Text content for TEXT annotations. */
+  text?: string;
+  /** Font size in pixels for TEXT annotations. */
+  fontSize?: number;
+  /** For LINE / ARROW: vector from start to end in graph-space pixels. */
+  endOffset?: { x: number; y: number };
+  /**
+   * Object URL for IMAGE annotations (session-local only — revoke via
+   * URL.revokeObjectURL when the annotation is deleted or the component
+   * unmounts).
+   */
+  imageSrc?: string;
+  /** Caption for IMAGE annotations, shown below the image. */
+  caption?: string;
+}
+
+// ─── Style constants ──────────────────────────────────────────────────────────
+
+export const ANNOTATION_DEFAULT_COLORS = [
+  "#000000", "#666666", "#ffffff",
+  "#ef4444", "#f97316", "#eab308",
+  "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899",
+] as const;
+
+export const ANNOTATION_DEFAULT_FILL_COLORS = [
+  "transparent",
+  "#fef2f2", "#fff7ed", "#fefce8",
+  "#f0fdf4", "#eff6ff", "#faf5ff", "#fdf2f8",
+] as const;
+
+export const ANNOTATION_STROKE_WIDTHS = [1, 2, 4, 6] as const;
+export const ANNOTATION_DEFAULT_FONT_SIZES = [12, 14, 16, 20, 24] as const;
+
+export const ANNOTATION_DEFAULTS: Pick<DrugNetworkAnnotation, "color" | "fillColor" | "strokeWidth" | "fontSize"> = {
+  color: "#3b82f6",
+  fillColor: "transparent",
+  strokeWidth: 2,
+  fontSize: 14,
+};
+
+// ─── Default sizes used when placing a new annotation ─────────────────────────
+
+export const ANNOTATION_DEFAULT_SIZES: Record<Exclude<DrugNetworkAnnotationType, "LINE" | "ARROW">, { width: number; height: number }> = {
+  RECTANGLE: { width: 200, height: 120 },
+  ELLIPSE:   { width: 160, height: 100 },
+  TEXT:      { width: 180, height:  60 },
+  IMAGE:     { width: 200, height: 150 },
+};
+
+// ─── ID generation ────────────────────────────────────────────────────────────
+
+let _annotationIdCounter = 0;
+/**
+ * Returns a unique annotation id for the current browser session.
+ * Ids never leave the tab or get persisted, so crypto/uuid is not needed;
+ * a simple counter + timestamp is sufficient and avoids a new import.
+ * Starts with "ann-" so callers can identify annotation flow nodes by id prefix.
+ */
+export function nextAnnotationId(): string {
+  _annotationIdCounter += 1;
+  return `ann-${Date.now().toString(36)}-${_annotationIdCounter}`;
+}
+
+/** Returns true when the given node id belongs to an annotation (not a factual graph node). */
+export function isAnnotationId(id: string): boolean {
+  return id.startsWith("ann-");
+}
+
+// ─── Annotation factory helpers ───────────────────────────────────────────────
+
+/** Builds a new RECTANGLE annotation with the given defaults. */
+export function createRectangleAnnotation(defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
+  return { id: nextAnnotationId(), type: "RECTANGLE", color: defaults.color, fillColor: defaults.fillColor, strokeWidth: defaults.strokeWidth };
+}
+
+/** Builds a new ELLIPSE annotation. */
+export function createEllipseAnnotation(defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
+  return { id: nextAnnotationId(), type: "ELLIPSE", color: defaults.color, fillColor: defaults.fillColor, strokeWidth: defaults.strokeWidth };
+}
+
+/** Builds a new TEXT annotation. */
+export function createTextAnnotation(defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
+  return { id: nextAnnotationId(), type: "TEXT", color: defaults.color, fillColor: "transparent", strokeWidth: 0, text: "", fontSize: defaults.fontSize };
+}
+
+/** Builds a new LINE annotation. `endOffset` is the vector from start to end. */
+export function createLineAnnotation(endOffset: { x: number; y: number }, defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
+  return { id: nextAnnotationId(), type: "LINE", color: defaults.color, fillColor: "transparent", strokeWidth: defaults.strokeWidth, endOffset };
+}
+
+/** Builds a new ARROW annotation. */
+export function createArrowAnnotation(endOffset: { x: number; y: number }, defaults = ANNOTATION_DEFAULTS): DrugNetworkAnnotation {
+  return { id: nextAnnotationId(), type: "ARROW", color: defaults.color, fillColor: "transparent", strokeWidth: defaults.strokeWidth, endOffset };
+}
+
+/**
+ * Builds a new IMAGE annotation. `imageSrc` must be a valid object URL or data URL.
+ * Callers are responsible for revoking object URLs when the annotation is deleted.
+ */
+export function createImageAnnotation(imageSrc: string): DrugNetworkAnnotation {
+  return { id: nextAnnotationId(), type: "IMAGE", imageSrc, caption: "", color: "#000000", fillColor: "transparent", strokeWidth: 1 };
+}
+
+// ─── Mutation helpers (pure — never mutate the input array) ──────────────────
+
+/** Updates one annotation in an array by id. Returns the original reference when the id is not found. */
+export function updateAnnotation(annotations: DrugNetworkAnnotation[], id: string, patch: Partial<DrugNetworkAnnotation>): DrugNetworkAnnotation[] {
+  const idx = annotations.findIndex((a) => a.id === id);
+  if (idx < 0) return annotations;
+  const next = [...annotations];
+  next[idx] = { ...next[idx], ...patch };
+  return next;
+}
+
+/** Removes an annotation by id. Returns the original reference when the id is not found. */
+export function removeAnnotation(annotations: DrugNetworkAnnotation[], id: string): DrugNetworkAnnotation[] {
+  const result = annotations.filter((a) => a.id !== id);
+  return result.length === annotations.length ? annotations : result;
+}
+
+/** Duplicates an annotation with a slight position offset (caller merges id → flowNode separately). */
+export function buildDuplicateAnnotation(ann: DrugNetworkAnnotation): DrugNetworkAnnotation {
+  return { ...ann, id: nextAnnotationId() };
+}
+
+// ─── Classification helpers ──────────────────────────────────────────────────
+
+/** True when the annotation is a filled/stroked shape (RECTANGLE or ELLIPSE). */
+export function isShapeAnnotation(type: DrugNetworkAnnotationType): boolean {
+  return type === "RECTANGLE" || type === "ELLIPSE";
+}
+
+/** True when the annotation is a line or arrow (two endpoints, no fill). */
+export function isLineAnnotation(type: DrugNetworkAnnotationType): boolean {
+  return type === "LINE" || type === "ARROW";
+}
+
+/**
+ * Returns the xyflow node `type` string for a given annotation type.
+ * "annotationShape" handles RECTANGLE, ELLIPSE, TEXT, IMAGE.
+ * "annotationLine"  handles LINE and ARROW.
+ * Neither string overlaps with "drugGraphNode" or any factual edge type.
+ */
+export function annotationFlowNodeType(type: DrugNetworkAnnotationType): "annotationShape" | "annotationLine" {
+  return isLineAnnotation(type) ? "annotationLine" : "annotationShape";
+}

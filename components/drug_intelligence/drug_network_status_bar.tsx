@@ -36,9 +36,11 @@ export interface DrugNetworkStatusBarProps {
   pinnedCount?: number;
   /** DI-9.2 Section 16: whether the board is currently drag-locked. */
   boardLocked?: boolean;
+  /** DI-9.4: number of analyst annotation objects currently on the canvas. Omit (or 0) outside Analyst Mode. */
+  annotationCount?: number;
 }
 
-export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layoutLabel, truncated, pinnedCount, boardLocked }: DrugNetworkStatusBarProps) {
+export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layoutLabel, truncated, pinnedCount, boardLocked, annotationCount }: DrugNetworkStatusBarProps) {
   const { t } = useT();
   const { zoom } = useViewport();
   const zoomPercent = Math.round(zoom * 100);
@@ -69,6 +71,11 @@ export function DrugNetworkStatusBar({ nodeCount, edgeCount, selectedLabel, layo
         <span className="hidden items-center gap-1 font-medium text-foreground sm:inline-flex">
           <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
           {t("di.network.statusBoardLocked")}
+        </span>
+      ) : null}
+      {typeof annotationCount === "number" && annotationCount > 0 ? (
+        <span className="hidden sm:inline" data-testid="status-annotation-count">
+          {t("di.network.statusAnnotations")}: <span className="font-medium text-foreground">{annotationCount.toLocaleString()}</span>
         </span>
       ) : null}
       {truncated ? (
