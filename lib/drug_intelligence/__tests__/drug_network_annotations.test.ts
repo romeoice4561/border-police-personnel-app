@@ -506,9 +506,10 @@ describe("additional: annotation data purity and helper correctness", () => {
   });
 
   test("IMAGE tool uses object URL with validate-MIME file input, not an external URL", () => {
-    assert.match(pageCode, /accept="image\/jpeg,image\/png/);
+    assert.match(pageCode, /IMAGE_ANNOTATION_ALLOWED_MIME|accept=\{IMAGE_ANNOTATION_ALLOWED_MIME/);
     assert.match(pageCode, /URL\.createObjectURL/);
-    assert.match(pageCode, /URL\.revokeObjectURL/);
+    assert.match(pageCode, /openImageFilePicker|imageInputRef/);
+    assert.match(pageCode, /URL\.revokeObjectURL|releaseBlobUrl/);
   });
 
 });

@@ -155,8 +155,14 @@ import {
   removeAnnotation,
   buildDuplicateAnnotation,
   lineAnnotationNodeDimensions,
+  validateImageAnnotationFile,
+  computeImageAnnotationInitialSize,
+  imageAnnotationCenteredPosition,
+  retainBlobUrl,
+  releaseBlobUrl,
   ANNOTATION_DEFAULT_SIZES,
   ANNOTATION_DEFAULTS,
+  IMAGE_ANNOTATION_ALLOWED_MIME,
   type DrugNetworkAnnotation,
   type DrugNetworkAnalystTool,
 } from "@/lib/drug_intelligence/drug_network_annotations";
@@ -400,8 +406,17 @@ function DrugNetworkContent() {
   const [activeTool, setActiveTool] = useState<DrugNetworkAnalystTool>("SELECT");
   /** Transient notice when annotations are auto-cleared on focus change. */
   const [annotationsClearedNotice, setAnnotationsClearedNotice] = useState(false);
+  /** Transient Thai notice for invalid/oversized Image tool selections. */
+  const [imageErrorNotice, setImageErrorNotice] = useState<"mime" | "size" | null>(null);
   /** Current annotation defaults: color, strokeWidth, fillColor, fontSize. */
   const [annotationDefaults, setAnnotationDefaults] = useState(ANNOTATION_DEFAULTS);
+
+  // DI-9.4.1: blob URL ref-counts so duplicate IMAGE annotations share safely
+  const blobUrlRegistryRef = useRef<Map<string, number>>(new Map());
+  const annotationsRef = useRef(annotations);
+  annotationsRef.current = annotations;
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // ── DI-9.4.1: drag-to-create state ──────────────────────────────────────────
   const drawingStateRef = useRef<{
@@ -442,7 +457,10 @@ function DrugNetworkContent() {
     const prev = prevFocusRef.current;
     if (prev.focusId !== focusId || prev.focusType !== focusType) {
       prevFocusRef.current = { focusType, focusId };
-      if (annotations.length > 0) {
+      if (annotationsRef.current.length > 0) {
+        for (const ann of annotationsRef.current) {
+          releaseBlobUrl(blobUrlRegistryRef.current, ann.imageSrc);
+        }
         startTransition(() => {
           setAnnotations([]);
           setSelectedAnnotationId(null);
@@ -900,32 +918,77 @@ function DrugNetworkContent() {
     setSelectedEdge(null);
   }
 
-  // ── Image annotation: file input ──────────────────────────────────────────────
-  const imageInputRef = useRef<HTMLInputElement>(null);
-
-  function handleImageToolClick() {
-    if (activeTool === "IMAGE" && !boardLocked && effectiveWorkspaceMode === "ANALYST") {
-      imageInputRef.current?.click();
-    }
+  // ── Image annotation: PowerPoint-style immediate file picker ────────────────
+  // Root cause of Human QA defect: handleImageToolClick previously checked
+  // `activeTool === "IMAGE"` AFTER setActiveTool("IMAGE"), so React still saw
+  // the previous tool and the file input never opened.
+  function openImageFilePicker() {
+    if (boardLocked || effectiveWorkspaceMode !== "ANALYST") return;
+    // Image is a one-shot action — never leave IMAGE sticky. Cancel naturally
+    // returns to SELECT because we never stay on IMAGE waiting for a canvas click.
+    setActiveTool("SELECT");
+    const input = imageInputRef.current;
+    if (!input) return;
+    // Reset so selecting the same file twice still fires onChange
+    input.value = "";
+    input.click();
   }
 
-  function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function getVisibleViewportCenterFlow(): { x: number; y: number } {
+    const el = canvasContainerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      return screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    }
+    return screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  }
+
+  function loadImageNaturalSize(src: string): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () =>
+        resolve({
+          width: Math.max(1, img.naturalWidth || 1),
+          height: Math.max(1, img.naturalHeight || 1),
+        });
+      img.onerror = () => reject(new Error("image-load-failed"));
+      img.src = src;
+    });
+  }
+
+  async function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (!allowedTypes.includes(file.type)) return;
-    const maxBytes = 10 * 1024 * 1024; // 10 MB
-    if (file.size > maxBytes) return;
-    const objectUrl = URL.createObjectURL(file);
-    const ann = createImageAnnotation(objectUrl);
-    // Place in the center of the current viewport
-    const canvasEl = document.querySelector(".react-flow__pane") as HTMLElement | null;
-    const rect = canvasEl?.getBoundingClientRect();
-    const screenCenter = rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : { x: 400, y: 300 };
-    const pos = screenToFlowPosition(screenCenter);
-    addAnnotationToCanvas(ann, { x: pos.x - 100, y: pos.y - 75 });
-    setActiveTool("SELECT");
+    // Always reset so same-file reselect works; cancel does not fire onChange
     e.target.value = "";
+    setActiveTool("SELECT");
+    if (!file) return;
+    if (boardLocked || effectiveWorkspaceMode !== "ANALYST") return;
+
+    const validation = validateImageAnnotationFile(file);
+    if (!validation.ok) {
+      setImageErrorNotice(validation.reason);
+      setTimeout(() => setImageErrorNotice(null), 4000);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    retainBlobUrl(blobUrlRegistryRef.current, objectUrl);
+
+    let size = ANNOTATION_DEFAULT_SIZES.IMAGE;
+    try {
+      const natural = await loadImageNaturalSize(objectUrl);
+      size = computeImageAnnotationInitialSize(natural.width, natural.height);
+    } catch {
+      // Keep default size if natural dimensions cannot be read
+    }
+
+    const ann = createImageAnnotation(objectUrl);
+    const center = getVisibleViewportCenterFlow();
+    const pos = imageAnnotationCenteredPosition(center, size);
+    addAnnotationToCanvas(ann, pos, size);
   }
 
   // ── Annotation update (color, strokeWidth, etc.) ──────────────────────────────
@@ -958,24 +1021,21 @@ function DrugNetworkContent() {
   const deleteAnnotation = useCallback((id: string) => {
     if (!isAnnotationId(id)) return; // safety guard — never remove factual nodes
     if (boardLocked) return;
-    // Revoke object URL for IMAGE annotations to free memory (Section 39)
+    // Release object URL for IMAGE annotations (ref-counted — safe with duplicates)
     const ann = annotations.find((a) => a.id === id);
-    if (ann?.imageSrc?.startsWith("blob:")) {
-      URL.revokeObjectURL(ann.imageSrc);
-    }
+    releaseBlobUrl(blobUrlRegistryRef.current, ann?.imageSrc);
     setAnnotations((prev) => removeAnnotation(prev, id));
     setFlowNodes((prev) => prev.filter((n) => n.id !== id) as FlowNode[]);
     if (selectedAnnotationId === id) setSelectedAnnotationId(null);
   }, [annotations, boardLocked, selectedAnnotationId]);
 
-  // ── Cleanup: revoke all blob URLs on unmount ──────────────────────────────────
+  // ── Cleanup: revoke remaining blob URLs on unmount ──────────────────────────
   useEffect(() => {
     return () => {
-      for (const ann of annotations) {
-        if (ann.imageSrc?.startsWith("blob:")) URL.revokeObjectURL(ann.imageSrc);
+      for (const ann of annotationsRef.current) {
+        releaseBlobUrl(blobUrlRegistryRef.current, ann.imageSrc);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Annotation duplication ────────────────────────────────────────────────────
@@ -986,8 +1046,14 @@ function DrugNetworkContent() {
     const existingAnn = annotations.find((a) => a.id === id);
     if (!existingNode || !existingAnn) return;
     const dupAnn = buildDuplicateAnnotation(existingAnn);
+    // Shared object URL: retain so deleting one copy does not break the other
+    retainBlobUrl(blobUrlRegistryRef.current, dupAnn.imageSrc);
     const dupPos = { x: existingNode.position.x + 20, y: existingNode.position.y + 20 };
-    addAnnotationToCanvas(dupAnn, dupPos);
+    const size =
+      existingNode.width != null && existingNode.height != null
+        ? { width: existingNode.width, height: existingNode.height }
+        : undefined;
+    addAnnotationToCanvas(dupAnn, dupPos, size);
   }, [annotations, flowNodes, boardLocked]);
 
   // ── Node click handler (factual + annotation) ─────────────────────────────────
@@ -1171,6 +1237,16 @@ function DrugNetworkContent() {
         <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {t("di.network.annotationsClearedOnFocusChange")}
+        </p>
+      ) : null}
+
+      {/* DI-9.4.1: Image tool validation feedback */}
+      {imageErrorNotice ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-critical-bg px-3 py-2 text-xs text-critical" data-testid="image-annotation-error">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {imageErrorNotice === "mime"
+            ? t("di.network.imageInvalidType")
+            : t("di.network.imageTooLarge")}
         </p>
       ) : null}
 
@@ -1533,6 +1609,7 @@ function DrugNetworkContent() {
 
               {/* ── Canvas ─────────────────────────────────────────────────────── */}
               <div
+                ref={canvasContainerRef}
                 className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]"
                 aria-describedby="drug-network-canvas-summary"
                 onPointerDown={handleDrawPointerDown}
@@ -1545,13 +1622,21 @@ function DrugNetworkContent() {
                   <DrugNetworkAnalystToolbar
                     activeTool={activeTool}
                     onToolSelect={(tool) => {
+                      // IMAGE: open OS file picker immediately (no canvas click required)
+                      if (tool === "IMAGE") {
+                        if (drawingStateRef.current) {
+                          drawingStateRef.current = null;
+                          setDrawingPreview(null);
+                        }
+                        openImageFilePicker();
+                        return;
+                      }
                       setActiveTool(tool);
                       // Cancel any in-progress drag-draw when switching tools
                       if (drawingStateRef.current) {
                         drawingStateRef.current = null;
                         setDrawingPreview(null);
                       }
-                      if (tool === "IMAGE") handleImageToolClick();
                     }}
                     boardLocked={boardLocked}
                   />
@@ -1615,14 +1700,15 @@ function DrugNetworkContent() {
                 </div>
               </div>
 
-              {/* Hidden file input for Image annotation (Section 14/39) */}
+              {/* Hidden file input for Image annotation — opened immediately by Image tool */}
               <input
                 ref={imageInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept={IMAGE_ANNOTATION_ALLOWED_MIME.join(",")}
                 className="sr-only"
                 aria-hidden="true"
                 tabIndex={-1}
+                data-testid="annotation-image-file-input"
                 onChange={handleImageFileChange}
               />
 

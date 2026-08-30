@@ -73,6 +73,8 @@ export function DrugNetworkAnnotationInspector({
 
   const locked = boardLocked;
   const id = annotation.id;
+  const isImage = annotation.type === "IMAGE";
+  const isText = annotation.type === "TEXT";
 
   return (
     <div
@@ -127,12 +129,13 @@ export function DrugNetworkAnnotationInspector({
       {/* ── Controls ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-4">
 
-        {/* Stroke / text color */}
+        {/* Stroke / text color — not shown for IMAGE */}
+        {!isImage ? (
         <div className="min-w-0">
           <p className="mb-1.5 text-xs font-medium text-muted">
-            {annotation.type === "TEXT" ? "สีข้อความ" : "สีเส้น"}
+            {isText ? "สีข้อความ" : "สีเส้น"}
           </p>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={annotation.type === "TEXT" ? "สีข้อความ" : "สีเส้น"}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={isText ? "สีข้อความ" : "สีเส้น"}>
             {ANNOTATION_DEFAULT_COLORS.map((c) => (
               <button
                 key={c}
@@ -161,6 +164,7 @@ export function DrugNetworkAnnotationInspector({
             ))}
           </div>
         </div>
+        ) : null}
 
         {/* Fill color (shapes only) */}
         {isShapeAnnotation(annotation.type) ? (
@@ -199,8 +203,8 @@ export function DrugNetworkAnnotationInspector({
           </div>
         ) : null}
 
-        {/* Stroke width (non-text) */}
-        {annotation.type !== "TEXT" ? (
+        {/* Stroke width (non-text, non-image) */}
+        {!isText && !isImage ? (
           <div>
             <p className="mb-1.5 text-xs font-medium text-muted">ความหนาเส้น</p>
             <div className="flex gap-1.5" role="group" aria-label="ความหนาเส้น">

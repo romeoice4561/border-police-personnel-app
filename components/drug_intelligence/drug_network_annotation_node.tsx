@@ -185,6 +185,7 @@ export function DrugNetworkAnnotationShapeNode({
           <NodeResizer
             minWidth={60}
             minHeight={40}
+            keepAspectRatio
             handleStyle={RESIZE_HANDLE_STYLE}
             lineStyle={{ borderColor: "#3b82f6", borderWidth: 1, borderStyle: "dashed" }}
           />

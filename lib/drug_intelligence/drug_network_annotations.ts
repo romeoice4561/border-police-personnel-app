@@ -185,10 +185,109 @@ export function strokeDashArray(dash: DrugNetworkAnnotationStrokeDash | undefine
 
 /**
  * Builds a new IMAGE annotation. `imageSrc` must be a valid object URL or data URL.
- * Callers are responsible for revoking object URLs when the annotation is deleted.
+ * Callers are responsible for revoking object URLs when the annotation is deleted
+ * (use retainBlobUrl / releaseBlobUrl when the same URL may be shared by duplicates).
  */
 export function createImageAnnotation(imageSrc: string): DrugNetworkAnnotation {
   return { id: nextAnnotationId(), type: "IMAGE", imageSrc, caption: "", color: "#000000", fillColor: "transparent", strokeWidth: 1 };
+}
+
+// ─── IMAGE insertion helpers (DI-9.4.1 Human QA fix) ─────────────────────────
+
+/** MIME types accepted by the Image tool file picker. */
+export const IMAGE_ANNOTATION_ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+] as const;
+
+/** Max upload size for a session-local image annotation (10 MB). */
+export const IMAGE_ANNOTATION_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Max initial bounding box when placing a newly inserted image. */
+export const IMAGE_ANNOTATION_MAX_INITIAL = { width: 320, height: 240 } as const;
+
+export type ImageAnnotationValidationResult =
+  | { ok: true }
+  | { ok: false; reason: "mime" | "size" };
+
+/** Validates MIME + size for Image tool file selection. Pure — no DOM. */
+export function validateImageAnnotationFile(file: {
+  type: string;
+  size: number;
+}): ImageAnnotationValidationResult {
+  if (!(IMAGE_ANNOTATION_ALLOWED_MIME as readonly string[]).includes(file.type)) {
+    return { ok: false, reason: "mime" };
+  }
+  if (file.size > IMAGE_ANNOTATION_MAX_BYTES) {
+    return { ok: false, reason: "size" };
+  }
+  return { ok: true };
+}
+
+/**
+ * Fits natural image dimensions into maxW×maxH while preserving aspect ratio.
+ * Never stretches; portrait stays portrait, landscape stays landscape.
+ */
+export function computeImageAnnotationInitialSize(
+  naturalWidth: number,
+  naturalHeight: number,
+  maxW: number = IMAGE_ANNOTATION_MAX_INITIAL.width,
+  maxH: number = IMAGE_ANNOTATION_MAX_INITIAL.height
+): { width: number; height: number } {
+  const w = Math.max(1, naturalWidth);
+  const h = Math.max(1, naturalHeight);
+  const scale = Math.min(1, maxW / w, maxH / h);
+  return {
+    width: Math.max(1, Math.round(w * scale)),
+    height: Math.max(1, Math.round(h * scale)),
+  };
+}
+
+/**
+ * Reference-counted blob URL registry.
+ * Duplicating an IMAGE annotation shares the same object URL; revoke only when
+ * the last annotation using that URL is removed.
+ */
+export function retainBlobUrl(
+  registry: Map<string, number>,
+  url: string | undefined | null
+): void {
+  if (!url || !url.startsWith("blob:")) return;
+  registry.set(url, (registry.get(url) ?? 0) + 1);
+}
+
+export function releaseBlobUrl(
+  registry: Map<string, number>,
+  url: string | undefined | null,
+  revoke: (u: string) => void = (u) => URL.revokeObjectURL(u)
+): void {
+  if (!url || !url.startsWith("blob:")) return;
+  const next = (registry.get(url) ?? 1) - 1;
+  if (next <= 0) {
+    registry.delete(url);
+    revoke(url);
+  } else {
+    registry.set(url, next);
+  }
+}
+
+export function blobUrlRefCount(registry: Map<string, number>, url: string): number {
+  return registry.get(url) ?? 0;
+}
+
+/**
+ * Top-left graph-space position that centers a sized object on a viewport center.
+ */
+export function imageAnnotationCenteredPosition(
+  viewportCenter: { x: number; y: number },
+  size: { width: number; height: number }
+): { x: number; y: number } {
+  return {
+    x: viewportCenter.x - size.width / 2,
+    y: viewportCenter.y - size.height / 2,
+  };
 }
 
 // ─── Mutation helpers (pure — never mutate the input array) ──────────────────

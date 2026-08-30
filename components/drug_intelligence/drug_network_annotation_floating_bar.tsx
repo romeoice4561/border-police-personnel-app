@@ -16,7 +16,7 @@
  */
 "use client";
 
-import { Trash2, Copy, Minus } from "lucide-react";
+import { Trash2, Copy } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import {
   ANNOTATION_DEFAULT_COLORS,
@@ -59,6 +59,7 @@ export function DrugNetworkAnnotationFloatingBar({
   const isShape = isShapeAnnotation(annotation.type);
   const isLine = isLineAnnotation(annotation.type);
   const isText = annotation.type === "TEXT";
+  const isImage = annotation.type === "IMAGE";
   const showDash = isShape || isLine;
 
   return (
@@ -67,30 +68,36 @@ export function DrugNetworkAnnotationFloatingBar({
       data-testid="annotation-floating-bar"
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {/* IMAGE: duplicate + delete only (no stroke/fill/line style) */}
+      {isImage ? (
+        <>
+          <button
+            type="button"
+            disabled={boardLocked}
+            onClick={() => !boardLocked && onDuplicate(id)}
+            title="ทำสำเนา"
+            aria-label="ทำสำเนา"
+            className="flex h-5 w-5 items-center justify-center rounded text-muted transition-colors hover:bg-neutral-bg hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+            data-testid="floating-bar-duplicate-btn"
+          >
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            disabled={boardLocked}
+            onClick={() => !boardLocked && onDelete(id)}
+            title="ลบวัตถุ"
+            aria-label="ลบวัตถุ"
+            className="flex h-5 w-5 items-center justify-center rounded text-critical transition-colors hover:bg-critical-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-critical disabled:cursor-not-allowed disabled:opacity-40"
+            data-testid="floating-bar-delete-btn"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </>
+      ) : null}
+
       {/* ── Stroke / text color ───────────────────────────────────────────── */}
-      {!isText ? (
-        <div className="flex items-center gap-1" role="group" aria-label="สีเส้น">
-          <span className="text-[10px] text-muted">เส้น</span>
-          {FLOAT_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              disabled={boardLocked}
-              onClick={() => !boardLocked && onChange(id, { color: c })}
-              aria-pressed={annotation.color === c}
-              title={c}
-              className={cn(
-                "h-4 w-4 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
-                annotation.color === c ? "scale-125 ring-2 ring-accent ring-offset-1" : "hover:scale-110"
-              )}
-              style={{
-                background: c,
-                boxShadow: c === "#ffffff" ? "inset 0 0 0 1px #d1d5db" : undefined,
-              }}
-            />
-          ))}
-        </div>
-      ) : (
+      {isText ? (
         <div className="flex items-center gap-1" role="group" aria-label="สีข้อความ">
           <span className="text-[10px] text-muted">ข้อความ</span>
           {FLOAT_COLORS.map((c) => (
@@ -112,7 +119,29 @@ export function DrugNetworkAnnotationFloatingBar({
             />
           ))}
         </div>
-      )}
+      ) : !isImage ? (
+        <div className="flex items-center gap-1" role="group" aria-label="สีเส้น">
+          <span className="text-[10px] text-muted">เส้น</span>
+          {FLOAT_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              disabled={boardLocked}
+              onClick={() => !boardLocked && onChange(id, { color: c })}
+              aria-pressed={annotation.color === c}
+              title={c}
+              className={cn(
+                "h-4 w-4 rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
+                annotation.color === c ? "scale-125 ring-2 ring-accent ring-offset-1" : "hover:scale-110"
+              )}
+              style={{
+                background: c,
+                boxShadow: c === "#ffffff" ? "inset 0 0 0 1px #d1d5db" : undefined,
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* ── Fill color (shapes only) ────────────────────────────────────── */}
       {isShape ? (
@@ -145,7 +174,7 @@ export function DrugNetworkAnnotationFloatingBar({
       ) : null}
 
       {/* ── Stroke width ─────────────────────────────────────────────────── */}
-      {!isText ? (
+      {!isText && !isImage ? (
         <>
           <div className="h-4 w-px bg-border" aria-hidden />
           <div className="flex items-center gap-1" role="group" aria-label="ความหนาเส้น">
@@ -224,34 +253,34 @@ export function DrugNetworkAnnotationFloatingBar({
         </>
       ) : null}
 
-      {/* ── Divider before actions ───────────────────────────────────────── */}
-      <div className="h-4 w-px bg-border" aria-hidden />
-
-      {/* ── Duplicate ────────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        disabled={boardLocked}
-        onClick={() => !boardLocked && onDuplicate(id)}
-        title="ทำสำเนา"
-        aria-label="ทำสำเนา"
-        className="flex h-5 w-5 items-center justify-center rounded text-muted transition-colors hover:bg-neutral-bg hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
-        data-testid="floating-bar-duplicate-btn"
-      >
-        <Copy className="h-3.5 w-3.5" aria-hidden />
-      </button>
-
-      {/* ── Delete ───────────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        disabled={boardLocked}
-        onClick={() => !boardLocked && onDelete(id)}
-        title="ลบวัตถุ"
-        aria-label="ลบวัตถุ"
-        className="flex h-5 w-5 items-center justify-center rounded text-critical transition-colors hover:bg-critical-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-critical disabled:cursor-not-allowed disabled:opacity-40"
-        data-testid="floating-bar-delete-btn"
-      >
-        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-      </button>
+      {/* ── Divider + actions (non-image) ────────────────────────────────── */}
+      {!isImage ? (
+        <>
+          <div className="h-4 w-px bg-border" aria-hidden />
+          <button
+            type="button"
+            disabled={boardLocked}
+            onClick={() => !boardLocked && onDuplicate(id)}
+            title="ทำสำเนา"
+            aria-label="ทำสำเนา"
+            className="flex h-5 w-5 items-center justify-center rounded text-muted transition-colors hover:bg-neutral-bg hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+            data-testid="floating-bar-duplicate-btn"
+          >
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            disabled={boardLocked}
+            onClick={() => !boardLocked && onDelete(id)}
+            title="ลบวัตถุ"
+            aria-label="ลบวัตถุ"
+            className="flex h-5 w-5 items-center justify-center rounded text-critical transition-colors hover:bg-critical-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-critical disabled:cursor-not-allowed disabled:opacity-40"
+            data-testid="floating-bar-delete-btn"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

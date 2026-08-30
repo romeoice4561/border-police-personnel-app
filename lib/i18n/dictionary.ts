@@ -2150,6 +2150,8 @@ export const DICTIONARY = {
   "di.network.drawingHintLineSecondClick": tr("คลิกอีกครั้งเพื่อกำหนดจุดสิ้นสุด", "Click again to set the endpoint"),
   "di.network.drawingHintLineFirstClick": tr("คลิกบนพื้นหลังเพื่อกำหนดจุดเริ่มต้น", "Click on the canvas background to set the start point"),
   "di.network.annotationsClearedOnFocusChange": tr("วัตถุการวิเคราะห์ถูกลบเนื่องจากเปลี่ยนกราฟ", "Analyst objects cleared — graph focus changed"),
+  "di.network.imageInvalidType": tr("รองรับไฟล์ JPG, PNG, WEBP, GIF เท่านั้น", "Only JPG, PNG, WEBP, and GIF files are supported"),
+  "di.network.imageTooLarge": tr("ไฟล์รูปภาพมีขนาดใหญ่เกินกำหนด", "Image file exceeds the size limit"),
   // DI-9.1: status bar
   "di.network.statusNodes": tr("โหนด", "Nodes"),
   "di.network.statusEdges": tr("ความเชื่อมโยง", "Edges"),
