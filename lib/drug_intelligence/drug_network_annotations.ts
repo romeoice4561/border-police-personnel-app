@@ -329,6 +329,32 @@ export function partitionBoardSelectionIds(ids: readonly string[]): {
 }
 
 /**
+ * DI-9.4.4.1 — O(n) ordered id-list equality for canvas multi-selection.
+ *
+ * React Flow's SelectionListener re-invokes `onSelectionChange` whenever the
+ * callback identity changes. Always calling `setSelectedCanvasIds(nodes.map(...))`
+ * with a fresh array (even for the same ids, including `[]`) forces a re-render,
+ * recreates the callback, and loops into "Maximum update depth exceeded".
+ * Preserve the previous array reference when contents are unchanged.
+ */
+export function sameCanvasSelectionIds(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns `next` only when the ordered id list differs; otherwise `prev`.
+ * Cheap at DI board scale (maxNodes ≤ 150).
+ */
+export function nextCanvasSelectionIds(prev: readonly string[], next: readonly string[]): string[] {
+  return sameCanvasSelectionIds(prev, next) ? (prev as string[]) : (next as string[]);
+}
+
+/**
  * Safe Thai microcopy for deleting a mixed selection.
  * Never claims factual nodes will be deleted.
  */

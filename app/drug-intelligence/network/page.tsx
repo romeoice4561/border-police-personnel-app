@@ -158,6 +158,7 @@ import {
   removeAnnotation,
   buildDuplicateAnnotation,
   partitionBoardSelectionIds,
+  nextCanvasSelectionIds,
   GROUP_DUPLICATE_OFFSET,
   lineAnnotationNodeDimensions,
   validateImageAnnotationFile,
@@ -1179,20 +1180,25 @@ function DrugNetworkContent() {
     handlePaneClick(event);
   }
 
-  /** DI-9.4.4: sync multi-selection from React Flow (nodes only — edges are not group-movable). */
-  function handleSelectionChange({ nodes }: OnSelectionChangeParams) {
+  /** DI-9.4.4: sync multi-selection from React Flow (nodes only — edges are not group-movable).
+   * DI-9.4.4.1: RF SelectionListener re-fires whenever this callback identity changes.
+   * Always allocating a fresh id array forced setState → re-render → new callback → loop
+   * ("Maximum update depth exceeded") on every focused board. Keep the prior array when
+   * the ordered ids are unchanged, and stabilize the callback with useCallback. */
+  const handleSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams) => {
     const ids = nodes.map((n) => n.id);
-    setSelectedCanvasIds(ids);
+    setSelectedCanvasIds((prev) => nextCanvasSelectionIds(prev, ids));
     const { factualIds, annotationIds } = partitionBoardSelectionIds(ids);
     if (annotationIds.length === 1 && factualIds.length === 0) {
-      setSelectedAnnotationId(annotationIds[0]!);
+      const only = annotationIds[0]!;
+      setSelectedAnnotationId((prev) => (prev === only ? prev : only));
     } else if (annotationIds.length === 0) {
-      setSelectedAnnotationId(null);
+      setSelectedAnnotationId((prev) => (prev === null ? prev : null));
     } else if (annotationIds.length > 1) {
-      // Keep last annotation id for inspector fallback; group bar handles multi.
-      setSelectedAnnotationId(annotationIds[annotationIds.length - 1]!);
+      const last = annotationIds[annotationIds.length - 1]!;
+      setSelectedAnnotationId((prev) => (prev === last ? prev : last));
     }
-  }
+  }, []);
 
   function handlePrintBoard() {
     window.print();

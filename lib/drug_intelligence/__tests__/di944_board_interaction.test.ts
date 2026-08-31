@@ -117,6 +117,7 @@ describe("DI-9.4.4 page wiring", () => {
 
   test("onSelectionChange syncs canvas multi-select", () => {
     assert.match(pageSrc, /onSelectionChange=\{handleSelectionChange\}/);
-    assert.match(pageSrc, /setSelectedCanvasIds\(ids\)/);
+    assert.match(pageSrc, /setSelectedCanvasIds\(\(prev\) => nextCanvasSelectionIds\(prev, ids\)\)/);
+    assert.match(pageSrc, /handleSelectionChange = useCallback/);
   });
 });
