@@ -21,6 +21,7 @@ import { DrugPersonProfileService, DrugPersonDirectoryService } from "@/lib/drug
 import { DrugIntelligenceSearchService } from "@/lib/drug_intelligence/drug_intelligence_search_service";
 import { DrugEntityDetailService } from "@/lib/drug_intelligence/drug_entity_detail_service";
 import { DrugNetworkGraphService } from "@/lib/drug_intelligence/drug_network_graph_service";
+import { DrugIntelligenceRelationshipQueryService } from "@/lib/drug_intelligence/drug_intelligence_relationship_query_service";
 import { DrugIntelligenceAlertService } from "@/lib/drug_intelligence/drug_intelligence_alert_service";
 import { DrugTimelineService } from "@/lib/drug_intelligence/drug_timeline_service";
 import { OfficerDrugArrestPerformanceService } from "@/lib/drug_intelligence/officer_drug_arrest_performance_service";
@@ -42,6 +43,8 @@ export interface DrugIntelligenceContainer {
   entityDetailService: DrugEntityDetailService;
   /** Phase DI-5: Network Intelligence / Link Analysis. */
   networkGraphService: DrugNetworkGraphService;
+  /** Intelligence Search Center Phase 1B: Relationship Search orchestration. */
+  relationshipQueryService: DrugIntelligenceRelationshipQueryService;
   /** Phase DI-6: Repeat Entity Detection & Intelligence Alerts. */
   alertService: DrugIntelligenceAlertService;
   /** Phase DI-7: Timeline & Geographic Intelligence. */
@@ -66,6 +69,7 @@ export function createDrugIntelligenceContainer(client: DatabaseClient): DrugInt
     searchService: new DrugIntelligenceSearchService(client),
     entityDetailService: new DrugEntityDetailService(client),
     networkGraphService: new DrugNetworkGraphService(client),
+    relationshipQueryService: new DrugIntelligenceRelationshipQueryService(client),
     alertService: new DrugIntelligenceAlertService(client),
     timelineService: new DrugTimelineService(client),
     officerDrugArrestPerformanceService: new OfficerDrugArrestPerformanceService({ db: client }),

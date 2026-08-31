@@ -798,6 +798,75 @@ export interface DrugSearchByTypeQuery extends DrugSearchFiltersInput {
   pageSize: number;
 }
 
+// ── Intelligence Search Center Phase 1B: Relationship Search ─────────────
+
+export interface DrugRelationshipSearchQuery {
+  sourceType: DrugGraphNodeType;
+  sourceId: string;
+  relationId: string;
+  targetType: DrugGraphNodeType;
+  targetId?: string;
+  page?: number;
+  pageSize?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface DrugRelationshipSearchEntityRef {
+  entityType: DrugGraphNodeType;
+  entityId: string;
+  label: string;
+  secondaryLabel: string | null;
+}
+
+export interface DrugRelationshipSearchResultItem {
+  resultKind: "EDGE" | "PATH";
+  edgeKind: DrugGraphEdgeKind | "PATH";
+  relationshipType: string | null;
+  relationId: string;
+  from: DrugRelationshipSearchEntityRef;
+  to: DrugRelationshipSearchEntityRef;
+  evidenceCount: number;
+  sourceCaseIds: string[];
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  explanation: DrugGraphEdgeExplanation | { kind: "PATH"; hopCount: number } | { kind: "PATH_NOT_FOUND" };
+  pathSteps?: Array<{
+    entity: DrugRelationshipSearchEntityRef;
+    viaRelationshipType: string | null;
+    viaEdgeKind: DrugGraphEdgeKind | null;
+  }>;
+  actions: {
+    detailPath: string | null;
+    networkPath: string;
+    timelinePath: string | null;
+    mapPath: string | null;
+    expandSource: { entityType: DrugGraphNodeType; entityId: string; label: string };
+  };
+}
+
+export interface DrugRelationshipSearchResponse {
+  interpretation: {
+    kind: "QUERY";
+    source: { entityType: DrugGraphNodeType; entityId: string };
+    relationId: string;
+    target: { entityType: DrugGraphNodeType; entityId: string | null };
+  };
+  summary: {
+    total: number;
+    byTargetType: Partial<Record<DrugGraphNodeType, number>>;
+    found: boolean;
+  };
+  results: DrugRelationshipSearchResultItem[];
+  truncated: boolean;
+  bounds: {
+    page: number;
+    pageSize: number;
+    maxNodes: number;
+    depth: number;
+  };
+}
+
 // ── DI-3: Entity Detail types ─────────────────────────────────────────────
 
 export interface DrugPhoneDetailResponse {
@@ -1265,6 +1334,14 @@ export const drugIntelligenceClient = {
   async searchByType(actorId: string, query: DrugSearchByTypeQuery): Promise<{ rows: DrugSearchResult[]; meta: PageMeta }> {
     const { data, meta } = await request<DrugSearchResult[]>(`/drug-intelligence/search/by-type${toQueryString({ actorId, ...query })}`);
     return { rows: data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
+  },
+
+  async searchRelationships(actorId: string, actorName: string, query: DrugRelationshipSearchQuery): Promise<DrugRelationshipSearchResponse> {
+    return (
+      await request<DrugRelationshipSearchResponse>(
+        `/drug-intelligence/search/relationships${toQueryString({ actorId, actorName, ...query })}`
+      )
+    ).data;
   },
 
   async getPhoneDetail(phoneNumberId: string, actorId: string): Promise<DrugPhoneDetailResponse> {
