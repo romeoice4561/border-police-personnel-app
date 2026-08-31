@@ -5,7 +5,7 @@ import { Providers } from "@/components/layout/providers";
 import { AppShell } from "@/components/layout/app_shell";
 import { ServiceWorkerRegistration } from "@/components/pwa/service_worker_registration";
 import { IosInstallBanner } from "@/components/pwa/ios_install_banner";
-import { THEME_STORAGE_KEY, DEFAULT_THEME, THEMES } from "@/lib/theme/theme_config";
+import { ThemeBootstrap } from "@/components/theme/theme_bootstrap";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,24 +69,6 @@ export const viewport: Viewport = {
   themeColor: "#1d4ed8",
 };
 
-/**
- * No-hydration-flash theme bootstrap (same localStorage key as ThemeProvider).
- *
- * Runs synchronously as the first child of <body> so `data-theme` is set
- * before the rest of the body paints. JS only — no wrapping <script> tags
- * (those belong on the JSX element below).
- *
- * IMPORTANT: do NOT inject this via `dangerouslySetInnerHTML` on <head>.
- * Next.js / React append stylesheet <link>s, font preloads, and metadata
- * into <head> after hydration. Re-applying an opaque innerHTML string on
- * RootLayout re-render (e.g. AuthGate redirect(), or officer-save
- * `router.refresh()` RSC reconciliation) replaces the entire <head> with
- * only this bootstrap script — wiping global CSS. That made every Tailwind
- * utility disappear and exploded BppisLogo to its HTML width/height attrs
- * (4759×4401). Body-level injection leaves Next-managed <head> intact.
- */
-const THEME_BOOTSTRAP_JS = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var valid=${JSON.stringify(THEMES)};if(t&&valid.indexOf(t)!==-1){document.documentElement.setAttribute('data-theme',t);}else{document.documentElement.setAttribute('data-theme',${JSON.stringify(DEFAULT_THEME)});}}catch(e){document.documentElement.setAttribute('data-theme',${JSON.stringify(DEFAULT_THEME)});}})();`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -96,18 +78,17 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      // The theme-bootstrap script below sets `data-theme` on this element
-      // BEFORE React hydrates, from the same localStorage key ThemeProvider
-      // reads — by design, that attribute never matches server-rendered HTML
-      // (the server has no theme preference to read). This is the standard,
-      // documented fix for exactly this pattern (React docs: "third-party
-      // scripts and browser extensions"; the same approach next-themes uses)
-      // — it suppresses ONLY the mismatch warning for this element's
-      // attributes, not for children, and not for any other hydration bug.
+      // ThemeBootstrap sets `data-theme` from localStorage before paint.
+      // Server HTML has no stored preference, so this attribute legitimately
+      // differs after the script runs — suppress ONLY that mismatch warning.
       suppressHydrationWarning
     >
       <body className="min-h-full">
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_JS }} />
+        {/* Injects theme bootstrap via useServerInsertedHTML (not a JSX
+            <script> child) — avoids React 19 "script tag while rendering"
+            while preserving no-FOUC behavior. Do NOT put dangerouslySetInnerHTML
+            on <head>: that wiped Next-managed CSS on RSC re-render. */}
+        <ThemeBootstrap />
         {/* PWA install/manifest section (additive): registers /sw.js on the
             client only, after mount — never during SSR, never blocking
             render. See the component's own doc comment for cache scope. */}

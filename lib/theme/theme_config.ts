@@ -21,8 +21,8 @@ export const DEFAULT_THEME: Theme = "navy-command";
 
 /**
  * localStorage key holding the selected theme id. Shared by ThemeProvider
- * (the React-side read/write) AND the blocking inline script in the root
- * layout's <head> (app/layout.tsx) that sets `data-theme` before hydration —
+ * (the React-side read/write) AND the blocking bootstrap script injected via
+ * ThemeBootstrap / useServerInsertedHTML that sets `data-theme` before paint —
  * both MUST read the same key, so it lives here rather than being duplicated
  * as a string literal in two files.
  */
