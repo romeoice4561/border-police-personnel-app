@@ -237,6 +237,59 @@ body {
   --xy-minimap-node-stroke-color-default: var(--border);
 }
 
+/*
+ * Network controls contrast hotfix:
+ * xyflow ships light-only defaults (#fefefe / #eee) on `.react-flow`. Those
+ * variables are redefined in `@xyflow/react/dist/style.css`, which loads AFTER
+ * globals.css — so equal-specificity token overrides on `.react-flow` lose.
+ * Use `.react-flow.di-network-board` (board className) for variable wins, and
+ * direct property rules with higher specificity so buttons never stay #fefefe.
+ * Icons use fill: currentColor — `color` is the correct lever.
+ */
+.react-flow.di-network-board {
+  --xy-controls-button-background-color-default: var(--neutral-bg);
+  --xy-controls-button-background-color-hover-default: color-mix(
+    in srgb,
+    var(--accent) 14%,
+    var(--neutral-bg)
+  );
+  --xy-controls-button-color-default: var(--foreground);
+  --xy-controls-button-color-hover-default: var(--foreground);
+  --xy-controls-button-border-color-default: var(--border);
+  --xy-controls-box-shadow-default:
+    0 1px 2px color-mix(in srgb, var(--foreground) 12%, transparent),
+    0 0 0 1px var(--border);
+}
+
+.react-flow.di-network-board .react-flow__controls {
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--neutral-bg);
+  box-shadow: var(--xy-controls-box-shadow-default);
+}
+
+.react-flow.di-network-board .react-flow__controls-button {
+  background: var(--neutral-bg);
+  color: var(--foreground);
+  border-bottom-color: var(--border);
+}
+
+.react-flow.di-network-board .react-flow__controls-button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, var(--neutral-bg));
+  color: var(--foreground);
+}
+
+.react-flow.di-network-board .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.react-flow.di-network-board .react-flow__controls-button:disabled {
+  opacity: 0.45;
+}
+
 /* DI-9.4.4: print only the Investigation Board canvas content. */
 @media print {
   @page {
