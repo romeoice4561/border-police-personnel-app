@@ -1,9 +1,10 @@
 /**
- * Intelligence Search Center mode switcher (Phase 1B).
- * Modes live on the existing Search page — no new sidebar item.
+ * Intelligence Search Center mode cards (Phase 1B.2).
+ * Semantic tabs with field-officer-friendly cards — no new sidebar item.
  */
 "use client";
 
+import { Bot, Link2, Search } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
 
 export type DrugSearchCenterMode = "general" | "relationship" | "ai";
@@ -17,16 +18,46 @@ export function DrugSearchModeSwitcher({
 }) {
   const { t } = useT();
 
-  const modes: Array<{ id: DrugSearchCenterMode; label: string; disabled?: boolean; badge?: string }> = [
-    { id: "general", label: `🔎 ${t("di.search.modeGeneral")}` },
-    { id: "relationship", label: `🔗 ${t("di.search.modeRelationship")}` },
-    { id: "ai", label: `🤖 ${t("di.search.modeAi")}`, disabled: true, badge: t("di.search.modeAiSoon") },
+  const modes: Array<{
+    id: DrugSearchCenterMode;
+    title: string;
+    description: string;
+    icon: typeof Search;
+    disabled?: boolean;
+    badge?: string;
+  }> = [
+    {
+      id: "general",
+      title: t("di.search.modeGeneral"),
+      description: t("di.search.modeGeneralDesc"),
+      icon: Search,
+    },
+    {
+      id: "relationship",
+      title: t("di.search.modeRelationship"),
+      description: t("di.search.modeRelationshipDesc"),
+      icon: Link2,
+    },
+    {
+      id: "ai",
+      title: t("di.search.modeAi"),
+      description: t("di.search.modeAiDesc"),
+      icon: Bot,
+      disabled: true,
+      badge: t("di.search.modeAiSoon"),
+    },
   ];
 
   return (
-    <div role="tablist" aria-label={t("di.search.modeSwitcherLabel")} className="flex flex-wrap gap-2">
+    <div
+      role="tablist"
+      aria-label={t("di.search.modeSwitcherLabel")}
+      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      data-testid="search-mode-cards"
+    >
       {modes.map((item) => {
         const selected = mode === item.id;
+        const Icon = item.icon;
         return (
           <button
             key={item.id}
@@ -35,20 +66,42 @@ export function DrugSearchModeSwitcher({
             aria-selected={selected}
             aria-disabled={item.disabled || undefined}
             disabled={item.disabled}
+            data-testid={`search-mode-${item.id}`}
+            data-active={selected ? "true" : "false"}
             onClick={() => {
               if (!item.disabled) onChange(item.id);
             }}
             className={[
-              "min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+              "min-h-[5.5rem] rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               item.disabled
-                ? "cursor-not-allowed border-border/60 bg-neutral-bg text-muted opacity-70"
+                ? "cursor-not-allowed border-border/70 bg-neutral-bg/70 text-muted opacity-75"
                 : selected
-                  ? "border-accent bg-accent/10 text-foreground"
-                  : "border-border bg-surface text-muted hover:border-accent/50 hover:text-foreground",
+                  ? "border-accent bg-accent/10 text-foreground shadow-sm"
+                  : "border-border bg-surface text-foreground hover:border-accent/50 hover:bg-neutral-bg/60",
             ].join(" ")}
           >
-            <span>{item.label}</span>
-            {item.badge ? <span className="ml-2 text-xs text-muted">({item.badge})</span> : null}
+            <div className="flex items-start gap-3">
+              <span
+                className={[
+                  "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                  selected && !item.disabled ? "bg-accent/15 text-accent" : "bg-neutral-bg text-muted",
+                ].join(" ")}
+                aria-hidden="true"
+              >
+                <Icon className="h-4.5 w-4.5 h-[1.125rem] w-[1.125rem]" />
+              </span>
+              <span className="min-w-0 space-y-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold sm:text-base">{item.title}</span>
+                  {item.badge ? (
+                    <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-medium text-muted">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="block text-xs leading-relaxed text-muted sm:text-sm">{item.description}</span>
+              </span>
+            </div>
           </button>
         );
       })}

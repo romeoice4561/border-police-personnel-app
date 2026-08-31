@@ -15,7 +15,6 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ScanSearch, ChevronDown, ChevronUp } from "lucide-react";
-import { PageHeader } from "@/components/common/page_header";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -116,7 +115,11 @@ function DrugSearchContent() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t("di.search.centerTitle")} description={t("di.search.centerDescription")} />
+      <header className="mb-2 space-y-1">
+        <h1 className="text-2xl font-semibold text-foreground">{t("di.search.centerTitle")}</h1>
+        <p className="text-sm font-medium text-muted">{t("di.search.centerSubtitle")}</p>
+        <p className="text-sm text-muted">{t("di.search.centerDescription")}</p>
+      </header>
 
       <DrugSearchModeSwitcher mode={mode === "ai" ? "general" : mode} onChange={setMode} />
 
