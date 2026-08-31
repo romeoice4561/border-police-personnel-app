@@ -2093,7 +2093,10 @@ export const DICTIONARY = {
   "di.rel.resetAll": tr("ล้างทั้งหมด", "Clear all"),
   "di.rel.searchDisabledHint": tr("กรอกขั้นตอนที่ยังไม่ครบก่อนค้นหา", "Complete the required steps before searching"),
   "di.rel.presetsLabel": tr("ค้นหายอดนิยม", "Popular searches"),
-  "di.rel.presetsHint": tr("กดเพื่อเริ่มต้นเร็วขึ้น", "Tap to start faster"),
+  "di.rel.presetsHint": tr(
+    "กดเพื่อช่วยตั้งค่าการค้นหาอย่างรวดเร็ว",
+    "Tap to configure the search quickly"
+  ),
   "di.rel.promptEmpty": tr("เลือกข้อมูลและความสัมพันธ์ด้านบน แล้วกด “ค้นหาความเชื่อมโยง”", "Choose data and a relationship above, then tap “Search relationships”"),
   "di.rel.promptEmptyTitle": tr("พร้อมค้นหาความเชื่อมโยง", "Ready to search relationships"),
   "di.rel.resultsHeading": tr("ผลการค้นหาความเชื่อมโยง", "Relationship search results"),

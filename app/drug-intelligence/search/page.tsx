@@ -114,11 +114,11 @@ function DrugSearchContent() {
   }
 
   return (
-    <div className="space-y-5">
-      <header className="mb-2 space-y-1">
-        <h1 className="text-2xl font-semibold text-foreground">{t("di.search.centerTitle")}</h1>
+    <div className="space-y-4">
+      <header className="space-y-0.5">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{t("di.search.centerTitle")}</h1>
         <p className="text-sm font-medium text-muted">{t("di.search.centerSubtitle")}</p>
-        <p className="text-sm text-muted">{t("di.search.centerDescription")}</p>
+        <p className="text-xs text-muted sm:text-sm">{t("di.search.centerDescription")}</p>
       </header>
 
       <DrugSearchModeSwitcher mode={mode === "ai" ? "general" : mode} onChange={setMode} />

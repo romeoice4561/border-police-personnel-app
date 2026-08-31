@@ -52,7 +52,7 @@ export function DrugSearchModeSwitcher({
     <div
       role="tablist"
       aria-label={t("di.search.modeSwitcherLabel")}
-      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      className="grid grid-cols-1 gap-2.5 sm:grid-cols-3"
       data-testid="search-mode-cards"
     >
       {modes.map((item) => {
@@ -72,7 +72,7 @@ export function DrugSearchModeSwitcher({
               if (!item.disabled) onChange(item.id);
             }}
             className={[
-              "min-h-[5.5rem] rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              "min-h-[4.75rem] rounded-xl border px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               item.disabled
                 ? "cursor-not-allowed border-border/70 bg-neutral-bg/70 text-muted opacity-75"
                 : selected
@@ -80,26 +80,26 @@ export function DrugSearchModeSwitcher({
                   : "border-border bg-surface text-foreground hover:border-accent/50 hover:bg-neutral-bg/60",
             ].join(" ")}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2.5">
               <span
                 className={[
-                  "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                  "mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
                   selected && !item.disabled ? "bg-accent/15 text-accent" : "bg-neutral-bg text-muted",
                 ].join(" ")}
                 aria-hidden="true"
               >
-                <Icon className="h-4.5 w-4.5 h-[1.125rem] w-[1.125rem]" />
+                <Icon className="h-4 w-4" />
               </span>
-              <span className="min-w-0 space-y-1">
+              <span className="min-w-0 space-y-0.5">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold sm:text-base">{item.title}</span>
+                  <span className="text-sm font-semibold sm:text-[0.95rem]">{item.title}</span>
                   {item.badge ? (
                     <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-medium text-muted">
                       {item.badge}
                     </span>
                   ) : null}
                 </span>
-                <span className="block text-xs leading-relaxed text-muted sm:text-sm">{item.description}</span>
+                <span className="block text-xs leading-snug text-muted">{item.description}</span>
               </span>
             </div>
           </button>

@@ -233,9 +233,14 @@ export function DrugRelationshipSearchPanel() {
         ? { relSourceId: draftSource!.entityId, relSourceLabel: draftSource!.label }
         : { relSourceId: undefined, relSourceLabel: undefined }),
     });
+    // Quick Search sits below the builder — bring the officer back to Step 1 when source is required.
     if (!keepSource) {
       requestAnimationFrame(() => {
         step1Ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        const focusable = step1Ref.current?.querySelector<HTMLElement>(
+          "button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"
+        );
+        focusable?.focus({ preventScroll: true });
       });
     }
   }
@@ -359,69 +364,19 @@ export function DrugRelationshipSearchPanel() {
     Boolean(selectedRelation?.targetOptional || draftTarget);
 
   return (
-    <div className="space-y-5" data-testid="relationship-search-panel">
-      {/* Quick Search cards */}
-      <section className="space-y-3" aria-labelledby="rel-presets-heading" data-testid="relationship-quick-search">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="rel-presets-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
-              <Zap className="h-4 w-4 text-accent" aria-hidden="true" />
-              {t("di.rel.presetsLabel")}
-            </h2>
-            <p className="mt-0.5 text-xs text-muted">{t("di.rel.presetsHint")}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {DRUG_RELATIONSHIP_SEARCH_PRESETS.map((preset) => {
-            const ui = PRESET_UI[preset.id];
-            const relation = getControlledRelation(preset.relationId);
-            const Icon = ui?.icon ?? Link2;
-            const selected = draftPresetId === preset.id || (draftRelationId === preset.relationId && draftSourceType === preset.sourceType);
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                data-testid={`rel-preset-${preset.id}`}
-                data-active={selected ? "true" : "false"}
-                onClick={() => applyPreset(preset.id)}
-                className={[
-                  "min-h-[7.5rem] rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                  selected
-                    ? "border-accent bg-accent/10 shadow-sm"
-                    : "border-border bg-surface hover:border-accent/50 hover:bg-neutral-bg/50",
-                ].join(" ")}
-              >
-                <div className="flex h-full flex-col gap-2">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-bg text-accent" aria-hidden="true">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-semibold text-foreground">
-                    {ui ? t(ui.titleKey) : t(preset.labelKey)}
-                  </span>
-                  <span className="text-xs leading-relaxed text-muted">
-                    {ui ? t(ui.descKey) : t(preset.labelKey)}
-                  </span>
-                  <span className="mt-auto inline-flex w-fit rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-foreground">
-                    {t(presetBadgeKey(relation))}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 3-step workflow */}
-      <Card data-testid="relationship-workflow">
-        <CardBody className="space-y-4">
+    <div className="space-y-4" data-testid="relationship-search-panel">
+      {/* 3-step workflow — primary investigation path (before shortcuts) */}
+      <div data-testid="relationship-workflow">
+      <Card>
+        <CardBody className="space-y-3">
           <h2 className="sr-only">{t("di.rel.workflowLabel")}</h2>
 
-          <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch lg:gap-2">
+          <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch lg:gap-2">
             {/* Step 1 */}
             <section
               ref={step1Ref}
               id="rel-step-1"
-              className="space-y-3 rounded-xl border border-border bg-neutral-bg/40 p-3 sm:p-4"
+              className="space-y-2.5 rounded-xl border border-border bg-neutral-bg/40 p-2.5 sm:p-3"
               aria-labelledby="rel-source-heading"
               data-testid="rel-step-1"
             >
@@ -432,7 +387,7 @@ export function DrugRelationshipSearchPanel() {
                 <p className="mt-0.5 text-xs text-muted">{t("di.rel.sourceSectionHint")}</p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted">{t("di.rel.sourceType")}</label>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("di.rel.sourceType")}</label>
                 <Select
                   options={sourceTypeOptions}
                   value={draftSource?.entityType ?? draftSourceType}
@@ -463,7 +418,7 @@ export function DrugRelationshipSearchPanel() {
             {/* Step 2 */}
             <section
               id="rel-step-2"
-              className="space-y-3 rounded-xl border border-border bg-neutral-bg/40 p-3 sm:p-4"
+              className="space-y-2.5 rounded-xl border border-border bg-neutral-bg/40 p-2.5 sm:p-3"
               aria-labelledby="rel-relation-heading"
               data-testid="rel-step-2"
             >
@@ -481,7 +436,7 @@ export function DrugRelationshipSearchPanel() {
               />
               {selectedRelation ? (
                 <div
-                  className="space-y-2 rounded-xl border border-border bg-surface px-3 py-3"
+                  className="space-y-1.5 rounded-xl border border-border bg-surface px-3 py-2.5"
                   data-testid="relation-explain-card"
                 >
                   <p className="text-sm font-medium text-foreground">{t(selectedRelation.labelKey)}</p>
@@ -499,7 +454,7 @@ export function DrugRelationshipSearchPanel() {
             {/* Step 3 */}
             <section
               id="rel-step-3"
-              className="space-y-3 rounded-xl border border-border bg-neutral-bg/40 p-3 sm:p-4"
+              className="space-y-2.5 rounded-xl border border-border bg-neutral-bg/40 p-2.5 sm:p-3"
               aria-labelledby="rel-target-heading"
               data-testid="rel-step-3"
             >
@@ -510,7 +465,7 @@ export function DrugRelationshipSearchPanel() {
                 <p className="mt-0.5 text-xs text-muted">{t("di.rel.targetSectionHint")}</p>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted">{t("di.rel.targetType")}</label>
+                <label className="mb-1 block text-xs font-medium text-muted">{t("di.rel.targetType")}</label>
                 <Select
                   options={targetTypeOptions.length > 0 ? targetTypeOptions : [{ value: "", label: "—" }]}
                   value={effectiveTargetType}
@@ -544,7 +499,8 @@ export function DrugRelationshipSearchPanel() {
             </section>
           </div>
 
-          <div className="flex flex-col items-stretch gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-center">
+          {/* Primary Search CTA — immediately beneath workflow */}
+          <div className="flex flex-col items-stretch gap-2.5 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-center">
             <Button
               type="button"
               variant="accent"
@@ -574,10 +530,60 @@ export function DrugRelationshipSearchPanel() {
           ) : null}
         </CardBody>
       </Card>
+      </div>
+
+      {/* Quick Search — secondary shortcuts below main workflow + CTA */}
+      <section className="space-y-2.5" aria-labelledby="rel-presets-heading" data-testid="relationship-quick-search">
+        <div>
+          <h2 id="rel-presets-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
+            <Zap className="h-4 w-4 text-accent" aria-hidden="true" />
+            {t("di.rel.presetsLabel")}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">{t("di.rel.presetsHint")}</p>
+        </div>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          {DRUG_RELATIONSHIP_SEARCH_PRESETS.map((preset) => {
+            const ui = PRESET_UI[preset.id];
+            const relation = getControlledRelation(preset.relationId);
+            const Icon = ui?.icon ?? Link2;
+            const selected = draftPresetId === preset.id || (draftRelationId === preset.relationId && draftSourceType === preset.sourceType);
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                data-testid={`rel-preset-${preset.id}`}
+                data-active={selected ? "true" : "false"}
+                onClick={() => applyPreset(preset.id)}
+                className={[
+                  "min-h-[6.25rem] rounded-xl border px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                  selected
+                    ? "border-accent bg-accent/10 shadow-sm"
+                    : "border-border bg-surface hover:border-accent/50 hover:bg-neutral-bg/50",
+                ].join(" ")}
+              >
+                <div className="flex h-full flex-col gap-1.5">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-bg text-accent" aria-hidden="true">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {ui ? t(ui.titleKey) : t(preset.labelKey)}
+                  </span>
+                  <span className="text-xs leading-snug text-muted">
+                    {ui ? t(ui.descKey) : t(preset.labelKey)}
+                  </span>
+                  <span className="mt-auto inline-flex w-fit rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-foreground">
+                    {t(presetBadgeKey(relation))}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {/* QUERY CONDITION notice */}
       <aside
-        className="flex gap-3 rounded-xl border border-border bg-surface px-4 py-3"
+        className="flex gap-3 rounded-xl border border-border bg-surface px-4 py-2.5"
         data-testid="query-condition-notice"
       >
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
@@ -590,7 +596,7 @@ export function DrugRelationshipSearchPanel() {
       {/* Results */}
       <section aria-live="polite" data-testid="relationship-results-area">
         {!run || !query ? (
-          <div className="rounded-xl border border-dashed border-border bg-neutral-bg/30 px-4 py-10 text-center">
+          <div className="rounded-xl border border-dashed border-border bg-neutral-bg/30 px-4 py-8 text-center">
             <EmptyState
               title={t("di.rel.promptEmptyTitle")}
               message={t("di.rel.promptEmpty")}

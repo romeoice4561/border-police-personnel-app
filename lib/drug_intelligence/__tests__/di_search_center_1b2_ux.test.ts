@@ -54,6 +54,19 @@ describe("Phase 1B.2 Relationship 3-step workflow", () => {
     assert.match(dictSrc, /③ เลือก\/ระบุสิ่งที่ต้องการหา/);
   });
 
+  test("workflow + primary CTA appear before Quick Search (above-the-fold hierarchy)", () => {
+    const workflowIdx = panelSrc.indexOf('data-testid="relationship-workflow"');
+    const ctaIdx = panelSrc.indexOf('data-testid="rel-search-submit"');
+    const quickIdx = panelSrc.indexOf('data-testid="relationship-quick-search"');
+    const noticeIdx = panelSrc.indexOf('data-testid="query-condition-notice"');
+    const resultsIdx = panelSrc.indexOf('data-testid="relationship-results-area"');
+    assert.ok(workflowIdx >= 0 && ctaIdx >= 0 && quickIdx >= 0 && noticeIdx >= 0 && resultsIdx >= 0);
+    assert.ok(workflowIdx < ctaIdx, "CTA must sit inside/after workflow markup");
+    assert.ok(ctaIdx < quickIdx, "primary Search CTA must precede Quick Search");
+    assert.ok(quickIdx < noticeIdx, "Quick Search must precede QUERY notice");
+    assert.ok(noticeIdx < resultsIdx, "QUERY notice must precede results");
+  });
+
   test("selected source renders concrete entity card", () => {
     assert.match(panelSrc, /data-testid="selected-entity-card"/);
     assert.match(panelSrc, /function EntityCard/);
@@ -105,6 +118,13 @@ describe("Phase 1B.2 Quick Search cards", () => {
     ]) {
       assert.match(panelSrc, new RegExp(id));
     }
+  });
+
+  test("preset that needs source scrolls and focuses Step 1", () => {
+    assert.match(panelSrc, /scrollIntoView\(\{\s*behavior:\s*"smooth"/);
+    assert.match(panelSrc, /step1Ref\.current\?\.scrollIntoView/);
+    assert.match(panelSrc, /focusable\?\.focus/);
+    assert.match(dictSrc, /กดเพื่อช่วยตั้งค่าการค้นหาอย่างรวดเร็ว/);
   });
 
   test("path preset badges as path; direct presets as fact — not fabricated inferred", () => {
