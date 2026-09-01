@@ -81,7 +81,7 @@ describe("Phase 1B.2 Relationship 3-step workflow", () => {
   });
 
   test("optional target wording remains available", () => {
-    assert.match(panelSrc, /di\.rel\.targetOptionalHint/);
+    assert.match(panelSrc, /di\.rel\.targetOptionalDetail|di\.rel\.targetOptionalHint/);
     assert.match(panelSrc, /di\.rel\.targetSearchOptional/);
   });
 
@@ -89,7 +89,7 @@ describe("Phase 1B.2 Relationship 3-step workflow", () => {
     assert.match(panelSrc, /data-testid="rel-search-submit"/);
     assert.match(panelSrc, /data-testid="rel-reset-all"/);
     assert.match(panelSrc, /function resetAll/);
-    assert.match(panelSrc, /di\.rel\.searchDisabledHint/);
+    assert.match(panelSrc, /di\.rel\.disabledNeedSource|di\.rel\.searchDisabledHint/);
     assert.match(panelSrc, /submitting/);
   });
 

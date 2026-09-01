@@ -2084,6 +2084,51 @@ export const DICTIONARY = {
   "di.rel.selectEntity": tr("ค้นหาและเลือกข้อมูล", "Search and select a record"),
   "di.rel.selectedEntity": tr("ข้อมูลที่เลือก", "Selected record"),
   "di.rel.clearEntity": tr("ลบ", "Clear"),
+  "di.rel.changeEntity": tr("เปลี่ยนข้อมูล", "Change"),
+  "di.rel.sourceSelectedBadge": tr("✓ เลือกข้อมูลต้นทางแล้ว", "✓ Source selected"),
+  "di.rel.targetSelectedBadge": tr("✓ เลือกเป้าหมายแล้ว", "✓ Target selected"),
+  "di.rel.stepStatusCompleted": tr("✓ เลือกแล้ว", "✓ Selected"),
+  "di.rel.stepStatusActive": tr("กำลังเลือก", "Selecting"),
+  "di.rel.stepStatusWaiting": tr("รอขั้นตอนก่อนหน้า", "Waiting for previous step"),
+  "di.rel.targetFromRelation": tr("ตั้งค่าจากความสัมพันธ์ที่เลือก", "Set from the selected relationship"),
+  "di.rel.targetOptionalDetail": tr(
+    "ไม่จำเป็นต้องระบุ — เว้นว่างเพื่อค้นหาทุกรายการที่เกี่ยวข้อง",
+    "Not required — leave empty to find all related matches"
+  ),
+  "di.rel.targetRequiredPerson": tr("กรุณาเลือกบุคคลปลายทาง", "Please select the destination person"),
+  "di.rel.disabledNeedSource": tr("กรุณาเลือกข้อมูลต้นทางก่อน", "Please select a source record first"),
+  "di.rel.disabledNeedRelation": tr(
+    "กรุณาเลือกความสัมพันธ์ที่ต้องการค้นหา",
+    "Please choose the relationship to search"
+  ),
+  "di.rel.disabledNeedTargetType": tr("กรุณาเลือกประเภทเป้าหมาย", "Please choose a target type"),
+  "di.rel.disabledNeedTarget": tr("กรุณาเลือกบุคคลปลายทาง", "Please select the destination person"),
+  "di.rel.searchReadyHint": tr("พร้อมค้นหา", "Ready to search"),
+  "di.rel.searching": tr("กำลังค้นหาความเชื่อมโยง...", "Searching relationships..."),
+  "di.rel.pickerTypingHint": tr(
+    "พิมพ์แล้วเลือกรายการจากระบบ — ข้อความที่พิมพ์ยังไม่ถือว่าเลือกแล้ว",
+    "Type, then select a system record — typed text alone is not a selection"
+  ),
+  "di.rel.pickerSearching": tr("กำลังค้นหาข้อมูล...", "Searching records..."),
+  "di.rel.pickerFoundOne": tr("ค้นพบ 1 รายการ — กดเลือกเพื่อยืนยัน", "1 match found — select to confirm"),
+  "di.rel.pickerFoundMany": tr(
+    "พบ {count} รายการ — กรุณาเลือกรายการที่ต้องการ",
+    "{count} matches — please select one"
+  ),
+  "di.rel.pickerSelectAction": tr("เลือก", "Select"),
+  "di.rel.pickerCaseCount": tr("พบใน {count} คดี", "In {count} case(s)"),
+  "di.rel.pickerNoMatchTitle": tr("ไม่พบข้อมูลนี้ในระบบ", "No matching record in the system"),
+  "di.rel.pickerNoMatchBody": tr(
+    "ลองตรวจสอบตัวเลข/ข้อความอีกครั้ง หรือใช้ “ค้นหาทั่วไป” เพื่อค้นหาข้อมูลอื่น",
+    "Check the value again, or use General Search for other lookups"
+  ),
+  "di.rel.pickerErrorTitle": tr("ค้นหาข้อมูลไม่สำเร็จ", "Record search failed"),
+  "di.rel.pickerErrorBody": tr("ลองอีกครั้ง", "Please try again"),
+  "di.rel.presetFocusPhone": tr("พิมพ์เบอร์โทรศัพท์เพื่อเริ่มค้นหา", "Type a phone number to begin"),
+  "di.rel.presetFocusPerson": tr("พิมพ์ชื่อหรือข้อมูลบุคคลเพื่อเริ่มค้นหา", "Type a person name or identifier to begin"),
+  "di.rel.presetFocusVehicle": tr("พิมพ์ทะเบียนหรือข้อมูลยานพาหนะเพื่อเริ่มค้นหา", "Type a vehicle plate or identifier to begin"),
+  "di.rel.presetFocusDevice": tr("พิมพ์ IMEI หรือข้อมูลอุปกรณ์เพื่อเริ่มค้นหา", "Type an IMEI or device identifier to begin"),
+  "di.rel.presetFocusSim": tr("พิมพ์หมายเลข SIM เพื่อเริ่มค้นหา", "Type a SIM identifier to begin"),
   "di.rel.relationPlaceholder": tr("เลือกความสัมพันธ์", "Choose a relationship"),
   "di.rel.targetType": tr("ประเภทเป้าหมาย", "Target type"),
   "di.rel.targetOptionalHint": tr("ไม่บังคับ — เว้นว่างเพื่อหาทุกรายการที่เกี่ยวข้อง", "Optional — leave empty to find all related matches"),
