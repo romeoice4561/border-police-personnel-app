@@ -8,6 +8,7 @@ import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "rea
 import { Loader2, Search } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
 import { useAuth } from "@/components/auth/auth_provider";
+import { DRUG_ENTITY_ICON } from "@/components/drug_intelligence/drug_entity_visual";
 import { useDrugSearchGrouped } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import {
@@ -248,6 +249,7 @@ export function DrugNetworkEntityPicker({
               DRUG_GRAPH_NODE_TYPE_LABEL_KEY[result.entityType as DrugGraphNodeType] as TranslationKey
             );
             const active = index === highlightIndexSafe;
+            const Icon = DRUG_ENTITY_ICON[result.entityType as DrugGraphNodeType] ?? DRUG_ENTITY_ICON.CASE;
             return (
               <button
                 key={`${result.entityType}-${result.entityId}`}
@@ -255,6 +257,7 @@ export function DrugNetworkEntityPicker({
                 role="option"
                 aria-selected={active}
                 data-testid={`picker-match-${index}`}
+                data-entity-type={result.entityType}
                 onMouseEnter={() => setHighlightIndex(index)}
                 onClick={() => selectAt(index)}
                 className={[
@@ -262,6 +265,12 @@ export function DrugNetworkEntityPicker({
                   active ? "bg-accent/10 text-foreground" : "text-foreground hover:bg-neutral-bg",
                 ].join(" ")}
               >
+                <span
+                  className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-neutral-bg text-foreground"
+                  aria-hidden="true"
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium break-words">{result.primaryLabel}</p>
                   <p className="text-xs text-muted">{typeLabel}</p>

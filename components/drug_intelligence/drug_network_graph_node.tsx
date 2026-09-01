@@ -6,23 +6,16 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { User, Phone, CreditCard, Smartphone, Car, FileSpreadsheet, MapPin, AlertTriangle, Pin } from "lucide-react";
+import { AlertTriangle, Pin } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { useT } from "@/components/i18n/language_provider";
+import { DRUG_ENTITY_ICON } from "@/components/drug_intelligence/drug_entity_visual";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { DrugNetworkFlowNodeData } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
-const NODE_ICON: Record<DrugGraphNodeType, typeof User> = {
-  PERSON: User,
-  PHONE: Phone,
-  SIM: CreditCard,
-  DEVICE: Smartphone,
-  VEHICLE: Car,
-  CASE: FileSpreadsheet,
-  LOCATION: MapPin,
-};
+const NODE_ICON = DRUG_ENTITY_ICON;
 
 const NODE_SHAPE: Record<DrugGraphNodeType, string> = {
   PERSON: "rounded-full",

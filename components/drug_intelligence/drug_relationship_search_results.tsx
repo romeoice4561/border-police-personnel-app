@@ -1,13 +1,20 @@
 /**
- * Relationship Search results (Phase 1B.2.3) — search context + field-officer cards.
+ * Relationship Search results (Phase 1B.2.3 + visual entity language).
  * Semantics unchanged; presentation and returnTo continuity only.
  */
 "use client";
 
+import { ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { useT } from "@/components/i18n/language_provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
+import {
+  DRUG_EVIDENCE_SECTION_ICON,
+  DRUG_RELATION_STEP_ICON,
+  DrugEntityIconMark,
+  searchedFromIcon,
+} from "@/components/drug_intelligence/drug_entity_visual";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import {
@@ -75,53 +82,82 @@ function SearchContextSummary({
   resolvedLabel,
   resolvedType,
   relationLabel,
+  wantedType,
   canViewFull,
 }: {
   queryContext: DrugRelationshipSourceQueryContext | null;
   resolvedLabel: string;
   resolvedType: DrugGraphNodeType;
   relationLabel: string;
+  wantedType?: DrugGraphNodeType;
   canViewFull: boolean;
 }) {
   const { t } = useT();
   const fromValue = presentSourceQueryDisplayValue(queryContext, canViewFull);
   const fromFieldKey = searchedFromFieldLabelKey(queryContext?.matchedField);
   const typeLabel = t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[resolvedType] as TranslationKey);
+  const wantedTypeLabel = wantedType
+    ? t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[wantedType] as TranslationKey)
+    : null;
+  const FromIcon = searchedFromIcon(queryContext?.matchedField);
 
   return (
     <aside
-      className="rounded-xl border border-accent/30 bg-accent/5 px-4 py-3"
+      className="rounded-xl border border-border bg-surface px-4 py-3.5 shadow-sm"
       data-testid="relationship-search-context"
       aria-labelledby="rel-search-context-heading"
     >
-      <h3 id="rel-search-context-heading" className="text-sm font-semibold text-foreground">
-        🔎 {t("di.rel.searchContextHeading")}
+      <h3
+        id="rel-search-context-heading"
+        className="flex items-center gap-2 text-sm font-semibold text-foreground"
+      >
+        <ScanSearch className="h-4 w-4 text-accent" aria-hidden="true" />
+        {t("di.rel.searchContextHeading")}
       </h3>
-      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
-        <div className="min-w-0 space-y-0.5">
-          <dt className="text-xs font-medium text-muted">{t("di.rel.searchContextFrom")}</dt>
-          <dd className="break-words text-foreground">
-            {fromValue ? (
-              <>
-                <span className="font-medium">{t(fromFieldKey)}</span>
-                <span className="text-muted">: </span>
-                <span>{fromValue}</span>
-              </>
-            ) : (
-              <span className="text-muted">—</span>
-            )}
+      <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="min-w-0 rounded-lg border border-border/80 bg-neutral-bg/35 px-3 py-2.5">
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">
+            {t("di.rel.searchContextFrom")}
+          </dt>
+          <dd className="mt-2 flex items-start gap-2.5">
+            <DrugEntityIconMark icon={FromIcon} size="md" />
+            <div className="min-w-0 space-y-0.5">
+              {fromValue ? (
+                <>
+                  <p className="text-xs font-semibold text-foreground">{t(fromFieldKey)}</p>
+                  <p className="break-words text-sm text-foreground">{fromValue}</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted">—</p>
+              )}
+            </div>
           </dd>
         </div>
-        <div className="min-w-0 space-y-0.5">
-          <dt className="text-xs font-medium text-muted">{t("di.rel.searchContextResolved")}</dt>
-          <dd className="break-words font-semibold text-foreground">
-            {resolvedLabel}
-            <span className="mt-0.5 block text-xs font-normal text-muted">{typeLabel}</span>
+        <div className="min-w-0 rounded-lg border border-border/80 bg-neutral-bg/35 px-3 py-2.5">
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">
+            {t("di.rel.searchContextResolved")}
+          </dt>
+          <dd className="mt-2 flex items-start gap-2.5">
+            <DrugEntityIconMark type={resolvedType} size="md" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="break-words text-sm font-semibold text-foreground">{resolvedLabel}</p>
+              <p className="text-xs text-muted">{typeLabel}</p>
+            </div>
           </dd>
         </div>
-        <div className="min-w-0 space-y-0.5">
-          <dt className="text-xs font-medium text-muted">{t("di.rel.searchContextWanted")}</dt>
-          <dd className="break-words text-foreground">{relationLabel}</dd>
+        <div className="min-w-0 rounded-lg border border-border/80 bg-neutral-bg/35 px-3 py-2.5">
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">
+            {t("di.rel.searchContextWanted")}
+          </dt>
+          <dd className="mt-2 flex items-start gap-2.5">
+            <DrugEntityIconMark type={wantedType ?? "CASE"} size="md" />
+            <div className="min-w-0 space-y-0.5">
+              {wantedTypeLabel ? (
+                <p className="text-sm font-semibold text-foreground">{wantedTypeLabel}</p>
+              ) : null}
+              <p className="break-words text-xs text-muted">{relationLabel}</p>
+            </div>
+          </dd>
         </div>
       </dl>
     </aside>
@@ -164,6 +200,8 @@ export function DrugRelationshipSearchResults({
   const relationLabel = relation ? t(relation.labelKey) : t("di.rel.relationSection");
   const resolvedLabel = sourceLabel || data.results[0]?.from.label || "—";
   const resolvedType = sourceType || data.interpretation.source.entityType;
+  const WhyIcon = DRUG_RELATION_STEP_ICON;
+  const EvidenceIcon = DRUG_EVIDENCE_SECTION_ICON;
 
   return (
     <div className="space-y-4" data-testid="relationship-search-results">
@@ -172,6 +210,7 @@ export function DrugRelationshipSearchResults({
         resolvedLabel={resolvedLabel}
         resolvedType={resolvedType}
         relationLabel={relationLabel}
+        wantedType={targetType}
         canViewFull={Boolean(canViewFull)}
       />
 
@@ -184,13 +223,13 @@ export function DrugRelationshipSearchResults({
       </div>
 
       {!data.summary.found ? (
-        <div className="space-y-1 rounded-xl border border-border bg-surface p-4">
+        <div className="space-y-1 rounded-xl border border-border bg-surface p-4 shadow-sm">
           <p className="text-sm font-medium text-foreground">{t("di.rel.pathNotFound")}</p>
           <p className="text-xs text-muted">{t("di.rel.pathNotFoundHint")}</p>
         </div>
       ) : null}
 
-      <div className="grid gap-3">
+      <div className="grid gap-3.5">
         {data.results.map((item, index) => {
           const ordinal = t(relationshipResultOrdinalKey(item.to.entityType)).replace(
             "{n}",
@@ -203,28 +242,56 @@ export function DrugRelationshipSearchResults({
             ? withReturnTo(item.actions.detailPath, returnPath)
             : null;
           const primaryIsDetail = Boolean(detailHref);
+          const resultTypeLabel = t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[item.to.entityType] as TranslationKey);
+          const relatedFromLabel = item.from.label || resolvedLabel;
 
           return (
-            <Card key={`${item.to.entityId}-${item.relationshipType ?? "path"}-${index}`}>
-              <CardBody className="space-y-3" data-testid="relationship-result-card">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-xs font-medium text-muted">{ordinal}</p>
-                    <p className="text-base font-semibold text-foreground break-words">{item.to.label}</p>
-                    {item.to.secondaryLabel ? (
-                      <p className="text-sm text-muted break-words">{item.to.secondaryLabel}</p>
-                    ) : null}
+            <Card
+              key={`${item.to.entityId}-${item.relationshipType ?? "path"}-${index}`}
+              className="border-border shadow-sm"
+            >
+              <CardBody className="space-y-3" data-testid="relationship-result-card" data-entity-type={item.to.entityType}>
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/70 pb-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <DrugEntityIconMark type={item.to.entityType} size="lg" />
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                        {resultTypeLabel}
+                        <span className="mx-1 text-border">·</span>
+                        {ordinal}
+                      </p>
+                      <p className="text-base font-semibold text-foreground break-words">{item.to.label}</p>
+                      {item.to.secondaryLabel ? (
+                        <p className="text-sm text-muted break-words">{item.to.secondaryLabel}</p>
+                      ) : null}
+                    </div>
                   </div>
                   <Badge kind={item.edgeKind} />
                 </div>
 
+                {relatedFromLabel ? (
+                  <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-neutral-bg/30 px-3 py-2">
+                    <DrugEntityIconMark type={item.from.entityType || resolvedType} size="sm" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-muted">{t("di.rel.relatedToSource")}</p>
+                      <p className="text-sm font-medium text-foreground break-words">{relatedFromLabel}</p>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="space-y-1 rounded-lg border border-border/70 bg-neutral-bg/40 px-3 py-2">
-                  <p className="text-xs font-medium text-muted">{t("di.rel.whyFoundLabel")}</p>
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                    <WhyIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {t("di.rel.whyFoundLabel")}
+                  </p>
                   <p className="text-sm text-foreground break-words">{why}</p>
                 </div>
 
                 <div className="space-y-1 text-sm text-muted">
-                  <p className="text-xs font-medium text-muted">{t("di.rel.evidenceInSystem")}</p>
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                    <EvidenceIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {t("di.rel.evidenceInSystem")}
+                  </p>
                   <p className="text-foreground">{evidence}</p>
                   {item.sourceCaseIds.length > 0 ? (
                     <p className="text-xs">{t("di.rel.relatedCasesCount").replace("{count}", String(item.sourceCaseIds.length))}</p>

@@ -8,23 +8,13 @@
  */
 "use client";
 
-import { User, Phone, CreditCard, Smartphone, Car, FileSpreadsheet, MapPin } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
+import { DRUG_ENTITY_ICON, DRUG_ENTITY_TYPES } from "@/components/drug_intelligence/drug_entity_visual";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
-const LEGEND_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE", "LOCATION"];
-
-const NODE_ICON: Record<DrugGraphNodeType, typeof User> = {
-  PERSON: User,
-  PHONE: Phone,
-  SIM: CreditCard,
-  DEVICE: Smartphone,
-  VEHICLE: Car,
-  CASE: FileSpreadsheet,
-  LOCATION: MapPin,
-};
+const LEGEND_NODE_TYPES: DrugGraphNodeType[] = DRUG_ENTITY_TYPES;
 
 const NODE_TONE_DOT: Record<DrugGraphNodeType, string> = {
   PERSON: "border-accent bg-accent/10 text-accent",
@@ -44,7 +34,7 @@ export function DrugNetworkLegend() {
         <p className="mb-1.5 font-semibold uppercase tracking-wide text-muted">{t("di.network.legendTitle")}</p>
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
           {LEGEND_NODE_TYPES.map((type) => {
-            const Icon = NODE_ICON[type];
+            const Icon = DRUG_ENTITY_ICON[type];
             return (
               <div key={type} className="flex items-center gap-1.5">
                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${NODE_TONE_DOT[type]}`}>

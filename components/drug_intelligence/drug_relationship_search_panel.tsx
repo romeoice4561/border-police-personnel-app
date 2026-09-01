@@ -7,19 +7,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Car,
   Check,
   ChevronDown,
   ChevronRight,
-  CreditCard,
-  FileSpreadsheet,
   Info,
   Link2,
-  Phone,
   RotateCcw,
   ScanSearch,
-  Smartphone,
-  User,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +22,11 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { DrugNetworkEntityPicker, type DrugNetworkEntitySelection } from "@/components/drug_intelligence/drug_network_entity_picker";
 import { DrugRelationshipSearchResults } from "@/components/drug_intelligence/drug_relationship_search_results";
+import {
+  DRUG_ENTITY_ICON,
+  DRUG_RELATION_STEP_ICON,
+  DrugEntityIconMark,
+} from "@/components/drug_intelligence/drug_entity_visual";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +48,9 @@ import {
 import {
   clearSourceQueryContext,
   loadSourceQueryContext,
+  presentSourceQueryDisplayValue,
   saveSourceQueryContext,
+  searchedFromFieldLabelKey,
   type DrugRelationshipSourceQueryContext,
 } from "@/lib/drug_intelligence/drug_relationship_search_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
@@ -58,16 +59,6 @@ import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const SOURCE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE"];
 
-const ENTITY_ICON: Record<DrugGraphNodeType, LucideIcon> = {
-  PERSON: User,
-  PHONE: Phone,
-  SIM: CreditCard,
-  DEVICE: Smartphone,
-  VEHICLE: Car,
-  CASE: FileSpreadsheet,
-  LOCATION: FileSpreadsheet,
-};
-
 const PRESET_UI: Record<
   string,
   { titleKey: TranslationKey; descKey: TranslationKey; icon: LucideIcon; focusHintKey: TranslationKey }
@@ -75,31 +66,31 @@ const PRESET_UI: Record<
   preset_phone_cases: {
     titleKey: "di.rel.presetPhoneCasesTitle",
     descKey: "di.rel.presetPhoneCasesDesc",
-    icon: Phone,
+    icon: DRUG_ENTITY_ICON.PHONE,
     focusHintKey: "di.rel.presetFocusPhone",
   },
   preset_person_phones: {
     titleKey: "di.rel.presetPersonPhonesTitle",
     descKey: "di.rel.presetPersonPhonesDesc",
-    icon: User,
+    icon: DRUG_ENTITY_ICON.PERSON,
     focusHintKey: "di.rel.presetFocusPerson",
   },
   preset_vehicle_cases: {
     titleKey: "di.rel.presetVehicleCasesTitle",
     descKey: "di.rel.presetVehicleCasesDesc",
-    icon: Car,
+    icon: DRUG_ENTITY_ICON.VEHICLE,
     focusHintKey: "di.rel.presetFocusVehicle",
   },
   preset_device_cases: {
     titleKey: "di.rel.presetDeviceCasesTitle",
     descKey: "di.rel.presetDeviceCasesDesc",
-    icon: Smartphone,
+    icon: DRUG_ENTITY_ICON.DEVICE,
     focusHintKey: "di.rel.presetFocusDevice",
   },
   preset_sim_cases: {
     titleKey: "di.rel.presetSimCasesTitle",
     descKey: "di.rel.presetSimCasesDesc",
-    icon: CreditCard,
+    icon: DRUG_ENTITY_ICON.SIM,
     focusHintKey: "di.rel.presetFocusSim",
   },
   preset_person_path: {
@@ -115,31 +106,49 @@ function EntityCard({
   onClear,
   typeLabel,
   selectedBadge,
+  canViewFull,
 }: {
   selection: DrugNetworkEntitySelection;
   onClear: () => void;
   typeLabel: string;
   selectedBadge: string;
+  canViewFull: boolean;
 }) {
   const { t } = useT();
-  const Icon = ENTITY_ICON[selection.entityType] ?? FileSpreadsheet;
+  const metaValue = presentSourceQueryDisplayValue(
+    selection.queryText || selection.matchedField || selection.matchedValueMasked
+      ? {
+          queryText: selection.queryText ?? "",
+          matchedField: selection.matchedField,
+          matchedValueMasked: selection.matchedValueMasked,
+        }
+      : null,
+    canViewFull
+  );
+  const metaFieldKey = searchedFromFieldLabelKey(selection.matchedField);
+
   return (
     <div
-      className="space-y-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-3"
+      className="space-y-2.5 rounded-xl border-2 border-accent/50 bg-accent/5 px-3.5 py-3 shadow-sm"
       data-testid="selected-entity-card"
       data-selected="true"
+      data-entity-type={selection.entityType}
     >
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
-        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-        {selectedBadge}
-      </p>
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-accent" aria-hidden="true">
-          <Icon className="h-4 w-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground break-words">{selection.label}</p>
-          <p className="text-xs text-muted">{typeLabel}</p>
+        <DrugEntityIconMark type={selection.entityType} size="lg" className="border-accent/40 bg-surface text-accent" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{typeLabel}</p>
+          <p className="text-base font-semibold leading-snug text-foreground break-words">{selection.label}</p>
+          {metaValue ? (
+            <p className="text-xs text-muted break-words">
+              <span className="font-medium text-foreground/80">{t(metaFieldKey)}</span>
+              <span> {metaValue}</span>
+            </p>
+          ) : null}
+          <p className="flex items-center gap-1.5 pt-0.5 text-xs font-semibold text-accent">
+            <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {selectedBadge}
+          </p>
         </div>
       </div>
       <button
@@ -213,9 +222,9 @@ function stepShellClass(status: GuidedStepStatus): string {
     return "space-y-2.5 rounded-xl border border-dashed border-border bg-neutral-bg/20 p-2.5 opacity-60 sm:p-3";
   }
   if (status === "completed") {
-    return "space-y-2.5 rounded-xl border border-accent/30 bg-accent/5 p-2.5 sm:p-3";
+    return "space-y-2.5 rounded-xl border border-border bg-surface p-2.5 shadow-sm sm:p-3";
   }
-  return "space-y-2.5 rounded-xl border border-accent/50 bg-neutral-bg/40 p-2.5 ring-1 ring-accent/20 sm:p-3";
+  return "space-y-2.5 rounded-xl border-2 border-accent/45 bg-accent/[0.04] p-2.5 shadow-sm ring-1 ring-accent/15 sm:p-3";
 }
 
 export function DrugRelationshipSearchPanel() {
@@ -818,11 +827,18 @@ export function DrugRelationshipSearchPanel() {
                 data-step-status={stepStatuses.step1}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 id="rel-source-heading" className="text-sm font-semibold text-foreground">
-                      {t("di.rel.sourceSection")}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-muted">{t("di.rel.sourceSectionHint")}</p>
+                  <div className="min-w-0 flex items-start gap-2.5">
+                    <DrugEntityIconMark
+                      type={draftSource?.entityType ?? draftSourceType}
+                      size="sm"
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <h3 id="rel-source-heading" className="text-sm font-semibold text-foreground">
+                        {t("di.rel.sourceSection")}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-muted">{t("di.rel.sourceSectionHint")}</p>
+                    </div>
                   </div>
                   <StepStatusBadge status={stepStatuses.step1} />
                 </div>
@@ -840,6 +856,7 @@ export function DrugRelationshipSearchPanel() {
                     typeLabel={t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[draftSource.entityType] as TranslationKey)}
                     onClear={clearSource}
                     selectedBadge={t("di.rel.sourceSelectedBadge")}
+                    canViewFull={canViewFull}
                   />
                 ) : (
                   <DrugNetworkEntityPicker
@@ -868,11 +885,19 @@ export function DrugRelationshipSearchPanel() {
                 aria-disabled={stepStatuses.step2 === "waiting" || undefined}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 id="rel-relation-heading" className="text-sm font-semibold text-foreground">
-                      {t("di.rel.relationSection")}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-muted">{t("di.rel.relationSectionHint")}</p>
+                  <div className="min-w-0 flex items-start gap-2.5">
+                    <span
+                      className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-neutral-bg text-foreground"
+                      aria-hidden="true"
+                    >
+                      <DRUG_RELATION_STEP_ICON className="h-3.5 w-3.5" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 id="rel-relation-heading" className="text-sm font-semibold text-foreground">
+                        {t("di.rel.relationSection")}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-muted">{t("di.rel.relationSectionHint")}</p>
+                    </div>
                   </div>
                   <StepStatusBadge status={stepStatuses.step2} />
                 </div>
@@ -885,14 +910,24 @@ export function DrugRelationshipSearchPanel() {
                   />
                   {selectedRelation ? (
                     <div
-                      className="space-y-1.5 rounded-xl border border-border bg-surface px-3 py-2.5"
+                      className="space-y-1.5 rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm"
                       data-testid="relation-explain-card"
                     >
-                      <p className="text-sm font-medium text-foreground">{t(selectedRelation.labelKey)}</p>
-                      <p className="text-xs text-muted">{t(relationExplainKey(selectedRelation))}</p>
-                      <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-foreground">
-                        {t(presetBadgeKey(selectedRelation))}
-                      </span>
+                      <div className="flex items-start gap-2.5">
+                        <span
+                          className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-neutral-bg text-foreground"
+                          aria-hidden="true"
+                        >
+                          <DRUG_RELATION_STEP_ICON className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-sm font-medium text-foreground">{t(selectedRelation.labelKey)}</p>
+                          <p className="text-xs text-muted">{t(relationExplainKey(selectedRelation))}</p>
+                          <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-foreground">
+                            {t(presetBadgeKey(selectedRelation))}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   ) : null}
                 </fieldset>
@@ -911,11 +946,18 @@ export function DrugRelationshipSearchPanel() {
                 aria-disabled={stepStatuses.step3 === "waiting" || undefined}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 id="rel-target-heading" className="text-sm font-semibold text-foreground">
-                      {t("di.rel.targetSection")}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-muted">{t("di.rel.targetSectionHint")}</p>
+                  <div className="min-w-0 flex items-start gap-2.5">
+                    <DrugEntityIconMark
+                      type={(effectiveTargetType || "CASE") as DrugGraphNodeType}
+                      size="sm"
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <h3 id="rel-target-heading" className="text-sm font-semibold text-foreground">
+                        {t("di.rel.targetSection")}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-muted">{t("di.rel.targetSectionHint")}</p>
+                    </div>
                   </div>
                   <StepStatusBadge status={stepStatuses.step3} />
                 </div>
@@ -952,6 +994,7 @@ export function DrugRelationshipSearchPanel() {
                       typeLabel={t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[draftTarget.entityType] as TranslationKey)}
                       onClear={() => setDraftTarget(null)}
                       selectedBadge={t("di.rel.targetSelectedBadge")}
+                      canViewFull={canViewFull}
                     />
                   ) : effectiveTargetType && effectiveTargetType !== "LOCATION" && selectedRelation ? (
                     <DrugNetworkEntityPicker
