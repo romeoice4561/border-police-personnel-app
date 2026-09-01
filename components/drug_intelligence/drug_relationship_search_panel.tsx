@@ -501,6 +501,18 @@ export function DrugRelationshipSearchPanel() {
     window.setTimeout(() => setSubmitting(false), 800);
   }
 
+  function focusStep1Soon() {
+    requestAnimationFrame(() => {
+      const preferReduced =
+        typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      step1Ref.current?.scrollIntoView({ behavior: preferReduced ? "auto" : "smooth", block: "start" });
+      const focusable =
+        sourceInputRef.current ??
+        step1Ref.current?.querySelector<HTMLElement>("input:not([disabled]), select:not([disabled]), button:not([disabled])");
+      focusable?.focus({ preventScroll: true });
+    });
+  }
+
   function resetAll() {
     setDraftSourceType("PHONE");
     setDraftSource(null);
@@ -514,6 +526,7 @@ export function DrugRelationshipSearchPanel() {
     clearSourceQueryContext();
     setPreviousResultReturn(null);
     setPreviousResultLabel(null);
+    scrolledForRun.current = null;
     pushRelationshipParams({
       relSourceType: undefined,
       relSourceId: undefined,
@@ -526,6 +539,25 @@ export function DrugRelationshipSearchPanel() {
       relPage: undefined,
       relPreset: undefined,
     });
+  }
+
+  /** Phase 1B.2.4 — clear completed answer and return to a clean pre-search state. */
+  function startNewSearch() {
+    resetAll();
+    focusStep1Soon();
+  }
+
+  /** Keep builder selections; exit completed-result state so the officer can adjust. */
+  function editConditions() {
+    scrolledForRun.current = null;
+    pushRelationshipParams(
+      {
+        relRun: undefined,
+        relPage: undefined,
+      },
+      { run: false }
+    );
+    focusStep1Soon();
   }
 
   const returnPath = `/drug-intelligence/search?${searchParams.toString()}#relationship-results`;
@@ -609,19 +641,22 @@ export function DrugRelationshipSearchPanel() {
             : null;
 
   const searchingNow = submitting || Boolean(run && query && search.isPending);
+  /** Active completed/running Relationship Search — hide Quick Search from the answer flow. */
   const showAnswerFirst = Boolean(run && query);
+  const searchSettled = showAnswerFirst && !search.isPending;
+  const showZeroOrErrorActions =
+    searchSettled && (search.isError || Boolean(search.data && search.data.summary.total === 0));
 
   const quickSearchSection = (
     <section
       className="space-y-2.5"
       aria-labelledby="rel-presets-heading"
       data-testid="relationship-quick-search"
-      data-collapsed={showAnswerFirst ? "true" : "false"}
     >
       <div>
         <h2 id="rel-presets-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
           <Zap className="h-4 w-4 text-accent" aria-hidden="true" />
-          {showAnswerFirst ? t("di.rel.otherSearchesLabel") : t("di.rel.presetsLabel")}
+          {t("di.rel.presetsLabel")}
         </h2>
         <p className="mt-0.5 text-xs text-muted">{t("di.rel.presetsHint")}</p>
       </div>
@@ -645,7 +680,6 @@ export function DrugRelationshipSearchPanel() {
                 selected
                   ? "border-accent bg-accent/10 shadow-sm"
                   : "border-border bg-surface hover:border-accent/50 hover:bg-neutral-bg/50",
-                showAnswerFirst ? "min-h-[4.5rem] py-2" : "",
               ].join(" ")}
             >
               <div className="flex h-full flex-col gap-1.5">
@@ -681,6 +715,53 @@ export function DrugRelationshipSearchPanel() {
       </div>
     </aside>
   );
+
+  /** Compact post-answer footer — no Quick Search grid. */
+  const postResultFooter = searchSettled ? (
+    <div className="space-y-3" data-testid="relationship-post-result-footer">
+      <div
+        className="flex flex-col gap-2 rounded-lg border border-border/80 bg-neutral-bg/40 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+        data-testid="relationship-post-result-actions"
+      >
+        <p className="text-xs text-muted">{t("di.rel.postResultPrompt")}</p>
+        <div className="flex flex-wrap gap-2">
+          {showZeroOrErrorActions ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={editConditions}
+              data-testid="rel-edit-conditions"
+              className="min-h-10"
+            >
+              {t("di.rel.editConditions")}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={startNewSearch}
+            data-testid="rel-new-search"
+            className="min-h-10"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("di.rel.newSearch")}
+          </Button>
+        </div>
+      </div>
+      <aside
+        className="flex gap-2.5 rounded-lg border border-border/70 bg-surface/80 px-3 py-2"
+        data-testid="query-condition-notice"
+      >
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-foreground">{t("di.rel.queryConditionNote")}</p>
+          <p className="text-[11px] leading-relaxed text-muted">{t("di.rel.queryConditionBody")}</p>
+        </div>
+      </aside>
+    </div>
+  ) : null;
 
   const resultsSection = (
     <section ref={resultsRef} id="relationship-results" aria-live="polite" data-testid="relationship-results-area">
@@ -947,8 +1028,7 @@ export function DrugRelationshipSearchPanel() {
       {showAnswerFirst ? (
         <>
           {resultsSection}
-          {quickSearchSection}
-          {queryNotice}
+          {postResultFooter}
         </>
       ) : (
         <>

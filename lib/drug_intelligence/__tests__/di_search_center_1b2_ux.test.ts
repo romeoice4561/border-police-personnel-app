@@ -57,16 +57,23 @@ describe("Phase 1B.2 Relationship 3-step workflow", () => {
   test("workflow + primary CTA appear before Quick Search (above-the-fold hierarchy)", () => {
     const workflowIdx = panelSrc.indexOf('data-testid="relationship-workflow"');
     const ctaIdx = panelSrc.indexOf('data-testid="rel-search-submit"');
-    assert.ok(workflowIdx >= 0 && ctaIdx >= 0);
+    const qsIdx = panelSrc.indexOf('data-testid="relationship-quick-search"');
+    assert.ok(workflowIdx >= 0 && ctaIdx >= 0 && qsIdx >= 0);
     assert.ok(workflowIdx < ctaIdx, "CTA must sit inside/after workflow markup");
-    // Phase 1B.2.3: after execution, answer-first order swaps Quick Search below results.
+    // Phase 1B.2.4: Quick Search only in the pre-search branch (never after results).
     assert.match(panelSrc, /showAnswerFirst/);
-    assert.match(panelSrc, /\{showAnswerFirst \? \([\s\S]*resultsSection[\s\S]*quickSearchSection/);
+    assert.match(panelSrc, /\{showAnswerFirst \? \([\s\S]*resultsSection[\s\S]*postResultFooter/);
   });
 
   test("after search, Quick Search must not interrupt results (answer-first)", () => {
-    assert.match(panelSrc, /showAnswerFirst \? \([\s\S]*\{resultsSection\}[\s\S]*\{quickSearchSection\}/);
-    assert.match(panelSrc, /data-collapsed=\{showAnswerFirst \? "true" : "false"\}/);
+    assert.match(
+      panelSrc,
+      /showAnswerFirst \? \(\s*<>\s*\{resultsSection\}\s*\{postResultFooter\}\s*<\/>\s*\)/
+    );
+    const answerBranch = panelSrc.match(/\{showAnswerFirst \? \(([\s\S]*?)\) : \(/)?.[1] ?? "";
+    assert.ok(answerBranch.includes("{resultsSection}"));
+    assert.ok(answerBranch.includes("{postResultFooter}"));
+    assert.ok(!answerBranch.includes("{quickSearchSection}"), "Quick Search must not appear in answer branch");
   });
 
   test("selected source renders concrete entity card", () => {

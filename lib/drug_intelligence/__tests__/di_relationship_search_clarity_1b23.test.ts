@@ -291,7 +291,11 @@ describe("Phase 1B.2.3 layout order", () => {
 
   test("panel answer-first order after search", () => {
     assert.match(panelSrc, /showAnswerFirst/);
-    assert.match(panelSrc, /\{resultsSection\}/);
-    assert.match(panelSrc, /\{quickSearchSection\}/);
+    assert.match(
+      panelSrc,
+      /showAnswerFirst \? \(\s*<>\s*\{resultsSection\}\s*\{postResultFooter\}\s*<\/>\s*\)/
+    );
+    const answerBranch = panelSrc.match(/\{showAnswerFirst \? \(([\s\S]*?)\) : \(/)?.[1] ?? "";
+    assert.ok(!answerBranch.includes("{quickSearchSection}"));
   });
 });

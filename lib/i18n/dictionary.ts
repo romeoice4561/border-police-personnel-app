@@ -2136,6 +2136,9 @@ export const DICTIONARY = {
   "di.rel.targetSearchOptional": tr("ค้นหาเป้าหมาย (ไม่ระบุก็ได้)", "Search target (optional)"),
   "di.rel.searchButton": tr("ค้นหาความเชื่อมโยง", "Search relationships"),
   "di.rel.resetAll": tr("ล้างทั้งหมด", "Clear all"),
+  "di.rel.newSearch": tr("ค้นหาใหม่", "New search"),
+  "di.rel.editConditions": tr("แก้ไขเงื่อนไขการค้นหา", "Edit search conditions"),
+  "di.rel.postResultPrompt": tr("ค้นหาความสัมพันธ์อื่นต่อหรือไม่?", "Search another relationship?"),
   "di.rel.searchDisabledHint": tr("กรอกขั้นตอนที่ยังไม่ครบก่อนค้นหา", "Complete the required steps before searching"),
   "di.rel.presetsLabel": tr("ค้นหายอดนิยม", "Popular searches"),
   "di.rel.presetsHint": tr(
