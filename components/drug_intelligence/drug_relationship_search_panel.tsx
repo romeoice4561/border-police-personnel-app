@@ -23,6 +23,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { DrugNetworkEntityPicker, type DrugNetworkEntitySelection } from "@/components/drug_intelligence/drug_network_entity_picker";
@@ -45,6 +46,12 @@ import {
   resolveAutoTargetType,
   type GuidedStepStatus,
 } from "@/lib/drug_intelligence/drug_relationship_search_readiness";
+import {
+  clearSourceQueryContext,
+  loadSourceQueryContext,
+  saveSourceQueryContext,
+  type DrugRelationshipSourceQueryContext,
+} from "@/lib/drug_intelligence/drug_relationship_search_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -214,8 +221,9 @@ function stepShellClass(status: GuidedStepStatus): string {
 export function DrugRelationshipSearchPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t } = useT();
+  const canViewFull = can("drug.edit");
   const step1Ref = useRef<HTMLElement | null>(null);
   const step2Ref = useRef<HTMLElement | null>(null);
   const resultsRef = useRef<HTMLElement | null>(null);
@@ -224,6 +232,9 @@ export function DrugRelationshipSearchPanel() {
   const [focusSourcePicker, setFocusSourcePicker] = useState(false);
   const [pickerHelperKey, setPickerHelperKey] = useState<TranslationKey | null>(null);
   const scrolledForRun = useRef<string | null>(null);
+  const [sourceQueryContext, setSourceQueryContext] = useState<DrugRelationshipSourceQueryContext | null>(null);
+  const [previousResultReturn, setPreviousResultReturn] = useState<string | null>(null);
+  const [previousResultLabel, setPreviousResultLabel] = useState<string | null>(null);
 
   const sourceType = (searchParams.get("relSourceType") as DrugGraphNodeType | null) ?? "PHONE";
   const sourceId = searchParams.get("relSourceId") ?? "";
@@ -248,6 +259,12 @@ export function DrugRelationshipSearchPanel() {
   );
   const [draftTargetType, setDraftTargetType] = useState<DrugGraphNodeType | "">(targetType as DrugGraphNodeType | "");
   const [draftPresetId, setDraftPresetId] = useState(activePresetId);
+
+  const effectiveSourceQueryContext = useMemo(() => {
+    if (sourceQueryContext) return sourceQueryContext;
+    if (!sourceId) return null;
+    return loadSourceQueryContext(sourceId);
+  }, [sourceQueryContext, sourceId]);
 
   const availableRelations = useMemo(
     () => relationsForSourceType(draftSource?.entityType ?? draftSourceType),
@@ -310,6 +327,17 @@ export function DrugRelationshipSearchPanel() {
     setDraftSourceType(selection.entityType);
     setFocusSourcePicker(false);
     setPickerHelperKey(null);
+    const ctx: DrugRelationshipSourceQueryContext | null =
+      selection.queryText || selection.matchedField || selection.matchedValueMasked
+        ? {
+            queryText: selection.queryText ?? "",
+            matchedField: selection.matchedField,
+            matchedValueMasked: selection.matchedValueMasked,
+          }
+        : null;
+    setSourceQueryContext(ctx);
+    if (ctx) saveSourceQueryContext(selection.entityId, ctx);
+    else clearSourceQueryContext();
 
     let nextRelationId = draftRelationId;
     let nextTargetType = draftTargetType;
@@ -349,6 +377,8 @@ export function DrugRelationshipSearchPanel() {
     setDraftSource(null);
     setDraftTarget(null);
     setFocusSourcePicker(true);
+    setSourceQueryContext(null);
+    clearSourceQueryContext();
     pushRelationshipParams({
       relSourceType: draftSourceType,
       relSourceId: undefined,
@@ -377,6 +407,8 @@ export function DrugRelationshipSearchPanel() {
     if (!keepSource) {
       setDraftSource(null);
       setFocusSourcePicker(true);
+      setSourceQueryContext(null);
+      clearSourceQueryContext();
     }
     pushRelationshipParams({
       relSourceType: preset.sourceType,
@@ -407,6 +439,8 @@ export function DrugRelationshipSearchPanel() {
     setDraftTargetType("");
     setDraftPresetId("");
     setPickerHelperKey(null);
+    setSourceQueryContext(null);
+    clearSourceQueryContext();
     pushRelationshipParams({
       relSourceType: nextType,
       relSourceId: undefined,
@@ -476,6 +510,10 @@ export function DrugRelationshipSearchPanel() {
     setDraftPresetId("");
     setFocusSourcePicker(false);
     setPickerHelperKey(null);
+    setSourceQueryContext(null);
+    clearSourceQueryContext();
+    setPreviousResultReturn(null);
+    setPreviousResultLabel(null);
     pushRelationshipParams({
       relSourceType: undefined,
       relSourceId: undefined,
@@ -490,13 +528,21 @@ export function DrugRelationshipSearchPanel() {
     });
   }
 
+  const returnPath = `/drug-intelligence/search?${searchParams.toString()}#relationship-results`;
+
   function onExpand(entity: { entityType: DrugGraphNodeType; entityId: string; label: string }) {
+    if (run && sourceId && relationId) {
+      setPreviousResultReturn(returnPath);
+      setPreviousResultLabel(sourceLabel || draftSource?.label || entity.label);
+    }
     setDraftSourceType(entity.entityType);
     setDraftSource(entity);
     setDraftRelationId("");
     setDraftTarget(null);
     setDraftTargetType("");
     setDraftPresetId("");
+    setSourceQueryContext(null);
+    clearSourceQueryContext();
     pushRelationshipParams({
       relSourceType: entity.entityType,
       relSourceId: entity.entityId,
@@ -528,7 +574,6 @@ export function DrugRelationshipSearchPanel() {
   );
 
   const search = useDrugRelationshipSearch(user?.id ?? null, user?.displayName ?? "", query);
-  const returnPath = `/drug-intelligence/search?${searchParams.toString()}`;
 
   useEffect(() => {
     if (!run || !query) return;
@@ -564,6 +609,115 @@ export function DrugRelationshipSearchPanel() {
             : null;
 
   const searchingNow = submitting || Boolean(run && query && search.isPending);
+  const showAnswerFirst = Boolean(run && query);
+
+  const quickSearchSection = (
+    <section
+      className="space-y-2.5"
+      aria-labelledby="rel-presets-heading"
+      data-testid="relationship-quick-search"
+      data-collapsed={showAnswerFirst ? "true" : "false"}
+    >
+      <div>
+        <h2 id="rel-presets-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
+          <Zap className="h-4 w-4 text-accent" aria-hidden="true" />
+          {showAnswerFirst ? t("di.rel.otherSearchesLabel") : t("di.rel.presetsLabel")}
+        </h2>
+        <p className="mt-0.5 text-xs text-muted">{t("di.rel.presetsHint")}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        {DRUG_RELATIONSHIP_SEARCH_PRESETS.map((preset) => {
+          const ui = PRESET_UI[preset.id];
+          const relation = getControlledRelation(preset.relationId);
+          const Icon = ui?.icon ?? Link2;
+          const selected =
+            draftPresetId === preset.id ||
+            (draftRelationId === preset.relationId && draftSourceType === preset.sourceType);
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              data-testid={`rel-preset-${preset.id}`}
+              data-active={selected ? "true" : "false"}
+              onClick={() => applyPreset(preset.id)}
+              className={[
+                "min-h-[6.25rem] rounded-xl border px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                selected
+                  ? "border-accent bg-accent/10 shadow-sm"
+                  : "border-border bg-surface hover:border-accent/50 hover:bg-neutral-bg/50",
+                showAnswerFirst ? "min-h-[4.5rem] py-2" : "",
+              ].join(" ")}
+            >
+              <div className="flex h-full flex-col gap-1.5">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-bg text-accent" aria-hidden="true">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-semibold text-foreground">
+                  {ui ? t(ui.titleKey) : t(preset.labelKey)}
+                </span>
+                <span className="text-xs leading-snug text-muted">
+                  {ui ? t(ui.descKey) : t(preset.labelKey)}
+                </span>
+                <span className="mt-auto inline-flex w-fit rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-foreground">
+                  {t(presetBadgeKey(relation))}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const queryNotice = (
+    <aside
+      className="flex gap-3 rounded-xl border border-border bg-surface px-4 py-2.5"
+      data-testid="query-condition-notice"
+    >
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{t("di.rel.queryConditionNote")}</p>
+        <p className="text-xs leading-relaxed text-muted">{t("di.rel.queryConditionBody")}</p>
+      </div>
+    </aside>
+  );
+
+  const resultsSection = (
+    <section ref={resultsRef} id="relationship-results" aria-live="polite" data-testid="relationship-results-area">
+      {!run || !query ? (
+        <div className="rounded-xl border border-dashed border-border bg-neutral-bg/30 px-4 py-8 text-center">
+          <EmptyState
+            title={t("di.rel.promptEmptyTitle")}
+            message={t("di.rel.promptEmpty")}
+            icon={<ScanSearch className="h-8 w-8" />}
+          />
+        </div>
+      ) : search.isPending ? (
+        <div data-testid="relationship-search-loading">
+          <LoadingState label={t("di.rel.searching")} />
+        </div>
+      ) : search.isError ? (
+        <ErrorState message={t("di.rel.errorLoad")} onRetry={() => search.refetch()} />
+      ) : search.data.summary.total === 0 ? (
+        <EmptyState
+          title={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFound") : t("di.rel.noResults")}
+          message={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFoundHint") : undefined}
+          icon={<Link2 className="h-8 w-8" />}
+        />
+      ) : (
+        <DrugRelationshipSearchResults
+          data={search.data}
+          returnPath={returnPath}
+          onExpand={onExpand}
+          queryContext={effectiveSourceQueryContext}
+          canViewFull={canViewFull}
+          sourceLabel={sourceLabel || draftSource?.label}
+          sourceType={sourceType}
+          relationId={relationId}
+        />
+      )}
+    </section>
+  );
 
   return (
     <div className="space-y-4" data-testid="relationship-search-panel">
@@ -769,92 +923,40 @@ export function DrugRelationshipSearchPanel() {
         </Card>
       </div>
 
-      <section className="space-y-2.5" aria-labelledby="rel-presets-heading" data-testid="relationship-quick-search">
-        <div>
-          <h2 id="rel-presets-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
-            <Zap className="h-4 w-4 text-accent" aria-hidden="true" />
-            {t("di.rel.presetsLabel")}
-          </h2>
-          <p className="mt-0.5 text-xs text-muted">{t("di.rel.presetsHint")}</p>
-        </div>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {DRUG_RELATIONSHIP_SEARCH_PRESETS.map((preset) => {
-            const ui = PRESET_UI[preset.id];
-            const relation = getControlledRelation(preset.relationId);
-            const Icon = ui?.icon ?? Link2;
-            const selected =
-              draftPresetId === preset.id ||
-              (draftRelationId === preset.relationId && draftSourceType === preset.sourceType);
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                data-testid={`rel-preset-${preset.id}`}
-                data-active={selected ? "true" : "false"}
-                onClick={() => applyPreset(preset.id)}
-                className={[
-                  "min-h-[6.25rem] rounded-xl border px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                  selected
-                    ? "border-accent bg-accent/10 shadow-sm"
-                    : "border-border bg-surface hover:border-accent/50 hover:bg-neutral-bg/50",
-                ].join(" ")}
-              >
-                <div className="flex h-full flex-col gap-1.5">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-bg text-accent" aria-hidden="true">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-semibold text-foreground">
-                    {ui ? t(ui.titleKey) : t(preset.labelKey)}
-                  </span>
-                  <span className="text-xs leading-snug text-muted">
-                    {ui ? t(ui.descKey) : t(preset.labelKey)}
-                  </span>
-                  <span className="mt-auto inline-flex w-fit rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-foreground">
-                    {t(presetBadgeKey(relation))}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <aside
-        className="flex gap-3 rounded-xl border border-border bg-surface px-4 py-2.5"
-        data-testid="query-condition-notice"
-      >
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">{t("di.rel.queryConditionNote")}</p>
-          <p className="text-xs leading-relaxed text-muted">{t("di.rel.queryConditionBody")}</p>
-        </div>
-      </aside>
-
-      <section ref={resultsRef} aria-live="polite" data-testid="relationship-results-area">
-        {!run || !query ? (
-          <div className="rounded-xl border border-dashed border-border bg-neutral-bg/30 px-4 py-8 text-center">
-            <EmptyState
-              title={t("di.rel.promptEmptyTitle")}
-              message={t("di.rel.promptEmpty")}
-              icon={<ScanSearch className="h-8 w-8" />}
-            />
+      {previousResultReturn ? (
+        <aside
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-surface px-4 py-2.5"
+          data-testid="expand-continuity-bar"
+        >
+          <div className="min-w-0 text-sm">
+            <p className="text-xs text-muted">{t("di.rel.expandPrevious")}</p>
+            {previousResultLabel ? (
+              <p className="truncate font-medium text-foreground">{previousResultLabel}</p>
+            ) : null}
+            <p className="mt-1 text-xs text-muted">
+              {t("di.rel.expandNowFrom")}{" "}
+              <span className="font-medium text-foreground">{draftSource?.label ?? sourceLabel}</span>
+            </p>
           </div>
-        ) : search.isPending ? (
-          <div data-testid="relationship-search-loading">
-            <LoadingState label={t("di.rel.searching")} />
-          </div>
-        ) : search.isError ? (
-          <ErrorState message={t("di.rel.errorLoad")} onRetry={() => search.refetch()} />
-        ) : search.data.summary.total === 0 ? (
-          <EmptyState
-            title={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFound") : t("di.rel.noResults")}
-            message={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFoundHint") : undefined}
-            icon={<Link2 className="h-8 w-8" />}
-          />
-        ) : (
-          <DrugRelationshipSearchResults data={search.data} returnPath={returnPath} onExpand={onExpand} />
-        )}
-      </section>
+          <Button asChild variant="outline" size="sm" className="min-h-10 shrink-0">
+            <Link href={previousResultReturn}>{t("di.rel.backToPreviousResult")}</Link>
+          </Button>
+        </aside>
+      ) : null}
+
+      {showAnswerFirst ? (
+        <>
+          {resultsSection}
+          {quickSearchSection}
+          {queryNotice}
+        </>
+      ) : (
+        <>
+          {quickSearchSection}
+          {queryNotice}
+          {resultsSection}
+        </>
+      )}
     </div>
   );
 }

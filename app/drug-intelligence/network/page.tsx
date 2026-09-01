@@ -88,7 +88,6 @@ import {
   Shrink,
   Route,
   Tags,
-  MapPinned,
   Eye,
   Sparkles,
   PinOff,
@@ -176,6 +175,7 @@ import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligen
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo } from "@/lib/ui/return_context";
+import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -1312,10 +1312,9 @@ function DrugNetworkContent() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {returnTo ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href={returnTo}>
-                  <MapPinned className="h-4 w-4" aria-hidden="true" />
-                  {t("di.map.actionBackToMap")}
+              <Button asChild variant="outline" size="sm" className="min-h-10">
+                <Link href={returnTo} data-testid="back-via-return-to">
+                  {t(returnToBackLabelKey(returnTo))}
                 </Link>
               </Button>
             ) : null}

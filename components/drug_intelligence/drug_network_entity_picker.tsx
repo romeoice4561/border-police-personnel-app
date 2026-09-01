@@ -17,6 +17,7 @@ import {
 import type {
   DrugGraphNodeType,
   DrugSearchEntityType,
+  DrugSearchMatchedField,
   DrugSearchResult,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -25,15 +26,24 @@ export interface DrugNetworkEntitySelection {
   entityType: DrugGraphNodeType;
   entityId: string;
   label: string;
+  /** Original typed query — presentation/query context only (Phase 1B.2.3). */
+  queryText?: string;
+  /** Authoritative Search match field when available. */
+  matchedField?: DrugSearchMatchedField;
+  /** Policy-masked matched value from Search when available. */
+  matchedValueMasked?: string;
 }
 
 const DEBOUNCE_MS = 300;
 
-function toSelection(result: DrugSearchResult): DrugNetworkEntitySelection {
+function toSelection(result: DrugSearchResult, queryText?: string): DrugNetworkEntitySelection {
   return {
     entityType: result.entityType as DrugGraphNodeType,
     entityId: result.canonicalTarget?.entityId ?? result.entityId,
     label: result.canonicalTarget?.primaryLabel ?? result.primaryLabel,
+    queryText: queryText?.trim() || undefined,
+    matchedField: result.matchedField,
+    matchedValueMasked: result.matchedValueMasked,
   };
 }
 
@@ -112,13 +122,13 @@ export function DrugNetworkEntityPicker({
     if (autoConfirmedForQuery.current === debouncedQuery) return;
     if (!shouldAutoConfirmExactMatch(flatResults)) return;
     autoConfirmedForQuery.current = debouncedQuery;
-    onSelectRef.current(toSelection(flatResults[0]!));
+    onSelectRef.current(toSelection(flatResults[0]!, debouncedQuery));
   }, [autoConfirmExact, debouncedQuery, flatResults, search.data, search.isFetching, search.isPending]);
 
   function selectAt(index: number) {
     const row = flatResults[index];
     if (!row) return;
-    onSelectRef.current(toSelection(row));
+    onSelectRef.current(toSelection(row, debouncedQuery || inputValue));
     setInputValue("");
     setDebouncedQuery("");
     setOpen(false);

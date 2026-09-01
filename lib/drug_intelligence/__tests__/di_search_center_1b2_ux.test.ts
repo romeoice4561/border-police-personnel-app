@@ -57,14 +57,16 @@ describe("Phase 1B.2 Relationship 3-step workflow", () => {
   test("workflow + primary CTA appear before Quick Search (above-the-fold hierarchy)", () => {
     const workflowIdx = panelSrc.indexOf('data-testid="relationship-workflow"');
     const ctaIdx = panelSrc.indexOf('data-testid="rel-search-submit"');
-    const quickIdx = panelSrc.indexOf('data-testid="relationship-quick-search"');
-    const noticeIdx = panelSrc.indexOf('data-testid="query-condition-notice"');
-    const resultsIdx = panelSrc.indexOf('data-testid="relationship-results-area"');
-    assert.ok(workflowIdx >= 0 && ctaIdx >= 0 && quickIdx >= 0 && noticeIdx >= 0 && resultsIdx >= 0);
+    assert.ok(workflowIdx >= 0 && ctaIdx >= 0);
     assert.ok(workflowIdx < ctaIdx, "CTA must sit inside/after workflow markup");
-    assert.ok(ctaIdx < quickIdx, "primary Search CTA must precede Quick Search");
-    assert.ok(quickIdx < noticeIdx, "Quick Search must precede QUERY notice");
-    assert.ok(noticeIdx < resultsIdx, "QUERY notice must precede results");
+    // Phase 1B.2.3: after execution, answer-first order swaps Quick Search below results.
+    assert.match(panelSrc, /showAnswerFirst/);
+    assert.match(panelSrc, /\{showAnswerFirst \? \([\s\S]*resultsSection[\s\S]*quickSearchSection/);
+  });
+
+  test("after search, Quick Search must not interrupt results (answer-first)", () => {
+    assert.match(panelSrc, /showAnswerFirst \? \([\s\S]*\{resultsSection\}[\s\S]*\{quickSearchSection\}/);
+    assert.match(panelSrc, /data-collapsed=\{showAnswerFirst \? "true" : "false"\}/);
   });
 
   test("selected source renders concrete entity card", () => {
@@ -147,13 +149,13 @@ describe("Phase 1B.2 governance + results", () => {
     assert.match(panelSrc, /border-dashed/);
   });
 
-  test("results keep Open Network primary and Expand secondary", () => {
+  test("results keep detail/network primary hierarchy with why/evidence sections", () => {
     assert.match(resultsSrc, /di\.rel\.openNetwork/);
     assert.match(resultsSrc, /di\.rel\.expand/);
     assert.match(resultsSrc, /variant="accent"/);
-    assert.match(resultsSrc, /di\.rel\.foundWhat/);
-    assert.match(resultsSrc, /di\.rel\.howLinked/);
-    assert.match(resultsSrc, /di\.rel\.evidenceLabel/);
+    assert.match(resultsSrc, /di\.rel\.whyFoundLabel/);
+    assert.match(resultsSrc, /di\.rel\.evidenceInSystem/);
+    assert.match(resultsSrc, /primaryIsDetail/);
   });
 
   test("page header uses stronger Search Center identity", () => {

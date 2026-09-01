@@ -57,6 +57,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Maximize2, MapPinned, ChevronDown, ChevronUp, X, RefreshCw, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
@@ -66,6 +67,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useOrganizationEngine } from "@/lib/ui/hooks";
+import { getSafeReturnTo } from "@/lib/ui/return_context";
+import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import { useDrugGeoResult } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { DrugGeoFilterPanel } from "@/components/drug_intelligence/drug_geo_filter_panel";
 import { DrugGeoFilterChips } from "@/components/drug_intelligence/drug_geo_filter_chips";
@@ -134,6 +137,7 @@ function DrugIntelligenceMapPageContent() {
   const [fitToken, setFitToken] = useState(0);
 
   const filters = useMemo(() => drugGeoFilterStateFromSearchParams(searchParams), [searchParams]);
+  const inboundReturnTo = getSafeReturnTo(searchParams);
 
   // DI-8.2.1: a real browser navigation, not router.push/replace — see the
   // file's top doc comment for why. Kept as ONE shared helper so both
@@ -146,14 +150,17 @@ function DrugIntelligenceMapPageContent() {
     (patch: Partial<DrugGeoFilterState>) => {
       const next = { ...filters, ...patch };
       const params = drugGeoFilterStateToSearchParams(next);
+      if (inboundReturnTo) params.set("returnTo", inboundReturnTo);
       navigateToMapUrl(`/drug-intelligence/map${params.toString() ? `?${params.toString()}` : ""}`);
     },
-    [filters, navigateToMapUrl]
+    [filters, inboundReturnTo, navigateToMapUrl]
   );
 
   const clearAll = useCallback(() => {
-    navigateToMapUrl("/drug-intelligence/map");
-  }, [navigateToMapUrl]);
+    const params = new URLSearchParams();
+    if (inboundReturnTo) params.set("returnTo", inboundReturnTo);
+    navigateToMapUrl(`/drug-intelligence/map${params.toString() ? `?${params.toString()}` : ""}`);
+  }, [inboundReturnTo, navigateToMapUrl]);
 
   if (!can("drug.read")) {
     return (
@@ -168,6 +175,7 @@ function DrugIntelligenceMapPageContent() {
       filters={filters}
       applyFilters={applyFilters}
       clearAll={clearAll}
+      inboundReturnTo={inboundReturnTo}
       viewMode={viewMode}
       setViewMode={setViewMode}
       expanded={expanded}
@@ -192,6 +200,7 @@ function DrugIntelligenceMapContent({
   filters,
   applyFilters,
   clearAll,
+  inboundReturnTo,
   viewMode,
   setViewMode,
   expanded,
@@ -212,6 +221,7 @@ function DrugIntelligenceMapContent({
   filters: DrugGeoFilterState;
   applyFilters: (patch: Partial<DrugGeoFilterState>) => void;
   clearAll: () => void;
+  inboundReturnTo: string | null;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   expanded: boolean;
@@ -299,6 +309,13 @@ function DrugIntelligenceMapContent({
           description={t("di.map.subtitle")}
           actions={
             <div className="flex flex-wrap items-center gap-2">
+              {inboundReturnTo ? (
+                <Button asChild variant="outline" size="sm" className="min-h-10">
+                  <Link href={inboundReturnTo} data-testid="back-via-return-to">
+                    {t(returnToBackLabelKey(inboundReturnTo))}
+                  </Link>
+                </Button>
+              ) : null}
               {activeFilterCount > 0 ? (
                 <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
                   {t("di.map.activeFilters")}: {activeFilterCount}

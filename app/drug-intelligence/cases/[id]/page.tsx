@@ -15,6 +15,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History } from "lucide-react";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
+import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -110,10 +111,9 @@ export default function DrugCaseWorkspacePage() {
         actions={
           <div className="flex flex-wrap gap-2">
             {returnTo ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href={returnTo}>
-                  <MapPinned className="h-4 w-4" aria-hidden="true" />
-                  {t("di.map.actionBackToMap")}
+              <Button asChild variant="outline" size="sm" className="min-h-10">
+                <Link href={returnTo} data-testid="back-via-return-to">
+                  {t(returnToBackLabelKey(returnTo))}
                 </Link>
               </Button>
             ) : null}

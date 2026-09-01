@@ -55,6 +55,7 @@ import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_
 import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
+import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type {
   DrugPersonProfileResponse,
   DrugCaseLinkSummary,
@@ -181,10 +182,9 @@ function DrugPersonProfileContent() {
         actions={
           <div className="flex flex-wrap gap-2">
             {returnTo ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href={returnTo}>
-                  <MapPinned className="h-4 w-4" aria-hidden="true" />
-                  {t("di.map.actionBackToMap")}
+              <Button asChild variant="outline" size="sm" className="min-h-10">
+                <Link href={returnTo} data-testid="back-via-return-to">
+                  {t(returnToBackLabelKey(returnTo))}
                 </Link>
               </Button>
             ) : null}

@@ -37,6 +37,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { useDrugTimeline, useDrugTimelineGeographic } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { normalizeThaiPersonnelDateForSave, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
+import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type { DrugTimelineEvent, DrugTimelineSortDirection, DrugTimelineGroupMode } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 type ViewMode = "TIMELINE" | "GEOGRAPHIC";
@@ -127,10 +128,9 @@ function DrugTimelineContent() {
         description={t("di.timeline.description")}
         actions={
           returnTo ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href={returnTo}>
-                <MapPinned className="h-4 w-4" aria-hidden="true" />
-                {t("di.map.actionBackToMap")}
+            <Button asChild variant="outline" size="sm" className="min-h-10">
+              <Link href={returnTo} data-testid="back-via-return-to">
+                {t(returnToBackLabelKey(returnTo))}
               </Link>
             </Button>
           ) : null

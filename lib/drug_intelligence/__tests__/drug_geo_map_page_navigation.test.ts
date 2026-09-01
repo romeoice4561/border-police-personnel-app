@@ -80,10 +80,15 @@ test("applyFilters merges the patch into current filters before navigating (must
   assert.match(fnMatch![1], /\{\s*\.\.\.filters,\s*\.\.\.patch\s*\}/);
 });
 
-test("clearAll navigates to the bare /drug-intelligence/map path with no leftover query string", () => {
+test("clearAll clears map filters and may only preserve safe inbound returnTo", () => {
   const fnMatch = code.match(/const clearAll = useCallback\(\(\) => \{([\s\S]*?)\},\s*\[/);
   assert.ok(fnMatch, "could not locate clearAll body");
-  assert.match(fnMatch![1], /navigateToMapUrl\(\s*["']\/drug-intelligence\/map["']\s*\)/);
+  const body = fnMatch![1];
+  assert.match(body, /navigateToMapUrl\(`/);
+  assert.match(body, /\/drug-intelligence\/map/);
+  // Filter query state must not be re-applied on clear — only optional returnTo.
+  assert.doesNotMatch(body, /drugGeoFilterStateToSearchParams/);
+  assert.match(body, /inboundReturnTo/);
 });
 
 test("both applyFilters and clearAll route through the same shared navigation helper (no drift between the two call sites)", () => {
