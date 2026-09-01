@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   ChevronDown,
@@ -56,6 +57,9 @@ import {
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
+
+/** Canonical pre-search Relationship Search URL — no leftover rel* state. */
+export const RELATIONSHIP_SEARCH_CLEAN_HREF = "/drug-intelligence/search?mode=relationship";
 
 const SOURCE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE"];
 
@@ -230,6 +234,7 @@ function stepShellClass(status: GuidedStepStatus): string {
 export function DrugRelationshipSearchPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { user, can } = useAuth();
   const { t } = useT();
   const canViewFull = can("drug.edit");
@@ -244,6 +249,11 @@ export function DrugRelationshipSearchPanel() {
   const [sourceQueryContext, setSourceQueryContext] = useState<DrugRelationshipSourceQueryContext | null>(null);
   const [previousResultReturn, setPreviousResultReturn] = useState<string | null>(null);
   const [previousResultLabel, setPreviousResultLabel] = useState<string | null>(null);
+  /**
+   * Phase 1B.2.4B — immediately hide answer/results when resetting, even if
+   * URL searchParams briefly lag behind router.replace.
+   */
+  const [sessionSuppressed, setSessionSuppressed] = useState(false);
 
   const sourceType = (searchParams.get("relSourceType") as DrugGraphNodeType | null) ?? "PHONE";
   const sourceId = searchParams.get("relSourceId") ?? "";
@@ -255,6 +265,11 @@ export function DrugRelationshipSearchPanel() {
   const page = Number(searchParams.get("relPage") ?? "1") || 1;
   const run = searchParams.get("relRun") === "1";
   const activePresetId = searchParams.get("relPreset") ?? "";
+  const [prevRun, setPrevRun] = useState(run);
+  if (run !== prevRun) {
+    setPrevRun(run);
+    if (!run && sessionSuppressed) setSessionSuppressed(false);
+  }
 
   const [draftSourceType, setDraftSourceType] = useState<DrugGraphNodeType>(
     SOURCE_TYPES.includes(sourceType) ? sourceType : "PHONE"
@@ -491,6 +506,7 @@ export function DrugRelationshipSearchPanel() {
     if (!relation) return;
     if (!relation.targetOptional && !draftTarget) return;
     if (submitting) return;
+    setSessionSuppressed(false);
     setSubmitting(true);
     scrolledForRun.current = null;
     pushRelationshipParams(
@@ -522,7 +538,14 @@ export function DrugRelationshipSearchPanel() {
     });
   }
 
+  /**
+   * Canonical full Relationship Search session reset (Phase 1B.2.4B).
+   * Clears drafts, sessionStorage query context, expand continuity, React Query
+   * relationship cache, and replaces the URL with a clean mode=relationship href.
+   */
   function resetAll() {
+    setSessionSuppressed(true);
+    setSubmitting(false);
     setDraftSourceType("PHONE");
     setDraftSource(null);
     setDraftRelationId("");
@@ -536,21 +559,11 @@ export function DrugRelationshipSearchPanel() {
     setPreviousResultReturn(null);
     setPreviousResultLabel(null);
     scrolledForRun.current = null;
-    pushRelationshipParams({
-      relSourceType: undefined,
-      relSourceId: undefined,
-      relSourceLabel: undefined,
-      relationId: undefined,
-      relTargetType: undefined,
-      relTargetId: undefined,
-      relTargetLabel: undefined,
-      relRun: undefined,
-      relPage: undefined,
-      relPreset: undefined,
-    });
+    queryClient.removeQueries({ queryKey: ["drug-relationship-search"] });
+    router.replace(RELATIONSHIP_SEARCH_CLEAN_HREF);
   }
 
-  /** Phase 1B.2.4 — clear completed answer and return to a clean pre-search state. */
+  /** Phase 1B.2.4 — clear completed answer via the same full-reset primitive. */
   function startNewSearch() {
     resetAll();
     focusStep1Soon();
@@ -649,9 +662,12 @@ export function DrugRelationshipSearchPanel() {
             ? t("di.rel.disabledNeedTarget")
             : null;
 
-  const searchingNow = submitting || Boolean(run && query && search.isPending);
-  /** Active completed/running Relationship Search — hide Quick Search from the answer flow. */
-  const showAnswerFirst = Boolean(run && query);
+  const searchingNow = submitting || Boolean(run && query && search.isPending && !sessionSuppressed);
+  /**
+   * Active completed/running Relationship Search — hide Quick Search from the answer flow.
+   * sessionSuppressed forces pre-search UI immediately on ล้างทั้งหมด / ค้นหาใหม่.
+   */
+  const showAnswerFirst = Boolean(run && query) && !sessionSuppressed;
   const searchSettled = showAnswerFirst && !search.isPending;
   const showZeroOrErrorActions =
     searchSettled && (search.isError || Boolean(search.data && search.data.summary.total === 0));
