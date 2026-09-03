@@ -3090,6 +3090,7 @@ export const DICTIONARY = {
   "di.map.seizureSummaryEmpty":    tr("ยังไม่มีของกลางในผลลัพธ์ที่กรอง", "No seized items in the current filtered result"),
   "di.map.trendTitle":             tr("แนวโน้มจำนวนคดีรายเดือน", "Monthly Case Trend"),
   "di.map.trendEmpty":             tr("ยังไม่มีข้อมูลเพียงพอสำหรับแสดงแนวโน้ม", "Not enough data to show a trend"),
+  "di.map.trendTooltip":           tr("จำนวนคดี {count} คดี", "{count} cases"),
   "di.map.kpiDefendantCount":      tr("จำนวนผู้ต้องหา", "Defendants"),
   "di.map.kpiUnitCount":           tr("หน่วยปฏิบัติ", "Operating Units"),
   "di.map.analysisPanelTitle":     tr("แผงวิเคราะห์", "Analysis Panel"),

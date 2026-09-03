@@ -2,24 +2,25 @@
  * DrugGeoTimeTrendChart (Phase DI-8.2, Section 12) — compact monthly
  * case-count trend for the currently filtered map result.
  *
- * Hand-rolled inline SVG bar chart, matching this codebase's existing
- * convention for small visualizations (components/officer/
- * salary_utilization_gauge.tsx) — no charting library exists or is
- * introduced here (Section 12: "use existing project chart conventions;
- * do not add a charting library if one already exists" — none does).
- * role="img" + aria-label + a visually-hidden textual summary, same as
- * the gauge, so the chart has an accessible textual summary (Section 21).
+ * Hand-rolled CSS-column bar chart, matching the Phase 2B.2.1 Commander
+ * trend fix — NO stretched SVG text. The original implementation used an
+ * inline SVG with preserveAspectRatio="none" and fontSize={6}, which caused
+ * the Thai month abbreviations to be compressed/unreadable at 100% zoom when
+ * the SVG was stretched to fill the analysis panel width.
  *
- * Metric is case COUNT only — never a seizure-quantity axis (Section 12
- * explicitly forbids charting incompatible seizure units on one axis).
+ * Fix: bars are HTML <div> columns inside a flex container; month labels are
+ * real HTML text at text-[12px], identical visual language to CommanderTrendChart.
+ * The SVG is kept ONLY for the bar geometry (no text inside it) — but actually
+ * the simplest and most maintainable approach mirrors Commander exactly: pure
+ * CSS flex columns with percentage heights. No SVG at all.
+ *
+ * role="img" + aria-label + visually-hidden textual summary, same as before.
+ * No new dependency. Tooltip on hover/focus reuses the Commander pattern.
  */
 "use client";
 
 import { useT } from "@/components/i18n/language_provider";
 import { drugGeoTrendMonthLabel, type DrugGeoTimeTrendBucket } from "@/lib/drug_intelligence/drug_geo_time_trend";
-
-const CHART_HEIGHT = 64;
-const BAR_GAP = 4;
 
 export function DrugGeoTimeTrendChart({ buckets }: { buckets: DrugGeoTimeTrendBucket[] }) {
   const { t, language } = useT();
@@ -28,29 +29,61 @@ export function DrugGeoTimeTrendChart({ buckets }: { buckets: DrugGeoTimeTrendBu
     return <p className="text-xs text-muted">{t("di.map.trendEmpty")}</p>;
   }
 
-  const maxCount = Math.max(...buckets.map((b) => b.caseCount));
-  const barWidth = 100 / buckets.length;
-
-  const summary = buckets.map((b) => `${drugGeoTrendMonthLabel(b, language)} ${b.caseCount.toLocaleString("th-TH")}`).join(", ");
+  const maxCount = Math.max(...buckets.map((b) => b.caseCount), 1);
+  const summary = buckets
+    .map((b) => `${drugGeoTrendMonthLabel(b, language)} ${b.caseCount.toLocaleString("th-TH")}`)
+    .join(", ");
   const ariaLabel = `${t("di.map.trendTitle")}: ${summary}`;
 
   return (
     <div role="img" aria-label={ariaLabel}>
-      <svg viewBox={`0 0 100 ${CHART_HEIGHT}`} preserveAspectRatio="none" className="h-16 w-full" aria-hidden="true">
-        {buckets.map((b, i) => {
-          const barHeight = maxCount > 0 ? (b.caseCount / maxCount) * (CHART_HEIGHT - 14) : 0;
-          const x = i * barWidth + BAR_GAP / 2;
-          const width = Math.max(barWidth - BAR_GAP, 1);
-          return (
-            <g key={b.monthKey}>
-              <rect x={x} y={CHART_HEIGHT - 14 - barHeight} width={width} height={Math.max(barHeight, 1)} rx={1} fill="var(--accent)" />
-              <text x={x + width / 2} y={CHART_HEIGHT - 2} textAnchor="middle" fontSize={6} fill="var(--muted)">
-                {drugGeoTrendMonthLabel(b, language)}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+      {/* Overflow-x scroll so narrow panels (≤320px) don't crush bars */}
+      <div className="-mx-1 overflow-x-auto px-1">
+        <div
+          className="flex items-end gap-0.5"
+          data-testid="map-trend-chart"
+          style={{ minWidth: `${buckets.length * 28}px` }}
+        >
+          {buckets.map((b) => {
+            const label = drugGeoTrendMonthLabel(b, language);
+            const barPct = (b.caseCount / maxCount) * 100;
+            return (
+              <div
+                key={b.monthKey}
+                className="group relative flex min-w-0 flex-1 flex-col items-center"
+                aria-label={`${label}: ${b.caseCount} คดี`}
+              >
+                {/* Hover tooltip */}
+                <span className="pointer-events-none absolute bottom-full z-10 mb-1 hidden w-max max-w-[9rem] rounded-md border border-border bg-surface px-2 py-1 text-left text-[12px] text-foreground shadow-sm group-hover:block">
+                  <span className="block font-medium">{label}</span>
+                  <span className="block text-muted">
+                    {t("di.map.trendTooltip").replace("{count}", b.caseCount.toLocaleString("th-TH"))}
+                  </span>
+                </span>
+
+                {/* Bar column */}
+                <div className="flex h-16 w-full flex-col items-center justify-end">
+                  {b.caseCount > 0 ? (
+                    <span className="mb-0.5 text-[11px] font-medium tabular-nums text-foreground">
+                      {b.caseCount.toLocaleString("th-TH")}
+                    </span>
+                  ) : null}
+                  <span
+                    className="w-[70%] max-w-[2rem] rounded-t-sm bg-accent/90"
+                    style={{ height: `${Math.max(barPct, b.caseCount > 0 ? 8 : 2)}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+
+                {/* Month label — real HTML text, never inside a stretched SVG */}
+                <span className="mt-1 w-full text-center text-[12px] leading-tight text-foreground">
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <p className="sr-only">{ariaLabel}</p>
     </div>
   );
