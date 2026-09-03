@@ -65,12 +65,12 @@ function withCommanderReturn(
 
 function buildCommanderCasesPath(
   filter: CommanderDashboardFilter,
-  overrides?: { arrestDateFrom?: string; arrestDateTo?: string }
+  overrides?: { arrestDateFrom?: string; arrestDateTo?: string; province?: string }
 ): string {
   const params = new URLSearchParams();
   setIf(params, "arrestDateFrom", overrides?.arrestDateFrom ?? toCommanderIsoDate(filter.arrestDateFrom));
   setIf(params, "arrestDateTo", overrides?.arrestDateTo ?? toCommanderIsoDate(filter.arrestDateTo));
-  setIf(params, "province", filter.province);
+  setIf(params, "province", overrides?.province ?? filter.province);
   setIf(params, "status", filter.status);
   const org = reportingOrgParams(filter);
   setIf(params, "headquartersId", org.headquartersId);
@@ -83,7 +83,7 @@ function buildCommanderCasesPath(
 
 export function commanderCasesHref(
   filter: CommanderDashboardFilter,
-  overrides?: { arrestDateFrom?: string; arrestDateTo?: string },
+  overrides?: { arrestDateFrom?: string; arrestDateTo?: string; province?: string },
   urlState?: CommanderUrlState
 ): string {
   return withCommanderReturn(buildCommanderCasesPath(filter, overrides), filter, urlState);

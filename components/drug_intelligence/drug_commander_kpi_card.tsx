@@ -8,6 +8,7 @@
  */
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -19,6 +20,7 @@ interface CommanderKpiCardProps {
   description?: string;
   subtitle?: string;
   footnote?: string;
+  comparison?: ReactNode;
   icon: LucideIcon;
   href?: string;
   loading?: boolean;
@@ -32,6 +34,7 @@ export function CommanderKpiCard({
   description,
   subtitle,
   footnote,
+  comparison,
   icon: Icon,
   href,
   loading,
@@ -71,6 +74,7 @@ export function CommanderKpiCard({
         {footnote && (
           <span className="block text-xs text-muted mt-2 leading-snug">{footnote}</span>
         )}
+        {comparison}
       </div>
     </Card>
   );

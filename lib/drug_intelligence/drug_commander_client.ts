@@ -16,6 +16,7 @@ import type {
   CommanderAreasData,
   CommanderUnitsData,
   CommanderSignalsData,
+  CommanderDecisionData,
 } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 
 interface ApiEnvelope<T> {
@@ -100,6 +101,10 @@ export const drugCommanderClient = {
 
   async getSignals(actorId: string): Promise<CommanderSignalsData> {
     return request<CommanderSignalsData>(`${BASE}/signals${toQueryString({ actorId })}`);
+  },
+
+  async getDecision(params: CommanderQueryParams): Promise<CommanderDecisionData> {
+    return request<CommanderDecisionData>(`${BASE}/decision${toQueryString(params)}`);
   },
 };
 

@@ -20,6 +20,10 @@
 
 import type { DatabaseClient } from "@/lib/database/database_types";
 import { buildCommanderCaseWhere, type CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
+import {
+  filterForCommanderComparisonPeriod,
+  resolveCommanderComparisonPeriod,
+} from "@/lib/drug_intelligence/drug_commander_comparison";
 import { DRUG_CATEGORY_LABELS, type DrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
 import type {
   CommanderOverviewData,
@@ -31,6 +35,7 @@ import type {
   CommanderUnitRow,
   CommanderSignalsData,
   CommanderFilterMeta,
+  CommanderDecisionData,
 } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 
 const ARRESTED_ROLES = ["ARRESTED_PERSON", "ACCUSED"] as const;
@@ -47,6 +52,82 @@ function toNum(val: unknown): number {
     return (val as { toNumber(): number }).toNumber();
   }
   return Number(val);
+}
+
+function resolveUnitGroupField(filter: CommanderDashboardFilter): { groupField: string; groupBy: string } {
+  if (filter.reportingBattalionId !== undefined) return { groupField: "companyId", groupBy: "company" };
+  if (filter.reportingRegionId !== undefined) return { groupField: "battalionId", groupBy: "battalion" };
+  if (filter.reportingHeadquartersId !== undefined) return { groupField: "regionId", groupBy: "region" };
+  return { groupField: "battalionId", groupBy: "battalion" };
+}
+
+function aggregateCommanderSeizures(seizedItems: unknown[]): CommanderSeizureItem[] {
+  type GroupKey = string;
+  const groups = new Map<GroupKey, {
+    drugCategory: string;
+    measurementKind: string;
+    totalQuantity: number;
+    totalWeightGrams: number;
+    sampleUnit: string | null;
+  }>();
+
+  for (const item of seizedItems as Array<Record<string, unknown>>) {
+    const cat = String(item.drugCategory ?? "OTHER");
+    const kind = String(item.measurementKind ?? "COUNT");
+    const key: GroupKey = `${cat}::${kind}`;
+
+    const existing = groups.get(key);
+    if (existing) {
+      if (kind === "COUNT") {
+        existing.totalQuantity += toNum(item.quantity);
+      } else {
+        existing.totalWeightGrams += toNum(item.weightGrams);
+      }
+    } else {
+      groups.set(key, {
+        drugCategory: cat,
+        measurementKind: kind,
+        totalQuantity: kind === "COUNT" ? toNum(item.quantity) : 0,
+        totalWeightGrams: kind === "MASS" ? toNum(item.weightGrams) : 0,
+        sampleUnit: kind === "COUNT" ? (typeof item.unit === "string" ? item.unit : null) : null,
+      });
+    }
+  }
+
+  const items: CommanderSeizureItem[] = [];
+  for (const [, g] of groups) {
+    const labelTh = DRUG_CATEGORY_LABELS[g.drugCategory as DrugCategory]?.labelTh ?? g.drugCategory;
+    if (g.measurementKind === "COUNT") {
+      items.push({
+        drugCategory: g.drugCategory,
+        labelTh,
+        measurementKind: "COUNT",
+        totalQuantity: g.totalQuantity,
+        totalWeightGrams: null,
+        totalWeightKg: null,
+        displayUnit: g.sampleUnit,
+      });
+    } else {
+      items.push({
+        drugCategory: g.drugCategory,
+        labelTh,
+        measurementKind: "MASS",
+        totalQuantity: null,
+        totalWeightGrams: g.totalWeightGrams,
+        totalWeightKg: g.totalWeightGrams / 1000,
+        displayUnit: null,
+      });
+    }
+  }
+
+  const categoryOrder = ["METHAMPHETAMINE_TABLET", "CRYSTAL_METHAMPHETAMINE", "HEROIN", "KETAMINE", "MDMA", "COCAINE", "OPIUM", "CANNABIS", "OTHER"];
+  items.sort((a, b) => {
+    const ai = categoryOrder.indexOf(a.drugCategory);
+    const bi = categoryOrder.indexOf(b.drugCategory);
+    if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return a.measurementKind.localeCompare(b.measurementKind);
+  });
+  return items;
 }
 
 function serializeFilterMeta(filter: CommanderDashboardFilter): CommanderFilterMeta {
@@ -136,75 +217,11 @@ export class DrugCommanderDashboardService {
       where: { caseId: { in: caseIds } },
     });
 
-    // Group by (drugCategory, measurementKind) — NEVER mix COUNT + MASS
-    type GroupKey = string;
-    const groups = new Map<GroupKey, {
-      drugCategory: string;
-      measurementKind: string;
-      totalQuantity: number;
-      totalWeightGrams: number;
-      sampleUnit: string | null;
-    }>();
-
-    for (const item of seizedItems as Array<Record<string, unknown>>) {
-      const cat = String(item.drugCategory ?? "OTHER");
-      const kind = String(item.measurementKind ?? "COUNT");
-      const key: GroupKey = `${cat}::${kind}`;
-
-      const existing = groups.get(key);
-      if (existing) {
-        if (kind === "COUNT") {
-          existing.totalQuantity += toNum(item.quantity);
-        } else {
-          existing.totalWeightGrams += toNum(item.weightGrams);
-        }
-      } else {
-        groups.set(key, {
-          drugCategory: cat,
-          measurementKind: kind,
-          totalQuantity: kind === "COUNT" ? toNum(item.quantity) : 0,
-          totalWeightGrams: kind === "MASS" ? toNum(item.weightGrams) : 0,
-          sampleUnit: kind === "COUNT" ? (typeof item.unit === "string" ? item.unit : null) : null,
-        });
-      }
-    }
-
-    const items: CommanderSeizureItem[] = [];
-    for (const [, g] of groups) {
-      const labelTh = DRUG_CATEGORY_LABELS[g.drugCategory as DrugCategory]?.labelTh ?? g.drugCategory;
-      if (g.measurementKind === "COUNT") {
-        items.push({
-          drugCategory: g.drugCategory,
-          labelTh,
-          measurementKind: "COUNT",
-          totalQuantity: g.totalQuantity,
-          totalWeightGrams: null,
-          totalWeightKg: null,
-          displayUnit: g.sampleUnit,
-        });
-      } else {
-        items.push({
-          drugCategory: g.drugCategory,
-          labelTh,
-          measurementKind: "MASS",
-          totalQuantity: null,
-          totalWeightGrams: g.totalWeightGrams,
-          totalWeightKg: g.totalWeightGrams / 1000,
-          displayUnit: null,
-        });
-      }
-    }
-
-    // Sort by drug category (standard order), then by measurementKind
-    const categoryOrder = ["METHAMPHETAMINE_TABLET", "CRYSTAL_METHAMPHETAMINE", "HEROIN", "KETAMINE", "MDMA", "COCAINE", "OPIUM", "CANNABIS", "OTHER"];
-    items.sort((a, b) => {
-      const ai = categoryOrder.indexOf(a.drugCategory);
-      const bi = categoryOrder.indexOf(b.drugCategory);
-      if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-      return a.measurementKind.localeCompare(b.measurementKind);
-    });
-
-    return { items, filter: serializeFilterMeta(filter), generatedAt: new Date().toISOString() };
+    return {
+      items: aggregateCommanderSeizures(seizedItems),
+      filter: serializeFilterMeta(filter),
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   // ── Trend ──────────────────────────────────────────────────────────────
@@ -285,22 +302,7 @@ export class DrugCommanderDashboardService {
   async getUnits(filter: CommanderDashboardFilter): Promise<CommanderUnitsData> {
     const caseWhere = buildCommanderCaseWhere(filter);
 
-    // Determine grouping level based on filter specificity
-    let groupField: string;
-    let groupBy: string;
-    if (filter.reportingBattalionId !== undefined) {
-      groupField = "companyId";
-      groupBy = "company";
-    } else if (filter.reportingRegionId !== undefined) {
-      groupField = "battalionId";
-      groupBy = "battalion";
-    } else if (filter.reportingHeadquartersId !== undefined) {
-      groupField = "regionId";
-      groupBy = "region";
-    } else {
-      groupField = "battalionId";
-      groupBy = "battalion";
-    }
+    const { groupField, groupBy } = resolveUnitGroupField(filter);
 
     const cases = await this.db.drugCase.findMany({
       where: caseWhere,
@@ -459,5 +461,111 @@ export class DrugCommanderDashboardService {
     }));
 
     return { signalCounts, topSignals, totalNewAlerts, generatedAt: new Date().toISOString() };
+  }
+
+  // ── Decision support (Phase 2D) ─────────────────────────────────────────
+  //
+  // Extra queries stay bounded to the previous comparable window plus two
+  // cheap current-period counts. Current KPI/seizure/area/unit numbers stay
+  // on the existing endpoints so this does not double every Commander query.
+
+  async getDecision(filter: CommanderDashboardFilter): Promise<CommanderDecisionData> {
+    const comparison = resolveCommanderComparisonPeriod(filter);
+    const previousFilter = filterForCommanderComparisonPeriod(filter, comparison);
+    const previousWhere = buildCommanderCaseWhere(previousFilter);
+    const currentWhere = buildCommanderCaseWhere(filter);
+    const { groupField } = resolveUnitGroupField(filter);
+
+    const previousCases = await this.db.drugCase.findMany({
+      where: previousWhere,
+      select: { id: true, province: true, latitude: true, longitude: true, [groupField]: true },
+    });
+    const previousCaseIds = (previousCases as Array<{ id: string }>).map((c) => c.id);
+
+    let previousArrestedPersonCount = 0;
+    let previousSeizures: CommanderSeizureItem[] = [];
+    if (previousCaseIds.length > 0) {
+      const personRows = await this.db.drugCasePerson.findMany({
+        where: {
+          caseId: { in: previousCaseIds },
+          role: { in: ARRESTED_ROLES as unknown as string[] },
+        },
+        select: { personId: true },
+      });
+      previousArrestedPersonCount = new Set((personRows as Array<{ personId: string }>).map((r) => r.personId)).size;
+
+      const seizedItems = await this.db.drugSeizedItem.findMany({
+        where: { caseId: { in: previousCaseIds } },
+      });
+      previousSeizures = aggregateCommanderSeizures(seizedItems);
+    }
+
+    const previousAreaMap = new Map<string, number>();
+    const previousUnitMap = new Map<string, { unitId: number | null; caseCount: number }>();
+    for (const c of previousCases as Array<Record<string, unknown>>) {
+      const province = typeof c.province === "string" ? c.province : null;
+      if (province) previousAreaMap.set(province, (previousAreaMap.get(province) ?? 0) + 1);
+      const unitVal = c[groupField];
+      const unitId = unitVal !== null && unitVal !== undefined ? Number(unitVal) : null;
+      const unitKey = unitId === null ? "__null__" : String(unitId);
+      const existing = previousUnitMap.get(unitKey);
+      if (existing) existing.caseCount += 1;
+      else previousUnitMap.set(unitKey, { unitId, caseCount: 1 });
+    }
+
+    const previousAreas = [...previousAreaMap.entries()]
+      .map(([province, caseCount]) => ({ province, caseCount }))
+      .sort((a, b) => b.caseCount - a.caseCount || a.province.localeCompare(b.province, "th"));
+    const previousUnits = [...previousUnitMap.values()].sort((a, b) => b.caseCount - a.caseCount);
+
+    const currentCases = await this.db.drugCase.findMany({
+      where: currentWhere,
+      select: { id: true, latitude: true, longitude: true, [groupField]: true },
+    });
+    const currentCaseIds = (currentCases as Array<{ id: string }>).map((c) => c.id);
+    let casesMissingCoordinates = 0;
+    let casesMissingReportingUnit = 0;
+    for (const c of currentCases as Array<Record<string, unknown>>) {
+      if (c.latitude == null || c.longitude == null) casesMissingCoordinates += 1;
+      if (c[groupField] == null) casesMissingReportingUnit += 1;
+    }
+
+    let casesWithIncompleteSeizureCategory = 0;
+    if (currentCaseIds.length > 0) {
+      const seizedRows = await this.db.drugSeizedItem.findMany({
+        where: { caseId: { in: currentCaseIds } },
+        select: { caseId: true, drugCategory: true },
+      });
+      const incomplete = new Set<string>();
+      for (const row of seizedRows as Array<{ caseId: string; drugCategory: string }>) {
+        if (!row.drugCategory || row.drugCategory === "OTHER") incomplete.add(row.caseId);
+      }
+      casesWithIncompleteSeizureCategory = incomplete.size;
+    }
+
+    return {
+      comparisonPeriod: {
+        kind: comparison.kind,
+        from: comparison.from.toISOString(),
+        to: comparison.to.toISOString(),
+        fiscalYear: comparison.fiscalYear,
+        fiscalYearBe: comparison.fiscalYearBe,
+        labelTh: comparison.labelTh,
+        labelEn: comparison.labelEn,
+      },
+      previousCaseCount: previousCaseIds.length,
+      previousArrestedPersonCount,
+      previousSeizures,
+      previousAreas,
+      previousUnits,
+      readiness: {
+        totalCases: currentCaseIds.length,
+        casesMissingReportingUnit,
+        casesMissingCoordinates,
+        casesWithIncompleteSeizureCategory,
+      },
+      filter: serializeFilterMeta(filter),
+      generatedAt: new Date().toISOString(),
+    };
   }
 }

@@ -159,3 +159,44 @@ export interface CommanderSignalsData {
   totalNewAlerts: number;
   generatedAt: string;
 }
+
+// ── Decision support (Phase 2D) ──────────────────────────────────────────
+
+export interface CommanderComparisonPeriodMeta {
+  kind: "previous-fy" | "previous-window";
+  from: string;
+  to: string;
+  fiscalYear?: number;
+  fiscalYearBe?: number;
+  labelTh: string;
+  labelEn: string;
+}
+
+export interface CommanderPreviousAreaRow {
+  province: string;
+  caseCount: number;
+}
+
+export interface CommanderPreviousUnitRow {
+  unitId: number | null;
+  caseCount: number;
+}
+
+export interface CommanderReadinessData {
+  totalCases: number;
+  casesMissingReportingUnit: number;
+  casesMissingCoordinates: number;
+  casesWithIncompleteSeizureCategory: number;
+}
+
+export interface CommanderDecisionData {
+  comparisonPeriod: CommanderComparisonPeriodMeta;
+  previousCaseCount: number;
+  previousArrestedPersonCount: number;
+  previousSeizures: CommanderSeizureItem[];
+  previousAreas: CommanderPreviousAreaRow[];
+  previousUnits: CommanderPreviousUnitRow[];
+  readiness: CommanderReadinessData;
+  filter: CommanderFilterMeta;
+  generatedAt: string;
+}

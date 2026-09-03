@@ -93,6 +93,19 @@ export async function handleCommanderUnits(
   return jsonOk(data, { generatedAt: data.generatedAt });
 }
 
+/** GET /api/drug-intelligence/command/decision — previous-period comparison + readiness */
+export async function handleCommanderDecision(
+  service: DrugCommanderDashboardService,
+  params: URLSearchParams,
+  actorId: string | null,
+  request: Request
+): Promise<Response> {
+  const resolved = await authorizeAndResolve(params, actorId, request);
+  if ("error" in resolved && resolved.error) return resolved.error;
+  const data = await service.getDecision(resolved.filter!);
+  return jsonOk(data, { generatedAt: data.generatedAt });
+}
+
 /** GET /api/drug-intelligence/command/signals — global, not date-bounded */
 export async function handleCommanderSignals(
   service: DrugCommanderDashboardService,

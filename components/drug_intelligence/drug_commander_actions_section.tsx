@@ -1,103 +1,66 @@
 /**
- * CommanderActionsSection (Phase 2B).
+ * Commander Action Center (Phase 2D).
  *
- * Quick-action links for the Commander Dashboard.
- * Navigates to alerts center, duplicate review, cases, map, network.
+ * Workflow queue — not AI advice. Current queues are labelled as such.
  */
 "use client";
 
 import Link from "next/link";
-import { BellRing, GitCompareArrows, Map, Network, FileText, Search } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { useT } from "@/components/i18n/language_provider";
-import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
-import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
-import { commanderAlertsHref, commanderCasesHref, commanderDuplicatesHref, commanderMapHref, commanderNetworkWorkspaceHref, commanderSearchHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 
-interface CommanderAction {
+export interface CommanderActionItem {
+  id: string;
   href: string;
-  icon: typeof BellRing;
-  labelKey: string;
-  descKey?: string;
-  badge?: number;
+  label: string;
+  why: string;
+  count?: number;
+  queueScope?: boolean;
 }
 
 interface Props {
-  pendingDuplicates?: number;
-  newAlerts?: number;
-  filter: CommanderDashboardFilter;
-  urlState?: CommanderUrlState;
+  items: CommanderActionItem[];
 }
 
-export function CommanderActionsSection({ pendingDuplicates, newAlerts, filter, urlState }: Props) {
+export function CommanderActionsSection({ items }: Props) {
   const { t } = useT();
-
-  const actions: CommanderAction[] = [
-    {
-      href: commanderAlertsHref({ status: "NEW" }, filter, urlState),
-      icon: BellRing,
-      labelKey: "di.command.actionAlerts",
-      badge: newAlerts,
-    },
-    {
-      href: commanderDuplicatesHref(filter, urlState),
-      icon: GitCompareArrows,
-      labelKey: "di.command.actionDuplicates",
-      badge: pendingDuplicates,
-    },
-    {
-      href: commanderCasesHref(filter, undefined, urlState),
-      icon: FileText,
-      labelKey: "di.command.viewCases",
-    },
-    {
-      href: commanderMapHref(filter, undefined, urlState),
-      icon: Map,
-      labelKey: "di.command.viewMap",
-    },
-    {
-      href: commanderNetworkWorkspaceHref(filter, urlState),
-      icon: Network,
-      labelKey: "di.command.openNetwork",
-    },
-    {
-      href: commanderSearchHref(filter, urlState),
-      icon: Search,
-      labelKey: "di.command.openSearch",
-    },
-  ];
+  const visible = items.filter((item) => (item.count ?? 0) > 0);
 
   return (
-    <section aria-labelledby="actions-heading">
-      <CardHeader className="mb-4 px-0">
-        <CardTitle id="actions-heading">{t("di.command.actionsTitle")}</CardTitle>
+    <section aria-labelledby="actions-heading" data-testid="commander-action-center">
+      <CardHeader className="mb-2 px-0">
+        <CardTitle id="actions-heading">{t("di.command.actionCenterTitle")}</CardTitle>
       </CardHeader>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {actions.map((action) => {
-          const Icon = action.icon;
-          return (
+      <p className="mb-4 text-xs text-muted">{t("di.command.actionCenterNote")}</p>
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted">{t("di.command.actionCenterEmpty")}</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {visible.map((item) => (
             <Link
-              key={action.href}
-              href={action.href}
-              className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-xl"
+              key={item.id}
+              href={item.href}
+              className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <Card className="flex flex-col items-center gap-2 p-4 text-center hover:border-accent/50 hover:bg-neutral-bg transition-colors relative">
-                {action.badge !== undefined && action.badge > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-serious text-white text-xs font-bold px-1">
-                    {action.badge > 99 ? "99+" : action.badge}
+              <Card className="flex h-full flex-col gap-2 p-4 transition-colors hover:border-accent/50 hover:bg-neutral-bg">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-sm font-medium text-foreground">{item.label}</span>
+                  <span className="shrink-0 text-lg font-bold tabular-nums text-foreground">
+                    {(item.count ?? 0).toLocaleString("th-TH")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted leading-snug">{item.why}</p>
+                {item.queueScope && (
+                  <span className="w-fit rounded-full bg-neutral-bg px-2 py-0.5 text-[11px] text-muted">
+                    {t("di.command.kpiQueueBadge")}
                   </span>
                 )}
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="text-xs font-medium text-foreground leading-tight">
-                  {t(action.labelKey as Parameters<typeof t>[0])}
-                </span>
+                <span className="mt-auto text-xs text-accent">{t("di.command.actionOpen")} →</span>
               </Card>
             </Link>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

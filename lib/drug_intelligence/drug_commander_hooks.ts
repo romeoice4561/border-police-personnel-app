@@ -18,6 +18,7 @@ import type {
   CommanderAreasData,
   CommanderUnitsData,
   CommanderSignalsData,
+  CommanderDecisionData,
 } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 
 export const commanderQueryKeys = {
@@ -32,6 +33,8 @@ export const commanderQueryKeys = {
   units: (actorId: string | null, params: Omit<CommanderQueryParams, "actorId">) =>
     ["commander-units", actorId, params] as const,
   signals: (actorId: string | null) => ["commander-signals", actorId] as const,
+  decision: (actorId: string | null, params: Omit<CommanderQueryParams, "actorId">) =>
+    ["commander-decision", actorId, params] as const,
 };
 
 export function useCommanderOverview(
@@ -99,5 +102,17 @@ export function useCommanderSignals(actorId: string | null): UseQueryResult<Comm
     queryKey: commanderQueryKeys.signals(actorId),
     queryFn: () => drugCommanderClient.getSignals(actorId as string),
     enabled: Boolean(actorId),
+  });
+}
+
+export function useCommanderDecision(
+  actorId: string | null,
+  params: Omit<CommanderQueryParams, "actorId">,
+  enabled = true
+): UseQueryResult<CommanderDecisionData> {
+  return useQuery({
+    queryKey: commanderQueryKeys.decision(actorId, params),
+    queryFn: () => drugCommanderClient.getDecision({ actorId: actorId as string, ...params }),
+    enabled: Boolean(actorId) && enabled,
   });
 }

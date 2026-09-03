@@ -1,12 +1,8 @@
 /**
- * CommanderSignalsSection (Phase 2B).
+ * CommanderSignalsSection (Phase 2D).
  *
- * Network intelligence signals for the Commander Dashboard.
- * Shows 5 count badges (repeat person/phone/SIM/device/vehicle)
- * then up to 5 recent NEW alert cards linking to /drug-intelligence/alerts.
- *
- * Signal cards use "พบในหลายคดี" / "ควรตรวจสอบ" language —
- * NEVER claim criminal relationships.
+ * Existing alert data only. Cautious wording — shared identifiers are not
+ * treated as proven criminal association.
  */
 "use client";
 
@@ -18,7 +14,11 @@ import { useT } from "@/components/i18n/language_provider";
 import { cn } from "@/lib/ui/cn";
 import type { CommanderSignalsData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
-import { commanderAlertsHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import {
+  commanderAlertsHref,
+  commanderSearchHref,
+  commanderSignalNetworkHref,
+} from "@/lib/drug_intelligence/drug_commander_drilldown";
 import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 
 interface Props {
@@ -48,10 +48,11 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry, fil
   const { t } = useT();
 
   return (
-    <section aria-labelledby="signals-heading">
+    <section aria-labelledby="signals-heading" data-testid="commander-signals-review">
       <CardHeader className="mb-1 px-0">
-        <CardTitle id="signals-heading">{t("di.command.signalsTitle")}</CardTitle>
+        <CardTitle id="signals-heading">{t("di.command.signalsReviewTitle")}</CardTitle>
       </CardHeader>
+      <p className="text-xs text-muted mb-2">{t("di.command.signalsQueueBadge")}</p>
       <p className="text-xs text-muted mb-4">{t("di.command.signalsNote")}</p>
 
       {isLoading && <LoadingState />}
@@ -61,7 +62,6 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry, fil
 
       {!isLoading && !isError && data && (
         <div className="space-y-6">
-          {/* Count badges row */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {data.signalCounts.map((sc) => {
               const meta = SIGNAL_TYPE_META[sc.alertType];
@@ -87,34 +87,53 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry, fil
             })}
           </div>
 
-          {/* Top signals list */}
           {data.topSignals.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-muted mb-3">{t("di.command.signalTopTitle")}</h3>
               <div className="space-y-2">
                 {data.topSignals.slice(0, 5).map((signal) => (
-                  <Link
+                  <div
                     key={signal.id}
-                    href={commanderAlertsHref({ status: "NEW", alertType: signal.alertType }, filter, urlState)}
-                    className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                    className={cn(
+                      "rounded-lg border px-4 py-3 text-sm",
+                      SEVERITY_COLORS[signal.severity] ?? "bg-neutral-bg border-border"
+                    )}
                   >
-                    <div
-                      className={cn(
-                        "flex items-start gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:bg-neutral-bg",
-                        SEVERITY_COLORS[signal.severity] ?? "bg-neutral-bg border-border"
-                      )}
-                    >
+                    <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="font-medium truncate">{signal.title}</div>
-                        <div className="mt-0.5 text-xs text-muted">พบในหลายคดี — ควรตรวจสอบ</div>
+                        <div className="mt-0.5 text-xs text-muted">{t("di.command.signalEvidenceCaution")}</div>
+                        {signal.occurrenceCount > 1 && (
+                          <div className="mt-1 text-xs text-muted tabular-nums">
+                            {t("di.command.signalRelatedCases").replace("{count}", String(signal.occurrenceCount))}
+                          </div>
+                        )}
                       </div>
-                      {signal.occurrenceCount > 1 && (
-                        <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium tabular-nums">
-                          {signal.occurrenceCount}×
-                        </span>
-                      )}
+                      <span className="shrink-0 rounded-full bg-neutral-bg px-2 py-0.5 text-xs font-medium">
+                        {t("di.command.signalStatusNew")}
+                      </span>
                     </div>
-                  </Link>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                      <Link
+                        href={commanderAlertsHref({ status: "NEW", alertType: signal.alertType }, filter, urlState)}
+                        className="text-accent hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                      >
+                        {t("di.command.signalViewDetail")}
+                      </Link>
+                      <Link
+                        href={commanderSignalNetworkHref(signal.entityType, signal.entityId, filter, urlState)}
+                        className="text-accent hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                      >
+                        {t("di.command.openNetwork")}
+                      </Link>
+                      <Link
+                        href={commanderSearchHref(filter, urlState)}
+                        className="text-accent hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                      >
+                        {t("di.command.openSearch")}
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
               <div className="mt-3">

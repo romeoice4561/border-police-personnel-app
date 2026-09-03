@@ -12,13 +12,17 @@ import Link from "next/link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingState, ErrorState } from "@/components/common/states";
 import { useT } from "@/components/i18n/language_provider";
-import type { CommanderSeizuresData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
+import type { CommanderSeizureItem, CommanderSeizuresData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderMapHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
+import { compareCommanderSeizures, formatCommanderDeltaCopy } from "@/lib/drug_intelligence/drug_commander_comparison";
+import { CommanderComparisonText } from "@/components/drug_intelligence/drug_commander_comparison_text";
 
 interface Props {
   data: CommanderSeizuresData | undefined;
+  previousItems?: CommanderSeizureItem[];
+  comparisonLabel?: string;
   isLoading: boolean;
   isError: boolean;
   onRetry?: () => void;
@@ -26,8 +30,18 @@ interface Props {
   urlState?: CommanderUrlState;
 }
 
-export function CommanderSeizureSection({ data, isLoading, isError, onRetry, filter, urlState }: Props) {
+export function CommanderSeizureSection({
+  data,
+  previousItems,
+  comparisonLabel,
+  isLoading,
+  isError,
+  onRetry,
+  filter,
+  urlState,
+}: Props) {
   const { t } = useT();
+  const compared = data ? compareCommanderSeizures(data.items, previousItems ?? []) : [];
 
   return (
     <section aria-labelledby="seizures-heading">
@@ -45,7 +59,9 @@ export function CommanderSeizureSection({ data, isLoading, isError, onRetry, fil
           <p className="text-sm text-muted py-4">{t("di.command.seizuresEmpty")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {data.items.map((item) => (
+            {compared.map(({ item, delta }) => {
+              const unit = item.measurementKind === "COUNT" ? (item.displayUnit ?? "เม็ด") : "กก.";
+              return (
               <Link
                 key={`${item.drugCategory}::${item.measurementKind}`}
                 href={commanderMapHref(filter, { drugCategory: item.drugCategory }, urlState)}
@@ -55,6 +71,7 @@ export function CommanderSeizureSection({ data, isLoading, isError, onRetry, fil
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted">
                       {item.labelTh}
+                      <span className="ml-1 font-normal normal-case">({item.measurementKind})</span>
                     </span>
                     {item.measurementKind === "COUNT" && item.totalQuantity !== null && (
                       <span className="text-xl font-bold tabular-nums text-foreground">
@@ -70,10 +87,17 @@ export function CommanderSeizureSection({ data, isLoading, isError, onRetry, fil
                         <span className="ml-1 text-sm font-normal text-muted">กก.</span>
                       </span>
                     )}
+                    {previousItems && (
+                      <CommanderComparisonText
+                        copy={formatCommanderDeltaCopy(delta, unit)}
+                        previousLabel={comparisonLabel ?? t("di.command.comparisonPrevious")}
+                      />
+                    )}
                   </div>
                 </Card>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )
       )}

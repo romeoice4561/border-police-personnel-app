@@ -14,13 +14,15 @@ import { LoadingState, ErrorState } from "@/components/common/states";
 import { useT } from "@/components/i18n/language_provider";
 import { useOrgTree } from "@/lib/ui/hooks";
 import { cn } from "@/lib/ui/cn";
-import type { CommanderUnitsData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
+import type { CommanderPreviousUnitRow, CommanderUnitsData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderUnitCasesHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
+import { compareCommanderMetric, formatCommanderDeltaCopy } from "@/lib/drug_intelligence/drug_commander_comparison";
 
 interface Props {
   data: CommanderUnitsData | undefined;
+  previousUnits?: CommanderPreviousUnitRow[];
   isLoading: boolean;
   isError: boolean;
   onRetry?: () => void;
@@ -28,7 +30,7 @@ interface Props {
   urlState?: CommanderUrlState;
 }
 
-export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filter, urlState }: Props) {
+export function CommanderUnitsSection({ data, previousUnits, isLoading, isError, onRetry, filter, urlState }: Props) {
   const { t } = useT();
   const orgTree = useOrgTree();
 
@@ -41,11 +43,17 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
     return tree.battalions.find((b) => b.id === row.unitId)?.nameTh ?? row.unitLabel;
   }
 
+  function caseDeltaCopy(unitId: number | null, currentCount: number) {
+    const previous = previousUnits?.find((row) => row.unitId === unitId)?.caseCount ?? 0;
+    return formatCommanderDeltaCopy(compareCommanderMetric(currentCount, previous), t("di.command.unitsColCases"));
+  }
+
   return (
     <section aria-labelledby="units-heading">
       <CardHeader className="mb-1 px-0">
         <CardTitle id="units-heading">{t("di.command.unitsTitle")}</CardTitle>
       </CardHeader>
+      <p className="text-xs text-muted mb-1">{t("di.command.unitsSortBasis")}</p>
       <p className="text-xs text-muted mb-4">{t("di.command.unitsSubtitle")}</p>
 
       {isLoading && <LoadingState />}
@@ -103,7 +111,14 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
                           {unitLabel(row)}
                         </Link>
                       </td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{row.caseCount.toLocaleString("th-TH")}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">
+                        <div>{row.caseCount.toLocaleString("th-TH")}</div>
+                        {previousUnits && (
+                          <div className="text-[11px] text-muted font-normal">
+                            {caseDeltaCopy(row.unitId, row.caseCount).changeText}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 pr-4 text-right tabular-nums">{row.arrestedPersonCount.toLocaleString("th-TH")}</td>
                       <td className="py-2 pr-4 text-right tabular-nums text-muted">
                         {row.methTabletCount !== null
@@ -133,7 +148,14 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
                   <div className="mb-2 font-medium">{unitLabel(row)}</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <span className="text-muted">{t("di.command.unitsColCases")}</span>
-                    <span className="text-right tabular-nums font-medium">{row.caseCount.toLocaleString("th-TH")}</span>
+                    <span className="text-right tabular-nums font-medium">
+                      {row.caseCount.toLocaleString("th-TH")}
+                      {previousUnits && (
+                        <span className="block text-[11px] font-normal text-muted">
+                          {caseDeltaCopy(row.unitId, row.caseCount).changeText}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-muted">{t("di.command.unitsColPersons")}</span>
                     <span className="text-right tabular-nums">{row.arrestedPersonCount.toLocaleString("th-TH")}</span>
                     {row.methTabletCount !== null && (

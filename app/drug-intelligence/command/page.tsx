@@ -1,7 +1,7 @@
 /**
- * Commander Intelligence Dashboard (Phase 2B / 2C).
+ * Commander Intelligence Dashboard (Phase 2B / 2C / 2D).
  *
- * Dedicated decision-support workspace. The operational landing at
+ * Decision-support workspace. The operational landing at
  * /drug-intelligence is unchanged.
  */
 "use client";
@@ -15,12 +15,15 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { CommanderFilterBar } from "@/components/drug_intelligence/drug_commander_filter_bar";
 import { CommanderKpiCard } from "@/components/drug_intelligence/drug_commander_kpi_card";
+import { CommanderComparisonText } from "@/components/drug_intelligence/drug_commander_comparison_text";
+import { CommanderSituationSection } from "@/components/drug_intelligence/drug_commander_situation_section";
 import { CommanderSeizureSection } from "@/components/drug_intelligence/drug_commander_seizure_section";
 import { CommanderTrendChart } from "@/components/drug_intelligence/drug_commander_trend_chart";
 import { CommanderAreasSection } from "@/components/drug_intelligence/drug_commander_areas_section";
 import { CommanderUnitsSection } from "@/components/drug_intelligence/drug_commander_units_section";
 import { CommanderSignalsSection } from "@/components/drug_intelligence/drug_commander_signals_section";
 import { CommanderActionsSection } from "@/components/drug_intelligence/drug_commander_actions_section";
+import { CommanderReadinessSection } from "@/components/drug_intelligence/drug_commander_readiness_section";
 import {
   useCommanderOverview,
   useCommanderSeizures,
@@ -28,6 +31,7 @@ import {
   useCommanderAreas,
   useCommanderUnits,
   useCommanderSignals,
+  useCommanderDecision,
 } from "@/lib/drug_intelligence/drug_commander_hooks";
 import type { CommanderQueryParams } from "@/lib/drug_intelligence/drug_commander_client";
 import { resolveCommanderFilter } from "@/lib/drug_intelligence/drug_commander_filter";
@@ -40,8 +44,14 @@ import {
   commanderAlertsHref,
   commanderCasesHref,
   commanderDuplicatesHref,
+  commanderMapHref,
   commanderPersonsHref,
 } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import {
+  buildCommanderSituationObservations,
+  compareCommanderMetric,
+  formatCommanderDeltaCopy,
+} from "@/lib/drug_intelligence/drug_commander_comparison";
 
 export default function CommanderDashboardPage() {
   return (
@@ -53,7 +63,7 @@ export default function CommanderDashboardPage() {
 
 function CommanderDashboardContent() {
   const { user } = useAuth();
-  const { t } = useT();
+  const { t, language } = useT();
   const searchParams = useSearchParams();
   const actorId = user?.id ?? null;
   const filter = resolveCommanderFilter(searchParams);
@@ -95,16 +105,64 @@ function CommanderDashboardContent() {
   const areas = useCommanderAreas(actorId, cleanParams, periodEnabled);
   const units = useCommanderUnits(actorId, cleanParams, periodEnabled);
   const signals = useCommanderSignals(actorId);
+  const decision = useCommanderDecision(actorId, cleanParams, periodEnabled);
 
   const overviewData = periodEnabled ? overview.data : undefined;
+  const decisionData = periodEnabled ? decision.data : undefined;
   const displayFiscalYearTh = overviewData?.filter.displayFiscalYearTh ?? filter.displayFiscalYearTh;
   const periodLoading = periodEnabled && (overview.isPending || overview.isFetching);
   const completenessCount = overviewData?.casesWithoutArrestedRoleCount ?? 0;
   const alertsCount = overviewData?.newAlertsCount ?? signals.data?.totalNewAlerts;
   const queueLoading = periodEnabled ? overview.isFetching : signals.isFetching;
+  const comparisonLabel = decisionData
+    ? (language === "en" ? decisionData.comparisonPeriod.labelEn : decisionData.comparisonPeriod.labelTh)
+    : t("di.command.comparisonPrevious");
+
+  const caseDelta = overviewData
+    ? compareCommanderMetric(overviewData.caseCount, decisionData?.previousCaseCount ?? 0)
+    : null;
+  const arrestedDelta = overviewData
+    ? compareCommanderMetric(overviewData.arrestedPersonCount, decisionData?.previousArrestedPersonCount ?? 0)
+    : null;
+
+  const topCountSeizure = (seizures.data?.items ?? [])
+    .filter((item) => item.measurementKind === "COUNT" && (item.totalQuantity ?? 0) > 0)
+    .slice()
+    .sort((a, b) => (b.totalQuantity ?? 0) - (a.totalQuantity ?? 0))[0];
+
+  const situationRows = periodEnabled && overviewData && caseDelta
+    ? buildCommanderSituationObservations({
+        caseCount: overviewData.caseCount,
+        caseDelta,
+        topProvince: areas.data?.rows[0],
+        topCountSeizure: topCountSeizure
+          ? {
+              labelTh: topCountSeizure.labelTh,
+              totalQuantity: topCountSeizure.totalQuantity ?? 0,
+              displayUnit: topCountSeizure.displayUnit,
+            }
+          : undefined,
+        newAlertsCount: alertsCount ?? 0,
+        casesWithoutArrestedRoleCount: completenessCount,
+      }).map((obs) => ({
+        ...obs,
+        actionHref:
+          obs.href === "map"
+            ? commanderMapHref(filter, obs.hrefProvince ? { province: obs.hrefProvince } : undefined, urlState)
+            : obs.href === "alerts"
+              ? commanderAlertsHref({ status: "NEW" }, filter, urlState)
+              : obs.href === "persons"
+                ? commanderPersonsHref(filter, urlState)
+                : obs.href === "duplicates"
+                  ? commanderDuplicatesHref(filter, urlState)
+                  : commanderCasesHref(filter, undefined, urlState),
+      }))
+    : [];
+
+  const readinessTotal = decisionData?.readiness.totalCases ?? overviewData?.caseCount ?? 0;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-0 max-w-full flex-col gap-8 overflow-x-hidden">
       <PageHeader
         title={t("di.command.title")}
         description={t("di.command.description")}
@@ -115,10 +173,21 @@ function CommanderDashboardContent() {
         displayFiscalYearTh={displayFiscalYearTh}
       />
 
-      <section className="order-1" aria-labelledby="overview-heading">
-        <h2 id="overview-heading" className="mb-4 text-lg font-semibold">
+      {periodEnabled ? (
+        <CommanderSituationSection observations={situationRows} />
+      ) : (
+        <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
+      )}
+
+      <section aria-labelledby="overview-heading">
+        <h2 id="overview-heading" className="mb-2 text-lg font-semibold">
           {t("di.command.overviewTitle")}
         </h2>
+        {decisionData && (
+          <p className="mb-4 text-xs text-muted" data-testid="commander-comparison-scope">
+            {t("di.command.comparisonScope")}: {comparisonLabel}
+          </p>
+        )}
         {periodEnabled && overview.isError ? (
           <ErrorState
             message={t("di.command.loadError")}
@@ -134,6 +203,14 @@ function CommanderDashboardContent() {
               icon={FileSpreadsheet}
               href={periodEnabled ? commanderCasesHref(filter, undefined, urlState) : undefined}
               loading={periodLoading}
+              comparison={
+                periodEnabled && caseDelta && decisionData ? (
+                  <CommanderComparisonText
+                    copy={formatCommanderDeltaCopy(caseDelta, t("di.command.unitsColCases"))}
+                    previousLabel={comparisonLabel}
+                  />
+                ) : undefined
+              }
             />
             <CommanderKpiCard
               label={t("di.command.kpiArrested")}
@@ -148,6 +225,14 @@ function CommanderDashboardContent() {
               icon={Users}
               href={periodEnabled ? commanderPersonsHref(filter, urlState) : undefined}
               loading={periodLoading}
+              comparison={
+                periodEnabled && arrestedDelta && decisionData ? (
+                  <CommanderComparisonText
+                    copy={formatCommanderDeltaCopy(arrestedDelta, t("di.command.unitsColPersons"))}
+                    previousLabel={comparisonLabel}
+                  />
+                ) : undefined
+              }
             />
             <CommanderKpiCard
               label={t("di.command.kpiAlerts")}
@@ -173,10 +258,12 @@ function CommanderDashboardContent() {
         )}
       </section>
 
-      <div className="order-7 md:order-2">
+      <div>
         {periodEnabled ? (
           <CommanderSeizureSection
             data={seizures.data}
+            previousItems={decisionData?.previousSeizures}
+            comparisonLabel={comparisonLabel}
             isLoading={seizures.isPending || seizures.isFetching}
             isError={seizures.isError}
             onRetry={() => void seizures.refetch()}
@@ -188,7 +275,7 @@ function CommanderDashboardContent() {
         )}
       </div>
 
-      <div className="order-4 md:order-3">
+      <div>
         {periodEnabled ? (
           <CommanderTrendChart
             data={trend.data}
@@ -203,10 +290,13 @@ function CommanderDashboardContent() {
         )}
       </div>
 
-      <div className="order-5 grid grid-cols-1 gap-8 md:order-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {periodEnabled ? (
           <CommanderAreasSection
             data={areas.data}
+            previousAreas={decisionData?.previousAreas}
+            totalCases={overviewData?.caseCount}
+            comparisonLabel={comparisonLabel}
             isLoading={areas.isPending || areas.isFetching}
             isError={areas.isError}
             onRetry={() => void areas.refetch()}
@@ -216,41 +306,103 @@ function CommanderDashboardContent() {
         ) : (
           <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
         )}
-        <div className="order-6 md:order-none">
-          {periodEnabled ? (
-            <CommanderUnitsSection
-              data={units.data}
-              isLoading={units.isPending || units.isFetching}
-              isError={units.isError}
-              onRetry={() => void units.refetch()}
-              filter={filter}
-              urlState={urlState}
-            />
-          ) : (
-            <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
-          )}
-        </div>
+        {periodEnabled ? (
+          <CommanderUnitsSection
+            data={units.data}
+            previousUnits={decisionData?.previousUnits}
+            isLoading={units.isPending || units.isFetching}
+            isError={units.isError}
+            onRetry={() => void units.refetch()}
+            filter={filter}
+            urlState={urlState}
+          />
+        ) : (
+          <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
+        )}
       </div>
 
-      <div className="order-2 md:order-6">
-        <CommanderSignalsSection
-          data={signals.data}
-          isLoading={signals.isLoading}
-          isError={signals.isError}
-          onRetry={() => void signals.refetch()}
-          filter={filter}
-          urlState={urlState}
-        />
-      </div>
+      <CommanderSignalsSection
+        data={signals.data}
+        isLoading={signals.isLoading}
+        isError={signals.isError}
+        onRetry={() => void signals.refetch()}
+        filter={filter}
+        urlState={urlState}
+      />
 
-      <div className="order-3 md:order-7">
-        <CommanderActionsSection
-          pendingDuplicates={overviewData?.pendingDuplicatesCount}
-          newAlerts={alertsCount}
-          filter={filter}
-          urlState={urlState}
+      <CommanderActionsSection
+        items={[
+          {
+            id: "new-alerts",
+            href: commanderAlertsHref({ status: "NEW" }, filter, urlState),
+            label: t("di.command.actionNewSignals"),
+            why: t("di.command.actionNewSignalsWhy"),
+            count: alertsCount,
+            queueScope: true,
+          },
+          {
+            id: "duplicates",
+            href: commanderDuplicatesHref(filter, urlState),
+            label: t("di.command.actionDuplicates"),
+            why: t("di.command.actionDuplicatesWhy"),
+            count: overviewData?.pendingDuplicatesCount,
+            queueScope: true,
+          },
+          {
+            id: "missing-arrested",
+            href: commanderCasesHref(filter, undefined, urlState),
+            label: t("di.command.actionMissingArrested"),
+            why: t("di.command.actionMissingArrestedWhy"),
+            count: completenessCount,
+          },
+          {
+            id: "unassigned-unit",
+            href: commanderCasesHref(filter, undefined, urlState),
+            label: t("di.command.actionUnassignedUnit"),
+            why: t("di.command.actionUnassignedUnitWhy"),
+            count: units.data?.unassignedCaseCount,
+          },
+          {
+            id: "missing-coords",
+            href: commanderMapHref(filter, undefined, urlState),
+            label: t("di.command.actionMissingCoords"),
+            why: t("di.command.actionMissingCoordsWhy"),
+            count: decisionData?.readiness.casesMissingCoordinates,
+          },
+        ]}
+      />
+
+      {periodEnabled && (
+        <CommanderReadinessSection
+          totalCases={readinessTotal}
+          rows={[
+            {
+              id: "missing-unit",
+              label: t("di.command.readinessMissingUnit"),
+              count: decisionData?.readiness.casesMissingReportingUnit ?? units.data?.unassignedCaseCount ?? 0,
+              href: commanderCasesHref(filter, undefined, urlState),
+            },
+            {
+              id: "missing-coords",
+              label: t("di.command.readinessMissingCoords"),
+              count: decisionData?.readiness.casesMissingCoordinates ?? 0,
+              href: commanderMapHref(filter, undefined, urlState),
+            },
+            {
+              id: "missing-arrested",
+              label: t("di.command.readinessMissingArrested"),
+              count: completenessCount,
+              href: commanderCasesHref(filter, undefined, urlState),
+            },
+            {
+              id: "incomplete-seizure",
+              label: t("di.command.readinessIncompleteSeizure"),
+              count: decisionData?.readiness.casesWithIncompleteSeizureCategory ?? 0,
+              href: commanderCasesHref(filter, undefined, urlState),
+            },
+          ]}
         />
-      </div>
+      )}
     </div>
   );
 }
