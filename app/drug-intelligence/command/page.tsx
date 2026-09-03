@@ -136,7 +136,7 @@ function CommanderDashboardContent() {
               value={overviewData?.newAlertsCount ?? 0}
               description={t("di.command.kpiAlertsDesc")}
               icon={BellRing}
-              href={commanderAlertsHref({ status: "NEW" })}
+              href={commanderAlertsHref({ status: "NEW" }, filter)}
               loading={overview.isLoading}
             />
             <CommanderKpiCard
@@ -144,7 +144,7 @@ function CommanderDashboardContent() {
               value={overviewData?.pendingDuplicatesCount ?? 0}
               description={t("di.command.kpiDuplicatesDesc")}
               icon={ClipboardCheck}
-              href={commanderDuplicatesHref()}
+              href={commanderDuplicatesHref(filter)}
               loading={overview.isLoading}
             />
           </div>
@@ -196,6 +196,7 @@ function CommanderDashboardContent() {
           isLoading={signals.isLoading}
           isError={signals.isError}
           onRetry={() => void signals.refetch()}
+          filter={filter}
         />
       </div>
 

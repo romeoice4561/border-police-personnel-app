@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Plus, FileWarning } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
+import { DrugContextualReturnLink } from "@/components/drug_intelligence/drug_contextual_return_link";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
 import { Pagination } from "@/components/common/pagination";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -115,14 +116,17 @@ export default function DrugCaseListPage() {
           cases.data ? t("di.list.resultCount").replace("{count}", cases.data.meta.total.toLocaleString(language === "th" ? "th-TH" : "en-US")) : undefined
         }
         actions={
-          can("drug.create") ? (
-            <Button asChild size="sm">
-              <Link href="/drug-intelligence/cases/new">
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                {t("di.list.newCase")}
-              </Link>
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <DrugContextualReturnLink />
+            {can("drug.create") ? (
+              <Button asChild size="sm">
+                <Link href="/drug-intelligence/cases/new">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  {t("di.list.newCase")}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         }
       />
 

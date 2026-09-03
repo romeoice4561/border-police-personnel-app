@@ -11,7 +11,7 @@ import { BellRing, GitCompareArrows, Map, Network, FileText, Search } from "luci
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { useT } from "@/components/i18n/language_provider";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
-import { commanderAlertsHref, commanderCasesHref, commanderDuplicatesHref, commanderMapHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import { commanderAlertsHref, commanderCasesHref, commanderDuplicatesHref, commanderMapHref, commanderNetworkWorkspaceHref, commanderSearchHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 
 interface CommanderAction {
   href: string;
@@ -32,13 +32,13 @@ export function CommanderActionsSection({ pendingDuplicates, newAlerts, filter }
 
   const actions: CommanderAction[] = [
     {
-      href: commanderAlertsHref({ status: "NEW" }),
+      href: commanderAlertsHref({ status: "NEW" }, filter),
       icon: BellRing,
       labelKey: "di.command.actionAlerts",
       badge: newAlerts,
     },
     {
-      href: commanderDuplicatesHref(),
+      href: commanderDuplicatesHref(filter),
       icon: GitCompareArrows,
       labelKey: "di.command.actionDuplicates",
       badge: pendingDuplicates,
@@ -54,12 +54,12 @@ export function CommanderActionsSection({ pendingDuplicates, newAlerts, filter }
       labelKey: "di.command.viewMap",
     },
     {
-      href: "/drug-intelligence/network",
+      href: commanderNetworkWorkspaceHref(filter),
       icon: Network,
       labelKey: "di.command.openNetwork",
     },
     {
-      href: "/drug-intelligence/search",
+      href: commanderSearchHref(filter),
       icon: Search,
       labelKey: "di.command.openSearch",
     },

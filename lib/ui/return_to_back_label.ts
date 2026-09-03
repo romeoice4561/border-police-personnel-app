@@ -24,6 +24,9 @@ export function returnToBackLabelKey(returnTo: string | null | undefined): Trans
   if (path.includes("/drug-intelligence/timeline")) {
     return "di.rel.backToTimeline";
   }
+  if (path.includes("/drug-intelligence/command")) {
+    return "di.command.backToDashboard";
+  }
   return "di.rel.backGeneric";
 }
 
@@ -31,4 +34,9 @@ export function isRelationshipSearchReturnTo(returnTo: string | null | undefined
   if (!returnTo) return false;
   const path = returnTo.toLowerCase();
   return path.includes("/drug-intelligence/search") || path.includes("mode=relationship");
+}
+
+export function isCommanderDashboardReturnTo(returnTo: string | null | undefined): boolean {
+  if (!returnTo) return false;
+  return returnTo.toLowerCase().startsWith("/drug-intelligence/command");
 }

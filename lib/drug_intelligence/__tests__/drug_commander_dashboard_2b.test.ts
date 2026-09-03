@@ -15,6 +15,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { InMemoryDatabaseClient } from "@/lib/database/__tests__/in_memory_client";
 import { DrugCaseService } from "@/lib/drug_intelligence/drug_case_service";
@@ -26,7 +28,13 @@ import {
   commanderMapHref,
   commanderMonthCasesHref,
   commanderAlertsHref,
+  commanderDuplicatesHref,
+  commanderReturnPath,
+  commanderUnitCasesHref,
 } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import { COMMANDER_FY_MONTH_LABELS_TH, commanderMonthLabel } from "@/lib/drug_intelligence/drug_commander_trend_labels";
+import { getSafeReturnTo, isSafeInternalReturnPath, withReturnTo } from "@/lib/ui/return_context";
+import { isCommanderDashboardReturnTo, returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type { DrugCaseCreateRequest, DrugCasePersonInput } from "@/lib/drug_intelligence/drug_case_types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -587,7 +595,10 @@ test("drill-down: cases KPI preserves FY and battalion", () => {
   assert.match(month, /arrestDateFrom=2026-01-01/);
   assert.match(month, /arrestDateTo=2026-01-31/);
   assert.match(month, /battalionId=41/);
+  assert.match(month, /returnTo=/);
+  assert.match(decodeURIComponent(month), /\/drug-intelligence\/command\?fy=2569/);
   assert.equal(commanderAlertsHref({ status: "NEW" }), "/drug-intelligence/alerts?status=NEW");
+  assert.match(commanderAlertsHref({ status: "NEW" }, filter), /returnTo=/);
 });
 
 test("handler: unauthenticated overview is rejected", async () => {
@@ -623,4 +634,113 @@ test("handler: commander with drug.read can load overview", async () => {
   const body = (await response.json()) as { data: { caseCount: number; generatedAt: string } };
   assert.equal(typeof body.data.caseCount, "number");
   assert.ok(body.data.generatedAt);
+});
+
+test("trend labels: 12 Thai FY months Oct→Sep, no single-letter abbreviations", () => {
+  assert.equal(COMMANDER_FY_MONTH_LABELS_TH.length, 12);
+  assert.deepEqual([...COMMANDER_FY_MONTH_LABELS_TH], [
+    "ต.ค.", "พ.ย.", "ธ.ค.", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.",
+  ]);
+  for (const label of COMMANDER_FY_MONTH_LABELS_TH) {
+    assert.ok(label.length >= 3);
+    assert.ok(label.includes("."));
+  }
+  assert.equal(commanderMonthLabel(10, "th"), "ต.ค.");
+  assert.equal(commanderMonthLabel(9, "th"), "ก.ย.");
+});
+
+test("trend chart: HTML labels, not stretched SVG text", () => {
+  const src = readFileSync(join(process.cwd(), "components/drug_intelligence/drug_commander_trend_chart.tsx"), "utf8");
+  assert.match(src, /data-testid="commander-trend-chart"/);
+  assert.match(src, /text-\[12px\]/);
+  assert.match(src, /text-foreground/);
+  assert.doesNotMatch(src, /preserveAspectRatio="none"/);
+  assert.doesNotMatch(src, /fontSize=\{5/);
+  assert.match(src, /di\.command\.trendTooltip/);
+  assert.match(src, /commanderMonthCasesHref/);
+});
+
+test("commanderReturnPath preserves FY, org, and province; no PII keys", () => {
+  const filter = resolveCommanderFilter(params({ fy: "2568", hqId: "1", regionId: "4", battalionId: "16", province: "ชุมพร" }));
+  const path = commanderReturnPath(filter);
+  assert.equal(path.startsWith("/drug-intelligence/command"), true);
+  assert.match(path, /fy=2568/);
+  assert.match(path, /hqId=1/);
+  assert.match(path, /regionId=4/);
+  assert.match(path, /battalionId=16/);
+  assert.match(path, /province=ชุมพร/);
+  assert.doesNotMatch(path, /citizen|phone|imei|personId/i);
+  assert.equal(isSafeInternalReturnPath(path), true);
+});
+
+test("commanderReturnPath uses from/to when custom dates override FY", () => {
+  const filter = resolveCommanderFilter(params({ from: "2026-01-01", to: "2026-03-31" }));
+  const path = commanderReturnPath(filter);
+  assert.match(path, /from=2026-01-01/);
+  assert.match(path, /to=2026-03-31/);
+  assert.doesNotMatch(path, /[?&]fy=/);
+});
+
+test("safe commander returnTo accepted; external and javascript rejected", () => {
+  const safe = "/drug-intelligence/command?fy=2569&province=ชุมพร";
+  assert.equal(isSafeInternalReturnPath(safe), true);
+  assert.equal(getSafeReturnTo(new URLSearchParams({ returnTo: safe })), safe);
+  assert.equal(isSafeInternalReturnPath("https://evil.example/drug-intelligence/command"), false);
+  assert.equal(isSafeInternalReturnPath("javascript:alert(1)"), false);
+  assert.equal(withReturnTo("/drug-intelligence/cases", "https://evil.example"), "/drug-intelligence/cases");
+});
+
+test("Commander back label is used only for command returnTo", () => {
+  assert.equal(returnToBackLabelKey("/drug-intelligence/command?fy=2569"), "di.command.backToDashboard");
+  assert.equal(isCommanderDashboardReturnTo("/drug-intelligence/command?fy=2568"), true);
+  assert.equal(isCommanderDashboardReturnTo("/drug-intelligence/cases"), false);
+  assert.equal(returnToBackLabelKey("/drug-intelligence/search?mode=relationship"), "di.rel.backToSearchResults");
+  assert.equal(returnToBackLabelKey("/drug-intelligence/map"), "di.map.actionBackToMap");
+});
+
+test("month drill-down keeps exact month dates and original Commander returnTo", () => {
+  const filter = resolveCommanderFilter(params({ fy: "2569", province: "ชุมพร" }));
+  const href = commanderMonthCasesHref(filter, 2026, 5);
+  assert.match(href, /arrestDateFrom=2026-05-01/);
+  assert.match(href, /arrestDateTo=2026-05-31/);
+  const decoded = decodeURIComponent(href);
+  assert.match(decoded, /returnTo=\/drug-intelligence\/command\?fy=2569/);
+  assert.match(decoded, /province=ชุมพร/);
+  assert.doesNotMatch(decoded.split("returnTo=")[1] ?? "", /arrestDateFrom=2026-05-01/);
+});
+
+test("unit row drill-down filters Cases but returns to original Commander scope", () => {
+  const filter = resolveCommanderFilter(params({ fy: "2569", province: "ชุมพร" }));
+  const href = commanderUnitCasesHref(filter, 16, "battalion");
+  assert.match(href, /battalionId=16/);
+  const decoded = decodeURIComponent(href);
+  assert.match(decoded, /\/drug-intelligence\/command\?fy=2569/);
+  assert.doesNotMatch(decoded.split("returnTo=")[1] ?? "", /battalionId=16/);
+});
+
+test("persons KPI drill-down carries Commander returnTo without PII", () => {
+  const filter = resolveCommanderFilter(params({ fy: "2569", province: "ชุมพร" }));
+  const href = commanderPersonsHref(filter);
+  assert.match(href, /\/drug-intelligence\/persons\?/);
+  assert.match(href, /caseRoles=/);
+  const decoded = decodeURIComponent(href);
+  assert.match(decoded, /returnTo=\/drug-intelligence\/command\?fy=2569/);
+  assert.doesNotMatch(decoded, /citizen|phone|imei|personId/i);
+});
+
+test("duplicates and alerts attach commander returnTo only when filter is provided", () => {
+  assert.equal(commanderDuplicatesHref(), "/drug-intelligence/review/duplicates");
+  const filter = resolveCommanderFilter(params({ fy: "2569" }));
+  assert.match(commanderDuplicatesHref(filter), /returnTo=/);
+  assert.match(decodeURIComponent(commanderDuplicatesHref(filter)), /\/drug-intelligence\/command\?fy=2569/);
+});
+
+test("list destinations render contextual return only via returnTo", () => {
+  const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
+  assert.match(read("app/drug-intelligence/cases/page.tsx"), /DrugContextualReturnLink/);
+  assert.match(read("app/drug-intelligence/persons/page.tsx"), /DrugContextualReturnLink/);
+  assert.match(read("app/drug-intelligence/alerts/page.tsx"), /DrugContextualReturnLink/);
+  assert.match(read("app/drug-intelligence/review/duplicates/page.tsx"), /DrugContextualReturnLink/);
+  assert.match(read("components/drug_intelligence/drug_contextual_return_link.tsx"), /getSafeReturnTo/);
+  assert.match(read("components/drug_intelligence/drug_contextual_return_link.tsx"), /back-via-return-to/);
 });

@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Users, AlertTriangle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
+import { DrugContextualReturnLink } from "@/components/drug_intelligence/drug_contextual_return_link";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
 import { Pagination } from "@/components/common/pagination";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -257,6 +258,7 @@ function DrugPersonAdvancedSearchContent() {
             ? t("di.advSearch.resultCount").replace("{count}", resultTotal.toLocaleString(localeStr))
             : t("di.advSearch.pageDescription")
         }
+        actions={<DrugContextualReturnLink />}
       />
 
       {/* Primary search box */}

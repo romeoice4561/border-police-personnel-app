@@ -24,6 +24,7 @@ import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { DrugSearchResultCard } from "@/components/drug_intelligence/drug_search_result_card";
 import { DrugSearchModeSwitcher, type DrugSearchCenterMode } from "@/components/drug_intelligence/drug_search_mode_switcher";
 import { DrugRelationshipSearchPanel } from "@/components/drug_intelligence/drug_relationship_search_panel";
+import { DrugContextualReturnLink } from "@/components/drug_intelligence/drug_contextual_return_link";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugSearchGrouped } from "@/lib/drug_intelligence/drug_intelligence_hooks";
@@ -115,10 +116,13 @@ function DrugSearchContent() {
 
   return (
     <div className="space-y-4">
-      <header className="space-y-0.5">
-        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{t("di.search.centerTitle")}</h1>
-        <p className="text-sm font-medium text-muted">{t("di.search.centerSubtitle")}</p>
-        <p className="text-xs text-muted sm:text-sm">{t("di.search.centerDescription")}</p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-0.5">
+          <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{t("di.search.centerTitle")}</h1>
+          <p className="text-sm font-medium text-muted">{t("di.search.centerSubtitle")}</p>
+          <p className="text-xs text-muted sm:text-sm">{t("di.search.centerDescription")}</p>
+        </div>
+        <DrugContextualReturnLink />
       </header>
 
       <DrugSearchModeSwitcher mode={mode === "ai" ? "general" : mode} onChange={setMode} />

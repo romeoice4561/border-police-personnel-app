@@ -9,6 +9,7 @@
  */
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { GitCompareArrows, ShieldQuestion } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
@@ -17,11 +18,20 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DrugMatchConfidenceBadge } from "@/components/drug_intelligence/drug_match_confidence_badge";
 import { DrugMatchSignalsList } from "@/components/drug_intelligence/drug_match_signals_list";
+import { DrugContextualReturnLink } from "@/components/drug_intelligence/drug_contextual_return_link";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugMatchReviewQueue } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 
 export default function DrugDuplicateReviewQueuePage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <DrugDuplicateReviewQueueContent />
+    </Suspense>
+  );
+}
+
+function DrugDuplicateReviewQueueContent() {
   const { user } = useAuth();
   const { t } = useT();
   const queue = useDrugMatchReviewQueue(user?.id ?? null);
@@ -31,6 +41,7 @@ export default function DrugDuplicateReviewQueuePage() {
       <PageHeader
         title={t("di.matchReview.title")}
         description={queue.data ? t("di.matchReview.unresolvedCount").replace("{count}", String(queue.data.length)) : t("di.matchReview.description")}
+        actions={<DrugContextualReturnLink />}
       />
 
       <Card className="border-accent/30 bg-accent/5">

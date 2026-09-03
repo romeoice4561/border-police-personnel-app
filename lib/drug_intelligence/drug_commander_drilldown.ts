@@ -1,11 +1,14 @@
 /**
- * Commander Dashboard drill-down URLs (Phase 2B).
+ * Commander Dashboard drill-down URLs (Phase 2B / 2B.2.1).
  *
  * Only emit query keys that destination pages/APIs actually apply.
+ * Drill-downs attach a safe `returnTo` pointing at the originating
+ * Commander Dashboard URL so destinations can show contextual back.
  * Pure — no I/O, no React.
  */
 
 import { toCommanderIsoDate, type CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
+import { withReturnTo } from "@/lib/ui/return_context";
 
 function setIf(params: URLSearchParams, key: string, value: string | number | undefined): void {
   if (value === undefined || value === "") return;
@@ -25,7 +28,33 @@ function reportingOrgParams(filter: CommanderDashboardFilter): Record<string, nu
   };
 }
 
-export function commanderCasesHref(
+/**
+ * Reconstructs the Commander Dashboard URL from the active filter so
+ * drill-down destinations can return to the exact same scope.
+ * Query values are left unencoded here; `withReturnTo` encodes the path once.
+ */
+export function commanderReturnPath(filter: CommanderDashboardFilter): string {
+  const parts: string[] = [];
+  if (filter.fiscalYearBe) {
+    parts.push(`fy=${filter.fiscalYearBe}`);
+  } else {
+    parts.push(`from=${toCommanderIsoDate(filter.arrestDateFrom)}`);
+    parts.push(`to=${toCommanderIsoDate(filter.arrestDateTo)}`);
+  }
+  if (filter.reportingHeadquartersId) parts.push(`hqId=${filter.reportingHeadquartersId}`);
+  if (filter.reportingRegionId) parts.push(`regionId=${filter.reportingRegionId}`);
+  if (filter.reportingBattalionId) parts.push(`battalionId=${filter.reportingBattalionId}`);
+  if (filter.reportingCompanyId) parts.push(`companyId=${filter.reportingCompanyId}`);
+  if (filter.province) parts.push(`province=${filter.province}`);
+  if (filter.status) parts.push(`status=${filter.status}`);
+  return parts.length > 0 ? `/drug-intelligence/command?${parts.join("&")}` : "/drug-intelligence/command";
+}
+
+function withCommanderReturn(targetPath: string, filter: CommanderDashboardFilter): string {
+  return withReturnTo(targetPath, commanderReturnPath(filter));
+}
+
+function buildCommanderCasesPath(
   filter: CommanderDashboardFilter,
   overrides?: { arrestDateFrom?: string; arrestDateTo?: string }
 ): string {
@@ -43,6 +72,13 @@ export function commanderCasesHref(
   return q ? `/drug-intelligence/cases?${q}` : "/drug-intelligence/cases";
 }
 
+export function commanderCasesHref(
+  filter: CommanderDashboardFilter,
+  overrides?: { arrestDateFrom?: string; arrestDateTo?: string }
+): string {
+  return withCommanderReturn(buildCommanderCasesPath(filter, overrides), filter);
+}
+
 export function commanderPersonsHref(filter: CommanderDashboardFilter): string {
   const params = new URLSearchParams();
   setIf(params, "dateFrom", toCommanderIsoDate(filter.arrestDateFrom));
@@ -51,7 +87,7 @@ export function commanderPersonsHref(filter: CommanderDashboardFilter): string {
   setIf(params, "battalionId", filter.reportingBattalionId);
   setIf(params, "companyId", filter.reportingCompanyId);
   params.set("caseRoles", "ARRESTED_PERSON,ACCUSED");
-  return `/drug-intelligence/persons?${params.toString()}`;
+  return withCommanderReturn(`/drug-intelligence/persons?${params.toString()}`, filter);
 }
 
 export function commanderMapHref(
@@ -70,7 +106,8 @@ export function commanderMapHref(
   setIf(params, "battalionId", org.battalionId);
   setIf(params, "companyId", org.companyId);
   const q = params.toString();
-  return q ? `/drug-intelligence/map?${q}` : "/drug-intelligence/map";
+  const href = q ? `/drug-intelligence/map?${q}` : "/drug-intelligence/map";
+  return withCommanderReturn(href, filter);
 }
 
 export function commanderMonthCasesHref(
@@ -90,21 +127,39 @@ export function commanderUnitCasesHref(filter: CommanderDashboardFilter, unitId:
     else if (groupBy === "region") next.reportingRegionId = unitId;
     else next.reportingBattalionId = unitId;
   }
-  return commanderCasesHref(next);
+  return withCommanderReturn(buildCommanderCasesPath(next), filter);
 }
 
-export function commanderAlertsHref(opts?: { status?: string; alertType?: string }): string {
+export function commanderAlertsHref(
+  opts?: { status?: string; alertType?: string },
+  filter?: CommanderDashboardFilter
+): string {
   const params = new URLSearchParams();
   setIf(params, "status", opts?.status ?? "NEW");
   setIf(params, "alertType", opts?.alertType);
   const q = params.toString();
-  return q ? `/drug-intelligence/alerts?${q}` : "/drug-intelligence/alerts";
+  const href = q ? `/drug-intelligence/alerts?${q}` : "/drug-intelligence/alerts";
+  return filter ? withCommanderReturn(href, filter) : href;
 }
 
-export function commanderDuplicatesHref(): string {
-  return "/drug-intelligence/review/duplicates";
+export function commanderDuplicatesHref(filter?: CommanderDashboardFilter): string {
+  const href = "/drug-intelligence/review/duplicates";
+  return filter ? withCommanderReturn(href, filter) : href;
 }
 
-export function commanderSignalNetworkHref(entityType: string, entityId: string): string {
-  return `/drug-intelligence/network?focusType=${encodeURIComponent(entityType)}&focusId=${encodeURIComponent(entityId)}&depth=2`;
+export function commanderSignalNetworkHref(
+  entityType: string,
+  entityId: string,
+  filter?: CommanderDashboardFilter
+): string {
+  const href = `/drug-intelligence/network?focusType=${encodeURIComponent(entityType)}&focusId=${encodeURIComponent(entityId)}&depth=2`;
+  return filter ? withCommanderReturn(href, filter) : href;
+}
+
+export function commanderSearchHref(filter: CommanderDashboardFilter): string {
+  return withCommanderReturn("/drug-intelligence/search?mode=relationship", filter);
+}
+
+export function commanderNetworkWorkspaceHref(filter: CommanderDashboardFilter): string {
+  return withCommanderReturn("/drug-intelligence/network", filter);
 }

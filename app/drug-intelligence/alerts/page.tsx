@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { BellRing, ChevronDown, ChevronUp, Search, Network as NetworkIcon, UserCircle, FileSpreadsheet } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
+import { DrugContextualReturnLink } from "@/components/drug_intelligence/drug_contextual_return_link";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -144,7 +145,11 @@ function DrugAlertCenterContent() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t("di.alert.title")} description={t("di.alert.description")} />
+      <PageHeader
+        title={t("di.alert.title")}
+        description={t("di.alert.description")}
+        actions={<DrugContextualReturnLink />}
+      />
 
       {!canViewAlerts ? (
         <ErrorState title={t("di.alert.permissionDenied")} />

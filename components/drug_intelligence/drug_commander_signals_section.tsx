@@ -17,6 +17,7 @@ import { LoadingState, ErrorState } from "@/components/common/states";
 import { useT } from "@/components/i18n/language_provider";
 import { cn } from "@/lib/ui/cn";
 import type { CommanderSignalsData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
+import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderAlertsHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
   isLoading: boolean;
   isError: boolean;
   onRetry?: () => void;
+  filter: CommanderDashboardFilter;
 }
 
 const SIGNAL_TYPE_META: Record<string, { icon: typeof Users; labelKey: string }> = {
@@ -40,7 +42,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   INFO: "bg-accent/10 text-accent border-accent/20",
 };
 
-export function CommanderSignalsSection({ data, isLoading, isError, onRetry }: Props) {
+export function CommanderSignalsSection({ data, isLoading, isError, onRetry, filter }: Props) {
   const { t } = useT();
 
   return (
@@ -66,7 +68,7 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry }: P
               return (
                 <Link
                   key={sc.alertType}
-                  href={commanderAlertsHref({ status: "NEW", alertType: sc.alertType })}
+                  href={commanderAlertsHref({ status: "NEW", alertType: sc.alertType }, filter)}
                   className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                 <Card className="flex items-center gap-3 p-3 transition-colors hover:border-accent/50 hover:bg-neutral-bg">
@@ -91,7 +93,7 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry }: P
                 {data.topSignals.slice(0, 5).map((signal) => (
                   <Link
                     key={signal.id}
-                    href={commanderAlertsHref({ status: "NEW", alertType: signal.alertType })}
+                    href={commanderAlertsHref({ status: "NEW", alertType: signal.alertType }, filter)}
                     className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
                   >
                     <div
@@ -115,7 +117,7 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry }: P
               </div>
               <div className="mt-3">
                 <Link
-                  href={commanderAlertsHref({ status: "NEW" })}
+                  href={commanderAlertsHref({ status: "NEW" }, filter)}
                   className="text-sm text-accent hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
                 >
                   {t("di.command.signalViewAll")} →

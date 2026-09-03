@@ -1604,6 +1604,8 @@ export const DICTIONARY = {
   "di.command.trendTitle": tr("แนวโน้มตามเวลา", "Trends"),
   "di.command.trendChartTitle": tr("จำนวนคดีรายเดือน", "Monthly Case Count"),
   "di.command.trendEmpty": tr("ไม่พบข้อมูลแนวโน้มสำหรับเงื่อนไขนี้", "No trend data for this filter"),
+  "di.command.trendTooltip": tr("จำนวนคดี {count} คดี", "{count} cases"),
+  "di.command.backToDashboard": tr("← กลับภาพรวมผู้บังคับบัญชา", "← Back to Commander Overview"),
   "di.command.areasTitle": tr("พื้นที่สำคัญ", "Key Areas"),
   "di.command.areasEmpty": tr("ไม่พบข้อมูลพื้นที่สำหรับเงื่อนไขนี้", "No area data for this filter"),
   "di.command.areasColProvince": tr("จังหวัด", "Province"),
