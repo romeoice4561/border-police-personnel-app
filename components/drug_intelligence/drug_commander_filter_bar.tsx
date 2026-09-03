@@ -140,6 +140,13 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
 
   const fySelectValue = periodKind === "fy" ? (filterState.fy ?? String(currentFy.fiscalYearBe)) : "custom";
 
+  // Phase 2C.1: Production same-pathname router.push is a no-op (DI-8.2.1 class).
+  // Reset is the only Commander action that must drop ALL query state, so it
+  // uses a real browser navigation to the canonical clean path.
+  const resetCommanderFilters = useCallback(() => {
+    window.location.assign("/drug-intelligence/command");
+  }, []);
+
   function setCustomDate(bound: "from" | "to", iso: string) {
     pushParams((params) => {
       params.delete("fy");
@@ -327,7 +334,13 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
         </div>
 
         {hasFilters ? (
-          <Button variant="ghost" size="sm" onClick={() => router.push("/drug-intelligence/command", { scroll: false })}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="commander-filter-reset"
+            onClick={resetCommanderFilters}
+          >
             {t("di.command.filterReset")}
           </Button>
         ) : null}

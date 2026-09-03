@@ -32,6 +32,7 @@ import {
   formatCommanderIsoThai,
   formatCommanderPeriodLabel,
   sanitizeCommanderOrgState,
+  commanderHasActiveFilters,
   type CommanderUrlState,
 } from "@/lib/drug_intelligence/drug_commander_scope";
 import { shiftBuddhistCalendarMonth, yearBEToGregorian, yearGregorianToBE } from "@/lib/officer_profile/thai_date";
@@ -343,4 +344,35 @@ test("Commander date fields use Buddhist-era accessible labels", () => {
   assert.match(bar, /filterToAria/);
   assert.match(bar, /aria-describedby/);
   assert.match(bar, /role="alert"/);
+});
+
+// ── Phase 2C.1 Production-safe reset ─────────────────────────────────────
+
+test("Commander reset uses Production-safe window.location.assign, not same-pathname router.push", () => {
+  const src = readFileSync(join(ROOT, "components/drug_intelligence/drug_commander_filter_bar.tsx"), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.match(code, /resetCommanderFilters/);
+  assert.match(code, /window\.location\.assign\("\/drug-intelligence\/command"\)/);
+  assert.match(code, /onClick=\{resetCommanderFilters\}/);
+  assert.doesNotMatch(code, /router\.push\("\/drug-intelligence\/command"/);
+  assert.match(code, /data-testid="commander-filter-reset"/);
+});
+
+test("Commander reset target is the canonical clean path with no query filters", () => {
+  assert.equal(commanderReturnPathFromState({}), "/drug-intelligence/command");
+  const src = readFileSync(join(ROOT, "components/drug_intelligence/drug_commander_filter_bar.tsx"), "utf8");
+  const assign = src.match(/window\.location\.assign\("([^"]+)"\)/);
+  assert.equal(assign?.[1], "/drug-intelligence/command");
+  assert.doesNotMatch(assign?.[1] ?? "", /\?/);
+  const keys = ["fy", "from", "to", "hqId", "regionId", "battalionId", "companyId", "province", "status"];
+  for (const key of keys) {
+    assert.doesNotMatch(assign?.[1] ?? "", new RegExp(`[?&]${key}=`));
+  }
+});
+
+test("empty Commander URL state is not an active-filter set, so reset is idempotent when already clean", () => {
+  assert.equal(commanderHasActiveFilters({}), false);
+  assert.equal(commanderHasActiveFilters({ from: "2026-08-01", to: "2026-08-31" }), true);
+  assert.equal(commanderHasActiveFilters({ fy: "2569" }), true);
+  assert.equal(commanderHasActiveFilters({ province: "ชุมพร" }), true);
 });
