@@ -96,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
     titleKey: "nav.groupDrugIntelligence",
     items: [
       { href: "/drug-intelligence", labelKey: "di.nav.title", icon: ShieldAlert, permission: "drug.read" },
+      { href: "/drug-intelligence/command", labelKey: "di.nav.command", icon: LayoutDashboard, permission: "drug.read" },
       { href: "/drug-intelligence/search", labelKey: "di.nav.search", icon: ScanSearch, permission: "drug.read" },
       { href: "/drug-intelligence/network", labelKey: "di.nav.network", icon: Network, permission: "drug.read" },
       { href: "/drug-intelligence/timeline", labelKey: "di.timeline.navLabel", icon: History, permission: "drug.read" },

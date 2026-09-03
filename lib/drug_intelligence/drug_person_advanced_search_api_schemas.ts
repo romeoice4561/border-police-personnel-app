@@ -6,6 +6,18 @@
 
 import { z } from "zod";
 
+function parsePersonSearchDate(value: string | undefined, endOfDay: boolean): Date | undefined {
+  if (!value) return undefined;
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}${endOfDay ? "T23:59:59.999Z" : "T00:00:00.000Z"}`
+    : value;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Invalid date");
+  }
+  return parsed;
+}
+
 export const drugPersonAdvancedSearchSchema = z.object({
   actorId: z.string().trim().min(1),
   query: z.string().trim().max(300).optional(),
@@ -41,14 +53,12 @@ export const drugPersonAdvancedSearchSchema = z.object({
   minCaseCount: z.coerce.number().int().min(1).optional(),
   dateFrom: z
     .string()
-    .datetime({ offset: true })
     .optional()
-    .transform((v) => (v ? new Date(v) : undefined)),
+    .transform((v) => parsePersonSearchDate(v, false)),
   dateTo: z
     .string()
-    .datetime({ offset: true })
     .optional()
-    .transform((v) => (v ? new Date(v) : undefined)),
+    .transform((v) => parsePersonSearchDate(v, true)),
   province: z.string().trim().max(100).optional(),
   battalionId: z.coerce.number().int().optional(),
   companyId: z.coerce.number().int().optional(),

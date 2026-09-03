@@ -12,6 +12,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus, FileWarning } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
@@ -27,7 +28,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { useDrugCases } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { DRUG_CASE_STATUSES } from "@/lib/drug_intelligence/drug_case_options";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
-import { toGregorianDateInputValue, normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type { DrugCaseListQuery, DrugCaseListRow } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 const PAGE_SIZE = 20;
@@ -44,14 +45,34 @@ const EMPTY_FILTERS: FilterState = { query: "", arrestDateFrom: "", arrestDateTo
 
 function toIsoDate(thaiDate: string): string | undefined {
   if (!thaiDate) return undefined;
-  const iso = normalizeThaiPersonnelDateForSave(thaiDate);
-  return iso ?? undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(thaiDate)) return thaiDate;
+  const parsed = toGregorianDateInputValue(thaiDate);
+  return parsed ?? undefined;
+}
+
+function optionalPositiveInt(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+function filtersFromSearchParams(searchParams: URLSearchParams): FilterState {
+  const from = searchParams.get("arrestDateFrom") ?? "";
+  const to = searchParams.get("arrestDateTo") ?? "";
+  return {
+    query: searchParams.get("query") ?? "",
+    arrestDateFrom: from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? formatThaiPersonnelDate(`${from}T00:00:00Z`) : from,
+    arrestDateTo: to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? formatThaiPersonnelDate(`${to}T00:00:00Z`) : to,
+    province: searchParams.get("province") ?? "",
+    status: searchParams.get("status") ?? "",
+  };
 }
 
 export default function DrugCaseListPage() {
   const { user, can } = useAuth();
   const { t, language } = useT();
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<FilterState>(() => filtersFromSearchParams(searchParams));
   const [page, setPage] = useState(1);
 
   const query: DrugCaseListQuery = {
@@ -62,6 +83,10 @@ export default function DrugCaseListPage() {
     status: filters.status || undefined,
     arrestDateFrom: toIsoDate(filters.arrestDateFrom),
     arrestDateTo: toIsoDate(filters.arrestDateTo),
+    headquartersId: optionalPositiveInt(searchParams.get("headquartersId")),
+    regionId: optionalPositiveInt(searchParams.get("regionId")),
+    battalionId: optionalPositiveInt(searchParams.get("battalionId")),
+    companyId: optionalPositiveInt(searchParams.get("companyId")),
   };
 
   const cases = useDrugCases(user?.id ?? null, query);

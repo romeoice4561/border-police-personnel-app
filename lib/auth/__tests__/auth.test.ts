@@ -111,6 +111,7 @@ test("Phase DI-1: Drug Intelligence permissions — admin full access, commander
 test("Phase DI-1: /drug-intelligence route requires drug.read (registered in ROUTE_PERMISSIONS, same gate the client AuthGate and this test both read)", () => {
   assert.equal(requiredPermissionForRoute("/drug-intelligence"), "drug.read");
   assert.equal(requiredPermissionForRoute("/drug-intelligence/cases"), "drug.read");
+  assert.equal(requiredPermissionForRoute("/drug-intelligence/command"), "drug.read");
 });
 
 test("route protection map: /login is public; each route maps to the right capability; officers-detail is auth-only", () => {

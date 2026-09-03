@@ -86,8 +86,14 @@ function DrugAlertCenterContent() {
   const { t } = useT();
   const searchParams = useSearchParams();
 
-  const [status, setStatus] = useState<DrugAlertStatus | "">("");
-  const [alertType, setAlertType] = useState<DrugAlertType | "">("");
+  const initialStatus = searchParams.get("status");
+  const initialAlertType = searchParams.get("alertType");
+  const [status, setStatus] = useState<DrugAlertStatus | "">(
+    initialStatus && (ALL_STATUSES as string[]).includes(initialStatus) ? (initialStatus as DrugAlertStatus) : ""
+  );
+  const [alertType, setAlertType] = useState<DrugAlertType | "">(
+    initialAlertType && (ALL_ALERT_TYPES as string[]).includes(initialAlertType) ? (initialAlertType as DrugAlertType) : ""
+  );
   const [severity, setSeverity] = useState<DrugAlertSeverity | "">("");
   const [entityType, setEntityType] = useState<DrugAlertEntityType | "">("");
   const [dateFrom, setDateFrom] = useState("");
