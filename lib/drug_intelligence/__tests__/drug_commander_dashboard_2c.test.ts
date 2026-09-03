@@ -148,6 +148,15 @@ test("Commander page wires custom dates as Gregorian ISO API params", () => {
 
 // ── Thai / Buddhist presentation + BE/CE ─────────────────────────────────
 
+test("ISO 2026-09-03 displays as 3 ก.ย. 2569, never mm/dd/yyyy", () => {
+  assert.equal(formatCommanderIsoThai("2026-09-03"), "3 ก.ย. 2569");
+  assert.doesNotMatch(formatCommanderIsoThai("2026-09-03"), /09\/03/);
+  assert.doesNotMatch(formatCommanderIsoThai("2026-09-03"), /2026/);
+  const src = readFileSync(join(ROOT, "components/drug_intelligence/drug_commander_filter_bar.tsx"), "utf8");
+  assert.equal((src.match(/type=["']date["']/g) || []).length, 0);
+  assert.ok((src.match(/ThaiDatePicker/g) || []).length >= 2);
+});
+
 test("August 2569 Buddhist display converts to Gregorian ISO 2026-08-01", () => {
   assert.equal(yearBEToGregorian(2569), 2026);
   assert.equal(yearGregorianToBE(2026), 2569);
