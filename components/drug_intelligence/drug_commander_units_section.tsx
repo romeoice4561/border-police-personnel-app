@@ -31,7 +31,7 @@ interface Props {
 }
 
 export function CommanderUnitsSection({ data, previousUnits, isLoading, isError, onRetry, filter, urlState }: Props) {
-  const { t } = useT();
+  const { t, language } = useT();
   const orgTree = useOrgTree();
 
   function unitLabel(row: CommanderUnitsData["rows"][number]): string {
@@ -45,7 +45,7 @@ export function CommanderUnitsSection({ data, previousUnits, isLoading, isError,
 
   function caseDeltaCopy(unitId: number | null, currentCount: number) {
     const previous = previousUnits?.find((row) => row.unitId === unitId)?.caseCount ?? 0;
-    return formatCommanderDeltaCopy(compareCommanderMetric(currentCount, previous), t("di.command.unitsColCases"));
+    return formatCommanderDeltaCopy(compareCommanderMetric(currentCount, previous), t("di.command.unitsColCases"), language);
   }
 
   return (

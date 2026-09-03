@@ -16,7 +16,11 @@ import type { CommanderSeizureItem, CommanderSeizuresData } from "@/lib/drug_int
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderMapHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
-import { compareCommanderSeizures, formatCommanderDeltaCopy } from "@/lib/drug_intelligence/drug_commander_comparison";
+import {
+  commanderSeizureDisplayUnit,
+  compareCommanderSeizures,
+  formatCommanderDeltaCopy,
+} from "@/lib/drug_intelligence/drug_commander_comparison";
 import { CommanderComparisonText } from "@/components/drug_intelligence/drug_commander_comparison_text";
 
 interface Props {
@@ -40,7 +44,7 @@ export function CommanderSeizureSection({
   filter,
   urlState,
 }: Props) {
-  const { t } = useT();
+  const { t, language } = useT();
   const compared = data ? compareCommanderSeizures(data.items, previousItems ?? []) : [];
 
   return (
@@ -60,7 +64,7 @@ export function CommanderSeizureSection({
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {compared.map(({ item, delta }) => {
-              const unit = item.measurementKind === "COUNT" ? (item.displayUnit ?? "เม็ด") : "กก.";
+              const unit = commanderSeizureDisplayUnit(item.measurementKind, item.displayUnit, language);
               return (
               <Link
                 key={`${item.drugCategory}::${item.measurementKind}`}
@@ -69,27 +73,25 @@ export function CommanderSeizureSection({
               >
                 <Card className="p-4 transition-colors hover:border-accent/50 hover:bg-neutral-bg">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted">
+                    <span className="text-xs font-medium tracking-wide text-muted">
                       {item.labelTh}
-                      <span className="ml-1 font-normal normal-case">({item.measurementKind})</span>
+                      <span className="ml-1 font-normal">({unit})</span>
                     </span>
                     {item.measurementKind === "COUNT" && item.totalQuantity !== null && (
                       <span className="text-xl font-bold tabular-nums text-foreground">
                         {item.totalQuantity.toLocaleString("th-TH")}
-                        <span className="ml-1 text-sm font-normal text-muted">
-                          {item.displayUnit ?? "เม็ด"}
-                        </span>
+                        <span className="ml-1 text-sm font-normal text-muted">{unit}</span>
                       </span>
                     )}
                     {item.measurementKind === "MASS" && item.totalWeightKg !== null && (
                       <span className="text-xl font-bold tabular-nums text-foreground">
                         {item.totalWeightKg.toLocaleString("th-TH", { maximumFractionDigits: 3 })}
-                        <span className="ml-1 text-sm font-normal text-muted">กก.</span>
+                        <span className="ml-1 text-sm font-normal text-muted">{unit}</span>
                       </span>
                     )}
                     {previousItems && (
                       <CommanderComparisonText
-                        copy={formatCommanderDeltaCopy(delta, unit)}
+                        copy={formatCommanderDeltaCopy(delta, unit, language)}
                         previousLabel={comparisonLabel ?? t("di.command.comparisonPrevious")}
                       />
                     )}

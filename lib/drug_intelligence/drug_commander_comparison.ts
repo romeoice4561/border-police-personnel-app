@@ -111,8 +111,26 @@ export function compareCommanderMetric(current: number, previous: number): Comma
   };
 }
 
-export function formatCommanderPercent(percentChange: number | null): string {
-  if (percentChange === null) return "ช่วงก่อนยังไม่มีข้อมูล";
+export type CommanderCopyLanguage = "th" | "en";
+
+export function commanderSeizureDisplayUnit(
+  measurementKind: string,
+  displayUnit: string | null | undefined,
+  lang: CommanderCopyLanguage = "th"
+): string {
+  if (measurementKind === "MASS") {
+    return lang === "en" ? "kg" : "กก.";
+  }
+  return displayUnit || (lang === "en" ? "tablets" : "เม็ด");
+}
+
+export function formatCommanderPercent(
+  percentChange: number | null,
+  lang: CommanderCopyLanguage = "th"
+): string {
+  if (percentChange === null) {
+    return lang === "en" ? "No previous-period data" : "ช่วงก่อนยังไม่มีข้อมูล";
+  }
   const rounded = Math.round(percentChange * 10) / 10;
   const abs = Math.abs(rounded).toLocaleString("th-TH", {
     maximumFractionDigits: 1,
@@ -125,27 +143,35 @@ export function formatCommanderPercent(percentChange: number | null): string {
 
 export function formatCommanderDeltaCopy(
   delta: CommanderMetricDelta,
-  unitTh: string
+  unit: string,
+  lang: CommanderCopyLanguage = "th"
 ): CommanderDeltaCopy {
   const abs = Math.abs(delta.absoluteChange).toLocaleString("th-TH");
+  const unitLabel = lang === "en" ? unit.toLowerCase() : unit;
   if (delta.direction === "same") {
     return {
-      directionLabel: "เท่าเดิม",
-      changeText: "เท่าเดิม",
-      percentText: formatCommanderPercent(delta.percentChange),
+      directionLabel: lang === "en" ? "unchanged" : "เท่าเดิม",
+      changeText: lang === "en" ? "unchanged" : "เท่าเดิม",
+      percentText: formatCommanderPercent(delta.percentChange, lang),
     };
   }
   if (delta.direction === "up") {
     return {
-      directionLabel: "เพิ่มขึ้น",
-      changeText: `เพิ่มขึ้น ${abs} ${unitTh}จากช่วงก่อน`,
-      percentText: formatCommanderPercent(delta.percentChange),
+      directionLabel: lang === "en" ? "up" : "เพิ่มขึ้น",
+      changeText:
+        lang === "en"
+          ? `up ${abs} ${unitLabel} from the previous period`
+          : `เพิ่มขึ้น ${abs} ${unitLabel}จากช่วงก่อน`,
+      percentText: formatCommanderPercent(delta.percentChange, lang),
     };
   }
   return {
-    directionLabel: "ลดลง",
-    changeText: `ลดลง ${abs} ${unitTh}จากช่วงก่อน`,
-    percentText: formatCommanderPercent(delta.percentChange),
+    directionLabel: lang === "en" ? "down" : "ลดลง",
+    changeText:
+      lang === "en"
+        ? `down ${abs} ${unitLabel} from the previous period`
+        : `ลดลง ${abs} ${unitLabel}จากช่วงก่อน`,
+    percentText: formatCommanderPercent(delta.percentChange, lang),
   };
 }
 
@@ -225,8 +251,8 @@ export function buildCommanderSituationObservations(
     const qty = input.topCountSeizure.totalQuantity.toLocaleString("th-TH");
     observations.push({
       id: "top-count-seizure",
-      textTh: `${input.topCountSeizure.labelTh}เป็นของกลางประเภท COUNT ที่พบมากที่สุด (${qty} ${unit})`,
-      textEn: `${input.topCountSeizure.labelTh} is the most recorded COUNT seizure (${qty} ${unit})`,
+      textTh: `${input.topCountSeizure.labelTh}เป็นของกลางที่พบมากที่สุด (${qty} ${unit})`,
+      textEn: `${input.topCountSeizure.labelTh} is the most recorded seizure (${qty} ${unit})`,
       href: "map",
     });
   }

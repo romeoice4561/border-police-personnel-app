@@ -14,6 +14,7 @@ export interface CommanderActionItem {
   href: string;
   label: string;
   why: string;
+  actionLabel?: string;
   count?: number;
   queueScope?: boolean;
 }
@@ -42,20 +43,22 @@ export function CommanderActionsSection({ items }: Props) {
               href={item.href}
               className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <Card className="flex h-full flex-col gap-2 p-4 transition-colors hover:border-accent/50 hover:bg-neutral-bg">
+              <Card className="flex h-full min-h-[8.5rem] flex-col gap-2 p-4 transition-colors hover:border-accent/50 hover:bg-neutral-bg">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="text-sm font-medium text-foreground">{item.label}</span>
+                  <span className="min-w-0 text-sm font-medium leading-snug break-words text-foreground">{item.label}</span>
                   <span className="shrink-0 text-lg font-bold tabular-nums text-foreground">
                     {(item.count ?? 0).toLocaleString("th-TH")}
                   </span>
                 </div>
-                <p className="text-xs text-muted leading-snug">{item.why}</p>
+                <p className="text-xs leading-snug text-muted">{item.why}</p>
                 {item.queueScope && (
                   <span className="w-fit rounded-full bg-neutral-bg px-2 py-0.5 text-[11px] text-muted">
                     {t("di.command.kpiQueueBadge")}
                   </span>
                 )}
-                <span className="mt-auto text-xs text-accent">{t("di.command.actionOpen")} →</span>
+                <span className="mt-auto text-xs text-accent">
+                  {item.actionLabel ?? t("di.command.actionOpen")} →
+                </span>
               </Card>
             </Link>
           ))}

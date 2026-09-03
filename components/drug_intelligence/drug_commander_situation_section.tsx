@@ -6,7 +6,19 @@
 import Link from "next/link";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { useT } from "@/components/i18n/language_provider";
-import type { CommanderSituationObservation } from "@/lib/drug_intelligence/drug_commander_comparison";
+import type {
+  CommanderSituationHref,
+  CommanderSituationObservation,
+} from "@/lib/drug_intelligence/drug_commander_comparison";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
+
+const SITUATION_ACTION_KEYS: Record<CommanderSituationHref, TranslationKey> = {
+  cases: "di.command.situationOpenCases",
+  map: "di.command.situationOpenMap",
+  alerts: "di.command.situationOpenSignals",
+  persons: "di.command.situationOpenPersons",
+  duplicates: "di.command.situationOpenDuplicates",
+};
 
 export interface CommanderSituationRow extends CommanderSituationObservation {
   actionHref: string;
@@ -37,7 +49,9 @@ export function CommanderSituationSection({ observations }: Props) {
                 className="flex min-w-0 flex-col gap-0.5 px-4 py-2.5 text-sm leading-snug text-foreground transition-colors hover:bg-neutral-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
               >
                 <span className="min-w-0 break-words">{text}</span>
-                <span className="shrink-0 text-xs text-accent">{t("di.command.situationOpen")} →</span>
+                <span className="shrink-0 text-xs text-accent">
+                  {t(SITUATION_ACTION_KEYS[obs.href] ?? "di.command.situationOpen")} →
+                </span>
               </Link>
             </li>
           );

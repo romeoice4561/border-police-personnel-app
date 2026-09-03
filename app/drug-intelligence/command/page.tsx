@@ -206,7 +206,7 @@ function CommanderDashboardContent() {
               comparison={
                 periodEnabled && caseDelta && decisionData ? (
                   <CommanderComparisonText
-                    copy={formatCommanderDeltaCopy(caseDelta, t("di.command.unitsColCases"))}
+                    copy={formatCommanderDeltaCopy(caseDelta, t("di.command.unitsColCases"), language)}
                     previousLabel={comparisonLabel}
                   />
                 ) : undefined
@@ -228,7 +228,7 @@ function CommanderDashboardContent() {
               comparison={
                 periodEnabled && arrestedDelta && decisionData ? (
                   <CommanderComparisonText
-                    copy={formatCommanderDeltaCopy(arrestedDelta, t("di.command.unitsColPersons"))}
+                    copy={formatCommanderDeltaCopy(arrestedDelta, t("di.command.unitsColPersons"), language)}
                     previousLabel={comparisonLabel}
                   />
                 ) : undefined
@@ -337,6 +337,7 @@ function CommanderDashboardContent() {
             href: commanderAlertsHref({ status: "NEW" }, filter, urlState),
             label: t("di.command.actionNewSignals"),
             why: t("di.command.actionNewSignalsWhy"),
+            actionLabel: t("di.command.situationOpenSignals"),
             count: alertsCount,
             queueScope: true,
           },
@@ -345,6 +346,7 @@ function CommanderDashboardContent() {
             href: commanderDuplicatesHref(filter, urlState),
             label: t("di.command.actionDuplicates"),
             why: t("di.command.actionDuplicatesWhy"),
+            actionLabel: t("di.command.situationOpenDuplicates"),
             count: overviewData?.pendingDuplicatesCount,
             queueScope: true,
           },
@@ -353,6 +355,7 @@ function CommanderDashboardContent() {
             href: commanderCasesHref(filter, undefined, urlState),
             label: t("di.command.actionMissingArrested"),
             why: t("di.command.actionMissingArrestedWhy"),
+            actionLabel: t("di.command.situationOpenCases"),
             count: completenessCount,
           },
           {
@@ -360,6 +363,7 @@ function CommanderDashboardContent() {
             href: commanderCasesHref(filter, undefined, urlState),
             label: t("di.command.actionUnassignedUnit"),
             why: t("di.command.actionUnassignedUnitWhy"),
+            actionLabel: t("di.command.situationOpenCases"),
             count: units.data?.unassignedCaseCount,
           },
           {
@@ -367,6 +371,7 @@ function CommanderDashboardContent() {
             href: commanderMapHref(filter, undefined, urlState),
             label: t("di.command.actionMissingCoords"),
             why: t("di.command.actionMissingCoordsWhy"),
+            actionLabel: t("di.command.situationOpenMap"),
             count: decisionData?.readiness.casesMissingCoordinates,
           },
         ]}

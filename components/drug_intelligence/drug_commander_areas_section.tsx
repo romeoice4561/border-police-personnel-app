@@ -44,7 +44,7 @@ export function CommanderAreasSection({
   filter,
   urlState,
 }: Props) {
-  const { t } = useT();
+  const { t, language } = useT();
   const maxCount = data && data.rows.length > 0 ? data.rows[0].caseCount : 1;
   const previousByProvince = new Map((previousAreas ?? []).map((row) => [row.province, row.caseCount]));
 
@@ -68,7 +68,7 @@ export function CommanderAreasSection({
             {data.rows.slice(0, 5).map((row, idx) => {
               const share = commanderSharePercent(row.caseCount, totalCases ?? 0);
               const delta = compareCommanderMetric(row.caseCount, previousByProvince.get(row.province) ?? 0);
-              const copy = formatCommanderDeltaCopy(delta, t("di.command.unitsColCases"));
+              const copy = formatCommanderDeltaCopy(delta, t("di.command.unitsColCases"), language);
               return (
                 <article
                   key={row.province}

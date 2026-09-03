@@ -20,6 +20,7 @@ import {
   commanderSignalNetworkHref,
 } from "@/lib/drug_intelligence/drug_commander_drilldown";
 import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 interface Props {
   data: CommanderSignalsData | undefined;
@@ -30,7 +31,7 @@ interface Props {
   urlState?: CommanderUrlState;
 }
 
-const SIGNAL_TYPE_META: Record<string, { icon: typeof Users; labelKey: string }> = {
+const SIGNAL_TYPE_META: Record<string, { icon: typeof Users; labelKey: TranslationKey }> = {
   REPEAT_PERSON: { icon: Users, labelKey: "di.command.signalRepeatPerson" },
   REPEAT_PHONE: { icon: Phone, labelKey: "di.command.signalRepeatPhone" },
   REPEAT_SIM: { icon: CreditCard, labelKey: "di.command.signalRepeatSim" },
@@ -79,7 +80,7 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry, fil
                   </span>
                   <div className="min-w-0">
                     <span className="block text-lg font-bold tabular-nums">{sc.count.toLocaleString("th-TH")}</span>
-                    <span className="block truncate text-xs text-muted">{t(meta.labelKey as Parameters<typeof t>[0])}</span>
+                    <span className="block truncate text-xs text-muted">{t(meta.labelKey)}</span>
                   </div>
                 </Card>
                 </Link>
@@ -102,7 +103,7 @@ export function CommanderSignalsSection({ data, isLoading, isError, onRetry, fil
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="font-medium truncate">{signal.title}</div>
-                        <div className="mt-0.5 text-xs text-muted">{t("di.command.signalEvidenceCaution")}</div>
+                        <div className="mt-0.5 text-xs leading-snug break-words text-muted">{t("di.command.signalEvidenceCaution")}</div>
                         {signal.occurrenceCount > 1 && (
                           <div className="mt-1 text-xs text-muted tabular-nums">
                             {t("di.command.signalRelatedCases").replace("{count}", String(signal.occurrenceCount))}

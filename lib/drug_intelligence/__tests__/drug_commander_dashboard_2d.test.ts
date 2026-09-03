@@ -179,7 +179,9 @@ test("situation observations are deterministic and avoid judgment language", () 
   assert.ok(observations.length >= 3 && observations.length <= 5);
   assert.match(observations[0].textTh, /ช่วงที่เลือกมีคดี 5 คดี เพิ่มขึ้นจากช่วงก่อน 2 คดี/);
   assert.match(observations[1].textTh, /ชุมพรมีจำนวนคดีสูงสุดในช่วงที่เลือก 4 คดี/);
-  assert.match(observations[2].textTh, /ยาบ้าเป็นของกลางประเภท COUNT/);
+  assert.match(observations[2].textTh, /ยาบ้าเป็นของกลางที่พบมากที่สุด \(1,000 เม็ด\)/);
+  assert.doesNotMatch(observations[2].textTh, /COUNT|MASS/);
+  assert.doesNotMatch(observations[2].textEn, /COUNT|MASS/);
   assert.match(observations[3].textTh, /มีสัญญาณข่าวกรองใหม่ 9 รายการรอตรวจสอบ/);
   const joined = observations.map((o) => o.textTh).join(" ");
   assert.doesNotMatch(joined, /สถานการณ์รุนแรง|พื้นที่อันตราย|พื้นที่เสี่ยงสูง|หน่วยทำงานไม่ดี|risk score/i);

@@ -45,7 +45,7 @@ export function CommanderReadinessSection({ totalCases, rows }: Props) {
             <span className="block text-2xl font-bold tabular-nums text-foreground">
               {row.count.toLocaleString("th-TH")}
             </span>
-            <span className="mt-1 block text-sm text-foreground">{row.label}</span>
+            <span className="mt-1 block text-sm leading-snug break-words text-foreground">{row.label}</span>
             <span className="mt-1 block text-xs text-muted">
               {formatPercent(row.count, totalCases)} {t("di.command.readinessOfPeriod")}
             </span>
