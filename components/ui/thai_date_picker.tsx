@@ -2,11 +2,12 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   formatThaiPersonnelDate,
   parseThaiPersonnelDate,
 } from "@/lib/officer_profile/thai_personnel_date";
+import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import {
   THAI_MONTHS,
   isValidDay,
@@ -15,6 +16,7 @@ import {
   yearBEToGregorian,
   yearGregorianToBE,
   currentYearBE,
+  shiftBuddhistCalendarMonth,
 } from "@/lib/officer_profile/thai_date";
 import { computePopoverPlacement, type PopoverPlacement } from "@/lib/ui/popover_placement";
 import { cn } from "@/lib/ui/cn";
@@ -43,7 +45,10 @@ export interface ThaiDatePickerProps {
   disabled?: boolean;
   rejectFuture?: boolean;
   "aria-label"?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
   className?: string;
+  "data-testid"?: string;
   /**
    * "thai" (default, unchanged from before this phase) — value/onChange
    * carry a DD/MM/YYYY(BE) string, matching every existing call site
@@ -60,6 +65,17 @@ export interface ThaiDatePickerProps {
   yearRangeBE?: { min: number; max: number };
   /** Shows a "Today"/"วันนี้" quick-select button in the footer (Phase 47A). */
   showTodayButton?: boolean;
+  /**
+   * Trigger label format. "numeric" (default) is DD/MM/YYYY พ.ศ.
+   * "short" is compact Thai, e.g. "1 ส.ค. 2569".
+   */
+  displayFormat?: "numeric" | "short";
+  /**
+   * When false, changing month/year dropdowns only browses the calendar
+   * and does not call onChange until a day is clicked. Default true keeps
+   * existing call-site behavior.
+   */
+  commitOnBrowse?: boolean;
 }
 
 const selectCls =
@@ -124,10 +140,15 @@ export function ThaiDatePicker({
   disabled = false,
   rejectFuture = false,
   "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
   className,
+  "data-testid": dataTestId,
   outputFormat = "thai",
   yearRangeBE = { min: THAI_PERSONNEL_YEAR_BE_MIN, max: THAI_PERSONNEL_YEAR_BE_MAX },
   showTodayButton = false,
+  displayFormat = "numeric",
+  commitOnBrowse = true,
 }: ThaiDatePickerProps) {
   const fallbackId = useId();
   const inputId = id ?? fallbackId;
@@ -194,6 +215,7 @@ export function ThaiDatePicker({
         event.stopPropagation();
         setOpen(false);
         setShowYearGrid(false);
+        queueMicrotask(() => triggerRef.current?.focus());
       }
     }
     document.addEventListener("mousedown", onPointerDown);
@@ -255,17 +277,39 @@ export function ThaiDatePicker({
     }
     setError(null);
     onChange(result.value);
-    if (close) {
-      setOpen(false);
-      setShowYearGrid(false);
-    }
+    if (close) closePopover();
+  }
+
+  function closePopover() {
+    setOpen(false);
+    setShowYearGrid(false);
+    queueMicrotask(() => triggerRef.current?.focus());
+  }
+
+  function browseMonthYear(nextMonth: number, nextYearBE: number, nextDay = safeDay) {
+    const clampedYear = Math.min(yearRangeBE.max, Math.max(yearRangeBE.min, nextYearBE));
+    const monthDaysNext = daysInMonth(clampedYear, nextMonth);
+    const dayNext = Math.min(nextDay, monthDaysNext);
+    setMonth(nextMonth);
+    setYearBE(clampedYear);
+    setDay(dayNext);
+    if (commitOnBrowse) applySelection(dayNext, nextMonth, clampedYear);
+  }
+
+  function shiftVisibleMonth(delta: number) {
+    const next = shiftBuddhistCalendarMonth(yearBE, month, delta);
+    if (next.yearBE < yearRangeBE.min || next.yearBE > yearRangeBE.max) return;
+    const monthDaysNext = daysInMonth(next.yearBE, next.month);
+    const dayNext = Math.min(safeDay, monthDaysNext);
+    setMonth(next.month);
+    setYearBE(next.yearBE);
+    setDay(dayNext);
   }
 
   function clearValue() {
     setError(null);
     onChange("");
-    setOpen(false);
-    setShowYearGrid(false);
+    closePopover();
   }
 
   function selectToday() {
@@ -279,10 +323,16 @@ export function ThaiDatePicker({
     applySelection(todayDay, todayMonth, todayYearBE, true);
   }
 
-  const displayValue = value ? formatThaiPersonnelDate(parsed) || placeholder : placeholder;
+  const displayValue = (() => {
+    if (!value || !parsed) return placeholder;
+    if (displayFormat === "short") return formatShortThaiDateTh(parsed);
+    return formatThaiPersonnelDate(parsed) || placeholder;
+  })();
+  const canGoPrevMonth = !(yearBE === yearRangeBE.min && month === 1);
+  const canGoNextMonth = !(yearBE === yearRangeBE.max && month === 12);
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("relative", className)} data-invalid={ariaInvalid ? "true" : undefined}>
       <button
         ref={triggerRef}
         id={inputId}
@@ -291,7 +341,9 @@ export function ThaiDatePicker({
         aria-label={ariaLabel ?? "Thai date picker"}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-describedby={ariaDescribedBy}
         onClick={() => setOpen((current) => !current)}
+        data-testid={dataTestId}
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm",
           "focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent",
@@ -309,7 +361,8 @@ export function ThaiDatePicker({
               ref={popoverRef}
               role="dialog"
               aria-label="เลือกวันที่ พ.ศ."
-              className="fixed z-50 w-80 max-w-[calc(100vw-16px)] rounded-xl border border-border bg-surface p-3 shadow-lg"
+              data-testid="thai-date-picker-popover"
+              className="fixed z-[80] w-80 max-w-[calc(100vw-16px)] rounded-xl border border-border bg-surface p-3 shadow-lg"
               style={{
                 // Positioned via lib/ui/popover_placement.ts (collision-aware
                 // fixed coordinates). Until the first measurement completes
@@ -320,6 +373,33 @@ export function ThaiDatePicker({
                 visibility: placement ? "visible" : "hidden",
               }}
             >
+              <div className="mb-2 flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  aria-label="เดือนก่อน"
+                  disabled={!canGoPrevMonth}
+                  onClick={() => shiftVisibleMonth(-1)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <p
+                  className="min-w-0 flex-1 text-center text-sm font-semibold text-foreground"
+                  data-testid="thai-date-picker-month-label"
+                >
+                  {THAI_MONTHS[month]} {yearBE}
+                </p>
+                <button
+                  type="button"
+                  aria-label="เดือนถัดไป"
+                  disabled={!canGoNextMonth}
+                  onClick={() => shiftVisibleMonth(1)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+
               <div className="grid grid-cols-3 gap-2">
                 <label className="space-y-1 text-[11px] font-medium text-muted">
                   วัน / Day
@@ -346,10 +426,7 @@ export function ThaiDatePicker({
                     value={month}
                     onChange={(e) => {
                       const nextMonth = Number(e.target.value);
-                      const nextDay = Math.min(safeDay, daysInMonth(yearBE, nextMonth));
-                      setMonth(nextMonth);
-                      setDay(nextDay);
-                      applySelection(nextDay, nextMonth, yearBE);
+                      browseMonthYear(nextMonth, yearBE, safeDay);
                     }}
                     aria-label="เดือน"
                   >
@@ -366,10 +443,7 @@ export function ThaiDatePicker({
                     value={yearBE}
                     onChange={(e) => {
                       const nextYear = Number(e.target.value);
-                      const nextDay = Math.min(safeDay, daysInMonth(nextYear, month));
-                      setYearBE(nextYear);
-                      setDay(nextDay);
-                      applySelection(nextDay, month, nextYear);
+                      browseMonthYear(month, nextYear, safeDay);
                     }}
                     aria-label="ปี พ.ศ."
                   >
@@ -409,11 +483,8 @@ export function ThaiDatePicker({
                         key={optionYear}
                         type="button"
                         onClick={() => {
-                          const nextDay = Math.min(safeDay, daysInMonth(optionYear, month));
-                          setYearBE(optionYear);
-                          setDay(nextDay);
+                          browseMonthYear(month, optionYear, safeDay);
                           setShowYearGrid(false);
-                          applySelection(nextDay, month, optionYear);
                         }}
                         className={cn(
                           "rounded-md px-2 py-1.5 text-xs hover:bg-accent/10",
@@ -450,12 +521,14 @@ export function ThaiDatePicker({
                         setDay(optionDay);
                         applySelection(optionDay, month, yearBE, true);
                       }}
+                      aria-pressed={Boolean(selected)}
+                      aria-current={isToday ? "date" : undefined}
+                      aria-label={`${optionDay} ${THAI_MONTHS[month]} ${yearBE}`}
                       className={cn(
-                        "rounded-md py-2 text-sm hover:bg-accent/10",
-                        selected && "bg-accent text-white hover:bg-accent",
+                        "rounded-md py-2 text-sm font-medium hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent",
+                        selected && "bg-accent text-white underline decoration-2 underline-offset-2 hover:bg-accent",
                         !selected && isToday && "ring-1 ring-accent"
                       )}
-                      aria-label={`${optionDay} ${THAI_MONTHS[month]} ${yearBE}`}
                     >
                       {optionDay}
                     </button>

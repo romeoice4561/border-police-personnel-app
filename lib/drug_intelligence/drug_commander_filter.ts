@@ -82,18 +82,11 @@ export function resolveCommanderFilter(params: URLSearchParams): CommanderDashbo
   const fromDate = fromParam ? parseCommanderIsoDate(fromParam, false) : null;
   const toDate = toParam ? parseCommanderIsoDate(toParam, true) : null;
 
-  if (fromDate && toDate) {
+  // Custom period is authoritative only when both bounds are valid and ordered.
+  // Partial or inverted ranges keep FY analytics (the UI blocks inverted
+  // requests; the API also 400s inverted ranges).
+  if (fromDate && toDate && fromParam && toParam && fromParam <= toParam) {
     filter.arrestDateFrom = fromDate;
-    filter.arrestDateTo = toDate;
-    filter.fiscalYear = undefined;
-    filter.fiscalYearBe = undefined;
-    filter.displayFiscalYearTh = undefined;
-  } else if (fromDate && !toDate) {
-    filter.arrestDateFrom = fromDate;
-    filter.fiscalYear = undefined;
-    filter.fiscalYearBe = undefined;
-    filter.displayFiscalYearTh = undefined;
-  } else if (!fromDate && toDate) {
     filter.arrestDateTo = toDate;
     filter.fiscalYear = undefined;
     filter.fiscalYearBe = undefined;
@@ -142,6 +135,18 @@ export function resolveCommanderFilter(params: URLSearchParams): CommanderDashbo
   }
 
   return filter;
+}
+
+/** Server-side inverted-range guard. Returns a Thai message or null. */
+export function commanderInvalidDateRangeMessage(params: URLSearchParams): string | null {
+  const from = params.get("from");
+  const to = params.get("to");
+  if (!from || !to) return null;
+  const fromDate = parseCommanderIsoDate(from, false);
+  const toDate = parseCommanderIsoDate(to, false);
+  if (!fromDate || !toDate) return null;
+  if (from > to) return "วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด";
+  return null;
 }
 
 /**

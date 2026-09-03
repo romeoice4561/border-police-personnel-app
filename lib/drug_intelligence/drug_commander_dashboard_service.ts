@@ -84,15 +84,18 @@ export class DrugCommanderDashboardService {
     const caseIds = (cases as Array<{ id: string }>).map((c) => c.id);
 
     let arrestedPersonCount = 0;
+    let casesWithoutArrestedRoleCount = 0;
     if (caseIds.length > 0) {
       const personRows = await this.db.drugCasePerson.findMany({
         where: {
           caseId: { in: caseIds },
           role: { in: ARRESTED_ROLES as unknown as string[] },
         },
-        select: { personId: true },
+        select: { personId: true, caseId: true },
       });
       arrestedPersonCount = new Set((personRows as Array<{ personId: string }>).map((r) => r.personId)).size;
+      const linkedCaseIds = new Set((personRows as Array<{ caseId: string }>).map((r) => r.caseId));
+      casesWithoutArrestedRoleCount = caseIds.filter((id) => !linkedCaseIds.has(id)).length;
     }
 
     // New alerts — global (not date-bounded)
@@ -108,6 +111,7 @@ export class DrugCommanderDashboardService {
     return {
       caseCount,
       arrestedPersonCount,
+      casesWithoutArrestedRoleCount,
       newAlertsCount,
       pendingDuplicatesCount,
       filter: serializeFilterMeta(filter),
@@ -304,7 +308,14 @@ export class DrugCommanderDashboardService {
     });
 
     if (cases.length === 0) {
-      return { rows: [], groupBy, filter: serializeFilterMeta(filter), generatedAt: new Date().toISOString() };
+      return {
+        rows: [],
+        groupBy,
+        assignedCaseCount: 0,
+        unassignedCaseCount: 0,
+        filter: serializeFilterMeta(filter),
+        generatedAt: new Date().toISOString(),
+      };
     }
 
     const allCaseIds = (cases as Array<{ id: string }>).map((c) => c.id);
@@ -400,10 +411,15 @@ export class DrugCommanderDashboardService {
     }
 
     const namedRows = unitRows.filter((row) => row.unitId !== null);
+    const unassigned = unitRows.find((row) => row.unitId === null);
     namedRows.sort((a, b) => b.caseCount - a.caseCount || a.unitLabel.localeCompare(b.unitLabel, "th"));
+    const assignedCaseCount = namedRows.reduce((sum, row) => sum + row.caseCount, 0);
+    const unassignedCaseCount = unassigned?.caseCount ?? 0;
     return {
       rows: namedRows.slice(0, UNIT_HARD_CAP),
       groupBy,
+      assignedCaseCount,
+      unassignedCaseCount,
       filter: serializeFilterMeta(filter),
       generatedAt: new Date().toISOString(),
     };

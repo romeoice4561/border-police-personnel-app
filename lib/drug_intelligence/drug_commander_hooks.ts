@@ -36,56 +36,61 @@ export const commanderQueryKeys = {
 
 export function useCommanderOverview(
   actorId: string | null,
-  params: Omit<CommanderQueryParams, "actorId">
+  params: Omit<CommanderQueryParams, "actorId">,
+  enabled = true
 ): UseQueryResult<CommanderOverviewData> {
   return useQuery({
     queryKey: commanderQueryKeys.overview(actorId, params),
     queryFn: () => drugCommanderClient.getOverview({ actorId: actorId as string, ...params }),
-    enabled: Boolean(actorId),
+    enabled: Boolean(actorId) && enabled,
   });
 }
 
 export function useCommanderSeizures(
   actorId: string | null,
-  params: Omit<CommanderQueryParams, "actorId">
+  params: Omit<CommanderQueryParams, "actorId">,
+  enabled = true
 ): UseQueryResult<CommanderSeizuresData> {
   return useQuery({
     queryKey: commanderQueryKeys.seizures(actorId, params),
     queryFn: () => drugCommanderClient.getSeizures({ actorId: actorId as string, ...params }),
-    enabled: Boolean(actorId),
+    enabled: Boolean(actorId) && enabled,
   });
 }
 
 export function useCommanderTrend(
   actorId: string | null,
-  params: Omit<CommanderQueryParams, "actorId">
+  params: Omit<CommanderQueryParams, "actorId">,
+  enabled = true
 ): UseQueryResult<CommanderTrendData> {
   return useQuery({
     queryKey: commanderQueryKeys.trend(actorId, params),
     queryFn: () => drugCommanderClient.getTrend({ actorId: actorId as string, ...params }),
-    enabled: Boolean(actorId),
+    enabled: Boolean(actorId) && enabled,
   });
 }
 
 export function useCommanderAreas(
   actorId: string | null,
-  params: Omit<CommanderQueryParams, "actorId">
+  params: Omit<CommanderQueryParams, "actorId">,
+  enabled = true
 ): UseQueryResult<CommanderAreasData> {
   return useQuery({
     queryKey: commanderQueryKeys.areas(actorId, params),
     queryFn: () => drugCommanderClient.getAreas({ actorId: actorId as string, ...params }),
-    enabled: Boolean(actorId),
+    enabled: Boolean(actorId) && enabled,
   });
 }
 
 export function useCommanderUnits(
   actorId: string | null,
-  params: Omit<CommanderQueryParams, "actorId">
+  params: Omit<CommanderQueryParams, "actorId">,
+  enabled = true
 ): UseQueryResult<CommanderUnitsData> {
   return useQuery({
     queryKey: commanderQueryKeys.units(actorId, params),
     queryFn: () => drugCommanderClient.getUnits({ actorId: actorId as string, ...params }),
-    enabled: Boolean(actorId),
+    enabled: Boolean(actorId) && enabled,
   });
 }
 

@@ -11,6 +11,7 @@ import { BellRing, GitCompareArrows, Map, Network, FileText, Search } from "luci
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { useT } from "@/components/i18n/language_provider";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
+import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 import { commanderAlertsHref, commanderCasesHref, commanderDuplicatesHref, commanderMapHref, commanderNetworkWorkspaceHref, commanderSearchHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 
 interface CommanderAction {
@@ -25,41 +26,42 @@ interface Props {
   pendingDuplicates?: number;
   newAlerts?: number;
   filter: CommanderDashboardFilter;
+  urlState?: CommanderUrlState;
 }
 
-export function CommanderActionsSection({ pendingDuplicates, newAlerts, filter }: Props) {
+export function CommanderActionsSection({ pendingDuplicates, newAlerts, filter, urlState }: Props) {
   const { t } = useT();
 
   const actions: CommanderAction[] = [
     {
-      href: commanderAlertsHref({ status: "NEW" }, filter),
+      href: commanderAlertsHref({ status: "NEW" }, filter, urlState),
       icon: BellRing,
       labelKey: "di.command.actionAlerts",
       badge: newAlerts,
     },
     {
-      href: commanderDuplicatesHref(filter),
+      href: commanderDuplicatesHref(filter, urlState),
       icon: GitCompareArrows,
       labelKey: "di.command.actionDuplicates",
       badge: pendingDuplicates,
     },
     {
-      href: commanderCasesHref(filter),
+      href: commanderCasesHref(filter, undefined, urlState),
       icon: FileText,
       labelKey: "di.command.viewCases",
     },
     {
-      href: commanderMapHref(filter),
+      href: commanderMapHref(filter, undefined, urlState),
       icon: Map,
       labelKey: "di.command.viewMap",
     },
     {
-      href: commanderNetworkWorkspaceHref(filter),
+      href: commanderNetworkWorkspaceHref(filter, urlState),
       icon: Network,
       labelKey: "di.command.openNetwork",
     },
     {
-      href: commanderSearchHref(filter),
+      href: commanderSearchHref(filter, urlState),
       icon: Search,
       labelKey: "di.command.openSearch",
     },

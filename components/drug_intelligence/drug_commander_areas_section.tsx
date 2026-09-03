@@ -13,6 +13,7 @@ import { useT } from "@/components/i18n/language_provider";
 import type { CommanderAreasData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderMapHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 
 interface Props {
   data: CommanderAreasData | undefined;
@@ -20,9 +21,10 @@ interface Props {
   isError: boolean;
   onRetry?: () => void;
   filter: CommanderDashboardFilter;
+  urlState?: CommanderUrlState;
 }
 
-export function CommanderAreasSection({ data, isLoading, isError, onRetry, filter }: Props) {
+export function CommanderAreasSection({ data, isLoading, isError, onRetry, filter, urlState }: Props) {
   const { t } = useT();
 
   const maxCount = data && data.rows.length > 0 ? data.rows[0].caseCount : 1;
@@ -50,7 +52,7 @@ export function CommanderAreasSection({ data, isLoading, isError, onRetry, filte
             {data.rows.slice(0, 5).map((row, idx) => (
               <Link
                 key={row.province}
-                href={commanderMapHref(filter, { province: row.province })}
+                href={commanderMapHref(filter, { province: row.province }, urlState)}
                 className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md px-1 py-1 hover:bg-neutral-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <div className="flex items-center gap-2 min-w-0">

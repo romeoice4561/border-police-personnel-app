@@ -15,6 +15,7 @@ import type { CommanderTrendData } from "@/lib/drug_intelligence/drug_commander_
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderMonthCasesHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 import { commanderMonthLabel } from "@/lib/drug_intelligence/drug_commander_trend_labels";
+import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 
 interface Props {
   data: CommanderTrendData | undefined;
@@ -22,9 +23,10 @@ interface Props {
   isError: boolean;
   onRetry?: () => void;
   filter: CommanderDashboardFilter;
+  urlState?: CommanderUrlState;
 }
 
-export function CommanderTrendChart({ data, isLoading, isError, onRetry, filter }: Props) {
+export function CommanderTrendChart({ data, isLoading, isError, onRetry, filter, urlState }: Props) {
   const { t, language } = useT();
 
   return (
@@ -55,7 +57,7 @@ export function CommanderTrendChart({ data, isLoading, isError, onRetry, filter 
                   <div className="-mx-1 overflow-x-auto px-1">
                     <div className="flex items-end gap-0.5 sm:gap-1" data-testid="commander-trend-chart">
                     {data.buckets.map((b) => {
-                      const href = commanderMonthCasesHref(filter, b.year, b.month);
+                      const href = commanderMonthCasesHref(filter, b.year, b.month, urlState);
                       const label = commanderMonthLabel(b.month, language);
                       const barPct = (b.caseCount / maxCount) * 100;
                       const tooltipCount = t("di.command.trendTooltip").replace("{count}", String(b.caseCount));

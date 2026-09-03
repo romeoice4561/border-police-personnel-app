@@ -17,6 +17,7 @@ import { cn } from "@/lib/ui/cn";
 import type { CommanderUnitsData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderUnitCasesHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 
 interface Props {
   data: CommanderUnitsData | undefined;
@@ -24,9 +25,10 @@ interface Props {
   isError: boolean;
   onRetry?: () => void;
   filter: CommanderDashboardFilter;
+  urlState?: CommanderUrlState;
 }
 
-export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filter }: Props) {
+export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filter, urlState }: Props) {
   const { t } = useT();
   const orgTree = useOrgTree();
 
@@ -52,10 +54,29 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
       )}
 
       {!isLoading && !isError && data && (
-        data.rows.length === 0 ? (
-          <p className="text-sm text-muted py-4">{t("di.command.unitsEmpty")}</p>
-        ) : (
+        (() => {
+          const unassigned = data.unassignedCaseCount ?? 0;
+          const assigned = data.assignedCaseCount ?? data.rows.reduce((sum, row) => sum + row.caseCount, 0);
+          if (data.rows.length === 0 && assigned === 0 && unassigned === 0) {
+            return <p className="text-sm text-muted py-4">{t("di.command.unitsEmptyNoCases")}</p>;
+          }
+          if (data.rows.length === 0 && unassigned > 0) {
+            return (
+              <p className="text-sm text-muted py-4">
+                {t("di.command.unitsEmptyAllUnassigned").replace("{count}", String(unassigned))}
+              </p>
+            );
+          }
+          if (data.rows.length === 0) {
+            return <p className="text-sm text-muted py-4">{t("di.command.unitsEmpty")}</p>;
+          }
+          return (
           <>
+            {unassigned > 0 ? (
+              <p className="mb-3 text-xs text-muted" data-testid="commander-units-unassigned">
+                {t("di.command.unitsUnassigned").replace("{count}", String(unassigned))}
+              </p>
+            ) : null}
             {/* Desktop table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm" aria-label={t("di.command.unitsTitle")}>
@@ -76,7 +97,7 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
                     >
                       <td className="py-2 pr-4 font-medium">
                         <Link
-                          href={commanderUnitCasesHref(filter, row.unitId, data.groupBy)}
+                          href={commanderUnitCasesHref(filter, row.unitId, data.groupBy, urlState)}
                           className="rounded hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         >
                           {unitLabel(row)}
@@ -105,7 +126,7 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
               {data.rows.map((row, idx) => (
                 <Link
                   key={row.unitId ?? `null-${idx}`}
-                  href={commanderUnitCasesHref(filter, row.unitId, data.groupBy)}
+                  href={commanderUnitCasesHref(filter, row.unitId, data.groupBy, urlState)}
                   className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                 <Card className="p-4 hover:border-accent/50">
@@ -135,7 +156,8 @@ export function CommanderUnitsSection({ data, isLoading, isError, onRetry, filte
               ))}
             </div>
           </>
-        )
+          );
+        })()
       )}
     </section>
   );

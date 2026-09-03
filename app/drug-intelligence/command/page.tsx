@@ -1,5 +1,5 @@
 /**
- * Commander Intelligence Dashboard (Phase 2B).
+ * Commander Intelligence Dashboard (Phase 2B / 2C).
  *
  * Dedicated decision-support workspace. The operational landing at
  * /drug-intelligence is unchanged.
@@ -32,6 +32,11 @@ import {
 import type { CommanderQueryParams } from "@/lib/drug_intelligence/drug_commander_client";
 import { resolveCommanderFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import {
+  commanderPeriodApiDates,
+  commanderPeriodQueryEnabled,
+  type CommanderUrlState,
+} from "@/lib/drug_intelligence/drug_commander_scope";
+import {
   commanderAlertsHref,
   commanderCasesHref,
   commanderDuplicatesHref,
@@ -53,10 +58,25 @@ function CommanderDashboardContent() {
   const actorId = user?.id ?? null;
   const filter = resolveCommanderFilter(searchParams);
 
-  const queryParams: Omit<CommanderQueryParams, "actorId"> = {
-    fy: searchParams.get("fy") ? Number(searchParams.get("fy")) : undefined,
+  const urlState: CommanderUrlState = {
+    fy: searchParams.get("fy") ?? undefined,
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
+    hqId: searchParams.get("hqId") ?? undefined,
+    regionId: searchParams.get("regionId") ?? undefined,
+    battalionId: searchParams.get("battalionId") ?? undefined,
+    companyId: searchParams.get("companyId") ?? undefined,
+    province: searchParams.get("province") ?? undefined,
+    status: searchParams.get("status") ?? undefined,
+  };
+
+  const periodEnabled = commanderPeriodQueryEnabled(urlState);
+  const apiDates = commanderPeriodApiDates(urlState);
+
+  const queryParams: Omit<CommanderQueryParams, "actorId"> = {
+    fy: apiDates.fy,
+    from: apiDates.from,
+    to: apiDates.to,
     hqId: searchParams.get("hqId") ? Number(searchParams.get("hqId")) : undefined,
     regionId: searchParams.get("regionId") ? Number(searchParams.get("regionId")) : undefined,
     battalionId: searchParams.get("battalionId") ? Number(searchParams.get("battalionId")) : undefined,
@@ -69,27 +89,19 @@ function CommanderDashboardContent() {
     Object.entries(queryParams).filter(([, v]) => v !== undefined && v !== null && !Number.isNaN(v))
   ) as Omit<CommanderQueryParams, "actorId">;
 
-  const overview = useCommanderOverview(actorId, cleanParams);
-  const seizures = useCommanderSeizures(actorId, cleanParams);
-  const trend = useCommanderTrend(actorId, cleanParams);
-  const areas = useCommanderAreas(actorId, cleanParams);
-  const units = useCommanderUnits(actorId, cleanParams);
+  const overview = useCommanderOverview(actorId, cleanParams, periodEnabled);
+  const seizures = useCommanderSeizures(actorId, cleanParams, periodEnabled);
+  const trend = useCommanderTrend(actorId, cleanParams, periodEnabled);
+  const areas = useCommanderAreas(actorId, cleanParams, periodEnabled);
+  const units = useCommanderUnits(actorId, cleanParams, periodEnabled);
   const signals = useCommanderSignals(actorId);
 
-  const filterState = {
-    fy: searchParams.get("fy") ?? undefined,
-    from: searchParams.get("from") ?? undefined,
-    to: searchParams.get("to") ?? undefined,
-    hqId: searchParams.get("hqId") ?? undefined,
-    regionId: searchParams.get("regionId") ?? undefined,
-    battalionId: searchParams.get("battalionId") ?? undefined,
-    companyId: searchParams.get("companyId") ?? undefined,
-    province: searchParams.get("province") ?? undefined,
-    status: searchParams.get("status") ?? undefined,
-  };
-
-  const overviewData = overview.data;
+  const overviewData = periodEnabled ? overview.data : undefined;
   const displayFiscalYearTh = overviewData?.filter.displayFiscalYearTh ?? filter.displayFiscalYearTh;
+  const periodLoading = periodEnabled && (overview.isPending || overview.isFetching);
+  const completenessCount = overviewData?.casesWithoutArrestedRoleCount ?? 0;
+  const alertsCount = overviewData?.newAlertsCount ?? signals.data?.totalNewAlerts;
+  const queueLoading = periodEnabled ? overview.isFetching : signals.isFetching;
 
   return (
     <div className="flex flex-col gap-8">
@@ -99,7 +111,7 @@ function CommanderDashboardContent() {
       />
 
       <CommanderFilterBar
-        filterState={filterState}
+        filterState={urlState}
         displayFiscalYearTh={displayFiscalYearTh}
       />
 
@@ -107,7 +119,7 @@ function CommanderDashboardContent() {
         <h2 id="overview-heading" className="mb-4 text-lg font-semibold">
           {t("di.command.overviewTitle")}
         </h2>
-        {overview.isError ? (
+        {periodEnabled && overview.isError ? (
           <ErrorState
             message={t("di.command.loadError")}
             onRetry={() => void overview.refetch()}
@@ -116,77 +128,107 @@ function CommanderDashboardContent() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <CommanderKpiCard
               label={t("di.command.kpiCases")}
-              value={overviewData?.caseCount ?? 0}
+              value={periodEnabled ? (overviewData?.caseCount ?? 0) : "—"}
               description={t("di.command.kpiCasesDesc")}
-              subtitle={displayFiscalYearTh}
+              subtitle={t("di.command.kpiPeriodBadge")}
               icon={FileSpreadsheet}
-              href={commanderCasesHref(filter)}
-              loading={overview.isLoading}
+              href={periodEnabled ? commanderCasesHref(filter, undefined, urlState) : undefined}
+              loading={periodLoading}
             />
             <CommanderKpiCard
               label={t("di.command.kpiArrested")}
-              value={overviewData?.arrestedPersonCount ?? 0}
+              value={periodEnabled ? (overviewData?.arrestedPersonCount ?? 0) : "—"}
               description={t("di.command.kpiArrestedDesc")}
+              subtitle={t("di.command.kpiPeriodBadge")}
+              footnote={
+                periodEnabled && completenessCount > 0
+                  ? t("di.command.kpiArrestedCompleteness").replace("{count}", String(completenessCount))
+                  : undefined
+              }
               icon={Users}
-              href={commanderPersonsHref(filter)}
-              loading={overview.isLoading}
+              href={periodEnabled ? commanderPersonsHref(filter, urlState) : undefined}
+              loading={periodLoading}
             />
             <CommanderKpiCard
               label={t("di.command.kpiAlerts")}
-              value={overviewData?.newAlertsCount ?? 0}
+              value={alertsCount ?? 0}
               description={t("di.command.kpiAlertsDesc")}
+              subtitle={t("di.command.kpiQueueBadge")}
+              footnote={t("di.command.kpiQueueHint")}
               icon={BellRing}
-              href={commanderAlertsHref({ status: "NEW" }, filter)}
-              loading={overview.isLoading}
+              href={commanderAlertsHref({ status: "NEW" }, filter, urlState)}
+              loading={queueLoading && alertsCount === undefined}
             />
             <CommanderKpiCard
               label={t("di.command.kpiDuplicates")}
-              value={overviewData?.pendingDuplicatesCount ?? 0}
+              value={overviewData?.pendingDuplicatesCount ?? (periodEnabled ? 0 : "—")}
               description={t("di.command.kpiDuplicatesDesc")}
+              subtitle={t("di.command.kpiQueueBadge")}
+              footnote={t("di.command.kpiQueueHint")}
               icon={ClipboardCheck}
-              href={commanderDuplicatesHref(filter)}
-              loading={overview.isLoading}
+              href={commanderDuplicatesHref(filter, urlState)}
+              loading={periodEnabled && periodLoading}
             />
           </div>
         )}
       </section>
 
       <div className="order-7 md:order-2">
-        <CommanderSeizureSection
-          data={seizures.data}
-          isLoading={seizures.isLoading}
-          isError={seizures.isError}
-          onRetry={() => void seizures.refetch()}
-          filter={filter}
-        />
+        {periodEnabled ? (
+          <CommanderSeizureSection
+            data={seizures.data}
+            isLoading={seizures.isPending || seizures.isFetching}
+            isError={seizures.isError}
+            onRetry={() => void seizures.refetch()}
+            filter={filter}
+            urlState={urlState}
+          />
+        ) : (
+          <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
+        )}
       </div>
 
       <div className="order-4 md:order-3">
-        <CommanderTrendChart
-          data={trend.data}
-          isLoading={trend.isLoading}
-          isError={trend.isError}
-          onRetry={() => void trend.refetch()}
-          filter={filter}
-        />
+        {periodEnabled ? (
+          <CommanderTrendChart
+            data={trend.data}
+            isLoading={trend.isPending || trend.isFetching}
+            isError={trend.isError}
+            onRetry={() => void trend.refetch()}
+            filter={filter}
+            urlState={urlState}
+          />
+        ) : (
+          <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
+        )}
       </div>
 
       <div className="order-5 grid grid-cols-1 gap-8 md:order-4 lg:grid-cols-2">
-        <CommanderAreasSection
-          data={areas.data}
-          isLoading={areas.isLoading}
-          isError={areas.isError}
-          onRetry={() => void areas.refetch()}
-          filter={filter}
-        />
-        <div className="order-6 md:order-none">
-          <CommanderUnitsSection
-            data={units.data}
-            isLoading={units.isLoading}
-            isError={units.isError}
-            onRetry={() => void units.refetch()}
+        {periodEnabled ? (
+          <CommanderAreasSection
+            data={areas.data}
+            isLoading={areas.isPending || areas.isFetching}
+            isError={areas.isError}
+            onRetry={() => void areas.refetch()}
             filter={filter}
+            urlState={urlState}
           />
+        ) : (
+          <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
+        )}
+        <div className="order-6 md:order-none">
+          {periodEnabled ? (
+            <CommanderUnitsSection
+              data={units.data}
+              isLoading={units.isPending || units.isFetching}
+              isError={units.isError}
+              onRetry={() => void units.refetch()}
+              filter={filter}
+              urlState={urlState}
+            />
+          ) : (
+            <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
+          )}
         </div>
       </div>
 
@@ -197,14 +239,16 @@ function CommanderDashboardContent() {
           isError={signals.isError}
           onRetry={() => void signals.refetch()}
           filter={filter}
+          urlState={urlState}
         />
       </div>
 
       <div className="order-3 md:order-7">
         <CommanderActionsSection
           pendingDuplicates={overviewData?.pendingDuplicatesCount}
-          newAlerts={overviewData?.newAlertsCount}
+          newAlerts={alertsCount}
           filter={filter}
+          urlState={urlState}
         />
       </div>
     </div>

@@ -15,6 +15,7 @@ import { useT } from "@/components/i18n/language_provider";
 import type { CommanderSeizuresData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import { commanderMapHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 
 interface Props {
   data: CommanderSeizuresData | undefined;
@@ -22,9 +23,10 @@ interface Props {
   isError: boolean;
   onRetry?: () => void;
   filter: CommanderDashboardFilter;
+  urlState?: CommanderUrlState;
 }
 
-export function CommanderSeizureSection({ data, isLoading, isError, onRetry, filter }: Props) {
+export function CommanderSeizureSection({ data, isLoading, isError, onRetry, filter, urlState }: Props) {
   const { t } = useT();
 
   return (
@@ -46,7 +48,7 @@ export function CommanderSeizureSection({ data, isLoading, isError, onRetry, fil
             {data.items.map((item) => (
               <Link
                 key={`${item.drugCategory}::${item.measurementKind}`}
-                href={commanderMapHref(filter, { drugCategory: item.drugCategory })}
+                href={commanderMapHref(filter, { drugCategory: item.drugCategory }, urlState)}
                 className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <Card className="p-4 transition-colors hover:border-accent/50 hover:bg-neutral-bg">

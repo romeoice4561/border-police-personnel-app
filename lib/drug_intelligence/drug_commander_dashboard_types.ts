@@ -20,6 +20,8 @@ export interface CommanderOverviewData {
   caseCount: number;
   /** Unique persons with role ARRESTED_PERSON or ACCUSED across matching cases. */
   arrestedPersonCount: number;
+  /** Cases in this period with no ARRESTED_PERSON/ACCUSED case-person link. */
+  casesWithoutArrestedRoleCount: number;
   /** DrugIntelligenceAlerts with status NEW (global — not date-bounded). */
   newAlertsCount: number;
   /** HIGH_CONFIDENCE_DUPLICATE alerts with status NEW (global). */
@@ -120,6 +122,10 @@ export interface CommanderUnitsData {
   rows: CommanderUnitRow[];
   /** The org level being shown ("region" | "battalion" | "company"). */
   groupBy: string;
+  /** Cases in scope that have a reporting-unit id at the ranking level. */
+  assignedCaseCount: number;
+  /** Cases in scope whose ranking-level reporting-unit id is null. */
+  unassignedCaseCount: number;
   filter: CommanderFilterMeta;
   generatedAt: string;
 }

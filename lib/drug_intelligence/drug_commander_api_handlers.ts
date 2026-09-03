@@ -15,12 +15,14 @@
 import { badRequest, jsonOk } from "@/lib/api/api_response";
 import { assertDrugIntelligencePermission } from "@/lib/drug_intelligence/drug_case_api_handlers";
 import type { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
-import { resolveCommanderDashboardScope, resolveCommanderFilter } from "@/lib/drug_intelligence/drug_commander_filter";
+import { resolveCommanderDashboardScope, resolveCommanderFilter, commanderInvalidDateRangeMessage } from "@/lib/drug_intelligence/drug_commander_filter";
 
 async function authorizeAndResolve(params: URLSearchParams, actorId: string | null, request: Request) {
   if (!actorId) return { error: badRequest("actorId is required") as Response };
   const denied = await assertDrugIntelligencePermission(request, actorId, "drug.read");
   if (denied) return { error: denied };
+  const rangeError = commanderInvalidDateRangeMessage(params);
+  if (rangeError) return { error: badRequest(rangeError) as Response };
   const requested = resolveCommanderFilter(params);
   const filter = resolveCommanderDashboardScope({ id: actorId }, requested);
   return { filter };

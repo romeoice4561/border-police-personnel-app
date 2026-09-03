@@ -18,6 +18,7 @@ interface CommanderKpiCardProps {
   value: number | string;
   description?: string;
   subtitle?: string;
+  footnote?: string;
   icon: LucideIcon;
   href?: string;
   loading?: boolean;
@@ -30,6 +31,7 @@ export function CommanderKpiCard({
   value,
   description,
   subtitle,
+  footnote,
   icon: Icon,
   href,
   loading,
@@ -65,6 +67,9 @@ export function CommanderKpiCard({
         <span className="block text-sm font-medium text-foreground mt-0.5">{label}</span>
         {description && (
           <span className="block text-xs text-muted mt-1">{description}</span>
+        )}
+        {footnote && (
+          <span className="block text-xs text-muted mt-2 leading-snug">{footnote}</span>
         )}
       </div>
     </Card>

@@ -79,6 +79,23 @@ export function yearGregorianToBE(yearCE: number): number {
   return yearCE + 543;
 }
 
+/**
+ * Shifts a Buddhist-Era calendar month, crossing year boundaries correctly
+ * (ธันวาคม → มกราคม of the next BE year). Conversion uses Gregorian Date
+ * math so ISO/Gregorian storage is never implied by the BE display year.
+ */
+export function shiftBuddhistCalendarMonth(
+  yearBE: number,
+  month: number,
+  delta: number
+): { yearBE: number; month: number } {
+  const gregorian = new Date(Date.UTC(yearBEToGregorian(yearBE), month - 1 + delta, 1));
+  return {
+    yearBE: yearGregorianToBE(gregorian.getUTCFullYear()),
+    month: gregorian.getUTCMonth() + 1,
+  };
+}
+
 /** The current Buddhist-Era year (Phase 26B Part 5 Part B — "Career Years (Calculated)" always anchors to this). Accepts an explicit `now` for deterministic tests. */
 export function currentYearBE(now: Date = new Date()): number {
   return yearGregorianToBE(now.getUTCFullYear());
