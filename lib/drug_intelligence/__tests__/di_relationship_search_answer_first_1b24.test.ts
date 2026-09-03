@@ -21,10 +21,7 @@ const catalogSrc = readFileSync(join(ROOT, "lib/drug_intelligence/drug_relations
 describe("Phase 1B.2.4 Quick Search visibility by search state", () => {
   test("A. Quick Search remains in the pre-search branch", () => {
     assert.match(panelSrc, /data-testid="relationship-quick-search"/);
-    assert.match(
-      panelSrc,
-      /showAnswerFirst \? \([\s\S]*?\) : \(\s*<>\s*\{quickSearchSection\}/
-    );
+    assert.match(panelSrc, /showQuickSearch \? quickSearchSection/);
     assert.match(panelSrc, /di\.rel\.presetsLabel/);
     for (const id of [
       "preset_phone_cases",
@@ -111,9 +108,9 @@ describe("Phase 1B.2.4 return continuity still hides Quick Search", () => {
     assert.match(panelSrc, /const showAnswerFirst = Boolean\(run && query\)/);
   });
 
-  test("M. Expand one-step continuity preserved (no multi-hop)", () => {
-    assert.match(panelSrc, /expand-continuity-bar/);
-    assert.match(panelSrc, /di\.rel\.backToPreviousResult/);
+  test("M. Expand continues via bounded investigation trail (Phase 1C)", () => {
+    assert.match(panelSrc, /investigation-trail|investigationTrail|InvestigationTrail/);
+    assert.match(panelSrc, /di\.rel\.trailBackOneStep|backOneInvestigationStep/);
     assert.doesNotMatch(panelSrc, /queryChain|multiHop|hopHistory/);
   });
 });

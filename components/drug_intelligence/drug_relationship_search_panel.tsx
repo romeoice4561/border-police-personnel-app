@@ -54,9 +54,24 @@ import {
   searchedFromFieldLabelKey,
   type DrugRelationshipSourceQueryContext,
 } from "@/lib/drug_intelligence/drug_relationship_search_context";
+import {
+  canExpandInvestigationTrail,
+  clearInvestigationTrailStorage,
+  emptyInvestigationTrail,
+  ensureTrailOrigin,
+  isInvestigationTrailActive,
+  loadInvestigationTrail,
+  popInvestigationStep,
+  pushInvestigationExpansion,
+  sanitizeInvestigationReturnPath,
+  saveInvestigationTrail,
+  type InvestigationTrailState,
+} from "@/lib/drug_intelligence/drug_relationship_investigation_trail";
+import { DrugRelationshipInvestigationTrail } from "@/components/drug_intelligence/drug_relationship_investigation_trail";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
+import { withReturnTo } from "@/lib/ui/return_context";
 
 /** Canonical pre-search Relationship Search URL — no leftover rel* state. */
 export const RELATIONSHIP_SEARCH_CLEAN_HREF = "/drug-intelligence/search?mode=relationship";
@@ -247,8 +262,11 @@ export function DrugRelationshipSearchPanel() {
   const [pickerHelperKey, setPickerHelperKey] = useState<TranslationKey | null>(null);
   const scrolledForRun = useRef<string | null>(null);
   const [sourceQueryContext, setSourceQueryContext] = useState<DrugRelationshipSourceQueryContext | null>(null);
-  const [previousResultReturn, setPreviousResultReturn] = useState<string | null>(null);
-  const [previousResultLabel, setPreviousResultLabel] = useState<string | null>(null);
+  /** Phase 1C — bounded investigation trail (session-scoped QUERY CONTEXT). */
+  const [investigationTrail, setInvestigationTrail] = useState<InvestigationTrailState>(() =>
+    emptyInvestigationTrail()
+  );
+  const trailHydrated = useRef(false);
   /**
    * Phase 1B.2.4B — immediately hide answer/results when resetting, even if
    * URL searchParams briefly lag behind router.replace.
@@ -289,6 +307,17 @@ export function DrugRelationshipSearchPanel() {
     if (!sourceId) return null;
     return loadSourceQueryContext(sourceId);
   }, [sourceQueryContext, sourceId]);
+
+  useEffect(() => {
+    if (trailHydrated.current) return;
+    trailHydrated.current = true;
+    setInvestigationTrail(loadInvestigationTrail());
+  }, []);
+
+  useEffect(() => {
+    if (!trailHydrated.current) return;
+    saveInvestigationTrail(investigationTrail);
+  }, [investigationTrail]);
 
   const availableRelations = useMemo(
     () => relationsForSourceType(draftSource?.entityType ?? draftSourceType),
@@ -539,8 +568,8 @@ export function DrugRelationshipSearchPanel() {
   }
 
   /**
-   * Canonical full Relationship Search session reset (Phase 1B.2.4B).
-   * Clears drafts, sessionStorage query context, expand continuity, React Query
+   * Canonical full Relationship Search session reset (Phase 1B.2.4B + 1C trail).
+   * Clears drafts, sessionStorage query context, investigation trail, React Query
    * relationship cache, and replaces the URL with a clean mode=relationship href.
    */
   function resetAll() {
@@ -556,8 +585,8 @@ export function DrugRelationshipSearchPanel() {
     setPickerHelperKey(null);
     setSourceQueryContext(null);
     clearSourceQueryContext();
-    setPreviousResultReturn(null);
-    setPreviousResultLabel(null);
+    setInvestigationTrail(emptyInvestigationTrail());
+    clearInvestigationTrailStorage();
     scrolledForRun.current = null;
     queryClient.removeQueries({ queryKey: ["drug-relationship-search"] });
     router.replace(RELATIONSHIP_SEARCH_CLEAN_HREF);
@@ -584,13 +613,70 @@ export function DrugRelationshipSearchPanel() {
 
   const returnPath = `/drug-intelligence/search?${searchParams.toString()}#relationship-results`;
 
-  function onExpand(entity: { entityType: DrugGraphNodeType; entityId: string; label: string }) {
-    if (run && sourceId && relationId) {
-      setPreviousResultReturn(returnPath);
-      setPreviousResultLabel(sourceLabel || draftSource?.label || entity.label);
+  function backOneInvestigationStep() {
+    const { trail: nextTrail, restoredReturnPath } = popInvestigationStep(investigationTrail);
+    setInvestigationTrail(nextTrail);
+    if (restoredReturnPath) {
+      router.push(restoredReturnPath);
+      return;
     }
-    setDraftSourceType(entity.entityType);
-    setDraftSource(entity);
+    focusStep1Soon();
+  }
+
+  function onExpand(payload: {
+    entityType: DrugGraphNodeType;
+    entityId: string;
+    label: string;
+    edgeKind?: "DIRECT" | "INFERRED" | "PATH";
+    evidenceSummary?: string;
+  }) {
+    if (!(run && sourceId && relationId && targetType)) return;
+    if (!canExpandInvestigationTrail(investigationTrail)) return;
+
+    const safeReturn = sanitizeInvestigationReturnPath(returnPath);
+    const withOrigin = ensureTrailOrigin(investigationTrail, {
+      entity: {
+        entityType: sourceType,
+        entityId: sourceId,
+        label: sourceLabel || draftSource?.label || sourceId,
+      },
+      returnPath: safeReturn,
+      queryContext: effectiveSourceQueryContext
+        ? {
+            matchedField: effectiveSourceQueryContext.matchedField,
+            matchedValueMasked:
+              presentSourceQueryDisplayValue(effectiveSourceQueryContext, canViewFull) ??
+              effectiveSourceQueryContext.matchedValueMasked,
+          }
+        : null,
+    });
+
+    const pushed = pushInvestigationExpansion(withOrigin, {
+      source: {
+        entityType: sourceType,
+        entityId: sourceId,
+        label: sourceLabel || draftSource?.label || sourceId,
+      },
+      relationId,
+      targetType: targetType as DrugGraphNodeType,
+      result: {
+        entityType: payload.entityType,
+        entityId: payload.entityId,
+        label: payload.label,
+      },
+      edgeKind: payload.edgeKind ?? "DIRECT",
+      evidenceSummary: payload.evidenceSummary,
+      returnPath: safeReturn,
+    });
+    if (!pushed) return;
+    setInvestigationTrail(pushed);
+
+    setDraftSourceType(payload.entityType);
+    setDraftSource({
+      entityType: payload.entityType,
+      entityId: payload.entityId,
+      label: payload.label,
+    });
     setDraftRelationId("");
     setDraftTarget(null);
     setDraftTargetType("");
@@ -598,9 +684,9 @@ export function DrugRelationshipSearchPanel() {
     setSourceQueryContext(null);
     clearSourceQueryContext();
     pushRelationshipParams({
-      relSourceType: entity.entityType,
-      relSourceId: entity.entityId,
-      relSourceLabel: entity.label,
+      relSourceType: payload.entityType,
+      relSourceId: payload.entityId,
+      relSourceLabel: payload.label,
       relationId: undefined,
       relTargetType: undefined,
       relTargetId: undefined,
@@ -609,6 +695,7 @@ export function DrugRelationshipSearchPanel() {
       relPage: undefined,
       relPreset: undefined,
     });
+    focusStep2Soon();
   }
 
   const query = useMemo(
@@ -671,6 +758,52 @@ export function DrugRelationshipSearchPanel() {
   const searchSettled = showAnswerFirst && !search.isPending;
   const showZeroOrErrorActions =
     searchSettled && (search.isError || Boolean(search.data && search.data.summary.total === 0));
+  const trailActive = isInvestigationTrailActive(investigationTrail);
+  /** Phase 1C — Quick Search only at initial pre-search; hide during progressive trail. */
+  const showQuickSearch = !showAnswerFirst && !trailActive;
+  const expandAllowed = canExpandInvestigationTrail(investigationTrail);
+
+  // Capture investigation origin on first completed answer (render-time; same pattern as prevRun).
+  if (
+    searchSettled &&
+    search.data &&
+    sourceId &&
+    run &&
+    !investigationTrail.origin
+  ) {
+    setInvestigationTrail((prev) =>
+      prev.origin
+        ? prev
+        : ensureTrailOrigin(prev, {
+            entity: {
+              entityType: sourceType,
+              entityId: sourceId,
+              label: sourceLabel || draftSource?.label || sourceId,
+            },
+            returnPath: sanitizeInvestigationReturnPath(returnPath),
+            queryContext: effectiveSourceQueryContext
+              ? {
+                  matchedField: effectiveSourceQueryContext.matchedField,
+                  matchedValueMasked:
+                    presentSourceQueryDisplayValue(effectiveSourceQueryContext, canViewFull) ??
+                    effectiveSourceQueryContext.matchedValueMasked,
+                }
+              : null,
+          })
+    );
+  }
+
+  const currentFocusEntity =
+    draftSource ??
+    (sourceId
+      ? { entityType: sourceType, entityId: sourceId, label: sourceLabel || sourceId }
+      : null);
+  const networkFromCurrentHref = currentFocusEntity
+    ? withReturnTo(
+        `/drug-intelligence/network?focusType=${encodeURIComponent(currentFocusEntity.entityType)}&focusId=${encodeURIComponent(currentFocusEntity.entityId)}&depth=2`,
+        returnPath
+      )
+    : null;
 
   const quickSearchSection = (
     <section
@@ -803,18 +936,69 @@ export function DrugRelationshipSearchPanel() {
           <LoadingState label={t("di.rel.searching")} />
         </div>
       ) : search.isError ? (
-        <ErrorState message={t("di.rel.errorLoad")} onRetry={() => search.refetch()} />
+        <div className="space-y-3" data-testid="relationship-step-error">
+          <ErrorState message={t("di.rel.stepErrorTitle")} onRetry={() => search.refetch()} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" className="min-h-10" onClick={() => search.refetch()}>
+              {t("di.rel.stepErrorRetry")}
+            </Button>
+            {trailActive ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-10"
+                onClick={backOneInvestigationStep}
+                data-testid="step-error-back"
+              >
+                {t("di.rel.trailBackOneStep")}
+              </Button>
+            ) : null}
+          </div>
+        </div>
       ) : search.data.summary.total === 0 ? (
-        <EmptyState
-          title={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFound") : t("di.rel.noResults")}
-          message={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFoundHint") : undefined}
-          icon={<Link2 className="h-8 w-8" />}
-        />
+        <div className="space-y-3" data-testid="relationship-step-zero">
+          <EmptyState
+            title={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFound") : t("di.rel.stepZeroTitle")}
+            message={selectedRelation?.queryMode === "PATH" ? t("di.rel.pathNotFoundHint") : undefined}
+            icon={<Link2 className="h-8 w-8" />}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-10"
+              onClick={editConditions}
+              data-testid="step-zero-change-relation"
+            >
+              {t("di.rel.stepChangeRelation")}
+            </Button>
+            {trailActive ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-10"
+                onClick={backOneInvestigationStep}
+                data-testid="step-zero-back"
+              >
+                {t("di.rel.trailBackOneStep")}
+              </Button>
+            ) : null}
+            {networkFromCurrentHref ? (
+              <Button asChild variant="outline" size="sm" className="min-h-10">
+                <Link href={networkFromCurrentHref}>{t("di.rel.openNetworkFromCurrent")}</Link>
+              </Button>
+            ) : null}
+          </div>
+        </div>
       ) : (
         <DrugRelationshipSearchResults
           data={search.data}
           returnPath={returnPath}
           onExpand={onExpand}
+          expandDisabled={!expandAllowed}
           queryContext={effectiveSourceQueryContext}
           canViewFull={canViewFull}
           sourceLabel={sourceLabel || draftSource?.label}
@@ -827,6 +1011,17 @@ export function DrugRelationshipSearchPanel() {
 
   return (
     <div className="space-y-4" data-testid="relationship-search-panel">
+      {trailActive ? (
+        <DrugRelationshipInvestigationTrail
+          trail={investigationTrail}
+          currentSourceLabel={draftSource?.label ?? sourceLabel}
+          returnPath={returnPath}
+          atExpandLimit={!expandAllowed}
+          onBackOneStep={backOneInvestigationStep}
+          onNewSearch={startNewSearch}
+        />
+      ) : null}
+
       <div data-testid="relationship-workflow">
         <Card>
           <CardBody className="space-y-3">
@@ -1063,27 +1258,6 @@ export function DrugRelationshipSearchPanel() {
         </Card>
       </div>
 
-      {previousResultReturn ? (
-        <aside
-          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-surface px-4 py-2.5"
-          data-testid="expand-continuity-bar"
-        >
-          <div className="min-w-0 text-sm">
-            <p className="text-xs text-muted">{t("di.rel.expandPrevious")}</p>
-            {previousResultLabel ? (
-              <p className="truncate font-medium text-foreground">{previousResultLabel}</p>
-            ) : null}
-            <p className="mt-1 text-xs text-muted">
-              {t("di.rel.expandNowFrom")}{" "}
-              <span className="font-medium text-foreground">{draftSource?.label ?? sourceLabel}</span>
-            </p>
-          </div>
-          <Button asChild variant="outline" size="sm" className="min-h-10 shrink-0">
-            <Link href={previousResultReturn}>{t("di.rel.backToPreviousResult")}</Link>
-          </Button>
-        </aside>
-      ) : null}
-
       {showAnswerFirst ? (
         <>
           {resultsSection}
@@ -1091,8 +1265,8 @@ export function DrugRelationshipSearchPanel() {
         </>
       ) : (
         <>
-          {quickSearchSection}
-          {queryNotice}
+          {showQuickSearch ? quickSearchSection : null}
+          {showQuickSearch ? queryNotice : null}
           {resultsSection}
         </>
       )}

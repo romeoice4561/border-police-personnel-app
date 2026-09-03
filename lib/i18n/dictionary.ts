@@ -2215,6 +2215,42 @@ export const DICTIONARY = {
   "di.rel.explainPath": tr("ค้นหาเส้นทางความเชื่อมโยงระหว่างสองบุคคล", "Find a connection path between two persons"),
   "di.rel.viewDetail": tr("ดูรายละเอียด", "View details"),
   "di.rel.expand": tr("ขยายต่อ", "Expand further"),
+  "di.rel.expandDisabledLimit": tr(
+    "ถึงขีดจำกัดการขยายในครั้งนี้ — เปิดผังหรือเริ่มค้นหาใหม่",
+    "Expansion limit reached for this investigation — open Network or start a new search"
+  ),
+  "di.rel.trailHeading": tr("เส้นทางการสืบค้น", "Investigation trail"),
+  "di.rel.trailHint": tr(
+    "ติดตามจุดเริ่มต้นและแต่ละขั้นที่ขยายต่อ — ไม่ใช่ข้อเท็จจริงใหม่ในระบบ",
+    "Follow the origin and each expansion step — this is query context, not new recorded facts"
+  ),
+  "di.rel.trailOrigin": tr("จุดเริ่มต้น", "Starting point"),
+  "di.rel.trailBackOneStep": tr("← ย้อนกลับหนึ่งขั้น", "← Back one step"),
+  "di.rel.trailOpenNetwork": tr("เปิดเส้นทางนี้เป็นผัง", "Open this trail in Network"),
+  "di.rel.trailStepLabel": tr("ขั้นที่ {n}", "Step {n}"),
+  "di.rel.trailAsked": tr("ถาม:", "Asked:"),
+  "di.rel.trailFound": tr("พบ:", "Found:"),
+  "di.rel.trailEvidence": tr("หลักฐาน", "Evidence"),
+  "di.rel.trailNowInvestigating": tr("กำลังสืบจาก", "Now investigating"),
+  "di.rel.trailDepthHint": tr(
+    "ขยายแล้ว {used}/{max} ขั้น (สูงสุดต่อการสืบค้นนี้)",
+    "Expanded {used}/{max} steps (maximum for this investigation)"
+  ),
+  "di.rel.trailLimitReached": tr(
+    "ถึงขีดจำกัดการขยายในครั้งนี้",
+    "Expansion limit reached for this investigation"
+  ),
+  "di.rel.stepErrorTitle": tr("ค้นหาขั้นนี้ไม่สำเร็จ", "This investigation step failed"),
+  "di.rel.stepErrorRetry": tr("ลองอีกครั้ง", "Try again"),
+  "di.rel.stepZeroTitle": tr(
+    "ไม่พบข้อมูลที่เชื่อมโยงตามเงื่อนไขนี้",
+    "No linked records matched this condition"
+  ),
+  "di.rel.stepChangeRelation": tr("เปลี่ยนความสัมพันธ์", "Change relationship"),
+  "di.rel.openNetworkFromCurrent": tr(
+    "เปิดผังจากข้อมูลปัจจุบัน",
+    "Open Network from current entity"
+  ),
   "di.rel.openNetwork": tr("เปิดผังความเชื่อมโยง", "Open relationship network"),
   "di.rel.viewTimeline": tr("ดูไทม์ไลน์", "View timeline"),
   "di.rel.viewMap": tr("ดูแผนที่", "View map"),

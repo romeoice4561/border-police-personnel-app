@@ -34,7 +34,8 @@ describe("Phase 1B.2.4B canonical full session reset", () => {
     assert.match(panelSrc, /function resetAll[\s\S]*setDraftPresetId\(""\)/);
     assert.match(panelSrc, /function resetAll[\s\S]*setSourceQueryContext\(null\)/);
     assert.match(panelSrc, /function resetAll[\s\S]*clearSourceQueryContext\(\)/);
-    assert.match(panelSrc, /function resetAll[\s\S]*setPreviousResultReturn\(null\)/);
+    assert.match(panelSrc, /function resetAll[\s\S]*emptyInvestigationTrail\(\)/);
+    assert.match(panelSrc, /function resetAll[\s\S]*clearInvestigationTrailStorage\(\)/);
     assert.match(panelSrc, /function resetAll[\s\S]*removeQueries\(\{\s*queryKey:\s*\["drug-relationship-search"\]/);
   });
 

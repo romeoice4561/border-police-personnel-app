@@ -168,6 +168,7 @@ export function DrugRelationshipSearchResults({
   data,
   returnPath,
   onExpand,
+  expandDisabled = false,
   queryContext,
   canViewFull,
   sourceLabel,
@@ -176,7 +177,14 @@ export function DrugRelationshipSearchResults({
 }: {
   data: DrugRelationshipSearchResponse;
   returnPath: string;
-  onExpand: (entity: { entityType: DrugGraphNodeType; entityId: string; label: string }) => void;
+  onExpand: (payload: {
+    entityType: DrugGraphNodeType;
+    entityId: string;
+    label: string;
+    edgeKind: DrugRelationshipSearchResultItem["edgeKind"];
+    evidenceSummary: string;
+  }) => void;
+  expandDisabled?: boolean;
   queryContext?: DrugRelationshipSourceQueryContext | null;
   canViewFull?: boolean;
   sourceLabel?: string;
@@ -328,8 +336,18 @@ export function DrugRelationshipSearchResults({
                     variant="outline"
                     size="sm"
                     className="min-h-10"
-                    title={t("di.rel.expandHint")}
-                    onClick={() => onExpand(item.actions.expandSource)}
+                    title={
+                      expandDisabled ? t("di.rel.expandDisabledLimit") : t("di.rel.expandHint")
+                    }
+                    disabled={expandDisabled}
+                    data-testid="rel-expand-result"
+                    onClick={() =>
+                      onExpand({
+                        ...item.actions.expandSource,
+                        edgeKind: item.edgeKind,
+                        evidenceSummary: evidence,
+                      })
+                    }
                   >
                     {t("di.rel.expand")}
                   </Button>

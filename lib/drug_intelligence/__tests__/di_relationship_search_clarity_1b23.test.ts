@@ -263,10 +263,10 @@ describe("Phase 1B.2.3 navigation continuity", () => {
     assert.match(resultsSrc, /withReturnTo\(item\.actions\.mapPath/);
   });
 
-  test("Expand provides one-step back continuity without multi-hop", () => {
-    assert.match(panelSrc, /expand-continuity-bar/);
-    assert.match(panelSrc, /di\.rel\.backToPreviousResult/);
-    assert.match(panelSrc, /setPreviousResultReturn\(returnPath\)/);
+  test("Expand provides bounded investigation trail (Phase 1C)", () => {
+    assert.match(panelSrc, /investigation-trail|InvestigationTrail|investigationTrail/);
+    assert.match(panelSrc, /backOneInvestigationStep|trailBackOneStep|di\.rel\.trailBackOneStep/);
+    assert.match(panelSrc, /INVESTIGATION_TRAIL_MAX_EXPANSIONS|canExpandInvestigationTrail/);
     assert.doesNotMatch(panelSrc, /queryChain|multiHop|hopHistory/);
   });
 
