@@ -31,8 +31,21 @@ import { DRUG_CASE_STATUSES } from "@/lib/drug_intelligence/drug_case_options";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
 import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type { DrugCaseListQuery, DrugCaseListRow } from "@/lib/drug_intelligence/drug_intelligence_client";
+import {
+  isCaseCompletenessFilter,
+  isCommanderUnitGroupBy,
+  type CaseCompletenessFilter,
+} from "@/lib/drug_intelligence/drug_case_completeness";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const PAGE_SIZE = 20;
+
+const COMPLETENESS_LABEL: Record<CaseCompletenessFilter, TranslationKey> = {
+  missingArrested: "di.list.completeness.missingArrested",
+  missingReportingUnit: "di.list.completeness.missingReportingUnit",
+  missingCoordinates: "di.list.completeness.missingCoordinates",
+  incompleteSeizure: "di.list.completeness.incompleteSeizure",
+};
 
 interface FilterState {
   query: string;
@@ -76,6 +89,11 @@ export default function DrugCaseListPage() {
   const [filters, setFilters] = useState<FilterState>(() => filtersFromSearchParams(searchParams));
   const [page, setPage] = useState(1);
 
+  const completenessRaw = searchParams.get("completeness");
+  const completeness = isCaseCompletenessFilter(completenessRaw) ? completenessRaw : undefined;
+  const unitGroupRaw = searchParams.get("unitGroup");
+  const unitGroup = isCommanderUnitGroupBy(unitGroupRaw) ? unitGroupRaw : undefined;
+
   const query: DrugCaseListQuery = {
     page,
     pageSize: PAGE_SIZE,
@@ -88,6 +106,8 @@ export default function DrugCaseListPage() {
     regionId: optionalPositiveInt(searchParams.get("regionId")),
     battalionId: optionalPositiveInt(searchParams.get("battalionId")),
     companyId: optionalPositiveInt(searchParams.get("companyId")),
+    completeness,
+    unitGroup,
   };
 
   const cases = useDrugCases(user?.id ?? null, query);
@@ -131,6 +151,15 @@ export default function DrugCaseListPage() {
       />
 
       <GlobalSearchBox value={filters.query} onChange={(v) => updateFilters({ query: v })} placeholder={t("di.list.searchPlaceholder")} />
+
+      {completeness ? (
+        <p
+          className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
+          data-testid="cases-completeness-banner"
+        >
+          {t("di.list.completenessBanner")}: {t(COMPLETENESS_LABEL[completeness])}
+        </p>
+      ) : null}
 
       <Card>
         <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">

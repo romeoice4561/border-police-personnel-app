@@ -43,6 +43,7 @@ import {
   type DrugCaseCreateResult,
 } from "@/lib/drug_intelligence/drug_case_types";
 import { generateDrugId } from "@/lib/drug_intelligence/drug_id";
+import { filterCasesByCompleteness } from "@/lib/drug_intelligence/drug_case_completeness";
 
 export interface DrugCaseServiceDependencies {
   db: DatabaseClient;
@@ -636,9 +637,22 @@ export class DrugCaseService {
     participatingUnitCompanyId?: number;
     officerId?: string;
     officerRole?: string;
+    completeness?: import("@/lib/drug_intelligence/drug_case_completeness").CaseCompletenessFilter;
+    unitGroup?: import("@/lib/drug_intelligence/drug_commander_filter").CommanderUnitGroupBy;
   }) {
     const caseRepo = new DrugCaseRepository(this.db);
-    const { leadHeadquartersId, leadRegionId, leadBattalionId, leadCompanyId, participatingUnitCompanyId, officerId, officerRole, ...baseParams } = params;
+    const {
+      leadHeadquartersId,
+      leadRegionId,
+      leadBattalionId,
+      leadCompanyId,
+      participatingUnitCompanyId,
+      officerId,
+      officerRole,
+      completeness,
+      unitGroup,
+      ...baseParams
+    } = params;
     const { rows: allMatchingRows, total: baseTotal } = await caseRepo.list({
       ...baseParams,
       page: 1,
@@ -669,6 +683,9 @@ export class DrugCaseService {
         })
       );
       filteredRows = filteredRows.filter((_, i) => matches[i]);
+    }
+    if (completeness) {
+      filteredRows = await filterCasesByCompleteness(this.db, filteredRows, completeness, unitGroup ?? "battalion");
     }
 
     const total = filteredRows.length === allMatchingRows.length ? baseTotal : filteredRows.length;

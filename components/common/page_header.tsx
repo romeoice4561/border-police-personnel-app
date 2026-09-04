@@ -1,9 +1,20 @@
 /** PageHeader (Phase 14 UI): consistent title + optional description + actions row for each page. */
 import type { ReactNode } from "react";
+import { cn } from "@/lib/ui/cn";
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+  className,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className={cn("mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between", className)}>
       <div>
         <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
         {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}

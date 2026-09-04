@@ -273,7 +273,7 @@ export function buildCommanderSituationObservations(
       id: "missing-arrested",
       textTh: `มี ${count} คดีในช่วงที่เลือกที่ยังไม่มีผู้ถูกจับ/ผู้ต้องหาในระบบ`,
       textEn: `${count} cases in this period have no arrested/accused person recorded`,
-      href: "persons",
+      href: "cases",
     });
   }
 

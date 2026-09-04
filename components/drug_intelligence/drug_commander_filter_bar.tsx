@@ -1,5 +1,5 @@
 /**
- * CommanderFilterBar (Phase 2B / 2C).
+ * CommanderFilterBar (Phase 2B / 2C / 2E).
  *
  * Canonical dashboard filters: FY, custom Thai calendar dates, reporting unit
  * cascade, province. Custom dates use ThaiDatePicker (ISO wire, BE display).
@@ -156,13 +156,27 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
   }
 
   return (
-    <div className={cn("space-y-3 overflow-visible", className)}>
-      <p className="text-sm text-muted" data-testid="commander-filter-summary">
-        {t("di.command.filterSummary")}: {periodLabel} • {unitLabel} • {filterState.province || t("di.command.scopeAllProvinces")}
-      </p>
-      <p className="text-xs text-muted">{t("di.command.filterReportingUnitHint")}</p>
-      <div className="flex flex-wrap items-end gap-3 overflow-visible">
-        <div className="flex min-w-[160px] flex-col gap-1">
+    <div className={cn("space-y-2 overflow-visible", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="min-w-0 text-sm text-muted" data-testid="commander-filter-summary">
+          {t("di.command.filterSummary")}: {periodLabel} • {unitLabel} • {filterState.province || t("di.command.scopeAllProvinces")}
+        </p>
+        {hasFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="commander-filter-reset"
+            onClick={resetCommanderFilters}
+            className="shrink-0"
+          >
+            {t("di.command.filterReset")}
+          </Button>
+        ) : null}
+      </div>
+      <p className="text-[11px] text-muted md:sr-only">{t("di.command.filterReportingUnitHint")}</p>
+      <div className="flex flex-wrap items-end gap-2 overflow-visible">
+        <div className="flex min-w-[9.5rem] flex-col gap-0.5">
           <label className="text-xs text-muted" htmlFor="cmd-fy">{t("di.command.filterFy")}</label>
           <select
             id="cmd-fy"
@@ -188,7 +202,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           </select>
         </div>
 
-        <div className="flex min-w-[11rem] flex-col gap-1">
+        <div className="flex min-w-[10.5rem] flex-col gap-0.5">
           <label className="text-xs text-muted" htmlFor="cmd-from">{t("di.command.filterFrom")}</label>
           <ThaiDatePicker
             id="cmd-from"
@@ -207,7 +221,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           />
         </div>
 
-        <div className="flex min-w-[11rem] flex-col gap-1">
+        <div className="flex min-w-[10.5rem] flex-col gap-0.5">
           <label className="text-xs text-muted" htmlFor="cmd-to">{t("di.command.filterTo")}</label>
           <ThaiDatePicker
             id="cmd-to"
@@ -226,7 +240,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           />
         </div>
 
-        <div className="flex min-w-[160px] flex-col gap-1">
+        <div className="hidden min-w-[9.5rem] flex-col gap-0.5 md:flex" title={t("di.command.filterReportingUnitHint")}>
           <label className="text-xs text-muted" htmlFor="cmd-hq">{t("di.command.filterHq")}</label>
           <select
             id="cmd-hq"
@@ -249,7 +263,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           </select>
         </div>
 
-        <div className="flex min-w-[160px] flex-col gap-1">
+        <div className="hidden min-w-[9.5rem] flex-col gap-0.5 md:flex">
           <label className="text-xs text-muted" htmlFor="cmd-region">{t("di.command.filterRegion")}</label>
           <select
             id="cmd-region"
@@ -271,7 +285,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           </select>
         </div>
 
-        <div className="flex min-w-[180px] flex-col gap-1">
+        <div className="hidden min-w-[10.5rem] flex-col gap-0.5 md:flex">
           <label className="text-xs text-muted" htmlFor="cmd-battalion">{t("di.command.filterBattalion")}</label>
           <select
             id="cmd-battalion"
@@ -292,7 +306,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           </select>
         </div>
 
-        <div className="flex min-w-[180px] flex-col gap-1">
+        <div className="hidden min-w-[10.5rem] flex-col gap-0.5 md:flex">
           <label className="text-xs text-muted" htmlFor="cmd-company">{t("di.command.filterCompany")}</label>
           <select
             id="cmd-company"
@@ -313,7 +327,7 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
           </select>
         </div>
 
-        <div className="flex min-w-[160px] flex-col gap-1">
+        <div className="flex min-w-[9.5rem] flex-col gap-0.5">
           <label className="text-xs text-muted" htmlFor="cmd-province">{t("di.command.filterProvince")}</label>
           <select
             id="cmd-province"
@@ -332,19 +346,99 @@ export function CommanderFilterBar({ filterState, displayFiscalYearTh, className
             ))}
           </select>
         </div>
-
-        {hasFilters ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            data-testid="commander-filter-reset"
-            onClick={resetCommanderFilters}
-          >
-            {t("di.command.filterReset")}
-          </Button>
-        ) : null}
       </div>
+
+      <details className="rounded-lg border border-border px-3 py-2 md:hidden" data-testid="commander-filter-org-mobile">
+        <summary className="cursor-pointer text-sm text-foreground">
+          {t("di.command.filterUnit")}: {unitLabel}
+        </summary>
+        <p className="mt-1 text-[11px] text-muted">{t("di.command.filterReportingUnitHint")}</p>
+        <div className="mt-2 grid grid-cols-1 gap-2">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs text-muted" htmlFor="cmd-hq-mobile">{t("di.command.filterHq")}</label>
+            <select
+              id="cmd-hq-mobile"
+              value={filterState.hqId ?? ""}
+              onChange={(e) => {
+                pushParams((params) => {
+                  if (e.target.value) params.set("hqId", e.target.value);
+                  else params.delete("hqId");
+                  params.delete("regionId");
+                  params.delete("battalionId");
+                  params.delete("companyId");
+                });
+              }}
+              className={selectClassName()}
+            >
+              <option value="">{t("di.command.scopeAll")}</option>
+              {(tree?.headquarters ?? []).map((h) => (
+                <option key={h.id} value={String(h.id)}>{h.nameTh}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs text-muted" htmlFor="cmd-region-mobile">{t("di.command.filterRegion")}</label>
+            <select
+              id="cmd-region-mobile"
+              value={filterState.regionId ?? ""}
+              onChange={(e) => {
+                pushParams((params) => {
+                  if (e.target.value) params.set("regionId", e.target.value);
+                  else params.delete("regionId");
+                  params.delete("battalionId");
+                  params.delete("companyId");
+                });
+              }}
+              className={selectClassName()}
+            >
+              <option value="">{t("di.command.scopeAll")}</option>
+              {regions.map((r) => (
+                <option key={r.id} value={String(r.id)}>{r.nameTh}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs text-muted" htmlFor="cmd-battalion-mobile">{t("di.command.filterBattalion")}</label>
+            <select
+              id="cmd-battalion-mobile"
+              value={filterState.battalionId ?? ""}
+              onChange={(e) => {
+                pushParams((params) => {
+                  if (e.target.value) params.set("battalionId", e.target.value);
+                  else params.delete("battalionId");
+                  params.delete("companyId");
+                });
+              }}
+              className={selectClassName()}
+            >
+              <option value="">{t("di.command.scopeAll")}</option>
+              {battalions.map((b) => (
+                <option key={b.id} value={String(b.id)}>{b.nameTh}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs text-muted" htmlFor="cmd-company-mobile">{t("di.command.filterCompany")}</label>
+            <select
+              id="cmd-company-mobile"
+              value={filterState.companyId ?? ""}
+              disabled={selectedBattalion === null}
+              onChange={(e) => {
+                pushParams((params) => {
+                  if (e.target.value) params.set("companyId", e.target.value);
+                  else params.delete("companyId");
+                });
+              }}
+              className={selectClassName()}
+            >
+              <option value="">{t("di.command.scopeAll")}</option>
+              {companies.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.nameTh}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </details>
       {rangeInvalid ? (
         <p id={rangeErrorId} role="alert" className="text-sm text-serious" data-testid="commander-date-range-error">
           {COMMANDER_INVALID_RANGE_MESSAGE_TH}

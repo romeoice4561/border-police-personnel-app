@@ -158,6 +158,9 @@ export interface DrugCaseListQuery {
   participatingUnitCompanyId?: number;
   officerId?: string;
   officerRole?: string;
+  /** Phase 2E: Commander data-readiness drill-down. */
+  completeness?: "missingArrested" | "missingReportingUnit" | "missingCoordinates" | "incompleteSeizure";
+  unitGroup?: "battalion" | "company" | "region";
 }
 
 export interface DrugPersonSummary {

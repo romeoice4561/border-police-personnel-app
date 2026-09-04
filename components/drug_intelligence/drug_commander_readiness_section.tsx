@@ -34,7 +34,8 @@ export function CommanderReadinessSection({ totalCases, rows }: Props) {
       <CardHeader className="mb-2 px-0">
         <CardTitle id="readiness-heading">{t("di.command.readinessTitle")}</CardTitle>
       </CardHeader>
-      <p className="mb-4 text-xs text-muted">{t("di.command.readinessNote")}</p>
+      <p className="mb-1 text-xs text-muted">{t("di.command.readinessNote")}</p>
+      <p className="mb-4 text-xs text-muted">{t("di.command.readinessNotScore")}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {rows.map((row) => (
           <Link

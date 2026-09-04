@@ -1,5 +1,5 @@
 /**
- * Commander Intelligence Dashboard (Phase 2B / 2C / 2D).
+ * Commander Intelligence Dashboard (Phase 2B / 2C / 2D / 2E).
  *
  * Decision-support workspace. The operational landing at
  * /drug-intelligence is unchanged.
@@ -22,6 +22,7 @@ import { CommanderTrendChart } from "@/components/drug_intelligence/drug_command
 import { CommanderAreasSection } from "@/components/drug_intelligence/drug_commander_areas_section";
 import { CommanderUnitsSection } from "@/components/drug_intelligence/drug_commander_units_section";
 import { CommanderSignalsSection } from "@/components/drug_intelligence/drug_commander_signals_section";
+import { CommanderAttentionSection } from "@/components/drug_intelligence/drug_commander_attention_section";
 import { CommanderActionsSection } from "@/components/drug_intelligence/drug_commander_actions_section";
 import { CommanderReadinessSection } from "@/components/drug_intelligence/drug_commander_readiness_section";
 import {
@@ -43,10 +44,12 @@ import {
 import {
   commanderAlertsHref,
   commanderCasesHref,
+  commanderCompletenessCasesHref,
   commanderDuplicatesHref,
   commanderMapHref,
   commanderPersonsHref,
 } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import { buildCommanderAttentionItems } from "@/lib/drug_intelligence/drug_commander_attention";
 import {
   buildCommanderSituationObservations,
   compareCommanderMetric,
@@ -155,17 +158,35 @@ function CommanderDashboardContent() {
                 ? commanderPersonsHref(filter, urlState)
                 : obs.href === "duplicates"
                   ? commanderDuplicatesHref(filter, urlState)
-                  : commanderCasesHref(filter, undefined, urlState),
+                  : obs.id === "missing-arrested"
+                    ? commanderCompletenessCasesHref(filter, "missingArrested", urlState)
+                    : commanderCasesHref(filter, undefined, urlState),
       }))
     : [];
 
   const readinessTotal = decisionData?.readiness.totalCases ?? overviewData?.caseCount ?? 0;
+  const missingUnitCount = decisionData?.readiness.casesMissingReportingUnit ?? units.data?.unassignedCaseCount ?? 0;
+  const missingCoordsCount = decisionData?.readiness.casesMissingCoordinates ?? 0;
+  const incompleteSeizureCount = decisionData?.readiness.casesWithIncompleteSeizureCategory ?? 0;
+  const attentionItems = buildCommanderAttentionItems({
+    newAlertsCount: alertsCount ?? 0,
+    pendingDuplicatesCount: overviewData?.pendingDuplicatesCount ?? 0,
+    missingArrestedCount: completenessCount,
+    missingUnitCount,
+    missingCoordsCount,
+    alertsHref: commanderAlertsHref({ status: "NEW" }, filter, urlState),
+    duplicatesHref: commanderDuplicatesHref(filter, urlState),
+    missingArrestedHref: commanderCompletenessCasesHref(filter, "missingArrested", urlState),
+    missingUnitHref: commanderCompletenessCasesHref(filter, "missingReportingUnit", urlState),
+    missingCoordsHref: commanderCompletenessCasesHref(filter, "missingCoordinates", urlState),
+  });
 
   return (
-    <div className="flex min-w-0 max-w-full flex-col gap-8 overflow-x-hidden">
+    <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-x-hidden">
       <PageHeader
         title={t("di.command.title")}
         description={t("di.command.description")}
+        className="mb-0"
       />
 
       <CommanderFilterBar
@@ -178,6 +199,10 @@ function CommanderDashboardContent() {
       ) : (
         <p className="text-sm text-muted">{t("di.command.periodBlocked")}</p>
       )}
+
+      {periodEnabled || attentionItems.length > 0 ? (
+        <CommanderAttentionSection items={attentionItems} />
+      ) : null}
 
       <section aria-labelledby="overview-heading">
         <h2 id="overview-heading" className="mb-2 text-lg font-semibold">
@@ -290,7 +315,7 @@ function CommanderDashboardContent() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {periodEnabled ? (
           <CommanderAreasSection
             data={areas.data}
@@ -340,6 +365,7 @@ function CommanderDashboardContent() {
             actionLabel: t("di.command.situationOpenSignals"),
             count: alertsCount,
             queueScope: true,
+            group: "review",
           },
           {
             id: "duplicates",
@@ -349,30 +375,34 @@ function CommanderDashboardContent() {
             actionLabel: t("di.command.situationOpenDuplicates"),
             count: overviewData?.pendingDuplicatesCount,
             queueScope: true,
+            group: "review",
           },
           {
             id: "missing-arrested",
-            href: commanderCasesHref(filter, undefined, urlState),
+            href: commanderCompletenessCasesHref(filter, "missingArrested", urlState),
             label: t("di.command.actionMissingArrested"),
             why: t("di.command.actionMissingArrestedWhy"),
             actionLabel: t("di.command.situationOpenCases"),
             count: completenessCount,
+            group: "complete",
           },
           {
             id: "unassigned-unit",
-            href: commanderCasesHref(filter, undefined, urlState),
+            href: commanderCompletenessCasesHref(filter, "missingReportingUnit", urlState),
             label: t("di.command.actionUnassignedUnit"),
             why: t("di.command.actionUnassignedUnitWhy"),
             actionLabel: t("di.command.situationOpenCases"),
-            count: units.data?.unassignedCaseCount,
+            count: missingUnitCount,
+            group: "complete",
           },
           {
             id: "missing-coords",
-            href: commanderMapHref(filter, undefined, urlState),
+            href: commanderCompletenessCasesHref(filter, "missingCoordinates", urlState),
             label: t("di.command.actionMissingCoords"),
             why: t("di.command.actionMissingCoordsWhy"),
-            actionLabel: t("di.command.situationOpenMap"),
-            count: decisionData?.readiness.casesMissingCoordinates,
+            actionLabel: t("di.command.situationOpenCases"),
+            count: missingCoordsCount,
+            group: "complete",
           },
         ]}
       />
@@ -384,26 +414,26 @@ function CommanderDashboardContent() {
             {
               id: "missing-unit",
               label: t("di.command.readinessMissingUnit"),
-              count: decisionData?.readiness.casesMissingReportingUnit ?? units.data?.unassignedCaseCount ?? 0,
-              href: commanderCasesHref(filter, undefined, urlState),
+              count: missingUnitCount,
+              href: commanderCompletenessCasesHref(filter, "missingReportingUnit", urlState),
             },
             {
               id: "missing-coords",
               label: t("di.command.readinessMissingCoords"),
-              count: decisionData?.readiness.casesMissingCoordinates ?? 0,
-              href: commanderMapHref(filter, undefined, urlState),
+              count: missingCoordsCount,
+              href: commanderCompletenessCasesHref(filter, "missingCoordinates", urlState),
             },
             {
               id: "missing-arrested",
               label: t("di.command.readinessMissingArrested"),
               count: completenessCount,
-              href: commanderCasesHref(filter, undefined, urlState),
+              href: commanderCompletenessCasesHref(filter, "missingArrested", urlState),
             },
             {
               id: "incomplete-seizure",
               label: t("di.command.readinessIncompleteSeizure"),
-              count: decisionData?.readiness.casesWithIncompleteSeizureCategory ?? 0,
-              href: commanderCasesHref(filter, undefined, urlState),
+              count: incompleteSeizureCount,
+              href: commanderCompletenessCasesHref(filter, "incompleteSeizure", urlState),
             },
           ]}
         />

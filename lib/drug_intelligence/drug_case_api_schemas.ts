@@ -312,6 +312,8 @@ export const drugCaseListQuerySchema = z.object({
   participatingUnitCompanyId: z.coerce.number().int().positive().optional(),
   officerId: z.string().trim().optional(),
   officerRole: z.enum(DRUG_CASE_OFFICER_ROLES).optional(),
+  completeness: z.enum(["missingArrested", "missingReportingUnit", "missingCoordinates", "incompleteSeizure"]).optional(),
+  unitGroup: z.enum(["battalion", "company", "region"]).optional(),
 });
 
 /**

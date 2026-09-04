@@ -16,7 +16,7 @@ import { useOrgTree } from "@/lib/ui/hooks";
 import { cn } from "@/lib/ui/cn";
 import type { CommanderPreviousUnitRow, CommanderUnitsData } from "@/lib/drug_intelligence/drug_commander_dashboard_types";
 import type { CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
-import { commanderUnitCasesHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
+import { commanderCompletenessCasesHref, commanderUnitCasesHref } from "@/lib/drug_intelligence/drug_commander_drilldown";
 import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_scope";
 import { compareCommanderMetric, formatCommanderDeltaCopy } from "@/lib/drug_intelligence/drug_commander_comparison";
 
@@ -71,7 +71,12 @@ export function CommanderUnitsSection({ data, previousUnits, isLoading, isError,
           if (data.rows.length === 0 && unassigned > 0) {
             return (
               <p className="text-sm text-muted py-4">
-                {t("di.command.unitsEmptyAllUnassigned").replace("{count}", String(unassigned))}
+                <Link
+                  href={commanderCompletenessCasesHref(filter, "missingReportingUnit", urlState)}
+                  className="rounded text-accent hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {t("di.command.unitsEmptyAllUnassigned").replace("{count}", String(unassigned))}
+                </Link>
               </p>
             );
           }
@@ -82,7 +87,12 @@ export function CommanderUnitsSection({ data, previousUnits, isLoading, isError,
           <>
             {unassigned > 0 ? (
               <p className="mb-3 text-xs text-muted" data-testid="commander-units-unassigned">
-                {t("di.command.unitsUnassigned").replace("{count}", String(unassigned))}
+                <Link
+                  href={commanderCompletenessCasesHref(filter, "missingReportingUnit", urlState)}
+                  className="rounded text-accent hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {t("di.command.unitsUnassigned").replace("{count}", String(unassigned))}
+                </Link>
               </p>
             ) : null}
             {/* Desktop table */}

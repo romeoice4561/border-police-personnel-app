@@ -7,7 +7,7 @@
  * Pure — no I/O, no React.
  */
 
-import { toCommanderIsoDate, type CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
+import { resolveCommanderUnitGroup, toCommanderIsoDate, type CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
 import {
   commanderReturnPathFromState,
   type CommanderUrlState,
@@ -65,7 +65,13 @@ function withCommanderReturn(
 
 function buildCommanderCasesPath(
   filter: CommanderDashboardFilter,
-  overrides?: { arrestDateFrom?: string; arrestDateTo?: string; province?: string }
+  overrides?: {
+    arrestDateFrom?: string;
+    arrestDateTo?: string;
+    province?: string;
+    completeness?: "missingArrested" | "missingReportingUnit" | "missingCoordinates" | "incompleteSeizure";
+    unitGroup?: "battalion" | "company" | "region";
+  }
 ): string {
   const params = new URLSearchParams();
   setIf(params, "arrestDateFrom", overrides?.arrestDateFrom ?? toCommanderIsoDate(filter.arrestDateFrom));
@@ -77,16 +83,40 @@ function buildCommanderCasesPath(
   setIf(params, "regionId", org.regionId);
   setIf(params, "battalionId", org.battalionId);
   setIf(params, "companyId", org.companyId);
+  setIf(params, "completeness", overrides?.completeness);
+  setIf(params, "unitGroup", overrides?.unitGroup);
   const q = params.toString();
   return q ? `/drug-intelligence/cases?${q}` : "/drug-intelligence/cases";
 }
 
 export function commanderCasesHref(
   filter: CommanderDashboardFilter,
-  overrides?: { arrestDateFrom?: string; arrestDateTo?: string; province?: string },
+  overrides?: {
+    arrestDateFrom?: string;
+    arrestDateTo?: string;
+    province?: string;
+    completeness?: "missingArrested" | "missingReportingUnit" | "missingCoordinates" | "incompleteSeizure";
+    unitGroup?: "battalion" | "company" | "region";
+  },
   urlState?: CommanderUrlState
 ): string {
   return withCommanderReturn(buildCommanderCasesPath(filter, overrides), filter, urlState);
+}
+
+export function commanderCompletenessCasesHref(
+  filter: CommanderDashboardFilter,
+  completeness: "missingArrested" | "missingReportingUnit" | "missingCoordinates" | "incompleteSeizure",
+  urlState?: CommanderUrlState
+): string {
+  const { groupBy } = resolveCommanderUnitGroup(filter);
+  return commanderCasesHref(
+    filter,
+    {
+      completeness,
+      unitGroup: completeness === "missingReportingUnit" ? groupBy : undefined,
+    },
+    urlState
+  );
 }
 
 export function commanderPersonsHref(filter: CommanderDashboardFilter, urlState?: CommanderUrlState): string {

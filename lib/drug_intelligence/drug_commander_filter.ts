@@ -160,6 +160,22 @@ export function resolveCommanderDashboardScope(
   return requested;
 }
 
+export type CommanderUnitGroupBy = "battalion" | "company" | "region";
+
+/**
+ * Same grouping Commander Units / missing-unit readiness use: drill deeper
+ * when a parent org filter is set. Default is battalion.
+ */
+export function resolveCommanderUnitGroup(filter: CommanderDashboardFilter): {
+  groupField: "battalionId" | "companyId" | "regionId";
+  groupBy: CommanderUnitGroupBy;
+} {
+  if (filter.reportingBattalionId !== undefined) return { groupField: "companyId", groupBy: "company" };
+  if (filter.reportingRegionId !== undefined) return { groupField: "battalionId", groupBy: "battalion" };
+  if (filter.reportingHeadquartersId !== undefined) return { groupField: "regionId", groupBy: "region" };
+  return { groupField: "battalionId", groupBy: "battalion" };
+}
+
 /** Prisma DrugCase.where — the only place Commander org+date conditions are assembled. */
 export function buildCommanderCaseWhere(filter: CommanderDashboardFilter): Record<string, unknown> {
   const where: Record<string, unknown> = {

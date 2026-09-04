@@ -35,10 +35,10 @@ export function CommanderSituationSection({ observations }: Props) {
 
   return (
     <section aria-labelledby="situation-heading" data-testid="commander-situation-summary">
-      <CardHeader className="mb-3 px-0">
+      <CardHeader className="mb-1 px-0">
         <CardTitle id="situation-heading">{t("di.command.situationTitle")}</CardTitle>
       </CardHeader>
-      <p className="mb-3 text-xs text-muted">{t("di.command.situationNote")}</p>
+      <p className="mb-2 text-xs text-muted">{t("di.command.situationNote")}</p>
       <ul className="divide-y divide-border rounded-xl border border-border bg-card">
         {observations.map((obs) => {
           const text = language === "en" ? obs.textEn : obs.textTh;
@@ -46,10 +46,10 @@ export function CommanderSituationSection({ observations }: Props) {
             <li key={obs.id}>
               <Link
                 href={obs.actionHref}
-                className="flex min-w-0 flex-col gap-0.5 px-4 py-2.5 text-sm leading-snug text-foreground transition-colors hover:bg-neutral-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                className="flex min-w-0 flex-col gap-1 px-3 py-1.5 text-sm leading-snug text-foreground transition-colors hover:bg-neutral-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
                 <span className="min-w-0 break-words">{text}</span>
-                <span className="shrink-0 text-xs text-accent">
+                <span className="shrink-0 rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs text-accent">
                   {t(SITUATION_ACTION_KEYS[obs.href] ?? "di.command.situationOpen")} →
                 </span>
               </Link>

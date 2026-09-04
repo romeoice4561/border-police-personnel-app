@@ -19,7 +19,11 @@
  */
 
 import type { DatabaseClient } from "@/lib/database/database_types";
-import { buildCommanderCaseWhere, type CommanderDashboardFilter } from "@/lib/drug_intelligence/drug_commander_filter";
+import {
+  buildCommanderCaseWhere,
+  resolveCommanderUnitGroup,
+  type CommanderDashboardFilter,
+} from "@/lib/drug_intelligence/drug_commander_filter";
 import {
   filterForCommanderComparisonPeriod,
   resolveCommanderComparisonPeriod,
@@ -55,10 +59,7 @@ function toNum(val: unknown): number {
 }
 
 function resolveUnitGroupField(filter: CommanderDashboardFilter): { groupField: string; groupBy: string } {
-  if (filter.reportingBattalionId !== undefined) return { groupField: "companyId", groupBy: "company" };
-  if (filter.reportingRegionId !== undefined) return { groupField: "battalionId", groupBy: "battalion" };
-  if (filter.reportingHeadquartersId !== undefined) return { groupField: "regionId", groupBy: "region" };
-  return { groupField: "battalionId", groupBy: "battalion" };
+  return resolveCommanderUnitGroup(filter);
 }
 
 function aggregateCommanderSeizures(seizedItems: unknown[]): CommanderSeizureItem[] {
