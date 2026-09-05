@@ -245,6 +245,18 @@ test("saved-board UI pieces stay off the analyst toolbar", () => {
   assert.doesNotMatch(toolbar, /di\.board\./);
 });
 
+test("duplicate and archive POST the registered board-id route with an action", () => {
+  const client = readFileSync(join(ROOT, "lib/drug_intelligence/drug_intelligence_client.ts"), "utf8");
+  const route = readFileSync(join(ROOT, "app/api/drug-intelligence/boards/[id]/route.ts"), "utf8");
+  assert.match(client, /action: "duplicate"/);
+  assert.match(client, /action: "archive"/);
+  assert.doesNotMatch(client, /\/duplicate`/);
+  assert.doesNotMatch(client, /\/archive`/);
+  assert.match(route, /export async function POST/);
+  assert.match(route, /action === "duplicate"/);
+  assert.match(route, /action === "archive"/);
+});
+
 test("hooks invalidate investigation board queries after mutations", () => {
   const hooks = readFileSync(join(ROOT, "lib/drug_intelligence/drug_intelligence_hooks.ts"), "utf8");
   const start = hooks.indexOf("function invalidateInvestigationBoardQueries");

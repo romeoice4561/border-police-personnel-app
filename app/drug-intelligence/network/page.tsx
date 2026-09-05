@@ -1739,17 +1739,25 @@ function DrugNetworkContent() {
       setShowOverflowMenu(false);
       return;
     }
-    const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
-    setShowOverflowMenu(false);
-    navigateToSavedBoard(copy.id);
+    try {
+      const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+      setShowOverflowMenu(false);
+      navigateToSavedBoard(copy.id);
+    } catch (error) {
+      if (isInvestigationBoardConflictError(error)) setShowConflictDialog(true);
+    }
   }
 
   async function archiveCurrentInvestigationBoard() {
     if (!boardQuery.data || !canManageBoard) return;
-    const archived = await archiveInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
-    lastAppliedOverlayKeyRef.current = `${archived.id}:${archived.version}`;
-    setShowArchiveConfirm(false);
-    setShowOverflowMenu(false);
+    try {
+      const archived = await archiveInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+      lastAppliedOverlayKeyRef.current = `${archived.id}:${archived.version}`;
+      setShowArchiveConfirm(false);
+      setShowOverflowMenu(false);
+    } catch (error) {
+      if (isInvestigationBoardConflictError(error)) setShowConflictDialog(true);
+    }
   }
 
   async function reloadLatestInvestigationBoard() {
@@ -1763,9 +1771,13 @@ function DrugNetworkContent() {
 
   async function saveInvestigationBoardCopy() {
     if (!boardQuery.data) return;
-    const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
-    setShowConflictDialog(false);
-    navigateToSavedBoard(copy.id);
+    try {
+      const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+      setShowConflictDialog(false);
+      navigateToSavedBoard(copy.id);
+    } catch (error) {
+      if (isInvestigationBoardConflictError(error)) setShowConflictDialog(true);
+    }
   }
 
   const waitingForSavedBoard = Boolean(

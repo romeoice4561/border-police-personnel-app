@@ -1524,14 +1524,24 @@ export const drugIntelligenceClient = {
     boardId: string,
     body: { actorId: string; actorName: string; title?: string }
   ): Promise<DrugInvestigationBoardDetail> {
-    return (await requestPost<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}/duplicate`, body)).data;
+    return (
+      await requestPost<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}`, {
+        ...body,
+        action: "duplicate",
+      })
+    ).data;
   },
 
   async archiveInvestigationBoard(
     boardId: string,
     body: { actorId: string; actorName: string }
   ): Promise<DrugInvestigationBoardDetail> {
-    return (await requestPost<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}/archive`, body)).data;
+    return (
+      await requestPost<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}`, {
+        ...body,
+        action: "archive",
+      })
+    ).data;
   },
 };
 
