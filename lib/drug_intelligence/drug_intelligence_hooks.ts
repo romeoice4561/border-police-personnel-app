@@ -49,6 +49,8 @@ import {
   type DrugTimelineCorrelation,
   type DrugPersonAdvancedSearchQuery,
   type DrugPersonAdvancedSearchResult,
+  type DrugInvestigationBoardSummary,
+  type DrugInvestigationBoardDetail,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugGeoResultView } from "@/lib/drug_intelligence/drug_geo_client";
 
@@ -82,6 +84,8 @@ export const drugQueryKeys = {
   relationshipSearch: (actorId: string | null, query: DrugRelationshipSearchQuery) => ["drug-relationship-search", actorId, query] as const,
   // DI-5
   networkNeighborhood: (actorId: string | null, query: DrugGraphNeighborhoodQuery) => ["drug-network-neighborhood", actorId, query] as const,
+  investigationBoards: (actorId: string | null, status?: "ACTIVE" | "ARCHIVED") => ["drug-investigation-boards", actorId, status ?? "ACTIVE"] as const,
+  investigationBoard: (actorId: string | null, boardId: string | null) => ["drug-investigation-board", actorId, boardId] as const,
   networkPath: (actorId: string | null, query: DrugGraphPathQuery) => ["drug-network-path", actorId, query] as const,
   // DI-6
   alertList: (actorId: string | null, query: DrugAlertListQuery) => ["drug-alert-list", actorId, query] as const,
@@ -326,6 +330,28 @@ export function useDrugNetworkPath(actorId: string | null, query: DrugGraphPathQ
     queryKey: drugQueryKeys.networkPath(actorId, query ?? { fromType: "PERSON", fromId: "", toType: "PERSON", toId: "" }),
     queryFn: () => drugIntelligenceClient.getNetworkPath(actorId as string, query as DrugGraphPathQuery),
     enabled: Boolean(actorId) && Boolean(query) && query!.fromId.length > 0 && query!.toId.length > 0,
+  });
+}
+
+export function useDrugInvestigationBoards(
+  actorId: string | null,
+  status: "ACTIVE" | "ARCHIVED" = "ACTIVE"
+): UseQueryResult<DrugInvestigationBoardSummary[]> {
+  return useQuery({
+    queryKey: drugQueryKeys.investigationBoards(actorId, status),
+    queryFn: () => drugIntelligenceClient.listInvestigationBoards(actorId as string, status),
+    enabled: Boolean(actorId),
+  });
+}
+
+export function useDrugInvestigationBoard(
+  actorId: string | null,
+  boardId: string | null
+): UseQueryResult<DrugInvestigationBoardDetail> {
+  return useQuery({
+    queryKey: drugQueryKeys.investigationBoard(actorId, boardId),
+    queryFn: () => drugIntelligenceClient.getInvestigationBoard(actorId as string, boardId as string),
+    enabled: Boolean(actorId) && Boolean(boardId),
   });
 }
 

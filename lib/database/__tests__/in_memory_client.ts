@@ -303,6 +303,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   private readonly drugCaseParticipatingUnits = new Table((r, w) => r.id === w.id);
   private readonly drugCaseOfficers = new Table((r, w) => r.id === w.id);
 
+  // Phase DI-9.5B: Saved Investigation Boards — analyst workspace overlay.
+  private readonly drugInvestigationBoards = new Table((r, w) => r.id === w.id);
+
   /**
    * When set, any timeline.create for an officer whose row has this string
    * officerId throws — simulating a mid-transaction failure AFTER the officer
@@ -451,6 +454,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugCaseOfficer() {
     return delegate(this.drugCaseOfficers) as unknown as DatabaseClient["drugCaseOfficer"];
   }
+  get drugInvestigationBoard() {
+    return delegate(this.drugInvestigationBoards) as unknown as DatabaseClient["drugInvestigationBoard"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(
@@ -498,6 +504,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugPersonNetworkRoles: this.drugPersonNetworkRoles.snapshot(),
       drugCaseParticipatingUnits: this.drugCaseParticipatingUnits.snapshot(),
       drugCaseOfficers: this.drugCaseOfficers.snapshot(),
+      drugInvestigationBoards: this.drugInvestigationBoards.snapshot(),
     };
     try {
       return await fn(this);
@@ -541,6 +548,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugPersonNetworkRoles.restore(snaps.drugPersonNetworkRoles);
       this.drugCaseParticipatingUnits.restore(snaps.drugCaseParticipatingUnits);
       this.drugCaseOfficers.restore(snaps.drugCaseOfficers);
+      this.drugInvestigationBoards.restore(snaps.drugInvestigationBoards);
       throw error;
     }
   }

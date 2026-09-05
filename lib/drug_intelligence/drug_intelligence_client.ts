@@ -1484,6 +1484,55 @@ export const drugIntelligenceClient = {
     );
     return { items: data, meta: meta ?? { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } };
   },
+
+  async listInvestigationBoards(actorId: string, status?: "ACTIVE" | "ARCHIVED"): Promise<DrugInvestigationBoardSummary[]> {
+    const { data } = await request<{ boards: DrugInvestigationBoardSummary[] }>(
+      `/drug-intelligence/boards${toQueryString({ actorId, status })}`
+    );
+    return data.boards;
+  },
+
+  async getInvestigationBoard(actorId: string, boardId: string): Promise<DrugInvestigationBoardDetail> {
+    return (await request<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}${toQueryString({ actorId })}`)).data;
+  },
+
+  async createInvestigationBoard(body: {
+    actorId: string;
+    actorName: string;
+    title: string;
+    description?: string | null;
+    state: DrugInvestigationBoardStateClient;
+  }): Promise<DrugInvestigationBoardDetail> {
+    return (await requestPost<DrugInvestigationBoardDetail>("/drug-intelligence/boards", body)).data;
+  },
+
+  async updateInvestigationBoard(
+    boardId: string,
+    body: {
+      actorId: string;
+      actorName: string;
+      expectedVersion: number;
+      title?: string;
+      description?: string | null;
+      state?: DrugInvestigationBoardStateClient;
+    }
+  ): Promise<DrugInvestigationBoardDetail> {
+    return (await requestPatch<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}`, body)).data;
+  },
+
+  async duplicateInvestigationBoard(
+    boardId: string,
+    body: { actorId: string; actorName: string; title?: string }
+  ): Promise<DrugInvestigationBoardDetail> {
+    return (await requestPost<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}/duplicate`, body)).data;
+  },
+
+  async archiveInvestigationBoard(
+    boardId: string,
+    body: { actorId: string; actorName: string }
+  ): Promise<DrugInvestigationBoardDetail> {
+    return (await requestPost<DrugInvestigationBoardDetail>(`/drug-intelligence/boards/${encodeURIComponent(boardId)}/archive`, body)).data;
+  },
 };
 
 export { ApiClientError } from "@/lib/ui/api_client";
@@ -1544,4 +1593,32 @@ export interface DrugPersonAdvancedSearchQuery {
   sort?: "RELEVANCE" | "NAME_ASC" | "CASE_COUNT_DESC" | "LAST_SEEN_DESC" | "AGE_ASC" | "AGE_DESC";
   page?: number;
   pageSize?: number;
+}
+
+// ── DI-9.5B: Saved Investigation Boards ────────────────────────────────
+
+export interface DrugInvestigationBoardSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  status: "ACTIVE" | "ARCHIVED";
+  ownerActorId: string;
+  ownerActorName: string;
+  createdAt: string;
+  updatedAt: string;
+  lastOpenedAt: string | null;
+  version: number;
+  schemaVersion: number;
+  focusType: string | null;
+  focusId: string | null;
+}
+
+export type DrugInvestigationBoardStateClient = Record<string, unknown> & { schemaVersion: 1 };
+
+export interface DrugInvestigationBoardDetail extends DrugInvestigationBoardSummary {
+  createdBy: string;
+  createdByName: string;
+  updatedBy: string;
+  updatedByName: string;
+  state: DrugInvestigationBoardStateClient;
 }

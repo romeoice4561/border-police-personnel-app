@@ -2655,3 +2655,47 @@ model DrugPersonNetworkRole {
   @@index([verificationStatus])
   @@index([role])
 }
+
+/// DI-9.5B: Saved Investigation Board — analyst workspace overlay.
+/// Relational metadata + versioned JSON `state`. NEVER a factual graph
+/// entity: no FK to DrugRelationship / junction tables / DrugNetworkGroup.
+/// Owner fields are loose actor strings (same convention as DrugCase.createdBy).
+enum DrugInvestigationBoardStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model DrugInvestigationBoard {
+  id          String                         @id @default(cuid())
+  title       String
+  description String?
+  status      DrugInvestigationBoardStatus   @default(ACTIVE)
+
+  ownerActorId   String
+  ownerActorName String
+  createdBy      String
+  createdByName  String
+  updatedBy      String
+  updatedByName  String
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastOpenedAt DateTime?
+
+  /// Optimistic concurrency — increment on every successful state/metadata save.
+  version       Int @default(1)
+  /// Board JSON document shape version (v1 in DI-9.5B).
+  schemaVersion Int @default(1)
+
+  /// Denormalized graph focus for list/reopen — not an FK (entity may later merge).
+  focusType String?
+  focusId   String?
+
+  /// Versioned analyst workspace document (DrugInvestigationBoardStateV1).
+  state Json
+
+  @@index([ownerActorId, status, updatedAt])
+  @@index([status])
+  @@index([updatedAt])
+  @@index([focusType, focusId])
+}

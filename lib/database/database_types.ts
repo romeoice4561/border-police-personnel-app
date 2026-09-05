@@ -48,6 +48,7 @@ import type {
   // DI-7.6: arrest team / participating units
   DrugCaseParticipatingUnit,
   DrugCaseOfficer,
+  DrugInvestigationBoard,
 } from "@/lib/generated/prisma/client";
 
 export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
@@ -79,6 +80,7 @@ export type {
   DrugPersonNetworkRole,
   DrugCaseParticipatingUnit,
   DrugCaseOfficer,
+  DrugInvestigationBoard,
 };
 
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
@@ -153,6 +155,8 @@ export interface DatabaseClient {
   /** Phase DI-7.6: arrest-team / participating-unit data foundation. Same narrow ModelDelegate convention. */
   drugCaseParticipatingUnit: ModelDelegate<DrugCaseParticipatingUnit, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   drugCaseOfficer: ModelDelegate<DrugCaseOfficer, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Phase DI-9.5B: Saved Investigation Boards — analyst workspace overlay. */
+  drugInvestigationBoard: ModelDelegate<DrugInvestigationBoard, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's
