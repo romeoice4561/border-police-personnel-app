@@ -150,7 +150,10 @@ import {
   buildAdHocNetworkHref,
   buildInvestigationBoardGraphContext,
   buildInvestigationBoardWorkspaceSnapshot,
-  buildSavedBoardNetworkHref,
+  commitSavedBoardNavigation,
+  prepareAuthorizedSavedBoardNavigation,
+  shouldBypassSavedBoardBeforeUnload,
+  type AuthorizedSavedBoardNavigation,
   defaultInvestigationBoardTitle,
   edgeRoutesFromPersisted,
   investigationBoardDirtySignature,
@@ -1669,10 +1672,15 @@ function DrugNetworkContent() {
   const isBoardDirty = Boolean(
     boardId && baselineDirtySignature && currentDirtySnapshot && investigationBoardIsDirty(baselineDirtySignature, currentDirtySnapshot)
   );
+  const authorizedNavigationRef = useRef<AuthorizedSavedBoardNavigation | null>(null);
 
   useEffect(() => {
     if (!isBoardDirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (shouldBypassSavedBoardBeforeUnload(authorizedNavigationRef.current)) {
+        authorizedNavigationRef.current = null;
+        return;
+      }
       event.preventDefault();
       event.returnValue = "";
     };
@@ -1705,11 +1713,15 @@ function DrugNetworkContent() {
   }
 
   function navigateToSavedBoard(id: string) {
-    router.replace(buildSavedBoardNetworkHref(id, returnTo));
+    const navigation = prepareAuthorizedSavedBoardNavigation(id, returnTo);
+    authorizedNavigationRef.current = navigation;
+    commitSavedBoardNavigation(navigation);
   }
 
   function navigateToAdHoc() {
-    router.replace(buildAdHocNetworkHref({ graphContext: effectiveGraphContext, returnTo }));
+    const href = buildAdHocNetworkHref({ graphContext: effectiveGraphContext, returnTo });
+    authorizedNavigationRef.current = { href, destinationBoardId: "" };
+    window.location.assign(href);
   }
 
   function requestOpenBoard(id: string) {
@@ -1758,11 +1770,12 @@ function DrugNetworkContent() {
     const pending = pendingLeave;
     setPendingLeave(null);
     setShowSavedBoards(false);
-    window.setTimeout(() => {
-      if (pending?.type === "open") navigateToSavedBoard(pending.id);
-      else if (pending?.type === "new") navigateToAdHoc();
-      else if (pending?.type === "href") router.push(pending.href);
-    }, 0);
+    if (pending?.type === "open") navigateToSavedBoard(pending.id);
+    else if (pending?.type === "new") navigateToAdHoc();
+    else if (pending?.type === "href") {
+      authorizedNavigationRef.current = { href: pending.href, destinationBoardId: "" };
+      window.location.assign(pending.href);
+    }
   }
 
   async function persistNewInvestigationBoard(title: string, description: string) {

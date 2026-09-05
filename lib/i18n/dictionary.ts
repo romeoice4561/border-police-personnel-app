@@ -2746,7 +2746,7 @@ export const DICTIONARY = {
   "di.board.imageArchivedNoUpload": tr("บอร์ดที่เก็บถาวรไม่สามารถอัปโหลดรูปใหม่ได้", "Archived boards cannot accept new images."),
   "di.board.hydrateNotice": tr("ข้อมูลเครือข่ายมีการเปลี่ยนแปลงจากตอนที่บันทึกบอร์ด ระบบแสดงข้อมูลล่าสุด โดยคงการจัดวางและบันทึกวิเคราะห์ที่ยังใช้ได้", "The network data has changed since this board was saved. The latest factual graph is shown, keeping layout and analyst notes that still apply."),
   "di.board.hydrateNoticeDetail": tr("รายการที่ไม่มีแล้ว {orphanCount} · เส้นทางที่เปลี่ยน {droppedRouteCount}", "{orphanCount} items are no longer available · {droppedRouteCount} saved routes changed"),
-  "di.board.loadError": tr("ไม่สามารถเปิดบอร์ดที่บันทึกไว้ได้", "Could not open the saved board"),
+  "di.board.loadError": tr("ไม่สามารถเปิดบอร์ดนี้ได้ บอร์ดอาจไม่มีอยู่หรือคุณไม่มีสิทธิ์เข้าถึง", "This board could not be opened. It may not exist, or you do not have access."),
   "di.board.archivedReadOnly": tr("บอร์ดนี้ถูกเก็บถาวรแล้ว — เปิดดูได้อย่างเดียว", "This board is archived and is read-only"),
 
   // Phase DI-6 — Repeat Entity Detection & Intelligence Alerts.

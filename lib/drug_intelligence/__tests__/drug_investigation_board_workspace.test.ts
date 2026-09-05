@@ -12,6 +12,9 @@ import {
   buildInvestigationBoardGraphContext,
   buildInvestigationBoardWorkspaceSnapshot,
   buildSavedBoardNetworkHref,
+  commitSavedBoardNavigation,
+  prepareAuthorizedSavedBoardNavigation,
+  shouldBypassSavedBoardBeforeUnload,
   defaultInvestigationBoardTitle,
   investigationBoardDirtySignature,
   investigationBoardIsDirty,
@@ -172,6 +175,33 @@ test("save-as URL keeps only boardId and optional returnTo", () => {
   assert.equal(buildSavedBoardNetworkHref("board-1").includes("focusId"), false);
 });
 
+test("authorized saved-board navigation assigns the destination once and does not reuse the source id", () => {
+  const assigned: string[] = [];
+  const stay = prepareAuthorizedSavedBoardNavigation("board-a");
+  assert.equal(stay.href, "/drug-intelligence/network?boardId=board-a");
+  assert.equal(shouldBypassSavedBoardBeforeUnload(null), false);
+  const discard = prepareAuthorizedSavedBoardNavigation("board-b");
+  assert.equal(shouldBypassSavedBoardBeforeUnload(discard), true);
+  assert.equal(discard.destinationBoardId, "board-b");
+  assert.notEqual(discard.destinationBoardId, "board-a");
+  commitSavedBoardNavigation(discard, (href) => assigned.push(href));
+  assert.deepEqual(assigned, ["/drug-intelligence/network?boardId=board-b"]);
+});
+
+test("conflict copy and clean duplicate navigate to the returned destination id only", () => {
+  const assigned: string[] = [];
+  const copy = prepareAuthorizedSavedBoardNavigation("board-c");
+  const duplicate = prepareAuthorizedSavedBoardNavigation("board-d");
+  commitSavedBoardNavigation(copy, (href) => assigned.push(href));
+  commitSavedBoardNavigation(duplicate, (href) => assigned.push(href));
+  assert.deepEqual(assigned, [
+    "/drug-intelligence/network?boardId=board-c",
+    "/drug-intelligence/network?boardId=board-d",
+  ]);
+  assert.equal(assigned.some((href) => href.includes("board-source")), false);
+  assert.equal(copy.href.includes("focusType"), false);
+});
+
 test("start-new ad-hoc href drops boardId", () => {
   const href = buildAdHocNetworkHref({
     graphContext: { focusType: "PERSON", focusId: "person-a", depth: 2 },
@@ -257,7 +287,8 @@ test("Network page document actions call board client methods only through hooks
   assert.match(page, /conflictCopyTitle/);
   assert.match(page, /sourceBoardId/);
   assert.match(page, /beforeunload/);
-  assert.match(page, /setTimeout/);
+  assert.match(page, /commitSavedBoardNavigation/);
+  assert.match(page, /shouldBypassSavedBoardBeforeUnload/);
   assert.doesNotMatch(page, /saveInvestigationBoardCopy[\s\S]*duplicateInvestigationBoard\.mutateAsync/);
 });
 

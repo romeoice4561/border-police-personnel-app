@@ -168,7 +168,8 @@ test("recovery helpers and page wiring stay local-copy / no-overwrite / no-autos
   assert.match(page, /reloadFailed/);
   assert.match(page, /copyFailed/);
   assert.doesNotMatch(page, /force overwrite|last-write-wins|autosave/i);
-  assert.match(page, /setTimeout/);
+  assert.match(page, /commitSavedBoardNavigation/);
+  assert.match(page, /prepareAuthorizedSavedBoardNavigation/);
   const dialog = readFileSync(join(ROOT, "components/drug_intelligence/drug_network_board_conflict_dialog.tsx"), "utf8");
   assert.doesNotMatch(dialog, /overwrite|force/i);
   assert.match(dialog, /aria-labelledby/);

@@ -367,6 +367,36 @@ export function buildSavedBoardNetworkHref(boardId: string, returnTo?: string | 
   return `/drug-intelligence/network?${params.toString()}`;
 }
 
+export interface AuthorizedSavedBoardNavigation {
+  href: string;
+  destinationBoardId: string;
+}
+
+export function prepareAuthorizedSavedBoardNavigation(
+  destinationBoardId: string,
+  returnTo?: string | null
+): AuthorizedSavedBoardNavigation {
+  return {
+    href: buildSavedBoardNetworkHref(destinationBoardId, returnTo),
+    destinationBoardId,
+  };
+}
+
+export function shouldBypassSavedBoardBeforeUnload(
+  authorized: AuthorizedSavedBoardNavigation | null
+): boolean {
+  return authorized !== null;
+}
+
+export function commitSavedBoardNavigation(
+  navigation: AuthorizedSavedBoardNavigation,
+  assign: (href: string) => void = (href) => {
+    window.location.assign(href);
+  }
+): void {
+  assign(navigation.href);
+}
+
 export function buildAdHocNetworkHref(input?: {
   graphContext?: DrugInvestigationBoardGraphContextV1 | null;
   returnTo?: string | null;

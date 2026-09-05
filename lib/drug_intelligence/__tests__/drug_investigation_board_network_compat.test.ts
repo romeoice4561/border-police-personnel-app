@@ -11,7 +11,7 @@ test("Network page can open saved boards through the client/hooks layer, not the
   assert.match(page, /boardId/);
   assert.match(page, /focusType/);
   assert.match(page, /focusId/);
-  assert.match(page, /buildSavedBoardNetworkHref/);
+  assert.match(page, /prepareAuthorizedSavedBoardNavigation/);
 });
 
 test("entity and commander deep-link helpers still target ad-hoc Network", () => {
