@@ -79,11 +79,16 @@ export const PERMISSIONS = [
    * new permission just to gate an admin-only Drug Intelligence action).
    * Independent of every Personnel permission — a user's officers.* grants
    * say nothing about Drug Intelligence access, and vice versa.
+   *
+   * DI-10B: `drug.export` is the generate-export gate. Browse (`drug.read`)
+   * is not enough to bulk-download intelligence. Unmasked identifiers still
+   * additionally require `drug.edit` — there is no `drug.export_sensitive`.
    */
   "drug.read",
   "drug.create",
   "drug.edit",
   "drug.admin",
+  "drug.export",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -107,6 +112,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     // Phase DI-1: Drug Intelligence — read-only, same posture as every other
     // commander grant above (view/search, never create/edit/admin).
     "drug.read",
+    // DI-10B: official / operational export (masked). Not unmasked identifiers.
+    "drug.export",
   ],
   // Officer — own full profile (view AND edit, ownership-scoped via
   // officer.editOwn), plus Search and Gallery (browse/preview only: no

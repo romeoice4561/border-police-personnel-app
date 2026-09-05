@@ -209,6 +209,32 @@ test("Executive Report Center nav/title keys exist for both languages", () => {
   }
 });
 
+test("DI-10B export foundation keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "di.export.title",
+    "di.export.preview",
+    "di.export.generate",
+    "di.export.format",
+    "di.export.records",
+    "di.export.masked",
+    "di.export.full",
+    "di.export.tooManyRows",
+    "di.export.invalidContext",
+    "di.export.forbidden",
+    "di.export.forbiddenFull",
+    "di.export.invalidFormat",
+    "di.export.invalidColumns",
+    "di.export.downloadFailed",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+    assert.notEqual(translate(key, "th"), key);
+    assert.notEqual(translate(key, "en"), key);
+  }
+});
+
 test("Executive Report Center title is Thai-first", () => {
   assert.equal(translate("reports.title", "th"), "ศูนย์รายงานผู้บริหาร");
   assert.equal(translate("reports.title", "en"), "Executive Report Center");

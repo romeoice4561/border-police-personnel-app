@@ -94,18 +94,21 @@ test("Phase DI-1: Drug Intelligence permissions — admin full access, commander
   assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.create"), true);
   assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.edit"), true);
   assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.admin"), true);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.admin, "drug.export"), true);
 
   // Commander — read-only, same posture as its other grants (officers.view without officers.edit).
   assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.read"), true);
   assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.create"), false);
   assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.edit"), false);
   assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.admin"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.commander, "drug.export"), true);
 
   // Officer — NO Drug Intelligence access at all (Section 20: authenticated != sees everything).
   assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.read"), false);
   assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.create"), false);
   assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.edit"), false);
   assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.admin"), false);
+  assert.equal(hasPermission(ROLE_PERMISSIONS.officer, "drug.export"), false);
 });
 
 test("Phase DI-1: /drug-intelligence route requires drug.read (registered in ROUTE_PERMISSIONS, same gate the client AuthGate and this test both read)", () => {

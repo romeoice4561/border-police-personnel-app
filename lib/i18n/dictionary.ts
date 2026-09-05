@@ -2747,6 +2747,25 @@ export const DICTIONARY = {
   "di.board.hydrateNotice": tr("ข้อมูลเครือข่ายมีการเปลี่ยนแปลงจากตอนที่บันทึกบอร์ด ระบบแสดงข้อมูลล่าสุด โดยคงการจัดวางและบันทึกวิเคราะห์ที่ยังใช้ได้", "The network data has changed since this board was saved. The latest factual graph is shown, keeping layout and analyst notes that still apply."),
   "di.board.hydrateNoticeDetail": tr("รายการที่ไม่มีแล้ว {orphanCount} · เส้นทางที่เปลี่ยน {droppedRouteCount}", "{orphanCount} items are no longer available · {droppedRouteCount} saved routes changed"),
   "di.board.loadError": tr("ไม่สามารถเปิดบอร์ดนี้ได้ บอร์ดอาจไม่มีอยู่หรือคุณไม่มีสิทธิ์เข้าถึง", "This board could not be opened. It may not exist, or you do not have access."),
+
+  // DI-10B — Export foundation (no Export Center UI yet).
+  "di.export.title": tr("ส่งออก", "Export"),
+  "di.export.preview": tr("ดูตัวอย่างก่อนส่งออก", "Preview export"),
+  "di.export.generate": tr("สร้างไฟล์", "Generate"),
+  "di.export.format": tr("รูปแบบไฟล์", "Format"),
+  "di.export.records": tr("จำนวนรายการ", "Records"),
+  "di.export.masked": tr("ปกปิดข้อมูลอ่อนไหว", "Masked"),
+  "di.export.full": tr("แสดงข้อมูลเต็ม", "Full values"),
+  "di.export.tooManyRows": tr("จำนวนรายการเกินขีดจำกัดที่ระบบอนุญาต กรุณาจำกัดตัวกรองแล้วลองใหม่", "This export exceeds the allowed row limit. Narrow the filters and try again."),
+  "di.export.invalidContext": tr("เงื่อนไขการส่งออกไม่ถูกต้อง", "The export context is invalid."),
+  "di.export.forbidden": tr("คุณไม่มีสิทธิ์ส่งออกข้อมูลนี้", "You do not have permission to export this data."),
+  "di.export.forbiddenFull": tr("คุณไม่มีสิทธิ์ส่งออกข้อมูลอ่อนไหวแบบไม่ปกปิด", "You do not have permission to export unmasked sensitive values."),
+  "di.export.invalidFormat": tr("รูปแบบไฟล์นี้ยังไม่รองรับ", "This export format is not supported."),
+  "di.export.invalidType": tr("ประเภทการส่งออกนี้ไม่ถูกต้อง", "This export type is not valid."),
+  "di.export.invalidColumns": tr("คอลัมน์ที่เลือกมีข้อมูลที่ระบบไม่อนุญาตให้ส่งออก", "The selected columns include fields that cannot be exported."),
+  "di.export.notImplemented": tr("ประเภทรายงานนี้ยังไม่เปิดให้สร้างไฟล์ในขั้นตอนนี้", "This report type is not available for generation yet."),
+  "di.export.downloadFailed": tr("ดาวน์โหลดไม่สำเร็จ กรุณาลองใหม่", "The download could not be completed. Please try again."),
+  "di.export.softLimitWarning": tr("จำนวนรายการค่อนข้างมาก ระบบจะสร้างไฟล์ได้แต่ควรจำกัดตัวกรอง", "This export is large. Generation can continue, but narrowing the filters is recommended."),
   "di.board.archivedReadOnly": tr("บอร์ดนี้ถูกเก็บถาวรแล้ว — เปิดดูได้อย่างเดียว", "This board is archived and is read-only"),
 
   // Phase DI-6 — Repeat Entity Detection & Intelligence Alerts.

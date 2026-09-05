@@ -57,7 +57,8 @@ next-env.d.ts
 
 credentials/
 logs/
-exports/
+# Repo-root knowledge dumps only — must not ignore app/api/**/exports/
+/exports/
 scripts/sample_output/
 
 .env
