@@ -5,11 +5,13 @@ import { join } from "node:path";
 
 const ROOT = join(process.cwd());
 
-test("ad-hoc Network page does not create or depend on saved boards", () => {
+test("Network page can open saved boards through the client/hooks layer, not the service", () => {
   const page = readFileSync(join(ROOT, "app/drug-intelligence/network/page.tsx"), "utf8");
-  assert.doesNotMatch(page, /investigationBoardService|createInvestigationBoard|boardId/);
+  assert.doesNotMatch(page, /investigationBoardService/);
+  assert.match(page, /boardId/);
   assert.match(page, /focusType/);
   assert.match(page, /focusId/);
+  assert.match(page, /buildSavedBoardNetworkHref/);
 });
 
 test("entity and commander deep-link helpers still target ad-hoc Network", () => {

@@ -204,15 +204,17 @@ test("pinned state is carried on the xyflow FlowNode's presentation data, never 
   assert.doesNotMatch(flowAdapterSource, /DrugGraphNode\s*\{[\s\S]{0,10}pinned/);
 });
 
-// --- Q. scope guard: only deferred features remain absent ---
-// "waypoint" was removed after DI-9.3 legitimately implemented routing.
-// "annotation" was removed after DI-9.4 legitimately implemented the toolkit.
-// undo/redo (DI-9.6) and save-board (DI-9.5) are still deferred.
-test("undo/redo/save-board are not yet present in the page source (deferred to DI-9.5/9.6)", () => {
-  const forbiddenTokens = ["undo(", "redo(", "Undo(", "Redo(", "saveBoard", "SaveBoard"];
+// --- Q. scope guard: undo/redo remain deferred; Save is a 9.5C document action ---
+test("undo/redo are not yet present; saved-board persist lives in PageHeader document actions", () => {
+  const forbiddenTokens = ["undo(", "redo(", "Undo(", "Redo("];
   for (const token of forbiddenTokens) {
     assert.ok(!pageCode.includes(token), `found forbidden token in page source: "${token}"`);
   }
+  assert.match(pageCode, /di\.board\.save/);
+  assert.match(pageCode, /investigation-board-persist/);
+  const toolbarSource = readFileSync(path.join(dir, "..", "..", "..", "components", "drug_intelligence", "drug_network_analyst_toolbar.tsx"), "utf8");
+  assert.doesNotMatch(toolbarSource, /di\.board\.save/);
+  assert.doesNotMatch(toolbarSource, /investigation-board-persist/);
 });
 
 // --- Pin visual indicator: not color alone (Section 5) ---

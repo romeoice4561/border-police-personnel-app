@@ -530,7 +530,7 @@ describe("regression: DI-9.1/9.2/9.3 mode invariants still hold", () => {
   });
 
   test("effectiveWorkspaceMode falls back to VIEW without drug.edit", () => {
-    assert.match(pageCode, /effectiveWorkspaceMode[\s\S]{0,80}canUseAnalystMode\s*\?\s*workspaceMode\s*:\s*"VIEW"/);
+    assert.match(pageCode, /effectiveWorkspaceMode[\s\S]{0,160}canUseAnalystMode && !isArchivedBoard \? workspaceMode : "VIEW"/);
   });
 
   test("workspaceMode toggle never calls updateParams (must not appear in URL)", () => {

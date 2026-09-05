@@ -6,7 +6,6 @@
  * sources — ad-hoc Network may still use blob: URLs in memory.
  */
 
-import { randomUUID } from "crypto";
 import {
   DRUG_INVESTIGATION_BOARD_SCHEMA_VERSION,
   type DrugInvestigationBoardAnnotationV1,
@@ -14,10 +13,15 @@ import {
   type DrugInvestigationBoardWorkspaceSnapshot,
 } from "@/lib/drug_intelligence/drug_investigation_board_state";
 
+function createUuid(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const FORBIDDEN_IMAGE_SRC = /^(blob:|data:|https?:)/i;
 
 export function createPersistedAnnotationId(): string {
-  return `ann-${randomUUID()}`;
+  return `ann-${createUuid()}`;
 }
 
 export function toStableAnnotationId(id: string): string {

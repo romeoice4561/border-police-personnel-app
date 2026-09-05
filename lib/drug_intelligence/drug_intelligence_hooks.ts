@@ -51,6 +51,7 @@ import {
   type DrugPersonAdvancedSearchResult,
   type DrugInvestigationBoardSummary,
   type DrugInvestigationBoardDetail,
+  type DrugInvestigationBoardStateClient,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugGeoResultView } from "@/lib/drug_intelligence/drug_geo_client";
 
@@ -352,6 +353,73 @@ export function useDrugInvestigationBoard(
     queryKey: drugQueryKeys.investigationBoard(actorId, boardId),
     queryFn: () => drugIntelligenceClient.getInvestigationBoard(actorId as string, boardId as string),
     enabled: Boolean(actorId) && Boolean(boardId),
+  });
+}
+
+function invalidateInvestigationBoardQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  actorId: string | null,
+  boardId?: string
+) {
+  queryClient.invalidateQueries({ queryKey: ["drug-investigation-boards", actorId] });
+  if (boardId) {
+    queryClient.invalidateQueries({ queryKey: drugQueryKeys.investigationBoard(actorId, boardId) });
+  }
+}
+
+export function useCreateDrugInvestigationBoard(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; description?: string | null; state: DrugInvestigationBoardStateClient }) =>
+      drugIntelligenceClient.createInvestigationBoard({ actorId: actorId as string, actorName, ...body }),
+    onSuccess: (data) => {
+      invalidateInvestigationBoardQueries(queryClient, actorId, data.id);
+      queryClient.setQueryData(drugQueryKeys.investigationBoard(actorId, data.id), data);
+    },
+  });
+}
+
+export function useUpdateDrugInvestigationBoard(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      boardId,
+      ...body
+    }: {
+      boardId: string;
+      expectedVersion: number;
+      title?: string;
+      description?: string | null;
+      state?: DrugInvestigationBoardStateClient;
+    }) => drugIntelligenceClient.updateInvestigationBoard(boardId, { actorId: actorId as string, actorName, ...body }),
+    onSuccess: (data) => {
+      invalidateInvestigationBoardQueries(queryClient, actorId, data.id);
+      queryClient.setQueryData(drugQueryKeys.investigationBoard(actorId, data.id), data);
+    },
+  });
+}
+
+export function useDuplicateDrugInvestigationBoard(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ boardId, title }: { boardId: string; title?: string }) =>
+      drugIntelligenceClient.duplicateInvestigationBoard(boardId, { actorId: actorId as string, actorName, title }),
+    onSuccess: (data) => {
+      invalidateInvestigationBoardQueries(queryClient, actorId, data.id);
+      queryClient.setQueryData(drugQueryKeys.investigationBoard(actorId, data.id), data);
+    },
+  });
+}
+
+export function useArchiveDrugInvestigationBoard(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ boardId }: { boardId: string }) =>
+      drugIntelligenceClient.archiveInvestigationBoard(boardId, { actorId: actorId as string, actorName }),
+    onSuccess: (data) => {
+      invalidateInvestigationBoardQueries(queryClient, actorId, data.id);
+      queryClient.setQueryData(drugQueryKeys.investigationBoard(actorId, data.id), data);
+    },
   });
 }
 

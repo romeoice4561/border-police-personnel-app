@@ -95,6 +95,8 @@ import {
   Unlock,
   Upload,
   Printer,
+  Bookmark,
+  Save,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -121,7 +123,47 @@ import { DrugNetworkAnnotationInspector } from "@/components/drug_intelligence/d
 import { DrugNetworkAnnotationFloatingBar } from "@/components/drug_intelligence/drug_network_annotation_floating_bar";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
-import { useDrugNetworkNeighborhood, useDrugNetworkPath } from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import {
+  useArchiveDrugInvestigationBoard,
+  useCreateDrugInvestigationBoard,
+  useDrugInvestigationBoard,
+  useDrugInvestigationBoards,
+  useDrugNetworkNeighborhood,
+  useDrugNetworkPath,
+  useDuplicateDrugInvestigationBoard,
+  useUpdateDrugInvestigationBoard,
+} from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { DrugNetworkSavedBoardHeader } from "@/components/drug_intelligence/drug_network_saved_board_header";
+import { DrugNetworkSavedBoardsDrawer } from "@/components/drug_intelligence/drug_network_saved_boards_drawer";
+import { DrugNetworkSaveAsBoardDialog } from "@/components/drug_intelligence/drug_network_save_as_board_dialog";
+import { DrugNetworkBoardConflictDialog } from "@/components/drug_intelligence/drug_network_board_conflict_dialog";
+import { DrugNetworkBoardConfirmDialog } from "@/components/drug_intelligence/drug_network_board_confirm_dialog";
+import {
+  annotationsFromPersisted,
+  applyHydratedNodePositions,
+  applyInvestigationBoardGraphContextPatch,
+  boardHasUnpersistableImages,
+  buildAdHocNetworkHref,
+  buildInvestigationBoardGraphContext,
+  buildInvestigationBoardWorkspaceSnapshot,
+  buildSavedBoardNetworkHref,
+  defaultInvestigationBoardTitle,
+  edgeRoutesFromPersisted,
+  investigationBoardDirtySignature,
+  investigationBoardIsDirty,
+  investigationBoardReconciliationCounts,
+  isInvestigationBoardConflictError,
+  parseInvestigationBoardState,
+  shouldBlockDuplicateWhileDirty,
+  shouldConfirmLeaveSavedBoard,
+  snapshotFromPersistedBoardState,
+} from "@/lib/drug_intelligence/drug_investigation_board_workspace";
+import {
+  BoardImageSourceRejectedError,
+  serializeInvestigationBoardState,
+} from "@/lib/drug_intelligence/drug_investigation_board_serialize";
+import { hydrateInvestigationBoardState, type LiveInvestigationGraph } from "@/lib/drug_intelligence/drug_investigation_board_hydrate";
+import type { DrugInvestigationBoardGraphContextV1 } from "@/lib/drug_intelligence/drug_investigation_board_state";
 import {
   buildDrugNetworkFlowGraph,
   mergePreservingManualPositions,
@@ -173,10 +215,10 @@ import {
 } from "@/lib/drug_intelligence/drug_network_annotations";
 import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
-import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiPersonnelDate, normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
-import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType, DrugInvestigationBoardStateClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const ALL_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE", "LOCATION"];
@@ -362,27 +404,76 @@ function DrugNetworkContent() {
   const searchParams = useSearchParams();
   const { user, can } = useAuth();
   const { t } = useT();
-  const { fitView, screenToFlowPosition } = useReactFlow();
+  const { fitView, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
 
-  const focusType = (searchParams.get("focusType") as DrugGraphNodeType | null) ?? null;
-  const focusId = searchParams.get("focusId") ?? null;
-  const depth = (Number(searchParams.get("depth") ?? "1") === 2 ? 2 : 1) as 1 | 2;
-  const dateFrom = searchParams.get("dateFrom") ?? "";
-  const dateTo = searchParams.get("dateTo") ?? "";
-  const maxNodesParam = searchParams.get("maxNodes");
-  const maxNodes = maxNodesParam ? Math.min(Math.max(Number(maxNodesParam), 1), HARD_MAX_NODES) : undefined;
-  const nodeTypesParam = searchParams.get("nodeTypes");
-  const selectedNodeTypes = nodeTypesParam ? (nodeTypesParam.split(",") as DrugGraphNodeType[]) : undefined;
-  const relationshipTypesParam = searchParams.get("relationshipTypes");
-  const selectedRelationshipTypes = relationshipTypesParam ? (relationshipTypesParam.split(",") as DrugGraphRelationshipType[]) : undefined;
+  const boardId = searchParams.get("boardId");
+  const urlFocusType = (searchParams.get("focusType") as DrugGraphNodeType | null) ?? null;
+  const urlFocusId = searchParams.get("focusId") ?? null;
+  const urlDepth = (Number(searchParams.get("depth") ?? "1") === 2 ? 2 : 1) as 1 | 2;
+  const urlDateFrom = searchParams.get("dateFrom") ?? "";
+  const urlDateTo = searchParams.get("dateTo") ?? "";
+  const urlMaxNodesParam = searchParams.get("maxNodes");
+  const urlMaxNodes = urlMaxNodesParam ? Math.min(Math.max(Number(urlMaxNodesParam), 1), HARD_MAX_NODES) : undefined;
+  const urlNodeTypesParam = searchParams.get("nodeTypes");
+  const urlSelectedNodeTypes = urlNodeTypesParam ? (urlNodeTypesParam.split(",") as DrugGraphNodeType[]) : undefined;
+  const urlRelationshipTypesParam = searchParams.get("relationshipTypes");
+  const urlSelectedRelationshipTypes = urlRelationshipTypesParam ? (urlRelationshipTypesParam.split(",") as DrugGraphRelationshipType[]) : undefined;
   const returnTo = getSafeReturnTo(searchParams);
 
   // DI-9.1: View/Analyst mode
   const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
+  const [graphContextOverride, setGraphContextOverride] = useState<DrugInvestigationBoardGraphContextV1 | null>(null);
 
   const canViewNetwork = can("drug.read");
   const canUseAnalystMode = can("drug.edit");
-  const effectiveWorkspaceMode: DrugNetworkWorkspaceMode = canUseAnalystMode ? workspaceMode : "VIEW";
+  const boardQuery = useDrugInvestigationBoard(user?.id ?? null, boardId);
+  const parsedBoardState = useMemo(
+    () => parseInvestigationBoardState(boardQuery.data?.state),
+    [boardQuery.data?.state]
+  );
+  const effectiveGraphContext = useMemo(() => {
+    if (boardId) return graphContextOverride ?? parsedBoardState?.graphContext ?? null;
+    if (!urlFocusType || !urlFocusId) return null;
+    return buildInvestigationBoardGraphContext({
+      focusType: urlFocusType,
+      focusId: urlFocusId,
+      depth: urlDepth,
+      dateFrom: toIsoDate(urlDateFrom),
+      dateTo: toIsoDate(urlDateTo),
+      maxNodes: urlMaxNodes,
+      nodeTypes: urlSelectedNodeTypes,
+      relationshipTypes: urlSelectedRelationshipTypes,
+    });
+  }, [
+    boardId,
+    graphContextOverride,
+    parsedBoardState,
+    urlFocusType,
+    urlFocusId,
+    urlDepth,
+    urlDateFrom,
+    urlDateTo,
+    urlMaxNodes,
+    urlSelectedNodeTypes,
+    urlSelectedRelationshipTypes,
+  ]);
+  const focusType = effectiveGraphContext?.focusType ?? null;
+  const focusId = effectiveGraphContext?.focusId ?? null;
+  const depth = (effectiveGraphContext?.depth === 2 ? 2 : 1) as 1 | 2;
+  const dateFrom = effectiveGraphContext?.dateFrom ? formatThaiPersonnelDate(effectiveGraphContext.dateFrom) : "";
+  const dateTo = effectiveGraphContext?.dateTo ? formatThaiPersonnelDate(effectiveGraphContext.dateTo) : "";
+  const maxNodes = effectiveGraphContext?.maxNodes;
+  const selectedNodeTypes = effectiveGraphContext?.nodeTypes;
+  const selectedRelationshipTypes = effectiveGraphContext?.relationshipTypes;
+  const isArchivedBoard = boardQuery.data?.status === "ARCHIVED";
+  const canManageBoard = Boolean(
+    canUseAnalystMode &&
+      boardQuery.data &&
+      user?.id &&
+      boardQuery.data.ownerActorId === user.id &&
+      !isArchivedBoard
+  );
+  const effectiveWorkspaceMode: DrugNetworkWorkspaceMode = canUseAnalystMode && !isArchivedBoard ? workspaceMode : "VIEW";
 
   // DI-9.2: pinning + board lock
   const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
@@ -420,6 +511,29 @@ function DrugNetworkContent() {
   const [imageErrorNotice, setImageErrorNotice] = useState<"mime" | "size" | null>(null);
   /** Current annotation defaults: color, strokeWidth, fillColor, fontSize. */
   const [annotationDefaults, setAnnotationDefaults] = useState(ANNOTATION_DEFAULTS);
+
+  // DI-9.5C: saved investigation board workspace (document actions, not graph tools)
+  const [boardHydrated, setBoardHydrated] = useState(false);
+  const [baselineDirtySignature, setBaselineDirtySignature] = useState<string | null>(null);
+  const [showSavedBoards, setShowSavedBoards] = useState(false);
+  const [boardListStatus, setBoardListStatus] = useState<"ACTIVE" | "ARCHIVED">("ACTIVE");
+  const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ type: "open"; id: string } | { type: "new" } | null>(null);
+  const [boardNotice, setBoardNotice] = useState<"image" | "duplicate" | null>(null);
+  const [hydrateNotice, setHydrateNotice] = useState<{ orphanCount: number; droppedRouteCount: number } | null>(null);
+  const lastAppliedOverlayKeyRef = useRef<string | null>(null);
+  const skipNextLayoutRef = useRef(false);
+  const wasSavedModeRef = useRef(false);
+  const actorName = user?.displayName ?? user?.id ?? "";
+  const createInvestigationBoard = useCreateDrugInvestigationBoard(user?.id ?? null, actorName);
+  const updateInvestigationBoard = useUpdateDrugInvestigationBoard(user?.id ?? null, actorName);
+  const duplicateInvestigationBoard = useDuplicateDrugInvestigationBoard(user?.id ?? null, actorName);
+  const archiveInvestigationBoard = useArchiveDrugInvestigationBoard(user?.id ?? null, actorName);
+  const boardListQuery = useDrugInvestigationBoards(user?.id ?? null, boardListStatus);
 
   // DI-9.4.1: blob URL ref-counts so duplicate IMAGE annotations share safely
   const blobUrlRegistryRef = useRef<Map<string, number>>(new Map());
@@ -460,6 +574,10 @@ function DrugNetworkContent() {
   // NOT a focus change and preserves annotations in place.
   const prevFocusRef = useRef<{ focusType: string | null; focusId: string | null } | null>(null);
   useEffect(() => {
+    if (boardId) {
+      prevFocusRef.current = { focusType, focusId };
+      return;
+    }
     if (prevFocusRef.current === null) {
       prevFocusRef.current = { focusType, focusId };
       return;
@@ -479,8 +597,7 @@ function DrugNetworkContent() {
         setTimeout(() => setAnnotationsClearedNotice(false), 4000);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusId, focusType]);
+  }, [focusId, focusType, boardId]);
 
   // ── Escape / tool shortcuts (DI-9.4) ───────────────────────────────────────
   // Esc: cancel draw / return to SELECT. V/H: Select/Pan in Analyst when unlocked.
@@ -545,7 +662,28 @@ function DrugNetworkContent() {
   }
 
   function updateParams(patch: Record<string, string | undefined>) {
+    if (boardId) {
+      const base =
+        graphContextOverride ??
+        parsedBoardState?.graphContext ??
+        (urlFocusType && urlFocusId
+          ? buildInvestigationBoardGraphContext({
+              focusType: urlFocusType,
+              focusId: urlFocusId,
+              depth: urlDepth,
+              dateFrom: toIsoDate(urlDateFrom),
+              dateTo: toIsoDate(urlDateTo),
+              maxNodes: urlMaxNodes,
+              nodeTypes: urlSelectedNodeTypes,
+              relationshipTypes: urlSelectedRelationshipTypes,
+            })
+          : null);
+      if (!base) return;
+      setGraphContextOverride(applyInvestigationBoardGraphContextPatch(base, patch));
+      return;
+    }
     const next = new URLSearchParams(searchParams.toString());
+    next.delete("boardId");
     for (const [key, value] of Object.entries(patch)) {
       if (value) next.set(key, value);
       else next.delete(key);
@@ -559,8 +697,8 @@ function DrugNetworkContent() {
     depth,
     nodeTypes: selectedNodeTypes,
     relationshipTypes: selectedRelationshipTypes,
-    dateFrom: toIsoDate(dateFrom),
-    dateTo: toIsoDate(dateTo),
+    dateFrom: effectiveGraphContext?.dateFrom,
+    dateTo: effectiveGraphContext?.dateTo,
     maxNodes,
   });
 
@@ -660,6 +798,33 @@ function DrugNetworkContent() {
     setEdgeRoutes((current) => pruneEdgeRoutes(current, currentEdgeIds));
   }, [neighborhood.data]);
 
+  useEffect(() => {
+    if (boardId) {
+      wasSavedModeRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset workspace locals when the saved-board URL identity changes
+      setGraphContextOverride(null);
+      setBoardHydrated(false);
+      lastAppliedOverlayKeyRef.current = null;
+      skipNextLayoutRef.current = false;
+      setBaselineDirtySignature(null);
+      setHydrateNotice(null);
+      setBoardNotice(null);
+      setShowOverflowMenu(false);
+      return;
+    }
+    if (wasSavedModeRef.current) {
+      wasSavedModeRef.current = false;
+      setAnnotations([]);
+      setPinnedNodeIds(new Set());
+      setEdgeRoutes({});
+      setBoardLocked(false);
+      setLayoutMode("AUTO");
+      setBoardHydrated(false);
+      setBaselineDirtySignature(null);
+      setHydrateNotice(null);
+    }
+  }, [boardId]);
+
   // ── Main build effect ─────────────────────────────────────────────────────────
   // Builds the factual flow nodes from the API response, then APPENDS any
   // currently-live annotation nodes (preserving their xyflow positions). This
@@ -670,6 +835,103 @@ function DrugNetworkContent() {
       setFlowNodes([]);
       setFlowEdges([]);
       lastQuerySignatureRef.current = null;
+      return;
+    }
+    if (boardId && (boardQuery.isPending || (boardQuery.isSuccess && !parsedBoardState))) {
+      return;
+    }
+    if (skipNextLayoutRef.current) {
+      skipNextLayoutRef.current = false;
+      lastQuerySignatureRef.current = querySignature;
+      return;
+    }
+
+    const overlayKey = boardId && boardQuery.data && parsedBoardState
+      ? `${boardQuery.data.id}:${boardQuery.data.version}`
+      : null;
+    if (overlayKey && overlayKey !== lastAppliedOverlayKeyRef.current && parsedBoardState) {
+      const hydrated = hydrateInvestigationBoardState(parsedBoardState, {
+        nodes: neighborhood.data.nodes as unknown as LiveInvestigationGraph["nodes"],
+        edges: neighborhood.data.edges as unknown as LiveInvestigationGraph["edges"],
+      });
+      lastAppliedOverlayKeyRef.current = overlayKey;
+      skipNextLayoutRef.current = true;
+      setLayoutMode(hydrated.presentation.layoutMode);
+      setLabelMode(hydrated.presentation.labelMode);
+      setNodeDensity(hydrated.presentation.nodeDensity);
+      setBoardLocked(hydrated.presentation.boardLocked);
+      setPathViewNodeIds(parsedBoardState.graphContext.pathViewNodeIds ?? null);
+      setPinnedNodeIds(new Set(hydrated.pinnedNodeIds));
+      const restoredRoutes = edgeRoutesFromPersisted(hydrated.edgeRoutes);
+      setEdgeRoutes(restoredRoutes);
+      const restoredAnnotations = annotationsFromPersisted(hydrated.annotations);
+      setAnnotations(restoredAnnotations);
+      originalFocusRef.current = {
+        focusType: parsedBoardState.graphContext.focusType,
+        focusId: parsedBoardState.graphContext.focusId,
+      };
+
+      const hydrateLayoutMode =
+        hydrated.presentation.layoutMode === "AUTO"
+          ? resolveAutoLayoutMode({
+              focusType: parsedBoardState.graphContext.focusType,
+              isPathResult: Boolean(parsedBoardState.graphContext.pathViewNodeIds?.length),
+              nodeCount: neighborhood.data.nodes.length,
+            })
+          : parsedBoardState.graphContext.pathViewNodeIds?.length
+            ? "PATH"
+            : hydrated.presentation.layoutMode;
+
+      const built = buildDrugNetworkFlowGraph(
+        neighborhood.data,
+        (key) => t(key),
+        selectedNode?.id ?? null,
+        selectedEdge?.id ?? null,
+        {
+          layoutMode: hydrateLayoutMode,
+          labelMode: hydrated.presentation.labelMode,
+          nodeDensity: hydrated.presentation.nodeDensity,
+          pathNodeIdsInOrder: parsedBoardState.graphContext.pathViewNodeIds,
+          pinnedNodeIds: new Set(hydrated.pinnedNodeIds),
+          edgeRoutes: restoredRoutes,
+          analystMode: effectiveWorkspaceMode === "ANALYST",
+          boardLocked: hydrated.presentation.boardLocked,
+          onWaypointDrag: handleWaypointDrag,
+        }
+      );
+      const positioned = applyHydratedNodePositions(built.flowNodes, hydrated.nodeLayout);
+      const annotationNodes = hydrated.annotations.map((ann) => {
+        const style = annotationsFromPersisted([ann])[0]!;
+        return annotationToFlowNode(
+          style,
+          ann.position,
+          ann.width != null && ann.height != null ? { width: ann.width, height: ann.height } : undefined,
+          false,
+          hydrated.presentation.boardLocked,
+          effectiveWorkspaceMode === "ANALYST",
+          handleAnnotationTextChangeRef.current,
+          { screenToFlowPosition, onEndpointDrag: handleEndpointDragRef.current }
+        );
+      });
+      setFlowNodes([...positioned, ...annotationNodes] as FlowNode[]);
+      setFlowEdges(built.flowEdges);
+      const counts = investigationBoardReconciliationCounts(hydrated.reconciliation);
+      setHydrateNotice(counts.orphanCount > 0 || counts.droppedRouteCount > 0 ? counts : null);
+      setBaselineDirtySignature(
+        investigationBoardDirtySignature(
+          snapshotFromPersistedBoardState({
+            ...parsedBoardState,
+            nodeLayout: hydrated.nodeLayout,
+            pinnedNodeIds: hydrated.pinnedNodeIds,
+            edgeRoutes: hydrated.edgeRoutes,
+            annotations: hydrated.annotations,
+            presentation: hydrated.presentation,
+          })
+        )
+      );
+      setBoardHydrated(true);
+      lastQuerySignatureRef.current = querySignature;
+      window.requestAnimationFrame(() => setViewport(hydrated.presentation.viewport));
       return;
     }
     const currentNodeIds = new Set(neighborhood.data.nodes.map((n) => n.id));
@@ -739,7 +1001,7 @@ function DrugNetworkContent() {
     setFlowEdges(built.flowEdges);
     if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version]);
 
   // ── Text change callback (stable via ref) ─────────────────────────────────────
   // Stored in a ref so it never forces the build effect to re-run (it's not
@@ -1304,6 +1566,215 @@ function DrugNetworkContent() {
     effectiveWorkspaceMode === "ANALYST" &&
     selectionTotal <= 1;
 
+  const currentDirtySnapshot = useMemo(() => {
+    if (!boardId || !effectiveGraphContext) return null;
+    return buildInvestigationBoardWorkspaceSnapshot({
+      graphContext: buildInvestigationBoardGraphContext({
+        ...effectiveGraphContext,
+        pathViewNodeIds,
+      }),
+      layoutMode,
+      labelMode,
+      nodeDensity,
+      boardLocked,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      flowNodes,
+      pinnedNodeIds,
+      edgeRoutes,
+      annotations,
+    });
+  }, [
+    boardId,
+    effectiveGraphContext,
+    pathViewNodeIds,
+    layoutMode,
+    labelMode,
+    nodeDensity,
+    boardLocked,
+    flowNodes,
+    pinnedNodeIds,
+    edgeRoutes,
+    annotations,
+  ]);
+  const isBoardDirty = Boolean(
+    boardId && baselineDirtySignature && currentDirtySnapshot && investigationBoardIsDirty(baselineDirtySignature, currentDirtySnapshot)
+  );
+
+  useEffect(() => {
+    if (!isBoardDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isBoardDirty]);
+
+  function collectWorkspaceSnapshot() {
+    if (!effectiveGraphContext) return null;
+    return buildInvestigationBoardWorkspaceSnapshot({
+      graphContext: buildInvestigationBoardGraphContext({
+        ...effectiveGraphContext,
+        pathViewNodeIds,
+      }),
+      layoutMode,
+      labelMode,
+      nodeDensity,
+      boardLocked,
+      viewport: getViewport(),
+      flowNodes,
+      pinnedNodeIds,
+      edgeRoutes,
+      annotations,
+    });
+  }
+
+  function defaultBoardTitle() {
+    const focusLabel = neighborhood.data?.nodes.find((node) => node.id === focusId)?.label;
+    return defaultInvestigationBoardTitle(focusLabel) || t("di.board.untitled");
+  }
+
+  function navigateToSavedBoard(id: string) {
+    router.replace(buildSavedBoardNetworkHref(id, returnTo));
+  }
+
+  function navigateToAdHoc() {
+    router.replace(buildAdHocNetworkHref({ graphContext: effectiveGraphContext, returnTo }));
+  }
+
+  function requestOpenBoard(id: string) {
+    if (id === boardId) {
+      setShowSavedBoards(false);
+      return;
+    }
+    if (shouldConfirmLeaveSavedBoard(isBoardDirty)) {
+      setPendingLeave({ type: "open", id });
+      return;
+    }
+    setShowSavedBoards(false);
+    navigateToSavedBoard(id);
+  }
+
+  function requestStartNew() {
+    if (shouldConfirmLeaveSavedBoard(isBoardDirty)) {
+      setPendingLeave({ type: "new" });
+      return;
+    }
+    setShowSavedBoards(false);
+    navigateToAdHoc();
+  }
+
+  function confirmPendingLeave() {
+    const pending = pendingLeave;
+    setPendingLeave(null);
+    setShowSavedBoards(false);
+    if (pending?.type === "open") navigateToSavedBoard(pending.id);
+    else if (pending?.type === "new") navigateToAdHoc();
+  }
+
+  async function persistNewInvestigationBoard(title: string, description: string) {
+    const snapshot = collectWorkspaceSnapshot();
+    if (!snapshot) return;
+    if (boardHasUnpersistableImages(snapshot.annotations)) {
+      setBoardNotice("image");
+      return;
+    }
+    try {
+      const state = serializeInvestigationBoardState(snapshot);
+      const created = await createInvestigationBoard.mutateAsync({
+        title,
+        description: description || null,
+        state: state as unknown as DrugInvestigationBoardStateClient,
+      });
+      setShowSaveAsDialog(false);
+      navigateToSavedBoard(created.id);
+    } catch (error) {
+      if (error instanceof BoardImageSourceRejectedError) setBoardNotice("image");
+    }
+  }
+
+  async function persistInvestigationBoard() {
+    if (!boardQuery.data || !canManageBoard) return;
+    const snapshot = collectWorkspaceSnapshot();
+    if (!snapshot) return;
+    if (boardHasUnpersistableImages(snapshot.annotations)) {
+      setBoardNotice("image");
+      return;
+    }
+    try {
+      const state = serializeInvestigationBoardState(snapshot);
+      const updated = await updateInvestigationBoard.mutateAsync({
+        boardId: boardQuery.data.id,
+        expectedVersion: boardQuery.data.version,
+        state: state as unknown as DrugInvestigationBoardStateClient,
+      });
+      setBaselineDirtySignature(investigationBoardDirtySignature(snapshot));
+      lastAppliedOverlayKeyRef.current = `${updated.id}:${updated.version}`;
+      setBoardNotice(null);
+    } catch (error) {
+      if (isInvestigationBoardConflictError(error)) setShowConflictDialog(true);
+      else if (error instanceof BoardImageSourceRejectedError) setBoardNotice("image");
+    }
+  }
+
+  async function renameInvestigationBoard(title: string) {
+    if (!boardQuery.data || !canManageBoard) return;
+    try {
+      const updated = await updateInvestigationBoard.mutateAsync({
+        boardId: boardQuery.data.id,
+        expectedVersion: boardQuery.data.version,
+        title,
+      });
+      lastAppliedOverlayKeyRef.current = `${updated.id}:${updated.version}`;
+      setShowRenameDialog(false);
+    } catch (error) {
+      if (isInvestigationBoardConflictError(error)) setShowConflictDialog(true);
+    }
+  }
+
+  async function duplicateCurrentInvestigationBoard() {
+    if (!boardQuery.data || !canManageBoard) return;
+    if (shouldBlockDuplicateWhileDirty(isBoardDirty)) {
+      setBoardNotice("duplicate");
+      setShowOverflowMenu(false);
+      return;
+    }
+    const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+    setShowOverflowMenu(false);
+    navigateToSavedBoard(copy.id);
+  }
+
+  async function archiveCurrentInvestigationBoard() {
+    if (!boardQuery.data || !canManageBoard) return;
+    const archived = await archiveInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+    lastAppliedOverlayKeyRef.current = `${archived.id}:${archived.version}`;
+    setShowArchiveConfirm(false);
+    setShowOverflowMenu(false);
+  }
+
+  async function reloadLatestInvestigationBoard() {
+    lastAppliedOverlayKeyRef.current = null;
+    skipNextLayoutRef.current = false;
+    setGraphContextOverride(null);
+    setBoardHydrated(false);
+    setShowConflictDialog(false);
+    await boardQuery.refetch();
+  }
+
+  async function saveInvestigationBoardCopy() {
+    if (!boardQuery.data) return;
+    const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+    setShowConflictDialog(false);
+    navigateToSavedBoard(copy.id);
+  }
+
+  const waitingForSavedBoard = Boolean(
+    boardId &&
+      (boardQuery.isPending ||
+        (boardQuery.isSuccess && parsedBoardState && neighborhood.isPending) ||
+        (neighborhood.data && !boardHydrated))
+  );
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -1333,6 +1804,44 @@ function DrugNetworkContent() {
               <Printer className="h-4 w-4" aria-hidden="true" />
               {t("di.network.printBoard")}
             </Button>
+            {canViewNetwork ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSavedBoards(true)}
+                data-testid="investigation-board-list"
+                data-print-hide
+              >
+                <Bookmark className="h-4 w-4" aria-hidden="true" />
+                {t("di.board.savedBoards")}
+              </Button>
+            ) : null}
+            {canViewNetwork && canUseAnalystMode && !boardId ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSaveAsDialog(true)}
+                disabled={!focusType || !focusId}
+                data-testid="investigation-board-save-as"
+                data-print-hide
+              >
+                <Save className="h-4 w-4" aria-hidden="true" />
+                {t("di.board.saveAs")}
+              </Button>
+            ) : null}
+            {canManageBoard ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void persistInvestigationBoard()}
+                disabled={!isBoardDirty || updateInvestigationBoard.isPending}
+                data-testid="investigation-board-persist"
+                data-print-hide
+              >
+                <Save className="h-4 w-4" aria-hidden="true" />
+                {updateInvestigationBoard.isPending ? t("di.board.saving") : t("di.board.save")}
+              </Button>
+            ) : null}
             {canViewNetwork && canUseAnalystMode ? (
               <div role="group" aria-label={t("di.network.modeSwitcherLabel")} className="flex rounded-lg border border-border bg-surface p-0.5">
                 <button
@@ -1358,6 +1867,55 @@ function DrugNetworkContent() {
           </div>
         }
       />
+
+      {boardQuery.data ? (
+        <DrugNetworkSavedBoardHeader
+          board={boardQuery.data}
+          dirty={isBoardDirty}
+          canManage={canManageBoard}
+          menuOpen={showOverflowMenu}
+          onToggleMenu={() => setShowOverflowMenu((open) => !open)}
+          onRename={() => {
+            setShowOverflowMenu(false);
+            setShowRenameDialog(true);
+          }}
+          onDuplicate={() => void duplicateCurrentInvestigationBoard()}
+          onArchive={() => {
+            setShowOverflowMenu(false);
+            setShowArchiveConfirm(true);
+          }}
+        />
+      ) : null}
+
+      {isArchivedBoard ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.archivedReadOnly")}
+        </p>
+      ) : null}
+
+      {boardNotice === "image" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning" data-testid="investigation-board-image-notice">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.imageNotPersistable")}
+        </p>
+      ) : null}
+
+      {boardNotice === "duplicate" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.saveBeforeDuplicate")}
+        </p>
+      ) : null}
+
+      {hydrateNotice ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.hydrateNotice")
+            .replace("{orphanCount}", String(hydrateNotice.orphanCount))
+            .replace("{droppedRouteCount}", String(hydrateNotice.droppedRouteCount))}
+        </p>
+      ) : null}
 
       {/* DI-9.4: annotation-cleared notice (shown briefly after focus change) */}
       {annotationsClearedNotice ? (
@@ -1529,7 +2087,7 @@ function DrugNetworkContent() {
                         type="number"
                         min={1}
                         max={HARD_MAX_NODES}
-                        value={maxNodesParam ?? ""}
+                        value={maxNodes ?? ""}
                         placeholder={t("di.network.filterMaxNodesPlaceholder")}
                         onChange={(e) => updateParams({ maxNodes: e.target.value || undefined })}
                         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
@@ -1571,7 +2129,11 @@ function DrugNetworkContent() {
             </CardBody>
           </Card>
 
-          {!focusType || !focusId ? (
+          {boardId && boardQuery.isError ? (
+            <ErrorState message={t("di.board.loadError")} onRetry={() => boardQuery.refetch()} />
+          ) : waitingForSavedBoard ? (
+            <LoadingState rows={10} label={t("di.network.loading")} />
+          ) : !focusType || !focusId ? (
             <EmptyState title={t("di.network.noFocus")} icon={<NetworkIcon className="h-8 w-8" />} />
           ) : neighborhood.isPending ? (
             <LoadingState rows={10} label={t("di.network.loading")} />
@@ -1948,6 +2510,63 @@ function DrugNetworkContent() {
           />
         ) : null}
       </Drawer>
+      <DrugNetworkSavedBoardsDrawer
+        open={showSavedBoards}
+        boards={boardListQuery.data}
+        isLoading={boardListQuery.isPending}
+        isError={boardListQuery.isError}
+        onRetry={() => boardListQuery.refetch()}
+        status={boardListStatus}
+        onStatusChange={setBoardListStatus}
+        onClose={() => setShowSavedBoards(false)}
+        onOpenBoard={requestOpenBoard}
+        onStartNew={requestStartNew}
+      />
+      {showSaveAsDialog ? (
+        <DrugNetworkSaveAsBoardDialog
+          defaultTitle={defaultBoardTitle()}
+          pending={createInvestigationBoard.isPending}
+          onConfirm={({ title, description }) => void persistNewInvestigationBoard(title, description)}
+          onCancel={() => setShowSaveAsDialog(false)}
+        />
+      ) : null}
+      {showRenameDialog ? (
+        <DrugNetworkSaveAsBoardDialog
+          defaultTitle={boardQuery.data?.title ?? ""}
+          pending={updateInvestigationBoard.isPending}
+          titleKey="di.board.renameTitle"
+          confirmKey="di.board.rename"
+          onConfirm={({ title }) => void renameInvestigationBoard(title)}
+          onCancel={() => setShowRenameDialog(false)}
+        />
+      ) : null}
+      <DrugNetworkBoardConflictDialog
+        open={showConflictDialog}
+        pending={duplicateInvestigationBoard.isPending || boardQuery.isFetching}
+        onReloadLatest={() => void reloadLatestInvestigationBoard()}
+        onSaveAsCopy={() => void saveInvestigationBoardCopy()}
+        onCancel={() => setShowConflictDialog(false)}
+      />
+      <DrugNetworkBoardConfirmDialog
+        open={pendingLeave !== null}
+        title={t("di.board.leaveTitle")}
+        description={t("di.board.leaveBody")}
+        confirmLabel={t("di.board.leaveConfirm")}
+        cancelLabel={t("di.board.stay")}
+        onConfirm={confirmPendingLeave}
+        onCancel={() => setPendingLeave(null)}
+      />
+      <DrugNetworkBoardConfirmDialog
+        open={showArchiveConfirm}
+        title={t("di.board.archiveTitle")}
+        description={t("di.board.archiveBody")}
+        confirmLabel={t("di.board.archiveConfirm")}
+        cancelLabel={t("common.cancel")}
+        pending={archiveInvestigationBoard.isPending}
+        danger
+        onConfirm={() => void archiveCurrentInvestigationBoard()}
+        onCancel={() => setShowArchiveConfirm(false)}
+      />
     </div>
   );
 }

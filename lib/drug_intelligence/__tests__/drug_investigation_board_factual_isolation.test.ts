@@ -15,6 +15,12 @@ const BOARD_FILES = [
   "lib/database/repositories/drug_investigation_board_repository.ts",
   "lib/drug_intelligence/drug_investigation_board_serialize.ts",
   "lib/drug_intelligence/drug_investigation_board_hydrate.ts",
+  "lib/drug_intelligence/drug_investigation_board_workspace.ts",
+  "components/drug_intelligence/drug_network_saved_board_header.tsx",
+  "components/drug_intelligence/drug_network_saved_boards_drawer.tsx",
+  "components/drug_intelligence/drug_network_save_as_board_dialog.tsx",
+  "components/drug_intelligence/drug_network_board_conflict_dialog.tsx",
+  "components/drug_intelligence/drug_network_board_confirm_dialog.tsx",
 ];
 
 test("board persistence modules do not call factual graph writers", () => {

@@ -31,7 +31,7 @@ test("Analyst Mode requires drug.edit, not a new permission string", () => {
 });
 
 test("effective workspace mode falls back to VIEW when the user lacks drug.edit, even if local state says ANALYST", () => {
-  assert.match(pageCode, /effectiveWorkspaceMode[\s\S]{0,80}canUseAnalystMode\s*\?\s*workspaceMode\s*:\s*"VIEW"/);
+  assert.match(pageCode, /effectiveWorkspaceMode[\s\S]{0,160}canUseAnalystMode && !isArchivedBoard \? workspaceMode : "VIEW"/);
 });
 
 test("the mode switcher UI itself is hidden (not just disabled) for a user without drug.edit", () => {
@@ -101,11 +101,10 @@ test("evidenceCount is displayed as a plain count, never reframed as a confidenc
 // DI-9.3 legitimately implemented manual edge waypoint routing.
 // DI-9.4 legitimately implements the drawing/annotation toolkit.
 // The former "no annotation tools" assertion is superseded.
-// What must still be absent: undo/redo (planned DI-9.6) and save-board (DI-9.5).
-test("undo/redo/save-board are not yet implemented (deferred to DI-9.5/9.6)", () => {
+// What must still be absent: undo/redo (planned DI-9.6). Save is DI-9.5C document actions.
+test("undo/redo are not yet implemented (deferred to DI-9.6)", () => {
   const forbiddenTokens = [
     "undo(", "redo(", "Undo(", "Redo(",
-    "saveBoard", "SaveBoard",
   ];
   for (const token of forbiddenTokens) {
     assert.ok(!pageCode.includes(token), `found forbidden token in page source: "${token}"`);
