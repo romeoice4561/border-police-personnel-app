@@ -37,6 +37,7 @@ export const ENV_SPECS: EnvVarSpec[] = [
   { name: "SUPABASE_SERVICE_ROLE_KEY", requirement: "feature", description: "Supabase service-role key for server-side Storage uploads (portraits + documents)." },
   { name: "SUPABASE_PORTRAIT_BUCKET", requirement: "feature", description: "Supabase Storage bucket name for officer portraits (defaults to 'officer-portraits').", optionalWithDefault: true },
   { name: "SUPABASE_DOCUMENT_BUCKET", requirement: "feature", description: "Supabase Storage bucket name for officer documents (defaults to 'officer-documents').", optionalWithDefault: true },
+  { name: "SUPABASE_DRUG_INTELLIGENCE_BUCKET", requirement: "feature", description: "Private Supabase Storage bucket for investigation-board images (defaults to 'drug-intelligence-private').", optionalWithDefault: true },
   {
     name: "OPENAI_MODEL",
     requirement: "feature",

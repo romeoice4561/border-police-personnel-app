@@ -35,9 +35,36 @@ export type InvestigationBoardWorkspaceFlowNode = {
 };
 
 export function boardHasUnpersistableImages(
-  annotations: Array<{ imageSrc?: string | null }>
+  annotations: Array<{ imageSrc?: string | null; imageId?: string | null }>
 ): boolean {
-  return annotations.some((ann) => typeof ann.imageSrc === "string" && UNPERSISTABLE_IMAGE_SRC.test(ann.imageSrc));
+  return annotations.some((ann) => {
+    if (ann.imageId) return false;
+    return typeof ann.imageSrc === "string" && UNPERSISTABLE_IMAGE_SRC.test(ann.imageSrc);
+  });
+}
+
+export function snapshotWithoutLocalImageSources(
+  snapshot: DrugInvestigationBoardWorkspaceSnapshot
+): DrugInvestigationBoardWorkspaceSnapshot {
+  return {
+    ...snapshot,
+    annotations: snapshot.annotations.map((ann) => {
+      if (ann.imageId || !ann.imageSrc || !UNPERSISTABLE_IMAGE_SRC.test(ann.imageSrc)) return ann;
+      const { imageSrc: _imageSrc, ...rest } = ann;
+      void _imageSrc;
+      return rest;
+    }),
+  };
+}
+
+export function annotationsNeedingImageUpload(
+  annotations: Array<{ id: string; imageSrc?: string | null; imageId?: string | null }>
+): Array<{ id: string; imageSrc: string }> {
+  return annotations
+    .filter((ann): ann is { id: string; imageSrc: string; imageId?: string | null } =>
+      !ann.imageId && typeof ann.imageSrc === "string" && /^blob:/i.test(ann.imageSrc)
+    )
+    .map((ann) => ({ id: ann.id, imageSrc: ann.imageSrc }));
 }
 
 export function defaultInvestigationBoardTitle(focusLabel?: string | null): string {
@@ -159,6 +186,7 @@ export function buildInvestigationBoardWorkspaceSnapshot(input: {
     const nodeData = node?.data as { annotation?: DrugNetworkAnnotation } | undefined;
     const endOffset = nodeData?.annotation?.endOffset ?? ann.endOffset;
     const imageSrc = nodeData?.annotation?.imageSrc ?? ann.imageSrc;
+    const imageId = nodeData?.annotation?.imageId ?? ann.imageId;
     const persisted: DrugInvestigationBoardWorkspaceSnapshot["annotations"][number] = {
       id: ann.id,
       type: ann.type,
@@ -173,6 +201,7 @@ export function buildInvestigationBoardWorkspaceSnapshot(input: {
     if (endOffset) persisted.endOffset = { x: endOffset.x, y: endOffset.y };
     if (ann.caption !== undefined) persisted.caption = ann.caption;
     if (imageSrc) persisted.imageSrc = imageSrc;
+    if (imageId) persisted.imageId = imageId;
     if (node?.width != null) persisted.width = Number(node.width);
     if (node?.height != null) persisted.height = Number(node.height);
     return persisted;
@@ -291,6 +320,7 @@ export function annotationsFromPersisted(
     if (ann.fontSize !== undefined) next.fontSize = ann.fontSize;
     if (ann.endOffset) next.endOffset = { x: ann.endOffset.x, y: ann.endOffset.y };
     if (ann.caption !== undefined) next.caption = ann.caption;
+    if (ann.imageId) next.imageId = ann.imageId;
     return next;
   });
 }

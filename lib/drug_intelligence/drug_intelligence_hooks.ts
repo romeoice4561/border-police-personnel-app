@@ -411,6 +411,13 @@ export function useDuplicateDrugInvestigationBoard(actorId: string | null, actor
   });
 }
 
+export function useUploadDrugInvestigationBoardImage(actorId: string | null, actorName: string) {
+  return useMutation({
+    mutationFn: ({ boardId, file }: { boardId: string; file: File }) =>
+      drugIntelligenceClient.uploadInvestigationBoardImage({ actorId: actorId as string, actorName, boardId, file }),
+  });
+}
+
 export function useArchiveDrugInvestigationBoard(actorId: string | null, actorName: string) {
   const queryClient = useQueryClient();
   return useMutation({

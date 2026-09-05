@@ -77,5 +77,6 @@ test("create/save/duplicate/archive do not write factual graph tables", async ()
   assert.equal(await db.drugCase.count(), 0);
   assert.equal(await db.drugPerson.count(), 0);
   assert.ok((await db.drugInvestigationBoard.count()) >= 2);
+  assert.equal(await db.drugInvestigationBoardImage.count(), 0);
   assert.ok((await db.drugAuditLog.count()) >= 4);
 });

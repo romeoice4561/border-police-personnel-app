@@ -28,6 +28,12 @@ import { OfficerDrugArrestPerformanceService } from "@/lib/drug_intelligence/off
 import { DrugGeoIntelligenceService } from "@/lib/drug_intelligence/drug_geo_intelligence_service";
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { DrugInvestigationBoardService } from "@/lib/drug_intelligence/drug_investigation_board_service";
+import { DrugInvestigationBoardImageService } from "@/lib/drug_intelligence/drug_investigation_board_image_service";
+import {
+  resolveBoardImageStorageConfig,
+  SupabaseBoardImageObjectStore,
+  type BoardImageObjectStore,
+} from "@/lib/drug_intelligence/drug_investigation_board_image_storage";
 
 export interface DrugIntelligenceContainer {
   /** Raw DatabaseClient — passed to handlers that manage their own repositories directly (e.g. DI-7.2/7.3 network group/role handlers). */
@@ -59,10 +65,18 @@ export interface DrugIntelligenceContainer {
   commanderDashboardService: DrugCommanderDashboardService;
   /** Phase DI-9.5B: Saved Investigation Boards. */
   investigationBoardService: DrugInvestigationBoardService;
+  /** Phase DI-9.5D: private board images. Null when storage is not configured. */
+  investigationBoardImageService: DrugInvestigationBoardImageService | null;
 }
 
 /** Builds the container from any DatabaseClient (real or fake). Pure — no I/O. */
-export function createDrugIntelligenceContainer(client: DatabaseClient): DrugIntelligenceContainer {
+export function createDrugIntelligenceContainer(
+  client: DatabaseClient,
+  imageStore?: BoardImageObjectStore | null
+): DrugIntelligenceContainer {
+  const investigationBoardImageService = imageStore
+    ? new DrugInvestigationBoardImageService(client, imageStore)
+    : null;
   return {
     db: client,
     caseService: new DrugCaseService({ db: client }),
@@ -81,7 +95,8 @@ export function createDrugIntelligenceContainer(client: DatabaseClient): DrugInt
     officerDrugArrestPerformanceService: new OfficerDrugArrestPerformanceService({ db: client }),
     geoIntelligenceService: new DrugGeoIntelligenceService({ db: client }),
     commanderDashboardService: new DrugCommanderDashboardService(client),
-    investigationBoardService: new DrugInvestigationBoardService(client),
+    investigationBoardService: new DrugInvestigationBoardService(client, investigationBoardImageService ?? undefined),
+    investigationBoardImageService,
   };
 }
 
@@ -93,5 +108,7 @@ export async function getDrugIntelligenceContainer(): Promise<DrugIntelligenceCo
     const { createDatabaseClient } = await import("@/lib/database/database");
     cachedClient = createDatabaseClient() as unknown as DatabaseClient;
   }
-  return createDrugIntelligenceContainer(cachedClient);
+  const config = resolveBoardImageStorageConfig();
+  const store = config ? new SupabaseBoardImageObjectStore(config) : null;
+  return createDrugIntelligenceContainer(cachedClient, store);
 }

@@ -6,12 +6,14 @@
  * env var is absent.
  *
  * Bucket layout:
- *   officer-portraits  — officer portrait photos    (PortraitUploadService)
- *   officer-documents  — officer official documents (DocumentUploadService)
+ *   officer-portraits           — officer portrait photos    (PortraitUploadService)
+ *   officer-documents           — officer official documents (DocumentUploadService)
+ *   drug-intelligence-private   — investigation-board images (private, signed access)
  *
  * If your Supabase project uses different names, override via:
  *   SUPABASE_PORTRAIT_BUCKET=<name>
  *   SUPABASE_DOCUMENT_BUCKET=<name>
+ *   SUPABASE_DRUG_INTELLIGENCE_BUCKET=<name>
  */
 
 /** Default Supabase Storage bucket for officer portrait photos. */
@@ -19,3 +21,6 @@ export const PORTRAIT_BUCKET_DEFAULT = "officer-portraits";
 
 /** Default Supabase Storage bucket for officer official documents. */
 export const DOCUMENT_BUCKET_DEFAULT = "officer-documents";
+
+/** Default private bucket for investigation-board media. Never public. */
+export const DRUG_INTELLIGENCE_BUCKET_DEFAULT = "drug-intelligence-private";

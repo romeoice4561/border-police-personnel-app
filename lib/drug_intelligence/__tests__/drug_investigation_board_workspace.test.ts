@@ -125,6 +125,7 @@ test("image block detects blob/data/http sources before serialize", () => {
   assert.equal(boardHasUnpersistableImages([{ imageSrc: "data:image/png;base64,xx" }]), true);
   assert.equal(boardHasUnpersistableImages([{ imageSrc: "https://example.com/x.png" }]), true);
   assert.equal(boardHasUnpersistableImages([{ imageSrc: undefined }]), false);
+  assert.equal(boardHasUnpersistableImages([{ imageSrc: "blob:http://localhost/abc", imageId: "img-1" }]), false);
   const snap = sampleWorkspaceSnapshot();
   snap.annotations.push({
     id: "ann-img-1",

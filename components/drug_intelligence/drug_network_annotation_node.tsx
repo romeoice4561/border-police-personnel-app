@@ -22,6 +22,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { NodeResizer, type NodeProps } from "@xyflow/react";
+import { useT } from "@/components/i18n/language_provider";
 import { cn } from "@/lib/ui/cn";
 import {
   strokeDashArray,
@@ -82,6 +83,7 @@ export function DrugNetworkAnnotationShapeNode({
   height,
 }: NodeProps & { data: DrugNetworkAnnotationNodeData }) {
   const { annotation, boardLocked, analystMode, onTextChange } = data;
+  const { t } = useT();
   // Auto-focus: enter edit mode immediately when annotation was just created
   const [editing, setEditing] = useState(() => Boolean(data.autoFocus) && annotation.type === "TEXT" && analystMode && !boardLocked);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -199,8 +201,11 @@ export function DrugNetworkAnnotationShapeNode({
             draggable={false}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs italic text-muted">
-            ภาพประกอบการวิเคราะห์
+          <div
+            className="flex h-full items-center justify-center px-2 text-center text-xs italic text-muted"
+            data-testid={annotation.imageUnavailable ? "annotation-image-unavailable" : "annotation-image-placeholder"}
+          >
+            {annotation.imageUnavailable ? t("di.board.imageUnavailable") : "ภาพประกอบการวิเคราะห์"}
           </div>
         )}
         {annotation.caption ? (

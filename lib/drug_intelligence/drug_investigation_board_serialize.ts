@@ -58,7 +58,7 @@ export function serializeInvestigationBoardState(
   }));
 
   const annotations: DrugInvestigationBoardAnnotationV1[] = snapshot.annotations.map((ann) => {
-    if (ann.imageSrc && FORBIDDEN_IMAGE_SRC.test(ann.imageSrc)) {
+    if (ann.imageSrc && FORBIDDEN_IMAGE_SRC.test(ann.imageSrc) && !ann.imageId) {
       throw new BoardImageSourceRejectedError(ann.id);
     }
     const persisted: DrugInvestigationBoardAnnotationV1 = {

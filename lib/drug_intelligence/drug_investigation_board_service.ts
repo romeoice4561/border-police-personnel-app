@@ -24,6 +24,7 @@ import {
   type DrugInvestigationBoardStatus,
   type DrugInvestigationBoardSummary,
 } from "@/lib/drug_intelligence/drug_investigation_board_types";
+import type { DrugInvestigationBoardImageService } from "@/lib/drug_intelligence/drug_investigation_board_image_service";
 
 const ENTITY = "DrugInvestigationBoard";
 
@@ -94,7 +95,10 @@ export class DrugInvestigationBoardService {
   private readonly boards: DrugInvestigationBoardRepository;
   private readonly audit: DrugAuditLogRepository;
 
-  constructor(db: DatabaseClient) {
+  constructor(
+    db: DatabaseClient,
+    private readonly images?: DrugInvestigationBoardImageService
+  ) {
     this.boards = new DrugInvestigationBoardRepository(db);
     this.audit = new DrugAuditLogRepository(db);
   }
@@ -192,6 +196,18 @@ export class DrugInvestigationBoardService {
     const state = asState(source.state);
     assertStateSize(state);
 
+    const initialState: DrugInvestigationBoardStateV1 = this.images
+      ? {
+          ...state,
+          annotations: state.annotations.map((ann) => {
+            if (!ann.imageId) return ann;
+            const { imageId: _imageId, ...rest } = ann;
+            void _imageId;
+            return rest;
+          }),
+        }
+      : state;
+
     const row = await this.boards.create({
       title: title?.trim() || `${source.title} (สำเนา)`,
       description: source.description,
@@ -201,17 +217,38 @@ export class DrugInvestigationBoardService {
       actorName: actor.actorName,
       focusType: source.focusType,
       focusId: source.focusId,
-      state,
+      state: initialState,
     });
+
+    let finalRow = row;
+    if (this.images) {
+      try {
+        const remapped = await this.images.copyImagesForDuplicate(source.id, row.id, state, actor);
+        const updated = await this.boards.updateIfVersion(row.id, row.version, {
+          state: remapped,
+          updatedBy: actor.actorId,
+          updatedByName: actor.actorName,
+        });
+        if (updated) finalRow = updated;
+      } catch (error) {
+        await this.boards.updateIfVersion(row.id, row.version, {
+          status: "ARCHIVED",
+          updatedBy: actor.actorId,
+          updatedByName: actor.actorName,
+        }).catch(() => undefined);
+        throw error;
+      }
+    }
+
     await this.audit.record({
       entityType: ENTITY,
-      entityId: row.id,
+      entityId: finalRow.id,
       action: "board_duplicated",
       actorId: actor.actorId,
       actorName: actor.actorName,
-      detail: JSON.stringify({ title: row.title, version: row.version, sourceBoardId: source.id }),
+      detail: JSON.stringify({ title: finalRow.title, version: finalRow.version, sourceBoardId: source.id }),
     });
-    return toRecord(row);
+    return toRecord(finalRow);
   }
 
   async archiveBoard(id: string, actor: BoardActor): Promise<DrugInvestigationBoardRecord> {

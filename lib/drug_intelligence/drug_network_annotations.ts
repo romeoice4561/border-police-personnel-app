@@ -73,8 +73,15 @@ export interface DrugNetworkAnnotation {
    * unmounts).
    */
   imageSrc?: string;
+  /**
+   * Persisted private storage id (DI-9.5D). Never a URL.
+   * Runtime `imageSrc` may be a blob or short-lived signed URL.
+   */
+  imageId?: string;
   /** Caption for IMAGE annotations, shown below the image. */
   caption?: string;
+  /** True when a persisted imageId could not be resolved for display. */
+  imageUnavailable?: boolean;
 }
 
 // ─── Style constants ──────────────────────────────────────────────────────────

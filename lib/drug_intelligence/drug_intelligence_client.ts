@@ -1543,6 +1543,33 @@ export const drugIntelligenceClient = {
       })
     ).data;
   },
+
+  async uploadInvestigationBoardImage(
+    body: { actorId: string; actorName: string; boardId: string; file: File }
+  ): Promise<DrugInvestigationBoardImageMeta> {
+    const form = new FormData();
+    form.append("actorId", body.actorId);
+    form.append("actorName", body.actorName);
+    form.append("boardId", body.boardId);
+    form.append("file", body.file);
+    const response = await fetch("/api/drug-intelligence/board-images", { method: "POST", body: form });
+    const parsed = (await response.json().catch(() => null)) as { data?: DrugInvestigationBoardImageMeta; error?: { message?: string; code?: string } } | null;
+    if (!response.ok || !parsed?.data) {
+      throw new ApiClientError(parsed?.error?.message ?? "Upload failed", response.status, parsed?.error?.code ?? "REQUEST_FAILED");
+    }
+    return parsed.data;
+  },
+
+  async resolveInvestigationBoardImages(
+    actorId: string,
+    boardId: string,
+    imageIds: string[]
+  ): Promise<DrugInvestigationBoardImageAccess[]> {
+    const ids = [...new Set(imageIds.filter(Boolean))].join(",");
+    return (await request<{ images: DrugInvestigationBoardImageAccess[] }>(
+      `/drug-intelligence/board-images${toQueryString({ actorId, boardId, ids })}`
+    )).data.images;
+  },
 };
 
 export { ApiClientError } from "@/lib/ui/api_client";
@@ -1631,4 +1658,20 @@ export interface DrugInvestigationBoardDetail extends DrugInvestigationBoardSumm
   updatedBy: string;
   updatedByName: string;
   state: DrugInvestigationBoardStateClient;
+}
+
+export interface DrugInvestigationBoardImageMeta {
+  id: string;
+  boardId: string;
+  mimeType: string;
+  byteSize: number;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+}
+
+export interface DrugInvestigationBoardImageAccess {
+  imageId: string;
+  url: string;
+  expiresAt: string;
 }

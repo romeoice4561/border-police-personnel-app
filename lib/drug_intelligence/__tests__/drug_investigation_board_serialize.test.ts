@@ -26,6 +26,34 @@ test("serialize merges geometry, pins, routes, and annotations without factual l
   assert.equal(parsed.success, true, parsed.success ? "" : JSON.stringify(parsed.error.issues));
 });
 
+test("serialize persists imageId and drops runtime image sources", () => {
+  const snap = sampleWorkspaceSnapshot();
+  snap.annotations.push({
+    id: "ann-img-1",
+    type: "IMAGE",
+    color: "#000",
+    fillColor: "transparent",
+    strokeWidth: 1,
+    imageId: "img-private-1",
+    imageSrc: "blob:http://localhost/abc",
+    caption: "จุดสังเกต",
+    position: { x: 12, y: 24 },
+    width: 160,
+    height: 90,
+  });
+  const state = serializeInvestigationBoardState(snap);
+  const json = JSON.stringify(state);
+  assert.match(json, /img-private-1/);
+  assert.equal(json.includes("blob:"), false);
+  assert.equal(json.includes("data:"), false);
+  assert.equal(json.includes("https://"), false);
+  assert.equal(json.includes("storagePath"), false);
+  const image = state.annotations.find((ann) => ann.id === "ann-img-1");
+  assert.equal(image?.imageId, "img-private-1");
+  assert.equal(image?.caption, "จุดสังเกต");
+  assert.equal((image as { imageSrc?: string }).imageSrc, undefined);
+});
+
 test("serialize rejects blob/data/http image sources", () => {
   const snap = sampleWorkspaceSnapshot();
   snap.annotations.push({

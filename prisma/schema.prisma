@@ -2694,8 +2694,32 @@ model DrugInvestigationBoard {
   /// Versioned analyst workspace document (DrugInvestigationBoardStateV1).
   state Json
 
+  images DrugInvestigationBoardImage[]
+
   @@index([ownerActorId, status, updatedAt])
   @@index([status])
   @@index([updatedAt])
   @@index([focusType, focusId])
+}
+
+/// DI-9.5D: private investigation-board image metadata. Bytes live in private
+/// object storage. Not evidence, not a factual graph record, not a portrait.
+/// Archive does not delete these rows; cascade applies only if the board row
+/// is ever hard-deleted (MVP boards are soft-archived).
+model DrugInvestigationBoardImage {
+  id           String                 @id @default(cuid())
+  board        DrugInvestigationBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId      String
+  storagePath  String
+  mimeType     String
+  byteSize     Int
+  width        Int?
+  height       Int?
+  /// Display-only sanitized original name. Never used as a storage key.
+  originalName String?
+  createdBy    String
+  createdAt    DateTime               @default(now())
+
+  @@index([boardId])
+  @@index([boardId, createdAt])
 }

@@ -132,7 +132,9 @@ import {
   useDrugNetworkPath,
   useDuplicateDrugInvestigationBoard,
   useUpdateDrugInvestigationBoard,
+  useUploadDrugInvestigationBoardImage,
 } from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { drugIntelligenceClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { DrugNetworkSavedBoardHeader } from "@/components/drug_intelligence/drug_network_saved_board_header";
 import { DrugNetworkSavedBoardsDrawer } from "@/components/drug_intelligence/drug_network_saved_boards_drawer";
 import { DrugNetworkSaveAsBoardDialog } from "@/components/drug_intelligence/drug_network_save_as_board_dialog";
@@ -142,7 +144,9 @@ import {
   annotationsFromPersisted,
   applyHydratedNodePositions,
   applyInvestigationBoardGraphContextPatch,
+  annotationsNeedingImageUpload,
   boardHasUnpersistableImages,
+  snapshotWithoutLocalImageSources,
   buildAdHocNetworkHref,
   buildInvestigationBoardGraphContext,
   buildInvestigationBoardWorkspaceSnapshot,
@@ -523,7 +527,8 @@ function DrugNetworkContent() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ type: "open"; id: string } | { type: "new" } | null>(null);
-  const [boardNotice, setBoardNotice] = useState<"image" | "duplicate" | null>(null);
+  const [boardNotice, setBoardNotice] = useState<"image" | "duplicate" | "upload" | "saveAsPartial" | null>(null);
+  const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [hydrateNotice, setHydrateNotice] = useState<{ orphanCount: number; droppedRouteCount: number } | null>(null);
   const lastAppliedOverlayKeyRef = useRef<string | null>(null);
   const skipNextLayoutRef = useRef(false);
@@ -533,10 +538,12 @@ function DrugNetworkContent() {
   const updateInvestigationBoard = useUpdateDrugInvestigationBoard(user?.id ?? null, actorName);
   const duplicateInvestigationBoard = useDuplicateDrugInvestigationBoard(user?.id ?? null, actorName);
   const archiveInvestigationBoard = useArchiveDrugInvestigationBoard(user?.id ?? null, actorName);
+  const uploadInvestigationBoardImage = useUploadDrugInvestigationBoardImage(user?.id ?? null, actorName);
   const boardListQuery = useDrugInvestigationBoards(user?.id ?? null, boardListStatus);
 
   // DI-9.4.1: blob URL ref-counts so duplicate IMAGE annotations share safely
   const blobUrlRegistryRef = useRef<Map<string, number>>(new Map());
+  const pendingImageFilesRef = useRef<Map<string, File>>(new Map());
   const annotationsRef = useRef(annotations);
   annotationsRef.current = annotations;
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -932,6 +939,32 @@ function DrugNetworkContent() {
       setBoardHydrated(true);
       lastQuerySignatureRef.current = querySignature;
       window.requestAnimationFrame(() => setViewport(hydrated.presentation.viewport));
+      const imageIds = restoredAnnotations.map((ann) => ann.imageId).filter((id): id is string => Boolean(id));
+      if (imageIds.length > 0 && user?.id && boardId) {
+        void drugIntelligenceClient.resolveInvestigationBoardImages(user.id, boardId, imageIds).then((resolved) => {
+          const byId = new Map(resolved.map((item) => [item.imageId, item.url]));
+          setAnnotations((prev) =>
+            prev.map((ann) => {
+              if (!ann.imageId) return ann;
+              const url = byId.get(ann.imageId);
+              return url ? { ...ann, imageSrc: url, imageUnavailable: false } : { ...ann, imageUnavailable: true };
+            })
+          );
+          setFlowNodes((prev) =>
+            prev.map((node) => {
+              if (!isAnnotationId(node.id)) return node;
+              const data = node.data as unknown as DrugNetworkAnnotationNodeData;
+              const ann = data.annotation;
+              if (!ann.imageId) return node;
+              const url = byId.get(ann.imageId);
+              const next = url ? { ...ann, imageSrc: url, imageUnavailable: false } : { ...ann, imageUnavailable: true };
+              return { ...node, data: { ...data, annotation: next } } as unknown as FlowNode;
+            })
+          );
+        }).catch(() => {
+          setAnnotations((prev) => prev.map((ann) => (ann.imageId && !ann.imageSrc ? { ...ann, imageUnavailable: true } : ann)));
+        });
+      }
       return;
     }
     const currentNodeIds = new Set(neighborhood.data.nodes.map((n) => n.id));
@@ -1271,6 +1304,21 @@ function DrugNetworkContent() {
     }
 
     const ann = createImageAnnotation(objectUrl);
+    if (boardId && canManageBoard) {
+      setImageUploadBusy(true);
+      try {
+        const uploaded = await uploadInvestigationBoardImage.mutateAsync({ boardId, file });
+        ann.imageId = uploaded.id;
+      } catch {
+        releaseBlobUrl(blobUrlRegistryRef.current, objectUrl);
+        setBoardNotice("upload");
+        setImageUploadBusy(false);
+        return;
+      }
+      setImageUploadBusy(false);
+    } else {
+      pendingImageFilesRef.current.set(ann.id, file);
+    }
     const center = getVisibleViewportCenterFlow();
     const pos = imageAnnotationCenteredPosition(center, size);
     addAnnotationToCanvas(ann, pos, size);
@@ -1675,21 +1723,57 @@ function DrugNetworkContent() {
   async function persistNewInvestigationBoard(title: string, description: string) {
     const snapshot = collectWorkspaceSnapshot();
     if (!snapshot) return;
-    if (boardHasUnpersistableImages(snapshot.annotations)) {
-      setBoardNotice("image");
-      return;
-    }
+    setImageUploadBusy(true);
     try {
-      const state = serializeInvestigationBoardState(snapshot);
+      const createState = serializeInvestigationBoardState(snapshotWithoutLocalImageSources(snapshot));
       const created = await createInvestigationBoard.mutateAsync({
         title,
         description: description || null,
-        state: state as unknown as DrugInvestigationBoardStateClient,
+        state: createState as unknown as DrugInvestigationBoardStateClient,
       });
+      const pending = annotationsNeedingImageUpload(snapshot.annotations);
+      const uploadedIds = new Map<string, string>();
+      let uploadFailed = false;
+      for (const item of pending) {
+        const file = pendingImageFilesRef.current.get(item.id);
+        if (!file) {
+          uploadFailed = true;
+          continue;
+        }
+        try {
+          const uploaded = await uploadInvestigationBoardImage.mutateAsync({ boardId: created.id, file });
+          uploadedIds.set(item.id, uploaded.id);
+        } catch {
+          uploadFailed = true;
+        }
+      }
+      const finalSnapshot = {
+        ...snapshot,
+        annotations: snapshot.annotations.map((ann) => {
+          const imageId = uploadedIds.get(ann.id) ?? ann.imageId;
+          if (!imageId) {
+            const { imageSrc: _imageSrc, ...rest } = ann;
+            void _imageSrc;
+            return rest;
+          }
+          return { ...ann, imageId, imageSrc: undefined };
+        }),
+      };
+      if (!boardHasUnpersistableImages(finalSnapshot.annotations)) {
+        await updateInvestigationBoard.mutateAsync({
+          boardId: created.id,
+          expectedVersion: created.version,
+          state: serializeInvestigationBoardState(finalSnapshot) as unknown as DrugInvestigationBoardStateClient,
+        });
+        pendingImageFilesRef.current.clear();
+      }
       setShowSaveAsDialog(false);
       navigateToSavedBoard(created.id);
+      if (uploadFailed) setBoardNotice("saveAsPartial");
     } catch (error) {
       if (error instanceof BoardImageSourceRejectedError) setBoardNotice("image");
+    } finally {
+      setImageUploadBusy(false);
     }
   }
 
@@ -1906,10 +1990,28 @@ function DrugNetworkContent() {
         </p>
       ) : null}
 
+      {imageUploadBusy ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-surface-muted px-3 py-2 text-xs" data-testid="investigation-board-image-uploading">
+          {t("di.board.imageUploading")}
+        </p>
+      ) : null}
+
       {boardNotice === "image" ? (
         <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning" data-testid="investigation-board-image-notice">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {t("di.board.imageNotPersistable")}
+        </p>
+      ) : null}
+      {boardNotice === "upload" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.imageUploadFailed")}
+        </p>
+      ) : null}
+      {boardNotice === "saveAsPartial" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.imageSaveAsPartial")}
         </p>
       ) : null}
 
