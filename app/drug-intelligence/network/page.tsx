@@ -158,8 +158,11 @@ import {
   investigationBoardReconciliationCounts,
   isInvestigationBoardConflictError,
   parseInvestigationBoardState,
+  shouldBlockArchiveWhileDirty,
+  shouldBlockDocumentActionWhileUpload,
   shouldBlockDuplicateWhileDirty,
   shouldConfirmLeaveSavedBoard,
+  conflictCopyTitle,
   snapshotFromPersistedBoardState,
 } from "@/lib/drug_intelligence/drug_investigation_board_workspace";
 import {
@@ -526,10 +529,27 @@ function DrugNetworkContent() {
   const [showConflictDialog, setShowConflictDialog] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
-  const [pendingLeave, setPendingLeave] = useState<{ type: "open"; id: string } | { type: "new" } | null>(null);
-  const [boardNotice, setBoardNotice] = useState<"image" | "duplicate" | "upload" | "saveAsPartial" | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<
+    { type: "open"; id: string } | { type: "new" } | { type: "href"; href: string } | null
+  >(null);
+  const [boardNotice, setBoardNotice] = useState<
+    | "image"
+    | "duplicate"
+    | "upload"
+    | "saveAsPartial"
+    | "archive"
+    | "uploadInFlight"
+    | "reloadFailed"
+    | "copyFailed"
+    | null
+  >(null);
+  const [conflictActionPending, setConflictActionPending] = useState(false);
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
-  const [hydrateNotice, setHydrateNotice] = useState<{ orphanCount: number; droppedRouteCount: number } | null>(null);
+  const [hydrateNotice, setHydrateNotice] = useState<{
+    orphanCount: number;
+    droppedRouteCount: number;
+    remappedCount: number;
+  } | null>(null);
   const lastAppliedOverlayKeyRef = useRef<string | null>(null);
   const skipNextLayoutRef = useRef(false);
   const wasSavedModeRef = useRef(false);
@@ -923,7 +943,9 @@ function DrugNetworkContent() {
       setFlowNodes([...positioned, ...annotationNodes] as FlowNode[]);
       setFlowEdges(built.flowEdges);
       const counts = investigationBoardReconciliationCounts(hydrated.reconciliation);
-      setHydrateNotice(counts.orphanCount > 0 || counts.droppedRouteCount > 0 ? counts : null);
+      setHydrateNotice(
+        counts.orphanCount > 0 || counts.droppedRouteCount > 0 || counts.remappedCount > 0 ? counts : null
+      );
       setBaselineDirtySignature(
         investigationBoardDirtySignature(
           snapshotFromPersistedBoardState({
@@ -1695,6 +1717,10 @@ function DrugNetworkContent() {
       setShowSavedBoards(false);
       return;
     }
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      return;
+    }
     if (shouldConfirmLeaveSavedBoard(isBoardDirty)) {
       setPendingLeave({ type: "open", id });
       return;
@@ -1704,6 +1730,10 @@ function DrugNetworkContent() {
   }
 
   function requestStartNew() {
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      return;
+    }
     if (shouldConfirmLeaveSavedBoard(isBoardDirty)) {
       setPendingLeave({ type: "new" });
       return;
@@ -1712,12 +1742,27 @@ function DrugNetworkContent() {
     navigateToAdHoc();
   }
 
+  function requestNavigateHref(href: string) {
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      return;
+    }
+    if (shouldConfirmLeaveSavedBoard(isBoardDirty)) {
+      setPendingLeave({ type: "href", href });
+      return;
+    }
+    router.push(href);
+  }
+
   function confirmPendingLeave() {
     const pending = pendingLeave;
     setPendingLeave(null);
     setShowSavedBoards(false);
-    if (pending?.type === "open") navigateToSavedBoard(pending.id);
-    else if (pending?.type === "new") navigateToAdHoc();
+    window.setTimeout(() => {
+      if (pending?.type === "open") navigateToSavedBoard(pending.id);
+      else if (pending?.type === "new") navigateToAdHoc();
+      else if (pending?.type === "href") router.push(pending.href);
+    }, 0);
   }
 
   async function persistNewInvestigationBoard(title: string, description: string) {
@@ -1779,6 +1824,10 @@ function DrugNetworkContent() {
 
   async function persistInvestigationBoard() {
     if (!boardQuery.data || !canManageBoard) return;
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      return;
+    }
     const snapshot = collectWorkspaceSnapshot();
     if (!snapshot) return;
     if (boardHasUnpersistableImages(snapshot.annotations)) {
@@ -1818,6 +1867,11 @@ function DrugNetworkContent() {
 
   async function duplicateCurrentInvestigationBoard() {
     if (!boardQuery.data || !canManageBoard) return;
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      setShowOverflowMenu(false);
+      return;
+    }
     if (shouldBlockDuplicateWhileDirty(isBoardDirty)) {
       setBoardNotice("duplicate");
       setShowOverflowMenu(false);
@@ -1834,6 +1888,18 @@ function DrugNetworkContent() {
 
   async function archiveCurrentInvestigationBoard() {
     if (!boardQuery.data || !canManageBoard) return;
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      setShowArchiveConfirm(false);
+      setShowOverflowMenu(false);
+      return;
+    }
+    if (shouldBlockArchiveWhileDirty(isBoardDirty)) {
+      setBoardNotice("archive");
+      setShowArchiveConfirm(false);
+      setShowOverflowMenu(false);
+      return;
+    }
     try {
       const archived = await archiveInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
       lastAppliedOverlayKeyRef.current = `${archived.id}:${archived.version}`;
@@ -1845,22 +1911,54 @@ function DrugNetworkContent() {
   }
 
   async function reloadLatestInvestigationBoard() {
-    lastAppliedOverlayKeyRef.current = null;
-    skipNextLayoutRef.current = false;
-    setGraphContextOverride(null);
-    setBoardHydrated(false);
-    setShowConflictDialog(false);
-    await boardQuery.refetch();
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      return;
+    }
+    setConflictActionPending(true);
+    try {
+      const result = await boardQuery.refetch();
+      if (result.error || !result.data) throw result.error ?? new Error("reload");
+      lastAppliedOverlayKeyRef.current = null;
+      skipNextLayoutRef.current = false;
+      setGraphContextOverride(null);
+      setBoardHydrated(false);
+      setShowConflictDialog(false);
+      setBoardNotice(null);
+    } catch {
+      setBoardNotice("reloadFailed");
+    } finally {
+      setConflictActionPending(false);
+    }
   }
 
   async function saveInvestigationBoardCopy() {
     if (!boardQuery.data) return;
+    if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+      setBoardNotice("uploadInFlight");
+      return;
+    }
+    const snapshot = collectWorkspaceSnapshot();
+    if (!snapshot) return;
+    if (boardHasUnpersistableImages(snapshot.annotations)) {
+      setBoardNotice("image");
+      return;
+    }
+    setConflictActionPending(true);
     try {
-      const copy = await duplicateInvestigationBoard.mutateAsync({ boardId: boardQuery.data.id });
+      const copy = await createInvestigationBoard.mutateAsync({
+        title: conflictCopyTitle(boardQuery.data.title),
+        description: boardQuery.data.description,
+        state: serializeInvestigationBoardState(snapshotWithoutLocalImageSources(snapshot)) as unknown as DrugInvestigationBoardStateClient,
+        sourceBoardId: boardQuery.data.id,
+      });
       setShowConflictDialog(false);
+      setBoardNotice(null);
       navigateToSavedBoard(copy.id);
-    } catch (error) {
-      if (isInvestigationBoardConflictError(error)) setShowConflictDialog(true);
+    } catch {
+      setBoardNotice("copyFailed");
+    } finally {
+      setConflictActionPending(false);
     }
   }
 
@@ -1880,7 +1978,15 @@ function DrugNetworkContent() {
           <div className="flex flex-wrap items-center gap-2">
             {returnTo ? (
               <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link href={returnTo} data-testid="back-via-return-to">
+                <Link
+                  href={returnTo}
+                  data-testid="back-via-return-to"
+                  onClick={(event) => {
+                    if (!shouldConfirmLeaveSavedBoard(isBoardDirty) && !imageUploadBusy) return;
+                    event.preventDefault();
+                    requestNavigateHref(returnTo);
+                  }}
+                >
                   {t(returnToBackLabelKey(returnTo))}
                 </Link>
               </Button>
@@ -1930,7 +2036,7 @@ function DrugNetworkContent() {
                 variant="outline"
                 size="sm"
                 onClick={() => void persistInvestigationBoard()}
-                disabled={!isBoardDirty || updateInvestigationBoard.isPending}
+                disabled={!isBoardDirty || updateInvestigationBoard.isPending || imageUploadBusy}
                 data-testid="investigation-board-persist"
                 data-print-hide
               >
@@ -1978,6 +2084,14 @@ function DrugNetworkContent() {
           onDuplicate={() => void duplicateCurrentInvestigationBoard()}
           onArchive={() => {
             setShowOverflowMenu(false);
+            if (shouldBlockDocumentActionWhileUpload(imageUploadBusy)) {
+              setBoardNotice("uploadInFlight");
+              return;
+            }
+            if (shouldBlockArchiveWhileDirty(isBoardDirty)) {
+              setBoardNotice("archive");
+              return;
+            }
             setShowArchiveConfirm(true);
           }}
         />
@@ -2021,13 +2135,40 @@ function DrugNetworkContent() {
           {t("di.board.saveBeforeDuplicate")}
         </p>
       ) : null}
-
-      {hydrateNotice ? (
+      {boardNotice === "archive" ? (
         <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {t("di.board.hydrateNotice")
-            .replace("{orphanCount}", String(hydrateNotice.orphanCount))
-            .replace("{droppedRouteCount}", String(hydrateNotice.droppedRouteCount))}
+          {t("di.board.saveBeforeArchive")}
+        </p>
+      ) : null}
+      {boardNotice === "uploadInFlight" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning" data-testid="investigation-board-upload-inflight">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.uploadInFlight")}
+        </p>
+      ) : null}
+      {boardNotice === "reloadFailed" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.reloadFailed")}
+        </p>
+      ) : null}
+      {boardNotice === "copyFailed" ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.copyFailed")}
+        </p>
+      ) : null}
+
+      {hydrateNotice ? (
+        <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning" data-testid="investigation-board-hydrate-notice">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("di.board.hydrateNotice")}
+          {hydrateNotice.orphanCount > 0 || hydrateNotice.droppedRouteCount > 0
+            ? ` ${t("di.board.hydrateNoticeDetail")
+                .replace("{orphanCount}", String(hydrateNotice.orphanCount))
+                .replace("{droppedRouteCount}", String(hydrateNotice.droppedRouteCount))}`
+            : ""}
         </p>
       ) : null}
 
@@ -2656,7 +2797,7 @@ function DrugNetworkContent() {
       ) : null}
       <DrugNetworkBoardConflictDialog
         open={showConflictDialog}
-        pending={duplicateInvestigationBoard.isPending || boardQuery.isFetching}
+        pending={conflictActionPending}
         onReloadLatest={() => void reloadLatestInvestigationBoard()}
         onSaveAsCopy={() => void saveInvestigationBoardCopy()}
         onCancel={() => setShowConflictDialog(false)}

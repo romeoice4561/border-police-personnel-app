@@ -17,8 +17,11 @@ import {
   investigationBoardIsDirty,
   investigationBoardReconciliationCounts,
   isInvestigationBoardConflictError,
+  shouldBlockArchiveWhileDirty,
+  shouldBlockDocumentActionWhileUpload,
   shouldBlockDuplicateWhileDirty,
   shouldConfirmLeaveSavedBoard,
+  conflictCopyTitle,
   snapshotFromPersistedBoardState,
 } from "@/lib/drug_intelligence/drug_investigation_board_workspace";
 import type { DrugNetworkAnnotation } from "@/lib/drug_intelligence/drug_network_annotations";
@@ -118,6 +121,23 @@ test("dirty signature treats move/pin/lock/route/annotation as dirty and ignores
     false
   );
   assert.equal(investigationBoardIsDirty(baseline, sampleWorkspaceSnapshot()), false);
+  const withImage = sampleWorkspaceSnapshot();
+  withImage.annotations.push({
+    id: "ann-img-1",
+    type: "IMAGE",
+    color: "#000",
+    fillColor: "transparent",
+    strokeWidth: 1,
+    imageId: "img-private-1",
+    imageSrc: "blob:http://localhost/local",
+    position: { x: 8, y: 8 },
+    width: 80,
+    height: 60,
+  });
+  const resolved = structuredClone(withImage);
+  const resolvedAnn = resolved.annotations.find((ann) => ann.id === "ann-img-1");
+  if (resolvedAnn) resolvedAnn.imageSrc = "https://signed.example/tmp";
+  assert.equal(investigationBoardIsDirty(investigationBoardDirtySignature(withImage), resolved), false);
 });
 
 test("image block detects blob/data/http sources before serialize", () => {
@@ -172,6 +192,11 @@ test("dirty-switch and duplicate-while-dirty policies", () => {
   assert.equal(shouldConfirmLeaveSavedBoard(false), false);
   assert.equal(shouldBlockDuplicateWhileDirty(true), true);
   assert.equal(shouldBlockDuplicateWhileDirty(false), false);
+  assert.equal(shouldBlockArchiveWhileDirty(true), true);
+  assert.equal(shouldBlockArchiveWhileDirty(false), false);
+  assert.equal(shouldBlockDocumentActionWhileUpload(true), true);
+  assert.equal(shouldBlockDocumentActionWhileUpload(false), false);
+  assert.equal(conflictCopyTitle("DI-95E-QA Board"), "DI-95E-QA Board (สำเนา)");
 });
 
 test("default title uses the live focus label", () => {
@@ -207,7 +232,7 @@ test("reconciliation notice counts orphans and dropped routes only", () => {
     restoredEdgeRoutes: [],
     restoredAnnotationIds: [],
   });
-  assert.deepEqual(counts, { orphanCount: 1, droppedRouteCount: 1 });
+  assert.deepEqual(counts, { orphanCount: 1, droppedRouteCount: 1, remappedCount: 0 });
 });
 
 test("workspace helpers do not call factual Drug Intelligence writers", () => {
@@ -227,7 +252,13 @@ test("Network page document actions call board client methods only through hooks
   assert.match(page, /boardHasUnpersistableImages/);
   assert.match(page, /isInvestigationBoardConflictError/);
   assert.match(page, /shouldConfirmLeaveSavedBoard/);
+  assert.match(page, /shouldBlockArchiveWhileDirty/);
+  assert.match(page, /shouldBlockDocumentActionWhileUpload/);
+  assert.match(page, /conflictCopyTitle/);
+  assert.match(page, /sourceBoardId/);
   assert.match(page, /beforeunload/);
+  assert.match(page, /setTimeout/);
+  assert.doesNotMatch(page, /saveInvestigationBoardCopy[\s\S]*duplicateInvestigationBoard\.mutateAsync/);
 });
 
 test("saved-board UI pieces stay off the analyst toolbar", () => {

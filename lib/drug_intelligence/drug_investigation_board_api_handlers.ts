@@ -115,7 +115,12 @@ export async function handleInvestigationBoardCreate(
   try {
     const board = await service.createBoard(
       { actorId: parsed.data.actorId, actorName: parsed.data.actorName },
-      { title: parsed.data.title, description: parsed.data.description, state: parsed.data.state }
+      {
+        title: parsed.data.title,
+        description: parsed.data.description,
+        state: parsed.data.state,
+        sourceBoardId: parsed.data.sourceBoardId,
+      }
     );
     return jsonOk(serializeBoard(board), undefined, 201);
   } catch (error) {

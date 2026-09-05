@@ -1502,6 +1502,7 @@ export const drugIntelligenceClient = {
     title: string;
     description?: string | null;
     state: DrugInvestigationBoardStateClient;
+    sourceBoardId?: string;
   }): Promise<DrugInvestigationBoardDetail> {
     return (await requestPost<DrugInvestigationBoardDetail>("/drug-intelligence/boards", body)).data;
   },

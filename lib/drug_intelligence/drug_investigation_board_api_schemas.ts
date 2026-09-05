@@ -159,6 +159,7 @@ export const drugInvestigationBoardCreateSchema = z
     title: z.string().trim().min(1).max(MAX_FIELD),
     description: z.string().trim().max(MAX_TEXT).optional().nullable(),
     state: drugInvestigationBoardStateV1Schema,
+    sourceBoardId: z.string().trim().min(1).max(MAX_FIELD).optional(),
   })
   .strict();
 

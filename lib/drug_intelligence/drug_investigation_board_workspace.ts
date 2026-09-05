@@ -264,7 +264,6 @@ export function investigationBoardDirtySignature(
         fontSize: ann.fontSize ?? null,
         endOffset: ann.endOffset ?? null,
         caption: ann.caption ?? null,
-        imageSrc: ann.imageSrc ?? null,
         imageId: ann.imageId ?? null,
         x: ann.position.x,
         y: ann.position.y,
@@ -289,6 +288,19 @@ export function shouldConfirmLeaveSavedBoard(isDirty: boolean): boolean {
 
 export function shouldBlockDuplicateWhileDirty(isDirty: boolean): boolean {
   return isDirty;
+}
+
+export function shouldBlockArchiveWhileDirty(isDirty: boolean): boolean {
+  return isDirty;
+}
+
+export function shouldBlockDocumentActionWhileUpload(uploadBusy: boolean): boolean {
+  return uploadBusy;
+}
+
+export function conflictCopyTitle(sourceTitle: string): string {
+  const trimmed = sourceTitle.trim() || "Investigation Board";
+  return `${trimmed} (สำเนา)`;
 }
 
 export function edgeRoutesFromPersisted(
@@ -339,10 +351,12 @@ export function applyHydratedNodePositions<T extends { id: string; position: { x
 export function investigationBoardReconciliationCounts(result: BoardReconciliationResult): {
   orphanCount: number;
   droppedRouteCount: number;
+  remappedCount: number;
 } {
   return {
     orphanCount: result.orphanedNodeRefs.length,
     droppedRouteCount: result.droppedEdgeRoutes.length,
+    remappedCount: result.remappedMergedNodeIds.length,
   };
 }
 

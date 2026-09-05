@@ -119,9 +119,34 @@ export class DrugInvestigationBoardService {
 
   async createBoard(
     actor: BoardActor,
-    input: { title: string; description?: string | null; state: DrugInvestigationBoardStateV1 }
+    input: {
+      title: string;
+      description?: string | null;
+      state: DrugInvestigationBoardStateV1;
+      sourceBoardId?: string;
+    }
   ): Promise<DrugInvestigationBoardRecord> {
     assertStateSize(input.state);
+    let source: DrugInvestigationBoard | null = null;
+    if (input.sourceBoardId) {
+      source = await this.boards.findById(input.sourceBoardId);
+      if (!source) throw new BoardNotFoundError(input.sourceBoardId);
+      assertOwner(source, actor.actorId);
+    }
+
+    const initialState: DrugInvestigationBoardStateV1 =
+      source && this.images
+        ? {
+            ...input.state,
+            annotations: input.state.annotations.map((ann) => {
+              if (!ann.imageId) return ann;
+              const { imageId: _imageId, ...rest } = ann;
+              void _imageId;
+              return rest;
+            }),
+          }
+        : input.state;
+
     const row = await this.boards.create({
       title: input.title,
       description: input.description ?? null,
@@ -131,17 +156,44 @@ export class DrugInvestigationBoardService {
       actorName: actor.actorName,
       focusType: input.state.graphContext.focusType,
       focusId: input.state.graphContext.focusId,
-      state: input.state,
+      state: initialState,
     });
+
+    let finalRow = row;
+    if (source && this.images) {
+      try {
+        const remapped = await this.images.copyImagesForDuplicate(source.id, row.id, input.state, actor);
+        const updated = await this.boards.updateIfVersion(row.id, row.version, {
+          state: remapped,
+          updatedBy: actor.actorId,
+          updatedByName: actor.actorName,
+        });
+        if (updated) finalRow = updated;
+      } catch (error) {
+        await this.boards
+          .updateIfVersion(row.id, row.version, {
+            status: "ARCHIVED",
+            updatedBy: actor.actorId,
+            updatedByName: actor.actorName,
+          })
+          .catch(() => undefined);
+        throw error;
+      }
+    }
+
     await this.audit.record({
       entityType: ENTITY,
-      entityId: row.id,
+      entityId: finalRow.id,
       action: "board_created",
       actorId: actor.actorId,
       actorName: actor.actorName,
-      detail: JSON.stringify({ title: row.title, version: row.version }),
+      detail: JSON.stringify({
+        title: finalRow.title,
+        version: finalRow.version,
+        ...(source ? { sourceBoardId: source.id } : {}),
+      }),
     });
-    return toRecord(row);
+    return toRecord(finalRow);
   }
 
   async updateBoard(

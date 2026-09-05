@@ -370,8 +370,12 @@ function invalidateInvestigationBoardQueries(
 export function useCreateDrugInvestigationBoard(actorId: string | null, actorName: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { title: string; description?: string | null; state: DrugInvestigationBoardStateClient }) =>
-      drugIntelligenceClient.createInvestigationBoard({ actorId: actorId as string, actorName, ...body }),
+    mutationFn: (body: {
+      title: string;
+      description?: string | null;
+      state: DrugInvestigationBoardStateClient;
+      sourceBoardId?: string;
+    }) => drugIntelligenceClient.createInvestigationBoard({ actorId: actorId as string, actorName, ...body }),
     onSuccess: (data) => {
       invalidateInvestigationBoardQueries(queryClient, actorId, data.id);
       queryClient.setQueryData(drugQueryKeys.investigationBoard(actorId, data.id), data);
