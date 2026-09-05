@@ -13,6 +13,8 @@
  *   npx tsx --test lib/drug_intelligence/__tests__/drug_commander_actions_section_2e1.test.ts
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import Module from "node:module";
 import { createElement, type ReactNode } from "react";
 
@@ -87,4 +89,19 @@ test("CommanderActionsSection renders grouped Action Center without an unbound h
 test("CommanderActionsSection empty state does not throw", () => {
   const html = renderToStaticMarkup(createElement(CommanderActionsSection, { items: [] }));
   assert.match(html, /commander-action-center/);
+});
+
+test("Action Center runtime modules do not declare or render ActionGroup", () => {
+  const files = [
+    "components/drug_intelligence/drug_commander_actions_section.tsx",
+    "components/drug_intelligence/drug_commander_action_group.tsx",
+  ];
+  for (const rel of files) {
+    const src = readFileSync(path.join(process.cwd(), rel), "utf8");
+    const withoutComments = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    assert.doesNotMatch(withoutComments, /\bActionGroup\b/, rel);
+    assert.match(withoutComments, /CommanderActionGroup/, rel);
+  }
 });

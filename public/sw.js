@@ -6,12 +6,14 @@
  * repeat loads of genuinely static, non-personal assets. It does NOT cache
  * anything an officer/commander's data could appear in.
  *
- * Cache policy (cache-first, versioned):
- *   - Next.js build output under /_next/static/** (hashed filenames — safe
- *     to cache forever; a new deploy ships new hashes, so stale JS/CSS is
- *     never served after an update).
- *   - The PWA icon set under /icons/** and /assets/branding/** (the
- *     official logo files) — static images, never personal data.
+ * Cache policy (versioned):
+ *   - /_next/static/** is NETWORK-FIRST. Next 16 Turbopack `next dev`
+ *     reuses stable chunk ids such as `_1gsu6fh._.js` (not content hashes).
+ *     Cache-first of those URLs served a stale ActionGroup module after
+ *     Phase 2E.1 even in a new tab. Production hashed files are still
+ *     written into the cache after a successful fetch (offline fallback).
+ *   - The PWA icon set under /icons/** and /assets/branding/** stays
+ *     cache-first — static images, never personal data.
  *   - manifest.json and the root document shell are explicitly EXCLUDED
  *     from the cache so the app never boots from a stale HTML shell.
  *
@@ -29,13 +31,26 @@
  * the current version, so an old deploy's cache never lingers.
  */
 
-const CACHE_VERSION = "bppis-pwa-v1";
+const CACHE_VERSION = "bppis-pwa-v2";
 
-const STATIC_CACHE_PATH_PREFIXES = ["/_next/static/", "/icons/", "/assets/branding/"];
+const NETWORK_FIRST_PREFIXES = ["/_next/static/"];
+const CACHE_FIRST_PREFIXES = ["/icons/", "/assets/branding/"];
+
+function isSameOrigin(url) {
+  return url.origin === self.location.origin;
+}
+
+function startsWithAny(pathname, prefixes) {
+  return prefixes.some((prefix) => pathname.startsWith(prefix));
+}
 
 function isCacheableStaticAsset(url) {
-  if (url.origin !== self.location.origin) return false;
-  return STATIC_CACHE_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
+  if (!isSameOrigin(url)) return false;
+  return startsWithAny(url.pathname, NETWORK_FIRST_PREFIXES) || startsWithAny(url.pathname, CACHE_FIRST_PREFIXES);
+}
+
+function isNetworkFirstStaticAsset(url) {
+  return isSameOrigin(url) && startsWithAny(url.pathname, NETWORK_FIRST_PREFIXES);
 }
 
 self.addEventListener("install", (event) => {
@@ -74,18 +89,29 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
+      if (isNetworkFirstStaticAsset(url)) {
+        try {
+          const response = await fetch(request);
+          if (response.ok && response.type === "basic") {
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch (err) {
+          const cached = await cache.match(request);
+          if (cached) return cached;
+          throw err;
+        }
+      }
+
       const cached = await cache.match(request);
       if (cached) return cached;
       try {
         const response = await fetch(request);
-        // Only cache genuinely successful, basic (same-origin) responses.
         if (response.ok && response.type === "basic") {
           cache.put(request, response.clone());
         }
         return response;
       } catch (err) {
-        // Offline and not yet cached — let the browser surface its own
-        // network-error page rather than fabricating a fallback response.
         throw err;
       }
     })()
