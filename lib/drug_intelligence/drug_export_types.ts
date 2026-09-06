@@ -1,7 +1,8 @@
 /**
  * DI-10B/C/D export contracts.
- * Live: OPERATIONAL_CASES/PERSONS CSV, CASE_REPORT and COMMANDER_REPORT HTML_PRINT.
- * Map / Network / Board generators remain deferred.
+ * Live: OPERATIONAL_CASES/PERSONS CSV, CASE_REPORT, COMMANDER_REPORT,
+ * NETWORK_DATA and BOARD_DATA HTML_PRINT.
+ * Map generator remains deferred.
  */
 
 export const DRUG_EXPORT_TYPES = [
@@ -97,6 +98,17 @@ export const COMMANDER_REPORT_SECTIONS = [
   "methodology",
 ] as const;
 export type CommanderReportSectionKey = (typeof COMMANDER_REPORT_SECTIONS)[number];
+
+export const BOARD_REPORT_SECTIONS = [
+  "header",
+  "summary",
+  "legend",
+  "nodes",
+  "edges",
+  "annotations",
+  "methodology",
+] as const;
+export type BoardReportSectionKey = (typeof BOARD_REPORT_SECTIONS)[number];
 
 export interface DrugExportPreviewColumn {
   key: string;

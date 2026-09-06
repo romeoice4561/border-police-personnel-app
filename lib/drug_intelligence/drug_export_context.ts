@@ -109,6 +109,23 @@ export const drugExportContextV1InputSchema = z
           .refine((v) => !/[\\/]/.test(v), "boardId must not contain a path"),
       })
       .optional(),
+    workspace: z
+      .object({
+        dirty: z.boolean().optional(),
+        title: z.string().trim().max(120).optional(),
+        layoutMode: z
+          .enum(["AUTO", "PERSON_CENTERED", "CASE_CENTERED", "HIERARCHICAL", "GROUP_BY_TYPE", "COMPACT", "PATH"])
+          .optional(),
+        boardLocked: z.boolean().optional(),
+        focusLabel: z.string().trim().max(120).optional(),
+        nodeIds: z.array(z.string().trim().min(1).max(80)).max(DRUG_EXPORT_NETWORK_HARD_MAX_NODES),
+        annotationTypes: z
+          .array(z.enum(["RECTANGLE", "ELLIPSE", "TEXT", "LINE", "ARROW", "IMAGE"]))
+          .max(200),
+        dateFrom: optionalIsoDate,
+        dateTo: optionalIsoDate,
+      })
+      .optional(),
     map: z
       .object({
         bounds: z.tuple([z.number().finite(), z.number().finite(), z.number().finite(), z.number().finite()]).optional(),
@@ -168,6 +185,8 @@ export function summarizeExportContext(context: ResolvedDrugExportContextV1): Re
     completeness: context.completeness ?? null,
     caseId: context.case?.caseId ?? null,
     boardId: context.board?.boardId ?? null,
+    workspaceDirty: context.workspace?.dirty ?? null,
+    workspaceNodeCount: context.workspace?.nodeIds.length ?? null,
     networkFocusType: context.network?.focusType ?? null,
     mapViewMode: context.map?.viewMode ?? null,
   };

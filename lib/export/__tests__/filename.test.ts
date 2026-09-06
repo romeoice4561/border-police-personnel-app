@@ -71,3 +71,16 @@ test("commander report filename includes FY only when applied", () => {
   assert.equal(withFy, "commander-report-fy2569-20260906.html");
   assert.equal(withoutFy, "commander-report-20260906.html");
 });
+
+test("investigation board filename sanitizes title and stays identifier-free", () => {
+  const name = buildDrugExportFilename({
+    kind: "drug-investigation-board",
+    boardTitle: "บอร์ด<script>/ลับ:0812345678",
+    ext: "html",
+    now: new Date("2026-09-06T00:00:00.000Z"),
+  });
+  assert.match(name, /^drug-investigation-board-/);
+  assert.match(name, /20260906\.html$/);
+  assert.doesNotMatch(name, /[<>/:]/);
+  assert.doesNotMatch(name, /1103700123456/);
+});

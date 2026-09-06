@@ -1,7 +1,8 @@
 /**
- * DI-10C/D export dispatch.
+ * DI-10C/D/E export dispatch.
  * Live generators: OPERATIONAL_CASES CSV, OPERATIONAL_PERSONS CSV,
- * CASE_REPORT HTML_PRINT, COMMANDER_REPORT HTML_PRINT.
+ * CASE_REPORT HTML_PRINT, COMMANDER_REPORT HTML_PRINT,
+ * NETWORK_DATA/BOARD_DATA HTML_PRINT.
  * OPERATIONAL_ALERTS is deferred — Alert Center still uses unbounded findAll.
  */
 
@@ -20,6 +21,16 @@ import {
   buildDrugCommanderReportV1,
   renderDrugCommanderReportHtml,
 } from "@/lib/drug_intelligence/drug_commander_report";
+import {
+  BOARD_REPORT_SECTION_KEYS,
+  buildDrugInvestigationBoardReportV1,
+  DrugExportBoardForbiddenError,
+  DrugExportBoardNotFoundError,
+  DrugExportInvalidWorkspaceError,
+  DrugExportTooManyBoardRowsError,
+  investigationBoardRecordCount,
+  renderDrugInvestigationBoardReportHtml,
+} from "@/lib/drug_intelligence/drug_investigation_board_report";
 import { exportContextToCommanderFilter } from "@/lib/drug_intelligence/drug_export_commander_context";
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { resolveCommanderDashboardScope } from "@/lib/drug_intelligence/drug_commander_filter";
@@ -29,6 +40,7 @@ import { exportLimitsForType } from "@/lib/drug_intelligence/drug_export_limits"
 import { parseExportIsoEnd, parseExportIsoStart, resolveExportPeriod } from "@/lib/drug_intelligence/drug_export_period";
 import { assertExportColumnsAllowed, columnsForPreset } from "@/lib/drug_intelligence/drug_export_presets";
 import {
+  BOARD_REPORT_SECTIONS,
   COMMANDER_REPORT_SECTIONS,
   OPERATIONAL_CASES_COLUMNS,
   OPERATIONAL_PERSONS_COLUMNS,
@@ -70,7 +82,14 @@ export class DrugExportInvalidFormatError extends Error {
   }
 }
 
-export { DrugExportCaseNotFoundError, DrugExportInvalidCaseError };
+export {
+  DrugExportBoardForbiddenError,
+  DrugExportBoardNotFoundError,
+  DrugExportCaseNotFoundError,
+  DrugExportInvalidCaseError,
+  DrugExportInvalidWorkspaceError,
+  DrugExportTooManyBoardRowsError,
+};
 
 function caseListParams(context: ResolvedDrugExportContextV1, pageSize: number) {
   const period = resolveExportPeriod(context.period);
@@ -122,6 +141,12 @@ function columnMeta(
   keys: readonly string[],
   locale: Language
 ): Array<{ key: string; label: string }> {
+  if (exportType === "NETWORK_DATA" || exportType === "BOARD_DATA") {
+    return BOARD_REPORT_SECTIONS.map((key) => ({
+      key,
+      label: translate(BOARD_REPORT_SECTION_KEYS[key], locale),
+    }));
+  }
   if (exportType === "COMMANDER_REPORT") {
     return COMMANDER_REPORT_SECTIONS.map((key) => ({
       key,
@@ -140,6 +165,8 @@ export class DrugExportService {
     if (exportType === "OPERATIONAL_PERSONS" && format === "CSV") return true;
     if (exportType === "CASE_REPORT" && format === "HTML_PRINT") return true;
     if (exportType === "COMMANDER_REPORT" && format === "HTML_PRINT") return true;
+    if (exportType === "NETWORK_DATA" && format === "HTML_PRINT") return true;
+    if (exportType === "BOARD_DATA" && format === "HTML_PRINT") return true;
     return false;
   }
 
@@ -161,6 +188,9 @@ export class DrugExportService {
     if (!this.isImplemented(input.exportType, input.format)) warnings.push(translate("di.export.notImplemented", locale));
     if (input.estimatedRecordCount != null && input.estimatedRecordCount > softLimit) {
       warnings.push(translate("di.export.softLimitWarning", locale));
+    }
+    if ((input.exportType === "NETWORK_DATA" || input.exportType === "BOARD_DATA") && input.context.workspace?.dirty) {
+      warnings.push(translate("di.export.boardDirtyNote", locale));
     }
     return {
       exportType: input.exportType,
@@ -204,6 +234,14 @@ export class DrugExportService {
       const filter = resolveCommanderDashboardScope({ id: input.context.actorId }, exportContextToCommanderFilter(input.context));
       const overview = await new DrugCommanderDashboardService(this.db).getOverview(filter);
       estimatedRecordCount = overview.caseCount;
+    } else if (input.exportType === "NETWORK_DATA" || input.exportType === "BOARD_DATA") {
+      const report = await buildDrugInvestigationBoardReportV1(this.db, {
+        exportType: input.exportType,
+        context: input.context,
+        generatedBy: "",
+        maskingMode: input.maskingMode,
+      });
+      estimatedRecordCount = investigationBoardRecordCount(report);
     }
     return this.buildPreview({ ...input, estimatedRecordCount });
   }
@@ -223,6 +261,8 @@ export class DrugExportService {
       if (input.exportType === "OPERATIONAL_PERSONS" && input.format !== "CSV") throw new DrugExportInvalidFormatError();
       if (input.exportType === "CASE_REPORT" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
       if (input.exportType === "COMMANDER_REPORT" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
+      if (input.exportType === "NETWORK_DATA" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
+      if (input.exportType === "BOARD_DATA" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
       throw new DrugExportNotImplementedError();
     }
 
@@ -272,7 +312,7 @@ export class DrugExportService {
         now,
       });
       recordCount = 1;
-    } else {
+    } else if (input.exportType === "COMMANDER_REPORT") {
       const report = await buildDrugCommanderReportV1(this.db, {
         context: input.context,
         generatedBy: input.actorName,
@@ -285,6 +325,23 @@ export class DrugExportService {
         now,
       });
       recordCount = report.kpis.find((kpi) => kpi.id === "cases")?.current ?? 0;
+    } else if (input.exportType === "NETWORK_DATA" || input.exportType === "BOARD_DATA") {
+      const report = await buildDrugInvestigationBoardReportV1(this.db, {
+        exportType: input.exportType,
+        context: input.context,
+        generatedBy: input.actorName,
+        maskingMode: input.maskingMode,
+      });
+      body = renderDrugInvestigationBoardReportHtml(report);
+      filename = buildDrugExportFilename({
+        kind: "drug-investigation-board",
+        boardTitle: report.boardTitle ?? undefined,
+        ext: "html",
+        now,
+      });
+      recordCount = investigationBoardRecordCount(report);
+    } else {
+      throw new DrugExportNotImplementedError();
     }
 
     const exportId = randomUUID();

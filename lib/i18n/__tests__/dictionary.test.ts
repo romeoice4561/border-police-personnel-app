@@ -287,6 +287,35 @@ test("DI-10D commander report keys exist for both languages", () => {
   }
 });
 
+test("DI-10E.1 investigation board report keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "di.export.boardReportTitle",
+    "di.export.boardReportSubtitle",
+    "di.export.boardReportAction",
+    "di.export.boardSourceWorkspace",
+    "di.export.boardSourceSaved",
+    "di.export.boardDirtyNote",
+    "di.export.boardLegendFact",
+    "di.export.boardLegendInferred",
+    "di.export.boardLegendAnnotation",
+    "di.export.boardEmpty",
+    "di.export.boardMethodFact",
+    "di.export.boardMethodInferred",
+    "di.export.boardMethodSupport",
+    "di.export.boardMaskingNotice",
+    "di.export.boardUnavailable",
+    "di.export.printReport",
+    "di.export.close",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+    assert.notEqual(translate(key, "th"), key);
+    assert.notEqual(translate(key, "en"), key);
+  }
+});
+
 test("Executive Report Center title is Thai-first", () => {
   assert.equal(translate("reports.title", "th"), "ศูนย์รายงานผู้บริหาร");
   assert.equal(translate("reports.title", "en"), "Executive Report Center");

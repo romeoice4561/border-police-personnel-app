@@ -19,6 +19,8 @@ const EXPORT_FILES = [
   "lib/drug_intelligence/drug_export_period.ts",
   "lib/drug_intelligence/drug_export_service.ts",
   "lib/drug_intelligence/drug_case_report.ts",
+  "lib/drug_intelligence/drug_investigation_board_report.ts",
+  "lib/drug_intelligence/drug_export_network_context.ts",
   "lib/drug_intelligence/drug_export_api_handlers.ts",
   "lib/drug_intelligence/drug_export_audit.ts",
   "app/api/drug-intelligence/exports/route.ts",

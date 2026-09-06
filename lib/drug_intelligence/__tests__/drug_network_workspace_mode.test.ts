@@ -41,7 +41,9 @@ test("the mode switcher UI itself is hidden (not just disabled) for a user witho
 test("no new permission string was introduced for Analyst Mode", () => {
   const permissionStrings = pageCode.match(/can\(\s*"([a-z.]+)"\s*\)/g) ?? [];
   const distinct = new Set(permissionStrings.map((s) => s.match(/"([a-z.]+)"/)![1]));
-  assert.deepEqual([...distinct].sort(), ["drug.edit", "drug.read"]);
+  assert.deepEqual([...distinct].sort(), ["drug.edit", "drug.export", "drug.read"]);
+  assert.match(pageCode, /canUseAnalystMode\s*=\s*can\(\s*"drug\.edit"\s*\)/);
+  assert.match(pageCode, /canExportBoard\s*=\s*can\(\s*"drug\.export"\s*\)/);
 });
 
 // --- C. switching modes does not alter URL/filter state ---

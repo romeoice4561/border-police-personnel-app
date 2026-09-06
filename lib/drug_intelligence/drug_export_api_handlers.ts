@@ -13,12 +13,16 @@ import { resolveDrugExportContext } from "@/lib/drug_intelligence/drug_export_co
 import { resolveExportMaskingMode } from "@/lib/drug_intelligence/drug_export_masking";
 import { exportDownloadResponse } from "@/lib/drug_intelligence/drug_export_response";
 import {
+  DrugExportBoardForbiddenError,
+  DrugExportBoardNotFoundError,
   DrugExportCaseNotFoundError,
   DrugExportInvalidCaseError,
   DrugExportInvalidColumnsError,
   DrugExportInvalidFormatError,
+  DrugExportInvalidWorkspaceError,
   DrugExportNotImplementedError,
   DrugExportService,
+  DrugExportTooManyBoardRowsError,
   DrugExportTooManyRowsError,
 } from "@/lib/drug_intelligence/drug_export_service";
 import { translate, type Language } from "@/lib/i18n/dictionary";
@@ -101,17 +105,23 @@ export async function handleDrugExportCreate(service: DrugExportService, request
     if (error instanceof DrugExportInvalidFormatError) {
       return jsonError("INVALID_FORMAT", translate("di.export.invalidFormat", locale), 400);
     }
-    if (error instanceof DrugExportTooManyRowsError) {
+    if (error instanceof DrugExportTooManyRowsError || error instanceof DrugExportTooManyBoardRowsError) {
       return jsonError("TOO_MANY_ROWS", translate("di.export.tooManyRows", locale), 400);
     }
     if (error instanceof DrugExportNotImplementedError) {
       return jsonError("NOT_IMPLEMENTED_FOR_TYPE", translate("di.export.notImplemented", locale), 501);
     }
-    if (error instanceof DrugExportInvalidCaseError) {
+    if (error instanceof DrugExportInvalidCaseError || error instanceof DrugExportInvalidWorkspaceError) {
       return jsonError("INVALID_CONTEXT", translate("di.export.invalidContext", locale), 400);
     }
     if (error instanceof DrugExportCaseNotFoundError) {
       return jsonError("NOT_FOUND", translate("di.export.reportUnavailable", locale), 404);
+    }
+    if (error instanceof DrugExportBoardForbiddenError) {
+      return jsonError("FORBIDDEN", translate("di.export.forbidden", locale), 403);
+    }
+    if (error instanceof DrugExportBoardNotFoundError) {
+      return jsonError("NOT_FOUND", translate("di.export.boardUnavailable", locale), 404);
     }
     throw error;
   }

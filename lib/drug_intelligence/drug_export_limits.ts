@@ -17,7 +17,7 @@ export function exportLimitsForType(exportType: string): { softLimit: number; ha
   if (exportType === "MAP_DATA") {
     return { softLimit: DRUG_EXPORT_MAP_SOFT_LIMIT, hardLimit: DRUG_EXPORT_MAP_HARD_LIMIT };
   }
-  if (exportType === "NETWORK_DATA") {
+  if (exportType === "NETWORK_DATA" || exportType === "BOARD_DATA") {
     return { softLimit: DRUG_EXPORT_NETWORK_HARD_MAX_NODES, hardLimit: DRUG_EXPORT_NETWORK_HARD_MAX_NODES };
   }
   return { softLimit: DRUG_EXPORT_OPERATIONAL_SOFT_LIMIT, hardLimit: DRUG_EXPORT_OPERATIONAL_HARD_LIMIT };

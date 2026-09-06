@@ -97,6 +97,7 @@ import {
   Printer,
   Bookmark,
   Save,
+  FileText,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -140,6 +141,8 @@ import { DrugNetworkSavedBoardsDrawer } from "@/components/drug_intelligence/dru
 import { DrugNetworkSaveAsBoardDialog } from "@/components/drug_intelligence/drug_network_save_as_board_dialog";
 import { DrugNetworkBoardConflictDialog } from "@/components/drug_intelligence/drug_network_board_conflict_dialog";
 import { DrugNetworkBoardConfirmDialog } from "@/components/drug_intelligence/drug_network_board_confirm_dialog";
+import { DrugInvestigationBoardReportDrawer } from "@/components/drug_intelligence/drug_investigation_board_report_drawer";
+import type { InvestigationBoardAnnotationType } from "@/lib/drug_intelligence/drug_export_network_context";
 import {
   annotationsFromPersisted,
   applyHydratedNodePositions,
@@ -436,6 +439,7 @@ function DrugNetworkContent() {
 
   const canViewNetwork = can("drug.read");
   const canUseAnalystMode = can("drug.edit");
+  const canExportBoard = can("drug.export");
   const boardQuery = useDrugInvestigationBoard(user?.id ?? null, boardId);
   const parsedBoardState = useMemo(
     () => parseInvestigationBoardState(boardQuery.data?.state),
@@ -531,6 +535,7 @@ function DrugNetworkContent() {
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showBoardReport, setShowBoardReport] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<
     { type: "open"; id: string } | { type: "new" } | { type: "href"; href: string } | null
@@ -1672,6 +1677,18 @@ function DrugNetworkContent() {
   const isBoardDirty = Boolean(
     boardId && baselineDirtySignature && currentDirtySnapshot && investigationBoardIsDirty(baselineDirtySignature, currentDirtySnapshot)
   );
+  const reportNodeIds = useMemo(
+    () => neighborhood.data?.nodes.map((node) => node.id) ?? [],
+    [neighborhood.data]
+  );
+  const reportAnnotationTypes = useMemo(
+    () => annotations.map((ann) => ann.type as InvestigationBoardAnnotationType),
+    [annotations]
+  );
+  const reportFocusLabel = useMemo(() => {
+    const focusNode = neighborhood.data?.nodes.find((node) => node.id === focusId);
+    return focusNode?.maskedLabel ?? focusNode?.label ?? null;
+  }, [neighborhood.data, focusId]);
   const authorizedNavigationRef = useRef<AuthorizedSavedBoardNavigation | null>(null);
 
   useEffect(() => {
@@ -2019,6 +2036,25 @@ function DrugNetworkContent() {
               <Printer className="h-4 w-4" aria-hidden="true" />
               {t("di.network.printBoard")}
             </Button>
+            {canExportBoard ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBoardReport(true)}
+                disabled={!focusType || !focusId || (neighborhood.data?.nodes.length ?? 0) < 1}
+                aria-label={t("di.export.boardReportAction")}
+                title={
+                  !focusType || !focusId || (neighborhood.data?.nodes.length ?? 0) < 1
+                    ? t("di.export.boardEmpty")
+                    : t("di.export.boardReportAction")
+                }
+                data-testid="investigation-board-report-btn"
+                data-print-hide
+              >
+                <FileText className="h-4 w-4" aria-hidden="true" />
+                {t("di.export.boardReportAction")}
+              </Button>
+            ) : null}
             {canViewNetwork ? (
               <Button
                 variant="outline"
@@ -2834,6 +2870,26 @@ function DrugNetworkContent() {
         danger
         onConfirm={() => void archiveCurrentInvestigationBoard()}
         onCancel={() => setShowArchiveConfirm(false)}
+      />
+      <DrugInvestigationBoardReportDrawer
+        open={showBoardReport}
+        onClose={() => setShowBoardReport(false)}
+        boardId={boardId}
+        dirty={isBoardDirty}
+        title={boardId ? boardQuery.data?.title ?? null : null}
+        layoutMode={layoutMode}
+        boardLocked={boardLocked}
+        focusType={focusType}
+        focusId={focusId}
+        focusLabel={reportFocusLabel}
+        depth={depth}
+        dateFrom={effectiveGraphContext?.dateFrom ?? null}
+        dateTo={effectiveGraphContext?.dateTo ?? null}
+        nodeIds={reportNodeIds}
+        annotationTypes={reportAnnotationTypes}
+        nodeCount={neighborhood.data?.nodes.length ?? 0}
+        edgeCount={neighborhood.data?.edges.length ?? 0}
+        annotationCount={annotations.length}
       />
     </div>
   );

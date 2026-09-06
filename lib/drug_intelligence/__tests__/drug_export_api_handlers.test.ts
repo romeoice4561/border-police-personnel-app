@@ -137,9 +137,14 @@ test("invalid type/format and unimplemented reports do not download empty files"
   assert.equal(badType.status, 400);
   const unimplemented = await handleDrugExportCreate(
     new DrugExportService(db),
-    requestWithSession({ body: JSON.stringify(exportBody({ exportType: "BOARD_DATA", format: "JSON" })) })
+    requestWithSession({ body: JSON.stringify(exportBody({ exportType: "MAP_DATA", format: "JSON" })) })
   );
   assert.equal(unimplemented.status, 501);
+  const boardWrongFormat = await handleDrugExportCreate(
+    new DrugExportService(db),
+    requestWithSession({ body: JSON.stringify(exportBody({ exportType: "BOARD_DATA", format: "JSON" })) })
+  );
+  assert.equal(boardWrongFormat.status, 400);
   const wrongFormat = await handleDrugExportCreate(
     new DrugExportService(db),
     requestWithSession({ body: JSON.stringify(exportBody({ format: "JSON" })) })
