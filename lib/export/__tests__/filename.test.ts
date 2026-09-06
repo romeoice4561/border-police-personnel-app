@@ -38,3 +38,20 @@ test("dated drug-cases filename is predictable", () => {
   });
   assert.equal(name, "drug-cases-fy2569-20260906.csv");
 });
+
+test("persons and case-report filenames stay identifier-free", () => {
+  const persons = buildDrugExportFilename({
+    kind: "drug-persons",
+    ext: "csv",
+    now: new Date("2026-09-06T00:00:00.000Z"),
+  });
+  const report = buildDrugExportFilename({
+    kind: "case",
+    caseNumber: "ตชด.44-2569-001",
+    ext: "html",
+    now: new Date("2026-09-06T00:00:00.000Z"),
+  });
+  assert.equal(persons, "drug-persons-20260906.csv");
+  assert.match(report, /^case-.*-20260906\.html$/);
+  assert.doesNotMatch(report, /1103700123456|0812345678/);
+});

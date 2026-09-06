@@ -13,6 +13,8 @@ import { resolveDrugExportContext } from "@/lib/drug_intelligence/drug_export_co
 import { resolveExportMaskingMode } from "@/lib/drug_intelligence/drug_export_masking";
 import { exportDownloadResponse } from "@/lib/drug_intelligence/drug_export_response";
 import {
+  DrugExportCaseNotFoundError,
+  DrugExportInvalidCaseError,
   DrugExportInvalidColumnsError,
   DrugExportInvalidFormatError,
   DrugExportNotImplementedError,
@@ -104,6 +106,12 @@ export async function handleDrugExportCreate(service: DrugExportService, request
     }
     if (error instanceof DrugExportNotImplementedError) {
       return jsonError("NOT_IMPLEMENTED_FOR_TYPE", translate("di.export.notImplemented", locale), 501);
+    }
+    if (error instanceof DrugExportInvalidCaseError) {
+      return jsonError("INVALID_CONTEXT", translate("di.export.invalidContext", locale), 400);
+    }
+    if (error instanceof DrugExportCaseNotFoundError) {
+      return jsonError("NOT_FOUND", translate("di.export.reportUnavailable", locale), 404);
     }
     throw error;
   }

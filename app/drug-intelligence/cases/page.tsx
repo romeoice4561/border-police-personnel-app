@@ -10,12 +10,13 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, FileWarning } from "lucide-react";
+import { Plus, FileWarning, Download } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { DrugContextualReturnLink } from "@/components/drug_intelligence/drug_contextual_return_link";
+import { DrugCaseListExportDrawer } from "@/components/drug_intelligence/drug_case_list_export_drawer";
 import { GlobalSearchBox } from "@/components/common/global_search_box";
 import { Pagination } from "@/components/common/pagination";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -36,6 +37,7 @@ import {
   isCommanderUnitGroupBy,
   type CaseCompletenessFilter,
 } from "@/lib/drug_intelligence/drug_case_completeness";
+import { resolveExportPeriod } from "@/lib/drug_intelligence/drug_export_period";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const PAGE_SIZE = 20;
@@ -70,6 +72,12 @@ function optionalPositiveInt(value: string | null): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+function optionalFiscalYearBe(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 2500 && n <= 2700 ? n : undefined;
+}
+
 function filtersFromSearchParams(searchParams: URLSearchParams): FilterState {
   const from = searchParams.get("arrestDateFrom") ?? "";
   const to = searchParams.get("arrestDateTo") ?? "";
@@ -88,11 +96,16 @@ export default function DrugCaseListPage() {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<FilterState>(() => filtersFromSearchParams(searchParams));
   const [page, setPage] = useState(1);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const completenessRaw = searchParams.get("completeness");
   const completeness = isCaseCompletenessFilter(completenessRaw) ? completenessRaw : undefined;
   const unitGroupRaw = searchParams.get("unitGroup");
   const unitGroup = isCommanderUnitGroupBy(unitGroupRaw) ? unitGroupRaw : undefined;
+  const fiscalYearBe = optionalFiscalYearBe(searchParams.get("fy"));
+  const explicitDateFrom = toIsoDate(filters.arrestDateFrom);
+  const explicitDateTo = toIsoDate(filters.arrestDateTo);
+  const fyPeriod = !explicitDateFrom && !explicitDateTo && fiscalYearBe != null ? resolveExportPeriod({ fiscalYearBe }) : undefined;
 
   const query: DrugCaseListQuery = {
     page,
@@ -100,8 +113,8 @@ export default function DrugCaseListPage() {
     query: filters.query.trim() || undefined,
     province: filters.province || undefined,
     status: filters.status || undefined,
-    arrestDateFrom: toIsoDate(filters.arrestDateFrom),
-    arrestDateTo: toIsoDate(filters.arrestDateTo),
+    arrestDateFrom: explicitDateFrom ?? fyPeriod?.dateFrom,
+    arrestDateTo: explicitDateTo ?? fyPeriod?.dateTo,
     headquartersId: optionalPositiveInt(searchParams.get("headquartersId")),
     regionId: optionalPositiveInt(searchParams.get("regionId")),
     battalionId: optionalPositiveInt(searchParams.get("battalionId")),
@@ -127,6 +140,23 @@ export default function DrugCaseListPage() {
 
   const statusOptions = DRUG_CASE_STATUSES.map((s) => ({ value: s, label: t(`di.status.${s}`) }));
   const provinceOptions = THAI_PROVINCE_OPTIONS.map((p) => ({ value: p, label: p }));
+  const exportFilters = useMemo(
+    () => ({
+      query: filters.query.trim() || undefined,
+      arrestDateFrom: explicitDateFrom,
+      arrestDateTo: explicitDateTo,
+      fiscalYearBe: explicitDateFrom && explicitDateTo ? undefined : fiscalYearBe,
+      province: filters.province || undefined,
+      status: filters.status || undefined,
+      headquartersId: query.headquartersId,
+      regionId: query.regionId,
+      battalionId: query.battalionId,
+      companyId: query.companyId,
+      completeness,
+      unitGroup,
+    }),
+    [filters, explicitDateFrom, explicitDateTo, fiscalYearBe, query.headquartersId, query.regionId, query.battalionId, query.companyId, completeness, unitGroup]
+  );
 
   return (
     <div className="space-y-5">
@@ -138,6 +168,12 @@ export default function DrugCaseListPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <DrugContextualReturnLink />
+            {can("drug.export") ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => setExportOpen(true)}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {t("di.export.title")}
+              </Button>
+            ) : null}
             {can("drug.create") ? (
               <Button asChild size="sm">
                 <Link href="/drug-intelligence/cases/new">
@@ -202,6 +238,7 @@ export default function DrugCaseListPage() {
           <Pagination page={cases.data.meta.page} totalPages={cases.data.meta.totalPages} total={cases.data.meta.total} pageSize={cases.data.meta.pageSize} onPageChange={setPage} />
         </div>
       )}
+      <DrugCaseListExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} filters={exportFilters} />
     </div>
   );
 }

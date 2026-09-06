@@ -1,28 +1,36 @@
 /**
- * DI-10B export dispatch. OPERATIONAL_CASES CSV is the only live generator.
- * Other types return a preview contract or NOT_IMPLEMENTED_FOR_TYPE.
- *
- * Queries DrugCaseRepository with pageSize = hardLimit + 1 — never an unbounded fetch.
- * Writes DrugAuditLog only.
+ * DI-10C export dispatch.
+ * Live generators: OPERATIONAL_CASES CSV, OPERATIONAL_PERSONS CSV, CASE_REPORT HTML_PRINT.
+ * OPERATIONAL_ALERTS is deferred — Alert Center still uses unbounded findAll.
  */
 
 import { randomUUID } from "node:crypto";
 import type { DatabaseClient, DrugCase } from "@/lib/database/database_types";
 import { DrugCaseRepository } from "@/lib/database/repositories/drug_case_repository";
-import { buildCsvDocument, formatCsvIsoDate } from "@/lib/export/csv";
-import { buildDrugExportFilename } from "@/lib/export/filename";
+import { DrugPersonRepository } from "@/lib/database/repositories/drug_person_repository";
+import { filterCasesByCompleteness } from "@/lib/drug_intelligence/drug_case_completeness";
+import {
+  buildDrugCaseReportV1,
+  DrugExportCaseNotFoundError,
+  DrugExportInvalidCaseError,
+  renderDrugCaseReportHtml,
+} from "@/lib/drug_intelligence/drug_case_report";
 import { recordExportCreated } from "@/lib/drug_intelligence/drug_export_audit";
 import { summarizeExportContext, type ResolvedDrugExportContextV1 } from "@/lib/drug_intelligence/drug_export_context";
 import { exportLimitsForType } from "@/lib/drug_intelligence/drug_export_limits";
+import { parseExportIsoEnd, parseExportIsoStart, resolveExportPeriod } from "@/lib/drug_intelligence/drug_export_period";
 import { assertExportColumnsAllowed, columnsForPreset } from "@/lib/drug_intelligence/drug_export_presets";
 import {
   OPERATIONAL_CASES_COLUMNS,
+  OPERATIONAL_PERSONS_COLUMNS,
   type DrugExportFormat,
   type DrugExportMaskingMode,
   type DrugExportPreset,
   type DrugExportPreviewV1,
   type DrugExportType,
 } from "@/lib/drug_intelligence/drug_export_types";
+import { buildCsvDocument, formatCsvIsoDate } from "@/lib/export/csv";
+import { buildDrugExportFilename } from "@/lib/export/filename";
 import { translate, type Language } from "@/lib/i18n/dictionary";
 
 export class DrugExportTooManyRowsError extends Error {
@@ -53,18 +61,14 @@ export class DrugExportInvalidFormatError extends Error {
   }
 }
 
-function parseIsoStart(value: string): Date {
-  return new Date(`${value}T00:00:00.000Z`);
-}
-
-function parseIsoEnd(value: string): Date {
-  return new Date(`${value}T23:59:59.999Z`);
-}
+export { DrugExportCaseNotFoundError, DrugExportInvalidCaseError };
 
 function caseListParams(context: ResolvedDrugExportContextV1, pageSize: number) {
+  const period = resolveExportPeriod(context.period);
   return {
     page: 1,
     pageSize,
+    query: context.searchQuery,
     status: context.geo?.status,
     province: context.geo?.province,
     district: context.geo?.district,
@@ -72,8 +76,8 @@ function caseListParams(context: ResolvedDrugExportContextV1, pageSize: number) 
     regionId: context.organization?.regionId,
     battalionId: context.organization?.battalionId,
     companyId: context.organization?.companyId,
-    arrestDateFrom: context.period?.dateFrom ? parseIsoStart(context.period.dateFrom) : undefined,
-    arrestDateTo: context.period?.dateTo ? parseIsoEnd(context.period.dateTo) : undefined,
+    arrestDateFrom: period.dateFrom ? parseExportIsoStart(period.dateFrom) : undefined,
+    arrestDateTo: period.dateTo ? parseExportIsoEnd(period.dateTo) : undefined,
   };
 }
 
@@ -91,11 +95,23 @@ function operationalCaseRow(row: DrugCase): Record<string, string> {
   };
 }
 
+function columnMeta(
+  exportType: DrugExportType,
+  keys: readonly string[],
+  locale: Language
+): Array<{ key: string; label: string }> {
+  const source = exportType === "OPERATIONAL_PERSONS" ? OPERATIONAL_PERSONS_COLUMNS : OPERATIONAL_CASES_COLUMNS;
+  return source.filter((c) => keys.includes(c.key)).map((c) => ({ key: c.key, label: locale === "en" ? c.labelEn : c.labelTh }));
+}
+
 export class DrugExportService {
   constructor(private readonly db: DatabaseClient) {}
 
   isImplemented(exportType: DrugExportType, format: DrugExportFormat): boolean {
-    return exportType === "OPERATIONAL_CASES" && format === "CSV";
+    if (exportType === "OPERATIONAL_CASES" && format === "CSV") return true;
+    if (exportType === "OPERATIONAL_PERSONS" && format === "CSV") return true;
+    if (exportType === "CASE_REPORT" && format === "HTML_PRINT") return true;
+    return false;
   }
 
   buildPreview(input: {
@@ -117,10 +133,6 @@ export class DrugExportService {
     if (input.estimatedRecordCount != null && input.estimatedRecordCount > softLimit) {
       warnings.push(translate("di.export.softLimitWarning", locale));
     }
-    const columnMeta = OPERATIONAL_CASES_COLUMNS.filter((c) => selected.includes(c.key)).map((c) => ({
-      key: c.key,
-      label: locale === "en" ? c.labelEn : c.labelTh,
-    }));
     return {
       exportType: input.exportType,
       format: input.format,
@@ -129,7 +141,7 @@ export class DrugExportService {
       estimatedRecordCount: input.estimatedRecordCount,
       softLimit,
       hardLimit,
-      columns: columnMeta,
+      columns: columnMeta(input.exportType, selected, locale),
       presets: ["MINIMAL", "OPERATIONAL", "INTELLIGENCE", "CUSTOM"],
       maskingMode: input.maskingMode,
       warnings,
@@ -149,9 +161,16 @@ export class DrugExportService {
     if (forbidden.length > 0) throw new DrugExportInvalidColumnsError();
     let estimatedRecordCount: number | null = null;
     if (input.exportType === "OPERATIONAL_CASES") {
+      const listed = await this.listOperationalCases(input.context);
+      estimatedRecordCount = listed.total;
+    } else if (input.exportType === "OPERATIONAL_PERSONS") {
+      estimatedRecordCount = await this.countOperationalPersons(input.context);
+    } else if (input.exportType === "CASE_REPORT") {
+      if (!input.context.case?.caseId) throw new DrugExportInvalidCaseError();
       const repo = new DrugCaseRepository(this.db);
-      const { total } = await repo.list(caseListParams(input.context, 1));
-      estimatedRecordCount = total;
+      const found = await repo.findById(input.context.case.caseId);
+      if (!found) throw new DrugExportCaseNotFoundError();
+      estimatedRecordCount = 1;
     }
     return this.buildPreview({ ...input, estimatedRecordCount });
   }
@@ -166,28 +185,61 @@ export class DrugExportService {
     maskingMode: DrugExportMaskingMode;
   }): Promise<{ filename: string; body: string; recordCount: number; exportId: string }> {
     if (assertExportColumnsAllowed(input.columns ?? []).length > 0) throw new DrugExportInvalidColumnsError();
-    if (input.exportType === "OPERATIONAL_CASES" && input.format !== "CSV") throw new DrugExportInvalidFormatError();
-    if (!this.isImplemented(input.exportType, input.format)) throw new DrugExportNotImplementedError();
+    if (!this.isImplemented(input.exportType, input.format)) {
+      if (input.exportType === "OPERATIONAL_CASES" && input.format !== "CSV") throw new DrugExportInvalidFormatError();
+      if (input.exportType === "OPERATIONAL_PERSONS" && input.format !== "CSV") throw new DrugExportInvalidFormatError();
+      if (input.exportType === "CASE_REPORT" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
+      throw new DrugExportNotImplementedError();
+    }
 
-    const { hardLimit } = exportLimitsForType(input.exportType);
-    const repo = new DrugCaseRepository(this.db);
-    const listed = await repo.list(caseListParams(input.context, hardLimit + 1));
-    if (listed.total > hardLimit) throw new DrugExportTooManyRowsError();
-
-    const selected = columnsForPreset(input.exportType, input.preset ?? "OPERATIONAL", input.columns);
     const locale: Language = input.context.locale;
-    const columns = OPERATIONAL_CASES_COLUMNS.filter((c) => selected.includes(c.key)).map((c) => ({
-      key: c.key,
-      label: locale === "en" ? c.labelEn : c.labelTh,
-    }));
-    const rows = listed.rows.map(operationalCaseRow);
-    const body = buildCsvDocument(columns, rows);
-    const filename = buildDrugExportFilename({
-      kind: "drug-cases",
-      fiscalYearBe: input.context.period?.fiscalYearBe,
-      ext: "csv",
-      now: new Date(input.context.generatedAt),
-    });
+    const now = new Date(input.context.generatedAt);
+    const period = resolveExportPeriod(input.context.period);
+    let body: string;
+    let filename: string;
+    let recordCount: number;
+
+    if (input.exportType === "OPERATIONAL_CASES") {
+      const listed = await this.listOperationalCases(input.context);
+      if (listed.total > exportLimitsForType(input.exportType).hardLimit) throw new DrugExportTooManyRowsError();
+      const selected = columnsForPreset(input.exportType, input.preset ?? "OPERATIONAL", input.columns);
+      const columns = columnMeta(input.exportType, selected, locale);
+      body = buildCsvDocument(columns, listed.rows.map(operationalCaseRow));
+      filename = buildDrugExportFilename({
+        kind: "drug-cases",
+        fiscalYearBe: period.appliedFiscalYearBe,
+        ext: "csv",
+        now,
+      });
+      recordCount = listed.rows.length;
+    } else if (input.exportType === "OPERATIONAL_PERSONS") {
+      const listed = await this.listOperationalPersons(input.context);
+      if (listed.total > exportLimitsForType(input.exportType).hardLimit) throw new DrugExportTooManyRowsError();
+      const selected = columnsForPreset(input.exportType, input.preset ?? "OPERATIONAL", input.columns);
+      const columns = columnMeta(input.exportType, selected, locale);
+      body = buildCsvDocument(columns, listed.rows);
+      filename = buildDrugExportFilename({ kind: "drug-persons", ext: "csv", now });
+      recordCount = listed.rows.length;
+    } else {
+      const caseId = input.context.case?.caseId;
+      if (!caseId) throw new DrugExportInvalidCaseError();
+      const report = await buildDrugCaseReportV1(this.db, {
+        caseId,
+        locale,
+        generatedAt: input.context.generatedAt,
+        generatedBy: input.actorName,
+        maskingMode: input.maskingMode,
+      });
+      body = renderDrugCaseReportHtml(report);
+      filename = buildDrugExportFilename({
+        kind: "case",
+        caseNumber: report.case.caseNumber,
+        ext: "html",
+        now,
+      });
+      recordCount = 1;
+    }
+
     const exportId = randomUUID();
     await recordExportCreated(this.db, {
       actorId: input.context.actorId,
@@ -196,10 +248,63 @@ export class DrugExportService {
       exportType: input.exportType,
       format: input.format,
       locale,
-      recordCount: rows.length,
+      recordCount,
       contextSummary: summarizeExportContext(input.context),
       filename,
     });
-    return { filename, body, recordCount: rows.length, exportId };
+    return { filename, body, recordCount, exportId };
+  }
+
+  private async listOperationalCases(
+    context: ResolvedDrugExportContextV1
+  ): Promise<{ rows: DrugCase[]; total: number }> {
+    const { hardLimit } = exportLimitsForType("OPERATIONAL_CASES");
+    const repo = new DrugCaseRepository(this.db);
+    const listed = await repo.list(caseListParams(context, hardLimit + 1));
+    if (!context.completeness) return listed;
+    if (listed.total > hardLimit) return listed;
+    const filtered = await filterCasesByCompleteness(this.db, listed.rows, context.completeness, context.unitGroup ?? "battalion");
+    return { rows: filtered, total: filtered.length };
+  }
+
+  private async countOperationalPersons(context: ResolvedDrugExportContextV1): Promise<number> {
+    const repo = new DrugPersonRepository(this.db);
+    const text = context.searchQuery?.trim();
+    if (text) return (await repo.findActiveIdsMatchingQuery(text)).length;
+    return repo.countActive();
+  }
+
+  private async listOperationalPersons(
+    context: ResolvedDrugExportContextV1
+  ): Promise<{ rows: Array<Record<string, string | number>>; total: number }> {
+    const { hardLimit } = exportLimitsForType("OPERATIONAL_PERSONS");
+    const repo = new DrugPersonRepository(this.db);
+    const text = context.searchQuery?.trim();
+    let persons;
+    let total: number;
+    if (text) {
+      const ids = await repo.findActiveIdsMatchingQuery(text);
+      total = ids.length;
+      persons = total > hardLimit ? [] : await repo.findByIds(ids.slice(0, hardLimit));
+    } else {
+      total = await repo.countActive();
+      persons = total > hardLimit ? [] : await repo.findActivePage(0, hardLimit);
+    }
+    if (total > hardLimit) return { rows: [], total };
+    const caseLinks = await repo.casePersonsForPersons(persons.map((p) => p.id));
+    const caseCount = new Map<string, number>();
+    for (const link of caseLinks as Array<{ personId: string }>) {
+      caseCount.set(link.personId, (caseCount.get(link.personId) ?? 0) + 1);
+    }
+    return {
+      total,
+      rows: persons.map((person) => ({
+        personId: person.id,
+        displayName: person.primaryFullName,
+        status: person.status,
+        caseCount: caseCount.get(person.id) ?? 0,
+        createdAt: formatCsvIsoDate(person.createdAt),
+      })),
+    };
   }
 }

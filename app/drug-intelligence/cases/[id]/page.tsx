@@ -13,7 +13,8 @@
 import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History, FileText } from "lucide-react";
+import { DrugCaseReportDrawer } from "@/components/drug_intelligence/drug_case_report_drawer";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import { PageHeader } from "@/components/common/page_header";
@@ -85,6 +86,7 @@ export default function DrugCaseWorkspacePage() {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("overview");
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [selectedPersonRole, setSelectedPersonRole] = useState<string | undefined>(undefined);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const detail = useDrugCase(user?.id ?? null, caseId);
 
@@ -135,6 +137,12 @@ export default function DrugCaseWorkspacePage() {
                   <MapPinned className="h-4 w-4" aria-hidden="true" />
                   {t("di.map.actionOpenOnMap")}
                 </Link>
+              </Button>
+            ) : null}
+            {can("drug.export") ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+                <FileText className="h-4 w-4" aria-hidden="true" />
+                {t("di.export.caseReport")}
               </Button>
             ) : null}
             <Button asChild variant="ghost" size="sm">
@@ -196,6 +204,7 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "notes" ? <NotesTab data={data} /> : null}
 
       <DrugPersonDrawer personId={selectedPersonId} roleInCase={selectedPersonRole} onClose={() => setSelectedPersonId("")} />
+      <DrugCaseReportDrawer open={reportOpen} onClose={() => setReportOpen(false)} caseId={caseId} caseNumber={data.case.caseNumber} />
     </div>
   );
 }

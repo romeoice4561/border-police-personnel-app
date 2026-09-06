@@ -7,6 +7,7 @@
 import {
   DRUG_EXPORT_RESTRICTED_COLUMNS,
   OPERATIONAL_CASES_COLUMNS,
+  OPERATIONAL_PERSONS_COLUMNS,
   type DrugExportPreset,
   type DrugExportType,
 } from "@/lib/drug_intelligence/drug_export_types";
@@ -15,6 +16,7 @@ const RESTRICTED = new Set<string>(DRUG_EXPORT_RESTRICTED_COLUMNS);
 
 export function allowedColumnsForExportType(exportType: DrugExportType): readonly string[] {
   if (exportType === "OPERATIONAL_CASES") return OPERATIONAL_CASES_COLUMNS.map((c) => c.key);
+  if (exportType === "OPERATIONAL_PERSONS") return OPERATIONAL_PERSONS_COLUMNS.map((c) => c.key);
   return [];
 }
 
@@ -22,6 +24,9 @@ export function columnsForPreset(exportType: DrugExportType, preset: DrugExportP
   const allowed = allowedColumnsForExportType(exportType);
   if (allowed.length === 0) return [];
   if (preset === "MINIMAL") {
+    if (exportType === "OPERATIONAL_PERSONS") {
+      return allowed.filter((key) => key === "personId" || key === "displayName" || key === "status");
+    }
     return allowed.filter((key) => key === "caseId" || key === "caseNumber" || key === "status" || key === "arrestDate");
   }
   if (preset === "CUSTOM" && custom && custom.length > 0) {

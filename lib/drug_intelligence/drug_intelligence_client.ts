@@ -11,6 +11,7 @@
  */
 
 import { ApiClientError } from "@/lib/ui/api_client";
+import type { DrugExportPreviewV1 } from "@/lib/drug_intelligence/drug_export_types";
 
 interface PageMeta {
   page: number;
@@ -1570,6 +1571,38 @@ export const drugIntelligenceClient = {
     return (await request<{ images: DrugInvestigationBoardImageAccess[] }>(
       `/drug-intelligence/board-images${toQueryString({ actorId, boardId, ids })}`
     )).data.images;
+  },
+
+  async previewExport(body: Record<string, unknown>): Promise<DrugExportPreviewV1> {
+    return (await requestPost<DrugExportPreviewV1>("/drug-intelligence/exports", { ...body, intent: "PREVIEW" })).data;
+  },
+
+  async downloadExport(body: Record<string, unknown>): Promise<{ blob: Blob; filename: string; contentType: string }> {
+    let response: Response;
+    try {
+      response = await fetch("/api/drug-intelligence/exports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, intent: "DOWNLOAD" }),
+      });
+    } catch (cause) {
+      throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!response.ok) {
+      const parsed = (await response.json().catch(() => null)) as ApiEnvelope<unknown> | null;
+      throw new ApiClientError(
+        parsed?.error?.message ?? `Request failed (${response.status})`,
+        response.status,
+        parsed?.error?.code ?? "REQUEST_FAILED",
+        parsed?.error?.details
+      );
+    }
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const starred = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    const quoted = /filename="([^"]+)"/i.exec(disposition);
+    const filename = starred ? decodeURIComponent(starred[1]) : quoted?.[1] ?? "export";
+    return { blob: await response.blob(), filename, contentType };
   },
 };
 

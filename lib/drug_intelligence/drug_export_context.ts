@@ -12,6 +12,7 @@ import {
   DRUG_EXPORT_NETWORK_HARD_MAX_NODES,
   DRUG_EXPORT_NETWORK_MAX_DEPTH,
 } from "@/lib/drug_intelligence/drug_export_limits";
+import { resolveExportPeriod } from "@/lib/drug_intelligence/drug_export_period";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SAFE_ROUTE = /^\/drug-intelligence(?:\/[A-Za-z0-9._~-]*)*$/;
@@ -63,7 +64,19 @@ export const drugExportContextV1InputSchema = z
         drugCategory: z.enum(DRUG_CATEGORIES).optional(),
       })
       .optional(),
+    searchQuery: z.string().trim().max(120).optional(),
     completeness: z.enum(["missingArrested", "missingReportingUnit", "missingCoordinates", "incompleteSeizure"]).optional(),
+    unitGroup: z.enum(["battalion", "company", "region"]).optional(),
+    case: z
+      .object({
+        caseId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .refine((v) => !/[\\/]/.test(v), "caseId must not contain a path"),
+      })
+      .optional(),
     alert: z
       .object({
         status: z.string().trim().max(40).optional(),
@@ -135,13 +148,16 @@ export function resolveDrugExportContext(
 }
 
 export function summarizeExportContext(context: ResolvedDrugExportContextV1): Record<string, string | number | boolean | null> {
+  const applied = resolveExportPeriod(context.period);
   return {
     schemaVersion: context.schemaVersion,
     locale: context.locale,
     sourceRoute: context.sourceRoute,
-    fiscalYearBe: context.period?.fiscalYearBe ?? null,
-    dateFrom: context.period?.dateFrom ?? null,
-    dateTo: context.period?.dateTo ?? null,
+    fiscalYearBe: applied.appliedFiscalYearBe ?? null,
+    dateFrom: applied.dateFrom ?? null,
+    dateTo: applied.dateTo ?? null,
+    periodSource: applied.source,
+    searchQuery: context.searchQuery ?? null,
     hqId: context.organization?.hqId ?? null,
     regionId: context.organization?.regionId ?? null,
     battalionId: context.organization?.battalionId ?? null,
@@ -150,6 +166,7 @@ export function summarizeExportContext(context: ResolvedDrugExportContextV1): Re
     district: context.geo?.district ?? null,
     status: context.geo?.status ?? null,
     completeness: context.completeness ?? null,
+    caseId: context.case?.caseId ?? null,
     boardId: context.board?.boardId ?? null,
     networkFocusType: context.network?.focusType ?? null,
     mapViewMode: context.map?.viewMode ?? null,

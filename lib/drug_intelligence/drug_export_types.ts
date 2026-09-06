@@ -61,6 +61,28 @@ export const OPERATIONAL_CASES_COLUMNS = [
 
 export type OperationalCasesColumnKey = (typeof OPERATIONAL_CASES_COLUMNS)[number]["key"];
 
+export const OPERATIONAL_PERSONS_COLUMNS = [
+  { key: "personId", labelTh: "รหัสบุคคล", labelEn: "Person ID" },
+  { key: "displayName", labelTh: "ชื่อที่แสดง", labelEn: "Display name" },
+  { key: "status", labelTh: "สถานะ", labelEn: "Status" },
+  { key: "caseCount", labelTh: "จำนวนคดี", labelEn: "Case count" },
+  { key: "createdAt", labelTh: "วันที่สร้าง", labelEn: "Created at" },
+] as const;
+
+export type OperationalPersonsColumnKey = (typeof OPERATIONAL_PERSONS_COLUMNS)[number]["key"];
+
+export const CASE_REPORT_SECTIONS = [
+  "case",
+  "people",
+  "phones",
+  "sims",
+  "devices",
+  "vehicles",
+  "locations",
+  "seizures",
+] as const;
+export type CaseReportSectionKey = (typeof CASE_REPORT_SECTIONS)[number];
+
 export interface DrugExportPreviewColumn {
   key: string;
   label: string;

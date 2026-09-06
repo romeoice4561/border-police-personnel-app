@@ -57,6 +57,14 @@ test("context rejects malformed input and server-derives actor/generatedAt", () 
   const resolved = resolveDrugExportContext(ok, "mock:admin", new Date("2026-09-06T03:00:00.000Z"));
   assert.equal(resolved.actorId, "mock:admin");
   assert.equal(resolved.generatedAt, "2026-09-06T03:00:00.000Z");
+  const stripped = drugExportContextV1InputSchema.parse({
+    ...validContext,
+    actorId: "mock:1101700123456",
+    generatedAt: "1999-01-01T00:00:00.000Z",
+    masking: "FULL",
+  } as typeof validContext & { actorId: string; generatedAt: string; masking: string });
+  assert.equal("actorId" in stripped, false);
+  assert.equal("generatedAt" in stripped, false);
 });
 
 test("CUSTOM cannot request restricted columns; intelligence stays masked-column-safe", () => {
