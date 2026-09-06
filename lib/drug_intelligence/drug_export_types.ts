@@ -1,6 +1,7 @@
 /**
- * DI-10B export contracts — types only. Generators for Case / Commander /
- * Map / Network reports are deferred.
+ * DI-10B/C/D export contracts.
+ * Live: OPERATIONAL_CASES/PERSONS CSV, CASE_REPORT and COMMANDER_REPORT HTML_PRINT.
+ * Map / Network / Board generators remain deferred.
  */
 
 export const DRUG_EXPORT_TYPES = [
@@ -82,6 +83,20 @@ export const CASE_REPORT_SECTIONS = [
   "seizures",
 ] as const;
 export type CaseReportSectionKey = (typeof CASE_REPORT_SECTIONS)[number];
+
+export const COMMANDER_REPORT_SECTIONS = [
+  "scope",
+  "summary",
+  "kpis",
+  "seizures",
+  "trend",
+  "areas",
+  "units",
+  "attention",
+  "readiness",
+  "methodology",
+] as const;
+export type CommanderReportSectionKey = (typeof COMMANDER_REPORT_SECTIONS)[number];
 
 export interface DrugExportPreviewColumn {
   key: string;

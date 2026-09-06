@@ -137,7 +137,7 @@ test("invalid type/format and unimplemented reports do not download empty files"
   assert.equal(badType.status, 400);
   const unimplemented = await handleDrugExportCreate(
     new DrugExportService(db),
-    requestWithSession({ body: JSON.stringify(exportBody({ exportType: "COMMANDER_REPORT", format: "HTML_PRINT" })) })
+    requestWithSession({ body: JSON.stringify(exportBody({ exportType: "BOARD_DATA", format: "JSON" })) })
   );
   assert.equal(unimplemented.status, 501);
   const wrongFormat = await handleDrugExportCreate(

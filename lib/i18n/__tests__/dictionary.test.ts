@@ -253,6 +253,40 @@ test("DI-10B export foundation keys exist for both languages", () => {
   }
 });
 
+test("DI-10D commander report keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "di.export.commanderReport",
+    "di.export.commanderReportTitle",
+    "di.export.commanderReportAction",
+    "di.export.sectionScope",
+    "di.export.sectionSummary",
+    "di.export.sectionKpis",
+    "di.export.sectionTrend",
+    "di.export.sectionAreas",
+    "di.export.sectionUnits",
+    "di.export.sectionAttention",
+    "di.export.sectionMethodology",
+    "di.export.comparisonPeriod",
+    "di.export.notRiskScore",
+    "di.export.notAiGenerated",
+    "di.export.methodologySource",
+    "di.export.methodologyCountMass",
+    "di.export.methodologyIncomplete",
+    "di.export.attentionOperational",
+    "di.export.officialUse",
+    "di.export.generatedBy",
+    "di.export.generatedAt",
+    "di.export.noData",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+    assert.notEqual(translate(key, "th"), key);
+    assert.notEqual(translate(key, "en"), key);
+  }
+});
+
 test("Executive Report Center title is Thai-first", () => {
   assert.equal(translate("reports.title", "th"), "ศูนย์รายงานผู้บริหาร");
   assert.equal(translate("reports.title", "en"), "Executive Report Center");

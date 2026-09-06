@@ -1,6 +1,7 @@
 /**
- * DI-10C export dispatch.
- * Live generators: OPERATIONAL_CASES CSV, OPERATIONAL_PERSONS CSV, CASE_REPORT HTML_PRINT.
+ * DI-10C/D export dispatch.
+ * Live generators: OPERATIONAL_CASES CSV, OPERATIONAL_PERSONS CSV,
+ * CASE_REPORT HTML_PRINT, COMMANDER_REPORT HTML_PRINT.
  * OPERATIONAL_ALERTS is deferred — Alert Center still uses unbounded findAll.
  */
 
@@ -15,12 +16,20 @@ import {
   DrugExportInvalidCaseError,
   renderDrugCaseReportHtml,
 } from "@/lib/drug_intelligence/drug_case_report";
+import {
+  buildDrugCommanderReportV1,
+  renderDrugCommanderReportHtml,
+} from "@/lib/drug_intelligence/drug_commander_report";
+import { exportContextToCommanderFilter } from "@/lib/drug_intelligence/drug_export_commander_context";
+import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
+import { resolveCommanderDashboardScope } from "@/lib/drug_intelligence/drug_commander_filter";
 import { recordExportCreated } from "@/lib/drug_intelligence/drug_export_audit";
 import { summarizeExportContext, type ResolvedDrugExportContextV1 } from "@/lib/drug_intelligence/drug_export_context";
 import { exportLimitsForType } from "@/lib/drug_intelligence/drug_export_limits";
 import { parseExportIsoEnd, parseExportIsoStart, resolveExportPeriod } from "@/lib/drug_intelligence/drug_export_period";
 import { assertExportColumnsAllowed, columnsForPreset } from "@/lib/drug_intelligence/drug_export_presets";
 import {
+  COMMANDER_REPORT_SECTIONS,
   OPERATIONAL_CASES_COLUMNS,
   OPERATIONAL_PERSONS_COLUMNS,
   type DrugExportFormat,
@@ -95,11 +104,30 @@ function operationalCaseRow(row: DrugCase): Record<string, string> {
   };
 }
 
+const COMMANDER_SECTION_KEYS: Record<(typeof COMMANDER_REPORT_SECTIONS)[number], Parameters<typeof translate>[0]> = {
+  scope: "di.export.sectionScope",
+  summary: "di.export.sectionSummary",
+  kpis: "di.export.sectionKpis",
+  seizures: "di.export.sectionSeizures",
+  trend: "di.export.sectionTrend",
+  areas: "di.export.sectionAreas",
+  units: "di.export.sectionUnits",
+  attention: "di.export.sectionAttention",
+  readiness: "di.command.readinessTitle",
+  methodology: "di.export.sectionMethodology",
+};
+
 function columnMeta(
   exportType: DrugExportType,
   keys: readonly string[],
   locale: Language
 ): Array<{ key: string; label: string }> {
+  if (exportType === "COMMANDER_REPORT") {
+    return COMMANDER_REPORT_SECTIONS.map((key) => ({
+      key,
+      label: translate(COMMANDER_SECTION_KEYS[key], locale),
+    }));
+  }
   const source = exportType === "OPERATIONAL_PERSONS" ? OPERATIONAL_PERSONS_COLUMNS : OPERATIONAL_CASES_COLUMNS;
   return source.filter((c) => keys.includes(c.key)).map((c) => ({ key: c.key, label: locale === "en" ? c.labelEn : c.labelTh }));
 }
@@ -111,6 +139,7 @@ export class DrugExportService {
     if (exportType === "OPERATIONAL_CASES" && format === "CSV") return true;
     if (exportType === "OPERATIONAL_PERSONS" && format === "CSV") return true;
     if (exportType === "CASE_REPORT" && format === "HTML_PRINT") return true;
+    if (exportType === "COMMANDER_REPORT" && format === "HTML_PRINT") return true;
     return false;
   }
 
@@ -171,6 +200,10 @@ export class DrugExportService {
       const found = await repo.findById(input.context.case.caseId);
       if (!found) throw new DrugExportCaseNotFoundError();
       estimatedRecordCount = 1;
+    } else if (input.exportType === "COMMANDER_REPORT") {
+      const filter = resolveCommanderDashboardScope({ id: input.context.actorId }, exportContextToCommanderFilter(input.context));
+      const overview = await new DrugCommanderDashboardService(this.db).getOverview(filter);
+      estimatedRecordCount = overview.caseCount;
     }
     return this.buildPreview({ ...input, estimatedRecordCount });
   }
@@ -189,6 +222,7 @@ export class DrugExportService {
       if (input.exportType === "OPERATIONAL_CASES" && input.format !== "CSV") throw new DrugExportInvalidFormatError();
       if (input.exportType === "OPERATIONAL_PERSONS" && input.format !== "CSV") throw new DrugExportInvalidFormatError();
       if (input.exportType === "CASE_REPORT" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
+      if (input.exportType === "COMMANDER_REPORT" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
       throw new DrugExportNotImplementedError();
     }
 
@@ -220,7 +254,7 @@ export class DrugExportService {
       body = buildCsvDocument(columns, listed.rows);
       filename = buildDrugExportFilename({ kind: "drug-persons", ext: "csv", now });
       recordCount = listed.rows.length;
-    } else {
+    } else if (input.exportType === "CASE_REPORT") {
       const caseId = input.context.case?.caseId;
       if (!caseId) throw new DrugExportInvalidCaseError();
       const report = await buildDrugCaseReportV1(this.db, {
@@ -238,6 +272,19 @@ export class DrugExportService {
         now,
       });
       recordCount = 1;
+    } else {
+      const report = await buildDrugCommanderReportV1(this.db, {
+        context: input.context,
+        generatedBy: input.actorName,
+      });
+      body = renderDrugCommanderReportHtml(report);
+      filename = buildDrugExportFilename({
+        kind: "commander-report",
+        fiscalYearBe: report.scope.fiscalYearBe ?? undefined,
+        ext: "html",
+        now,
+      });
+      recordCount = report.kpis.find((kpi) => kpi.id === "cases")?.current ?? 0;
     }
 
     const exportId = randomUUID();

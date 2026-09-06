@@ -6,14 +6,16 @@
  */
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { FileSpreadsheet, Users, BellRing, ClipboardCheck } from "lucide-react";
+import { FileSpreadsheet, FileText, Users, BellRing, ClipboardCheck } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState } from "@/components/common/states";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { CommanderFilterBar } from "@/components/drug_intelligence/drug_commander_filter_bar";
+import { DrugCommanderReportDrawer } from "@/components/drug_intelligence/drug_commander_report_drawer";
 import { CommanderKpiCard } from "@/components/drug_intelligence/drug_commander_kpi_card";
 import { CommanderComparisonText } from "@/components/drug_intelligence/drug_commander_comparison_text";
 import { CommanderSituationSection } from "@/components/drug_intelligence/drug_commander_situation_section";
@@ -65,23 +67,27 @@ export default function CommanderDashboardPage() {
 }
 
 function CommanderDashboardContent() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { t, language } = useT();
   const searchParams = useSearchParams();
   const actorId = user?.id ?? null;
   const filter = resolveCommanderFilter(searchParams);
+  const [reportOpen, setReportOpen] = useState(false);
 
-  const urlState: CommanderUrlState = {
-    fy: searchParams.get("fy") ?? undefined,
-    from: searchParams.get("from") ?? undefined,
-    to: searchParams.get("to") ?? undefined,
-    hqId: searchParams.get("hqId") ?? undefined,
-    regionId: searchParams.get("regionId") ?? undefined,
-    battalionId: searchParams.get("battalionId") ?? undefined,
-    companyId: searchParams.get("companyId") ?? undefined,
-    province: searchParams.get("province") ?? undefined,
-    status: searchParams.get("status") ?? undefined,
-  };
+  const urlState: CommanderUrlState = useMemo(
+    () => ({
+      fy: searchParams.get("fy") ?? undefined,
+      from: searchParams.get("from") ?? undefined,
+      to: searchParams.get("to") ?? undefined,
+      hqId: searchParams.get("hqId") ?? undefined,
+      regionId: searchParams.get("regionId") ?? undefined,
+      battalionId: searchParams.get("battalionId") ?? undefined,
+      companyId: searchParams.get("companyId") ?? undefined,
+      province: searchParams.get("province") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
+    }),
+    [searchParams]
+  );
 
   const periodEnabled = commanderPeriodQueryEnabled(urlState);
   const apiDates = commanderPeriodApiDates(urlState);
@@ -187,6 +193,14 @@ function CommanderDashboardContent() {
         title={t("di.command.title")}
         description={t("di.command.description")}
         className="mb-0"
+        actions={
+          can("drug.export") ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => setReportOpen(true)}>
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              {t("di.export.commanderReportAction")}
+            </Button>
+          ) : null
+        }
       />
 
       <CommanderFilterBar
@@ -438,6 +452,12 @@ function CommanderDashboardContent() {
           ]}
         />
       )}
+      <DrugCommanderReportDrawer
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        urlState={urlState}
+        displayFiscalYearTh={displayFiscalYearTh}
+      />
     </div>
   );
 }

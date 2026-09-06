@@ -55,3 +55,19 @@ test("persons and case-report filenames stay identifier-free", () => {
   assert.match(report, /^case-.*-20260906\.html$/);
   assert.doesNotMatch(report, /1103700123456|0812345678/);
 });
+
+test("commander report filename includes FY only when applied", () => {
+  const withFy = buildDrugExportFilename({
+    kind: "commander-report",
+    fiscalYearBe: 2569,
+    ext: "html",
+    now: new Date("2026-09-06T00:00:00.000Z"),
+  });
+  const withoutFy = buildDrugExportFilename({
+    kind: "commander-report",
+    ext: "html",
+    now: new Date("2026-09-06T00:00:00.000Z"),
+  });
+  assert.equal(withFy, "commander-report-fy2569-20260906.html");
+  assert.equal(withoutFy, "commander-report-20260906.html");
+});
