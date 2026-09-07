@@ -77,6 +77,16 @@ export const drugExportContextV1InputSchema = z
           .refine((v) => !/[\\/]/.test(v), "caseId must not contain a path"),
       })
       .optional(),
+    person: z
+      .object({
+        personId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .refine((v) => !/[\\/]/.test(v), "personId must not contain a path"),
+      })
+      .optional(),
     alert: z
       .object({
         status: z.string().trim().max(40).optional(),
@@ -184,6 +194,7 @@ export function summarizeExportContext(context: ResolvedDrugExportContextV1): Re
     status: context.geo?.status ?? null,
     completeness: context.completeness ?? null,
     caseId: context.case?.caseId ?? null,
+    personId: context.person?.personId ?? null,
     boardId: context.board?.boardId ?? null,
     workspaceDirty: context.workspace?.dirty ?? null,
     workspaceNodeCount: context.workspace?.nodeIds.length ?? null,

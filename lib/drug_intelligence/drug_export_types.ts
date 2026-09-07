@@ -1,7 +1,7 @@
 /**
  * DI-10B/C/D export contracts.
  * Live: OPERATIONAL_CASES/PERSONS CSV, CASE_REPORT, COMMANDER_REPORT,
- * NETWORK_DATA and BOARD_DATA HTML_PRINT.
+ * NETWORK_DATA, BOARD_DATA, and PERSON_DATA HTML_PRINT.
  * Map generator remains deferred.
  */
 
@@ -14,6 +14,7 @@ export const DRUG_EXPORT_TYPES = [
   "MAP_DATA",
   "NETWORK_DATA",
   "BOARD_DATA",
+  "PERSON_DATA",
 ] as const;
 export type DrugExportType = (typeof DRUG_EXPORT_TYPES)[number];
 
@@ -109,6 +110,21 @@ export const BOARD_REPORT_SECTIONS = [
   "methodology",
 ] as const;
 export type BoardReportSectionKey = (typeof BOARD_REPORT_SECTIONS)[number];
+
+export const PERSON_REPORT_SECTIONS = [
+  "summary",
+  "cases",
+  "identifiers",
+  "phones",
+  "sims",
+  "devices",
+  "vehicles",
+  "signals",
+  "timeline",
+  "geography",
+  "methodology",
+] as const;
+export type PersonReportSectionKey = (typeof PERSON_REPORT_SECTIONS)[number];
 
 export interface DrugExportPreviewColumn {
   key: string;

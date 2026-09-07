@@ -317,6 +317,49 @@ test("DI-10E.1 investigation board report keys exist for both languages", () => 
   }
 });
 
+test("DI-10E.2 person intelligence report keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "di.export.personReportTitle",
+    "di.export.personReportEnglishTitle",
+    "di.export.personReportSystem",
+    "di.export.personReportAction",
+    "di.export.personUnavailable",
+    "di.export.sectionPersonSummary",
+    "di.export.sectionPersonCounts",
+    "di.export.sectionPersonCases",
+    "di.export.sectionPersonSignals",
+    "di.export.sectionPersonTimeline",
+    "di.export.sectionPersonGeography",
+    "di.export.sectionPersonMethodology",
+    "di.export.personSignalAnalytic",
+    "di.export.personLegendAnalytic",
+    "di.export.personGeoFromCase",
+    "di.export.personGeoNotResidence",
+    "di.export.personMethodSource",
+    "di.export.personMethodNoGuilt",
+    "di.export.personMethodNoCollab",
+    "di.export.personKpiCases",
+    "di.export.personKpiSignals",
+    "di.export.personMaskingNotice",
+    "di.export.personScope",
+    "di.export.personCaseCount",
+    "di.export.personPhoneCount",
+    "di.export.personSimCount",
+    "di.export.personDeviceCount",
+    "di.export.personVehicleCount",
+    "di.export.printReport",
+    "di.export.close",
+    "di.export.printPopupBlocked",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+    assert.notEqual(translate(key, "th"), key);
+    assert.notEqual(translate(key, "en"), key);
+  }
+});
+
 test("Executive Report Center title is Thai-first", () => {
   assert.equal(translate("reports.title", "th"), "ศูนย์รายงานผู้บริหาร");
   assert.equal(translate("reports.title", "en"), "Executive Report Center");

@@ -19,10 +19,13 @@ import {
   DrugExportInvalidCaseError,
   DrugExportInvalidColumnsError,
   DrugExportInvalidFormatError,
+  DrugExportInvalidPersonError,
   DrugExportInvalidWorkspaceError,
   DrugExportNotImplementedError,
+  DrugExportPersonNotFoundError,
   DrugExportService,
   DrugExportTooManyBoardRowsError,
+  DrugExportTooManyPersonRowsError,
   DrugExportTooManyRowsError,
 } from "@/lib/drug_intelligence/drug_export_service";
 import { translate, type Language } from "@/lib/i18n/dictionary";
@@ -105,17 +108,20 @@ export async function handleDrugExportCreate(service: DrugExportService, request
     if (error instanceof DrugExportInvalidFormatError) {
       return jsonError("INVALID_FORMAT", translate("di.export.invalidFormat", locale), 400);
     }
-    if (error instanceof DrugExportTooManyRowsError || error instanceof DrugExportTooManyBoardRowsError) {
+    if (error instanceof DrugExportTooManyRowsError || error instanceof DrugExportTooManyBoardRowsError || error instanceof DrugExportTooManyPersonRowsError) {
       return jsonError("TOO_MANY_ROWS", translate("di.export.tooManyRows", locale), 400);
     }
     if (error instanceof DrugExportNotImplementedError) {
       return jsonError("NOT_IMPLEMENTED_FOR_TYPE", translate("di.export.notImplemented", locale), 501);
     }
-    if (error instanceof DrugExportInvalidCaseError || error instanceof DrugExportInvalidWorkspaceError) {
+    if (error instanceof DrugExportInvalidCaseError || error instanceof DrugExportInvalidWorkspaceError || error instanceof DrugExportInvalidPersonError) {
       return jsonError("INVALID_CONTEXT", translate("di.export.invalidContext", locale), 400);
     }
     if (error instanceof DrugExportCaseNotFoundError) {
       return jsonError("NOT_FOUND", translate("di.export.reportUnavailable", locale), 404);
+    }
+    if (error instanceof DrugExportPersonNotFoundError) {
+      return jsonError("NOT_FOUND", translate("di.export.personUnavailable", locale), 404);
     }
     if (error instanceof DrugExportBoardForbiddenError) {
       return jsonError("FORBIDDEN", translate("di.export.forbidden", locale), 403);

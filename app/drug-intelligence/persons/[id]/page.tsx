@@ -12,7 +12,8 @@
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, MapPinned, AlertTriangle, Plus, Network, History } from "lucide-react";
+import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, MapPinned, AlertTriangle, Plus, Network, History, FileText } from "lucide-react";
+import { DrugPersonReportDrawer } from "@/components/drug_intelligence/drug_person_report_drawer";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -122,6 +123,7 @@ function DrugPersonProfileContent() {
   const { user, can } = useAuth();
   const { t, language } = useT();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("overview");
+  const [reportOpen, setReportOpen] = useState(false);
 
   const profile = useDrugPersonProfile(user?.id ?? null, personId);
 
@@ -206,6 +208,12 @@ function DrugPersonProfileContent() {
                   <MapPinned className="h-4 w-4" aria-hidden="true" />
                   {t("di.map.actionViewOnMap")}
                 </Link>
+              </Button>
+            ) : null}
+            {can("drug.export") ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)} data-testid="person-report-btn">
+                <FileText className="h-4 w-4" aria-hidden="true" />
+                {t("di.export.personReportAction")}
               </Button>
             ) : null}
             <Button asChild variant="ghost" size="sm">
@@ -293,6 +301,17 @@ function DrugPersonProfileContent() {
       {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
       {activeTab === "identity" ? <IdentityTab personId={personId} data={data} language={language} canViewFull={canViewFull} canEdit={canEdit} /> : null}
       {activeTab === "review" ? <ReviewTab personId={personId} dataQuality={data.dataQuality} mergeHistory={data.mergeHistory} /> : null}
+      <DrugPersonReportDrawer
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        personId={data.person.id}
+        personName={data.person.primaryFullName}
+        caseCount={data.counts.cases}
+        phoneCount={data.counts.phones}
+        simCount={data.counts.sims}
+        deviceCount={data.counts.devices}
+        vehicleCount={data.counts.vehicles}
+      />
     </div>
   );
 }

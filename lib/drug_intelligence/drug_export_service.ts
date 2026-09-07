@@ -2,7 +2,7 @@
  * DI-10C/D/E export dispatch.
  * Live generators: OPERATIONAL_CASES CSV, OPERATIONAL_PERSONS CSV,
  * CASE_REPORT HTML_PRINT, COMMANDER_REPORT HTML_PRINT,
- * NETWORK_DATA/BOARD_DATA HTML_PRINT.
+ * NETWORK_DATA/BOARD_DATA HTML_PRINT, PERSON_DATA HTML_PRINT.
  * OPERATIONAL_ALERTS is deferred — Alert Center still uses unbounded findAll.
  */
 
@@ -31,6 +31,15 @@ import {
   investigationBoardRecordCount,
   renderDrugInvestigationBoardReportHtml,
 } from "@/lib/drug_intelligence/drug_investigation_board_report";
+import {
+  PERSON_REPORT_SECTION_KEYS,
+  buildDrugPersonReportV1,
+  DrugExportInvalidPersonError,
+  DrugExportPersonNotFoundError,
+  DrugExportTooManyPersonRowsError,
+  personReportRecordCount,
+  renderDrugPersonReportHtml,
+} from "@/lib/drug_intelligence/drug_person_report";
 import { exportContextToCommanderFilter } from "@/lib/drug_intelligence/drug_export_commander_context";
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { resolveCommanderDashboardScope } from "@/lib/drug_intelligence/drug_commander_filter";
@@ -44,6 +53,7 @@ import {
   COMMANDER_REPORT_SECTIONS,
   OPERATIONAL_CASES_COLUMNS,
   OPERATIONAL_PERSONS_COLUMNS,
+  PERSON_REPORT_SECTIONS,
   type DrugExportFormat,
   type DrugExportMaskingMode,
   type DrugExportPreset,
@@ -87,8 +97,11 @@ export {
   DrugExportBoardNotFoundError,
   DrugExportCaseNotFoundError,
   DrugExportInvalidCaseError,
+  DrugExportInvalidPersonError,
   DrugExportInvalidWorkspaceError,
+  DrugExportPersonNotFoundError,
   DrugExportTooManyBoardRowsError,
+  DrugExportTooManyPersonRowsError,
 };
 
 function caseListParams(context: ResolvedDrugExportContextV1, pageSize: number) {
@@ -141,6 +154,12 @@ function columnMeta(
   keys: readonly string[],
   locale: Language
 ): Array<{ key: string; label: string }> {
+  if (exportType === "PERSON_DATA") {
+    return PERSON_REPORT_SECTIONS.map((key) => ({
+      key,
+      label: translate(PERSON_REPORT_SECTION_KEYS[key], locale),
+    }));
+  }
   if (exportType === "NETWORK_DATA" || exportType === "BOARD_DATA") {
     return BOARD_REPORT_SECTIONS.map((key) => ({
       key,
@@ -167,6 +186,7 @@ export class DrugExportService {
     if (exportType === "COMMANDER_REPORT" && format === "HTML_PRINT") return true;
     if (exportType === "NETWORK_DATA" && format === "HTML_PRINT") return true;
     if (exportType === "BOARD_DATA" && format === "HTML_PRINT") return true;
+    if (exportType === "PERSON_DATA" && format === "HTML_PRINT") return true;
     return false;
   }
 
@@ -242,6 +262,16 @@ export class DrugExportService {
         maskingMode: input.maskingMode,
       });
       estimatedRecordCount = investigationBoardRecordCount(report);
+    } else if (input.exportType === "PERSON_DATA") {
+      if (!input.context.person?.personId) throw new DrugExportInvalidPersonError();
+      const report = await buildDrugPersonReportV1(this.db, {
+        personId: input.context.person.personId,
+        locale: input.context.locale,
+        generatedAt: input.context.generatedAt,
+        generatedBy: "",
+        maskingMode: input.maskingMode,
+      });
+      estimatedRecordCount = personReportRecordCount(report);
     }
     return this.buildPreview({ ...input, estimatedRecordCount });
   }
@@ -263,6 +293,7 @@ export class DrugExportService {
       if (input.exportType === "COMMANDER_REPORT" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
       if (input.exportType === "NETWORK_DATA" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
       if (input.exportType === "BOARD_DATA" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
+      if (input.exportType === "PERSON_DATA" && input.format !== "HTML_PRINT") throw new DrugExportInvalidFormatError();
       throw new DrugExportNotImplementedError();
     }
 
@@ -340,6 +371,19 @@ export class DrugExportService {
         now,
       });
       recordCount = investigationBoardRecordCount(report);
+    } else if (input.exportType === "PERSON_DATA") {
+      const personId = input.context.person?.personId;
+      if (!personId) throw new DrugExportInvalidPersonError();
+      const report = await buildDrugPersonReportV1(this.db, {
+        personId,
+        locale,
+        generatedAt: input.context.generatedAt,
+        generatedBy: input.actorName,
+        maskingMode: input.maskingMode,
+      });
+      body = renderDrugPersonReportHtml(report);
+      filename = buildDrugExportFilename({ kind: "drug-person", ext: "html", now });
+      recordCount = personReportRecordCount(report);
     } else {
       throw new DrugExportNotImplementedError();
     }

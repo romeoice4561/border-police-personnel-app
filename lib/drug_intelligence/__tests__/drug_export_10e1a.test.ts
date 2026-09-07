@@ -25,6 +25,7 @@ const commanderDrawerSrc = readFileSync(
   "utf8"
 );
 const caseDrawerSrc = readFileSync(join(ROOT, "components/drug_intelligence/drug_case_report_drawer.tsx"), "utf8");
+const personDrawerSrc = readFileSync(join(ROOT, "components/drug_intelligence/drug_person_report_drawer.tsx"), "utf8");
 
 function requestWithSession(init?: RequestInit): Request {
   const headers = new Headers(init?.headers);
@@ -98,7 +99,7 @@ async function exportHtml(db: InMemoryDatabaseClient, body: Record<string, unkno
 }
 
 test("HTML_PRINT drawers use the shared open helper and never treat noopener-null as download failure", () => {
-  for (const src of [boardDrawerSrc, commanderDrawerSrc, caseDrawerSrc]) {
+  for (const src of [boardDrawerSrc, commanderDrawerSrc, caseDrawerSrc, personDrawerSrc]) {
     assert.match(src, /openHtmlPrintReport/);
     assert.match(src, /htmlPrintFailureMessage/);
     assert.doesNotMatch(src, /noopener,noreferrer/);
