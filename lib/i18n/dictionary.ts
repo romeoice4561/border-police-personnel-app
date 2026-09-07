@@ -2765,6 +2765,7 @@ export const DICTIONARY = {
   "di.export.invalidColumns": tr("คอลัมน์ที่เลือกมีข้อมูลที่ระบบไม่อนุญาตให้ส่งออก", "The selected columns include fields that cannot be exported."),
   "di.export.notImplemented": tr("ประเภทรายงานนี้ยังไม่เปิดให้สร้างไฟล์ในขั้นตอนนี้", "This report type is not available for generation yet."),
   "di.export.downloadFailed": tr("ดาวน์โหลดไม่สำเร็จ กรุณาลองใหม่", "The download could not be completed. Please try again."),
+  "di.export.printPopupBlocked": tr("เบราว์เซอร์บล็อกหน้าต่างรายงาน กรุณาอนุญาตป๊อปอัปแล้วลองใหม่", "The browser blocked the report window. Allow pop-ups and try again."),
   "di.export.softLimitWarning": tr("จำนวนรายการค่อนข้างมาก ระบบจะสร้างไฟล์ได้แต่ควรจำกัดตัวกรอง", "This export is large. Generation can continue, but narrowing the filters is recommended."),
   "di.export.currentFilters": tr("ตัวกรองปัจจุบัน", "Current filters"),
   "di.export.downloadCsv": tr("ดาวน์โหลด CSV", "Download CSV"),

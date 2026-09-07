@@ -11,18 +11,7 @@ import type { CommanderUrlState } from "@/lib/drug_intelligence/drug_commander_s
 import { commanderPeriodKind, formatCommanderPeriodLabel } from "@/lib/drug_intelligence/drug_commander_scope";
 import { drugIntelligenceClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { DrugExportPreviewV1 } from "@/lib/drug_intelligence/drug_export_types";
-import { ApiClientError } from "@/lib/ui/api_client";
-
-function openPrintView(blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
-  if (!opened) {
-    URL.revokeObjectURL(url);
-    throw new Error("popup-blocked");
-  }
-  opened.opener = null;
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
+import { htmlPrintFailureMessage, openHtmlPrintReport } from "@/lib/export/html_print";
 
 function orgLabel(state: CommanderUrlState, allUnits: string): string {
   const parts = [state.hqId, state.regionId, state.battalionId, state.companyId].filter(Boolean);
@@ -73,7 +62,7 @@ export function DrugCommanderReportDrawer({
           setResult({
             key,
             preview: null,
-            error: err instanceof ApiClientError ? err.message : t("di.export.downloadFailed"),
+            error: htmlPrintFailureMessage(err, t),
           });
         }
       });
@@ -95,12 +84,17 @@ export function DrugCommanderReportDrawer({
         masking: "MASKED",
         context: commanderUrlStateToExportContext(urlState, language),
       });
-      openPrintView(new Blob([downloaded.blob], { type: "text/html;charset=utf-8" }));
+      openHtmlPrintReport(new Blob([downloaded.blob], { type: "text/html;charset=utf-8" }));
+      setResult({
+        key: previewKey,
+        preview,
+        error: null,
+      });
     } catch (err) {
       setResult({
         key: previewKey,
         preview,
-        error: err instanceof ApiClientError ? err.message : t("di.export.downloadFailed"),
+        error: htmlPrintFailureMessage(err, t),
       });
     } finally {
       setDownloadBusy(false);

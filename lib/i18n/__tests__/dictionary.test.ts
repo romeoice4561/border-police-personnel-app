@@ -306,6 +306,7 @@ test("DI-10E.1 investigation board report keys exist for both languages", () => 
     "di.export.boardUnavailable",
     "di.export.printReport",
     "di.export.close",
+    "di.export.printPopupBlocked",
   ];
   for (const key of required) {
     assert.ok(DICTIONARY[key], `missing key ${key}`);

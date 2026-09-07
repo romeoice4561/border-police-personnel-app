@@ -9,18 +9,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { drugIntelligenceClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { DrugExportPreviewV1 } from "@/lib/drug_intelligence/drug_export_types";
-import { ApiClientError } from "@/lib/ui/api_client";
-
-function openPrintView(blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
-  if (!opened) {
-    URL.revokeObjectURL(url);
-    throw new Error("popup-blocked");
-  }
-  opened.opener = null;
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
+import { htmlPrintFailureMessage, openHtmlPrintReport } from "@/lib/export/html_print";
 
 export function DrugCaseReportDrawer({
   open,
@@ -70,7 +59,7 @@ export function DrugCaseReportDrawer({
           setResult({
             key,
             preview: null,
-            error: err instanceof ApiClientError ? err.message : t("di.export.downloadFailed"),
+            error: htmlPrintFailureMessage(err, t),
           });
         }
       });
@@ -95,12 +84,17 @@ export function DrugCaseReportDrawer({
           case: { caseId },
         },
       });
-      openPrintView(new Blob([downloaded.blob], { type: "text/html;charset=utf-8" }));
+      openHtmlPrintReport(new Blob([downloaded.blob], { type: "text/html;charset=utf-8" }));
+      setResult({
+        key: previewKey,
+        preview,
+        error: null,
+      });
     } catch (err) {
       setResult({
         key: previewKey,
         preview,
-        error: err instanceof ApiClientError ? err.message : t("di.export.downloadFailed"),
+        error: htmlPrintFailureMessage(err, t),
       });
     } finally {
       setDownloadBusy(false);

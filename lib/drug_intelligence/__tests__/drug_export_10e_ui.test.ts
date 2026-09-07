@@ -31,4 +31,7 @@ test("preview drawer follows Commander report UX and accessibility", () => {
   assert.match(drawerSrc, /aria-label=\{t\("di.export.printReport"\)\}/);
   assert.doesNotMatch(drawerSrc, /window\.print\(\)/);
   assert.doesNotMatch(drawerSrc, /createInvestigationBoard|updateInvestigationBoard/);
+  assert.match(drawerSrc, /openHtmlPrintReport/);
+  assert.match(drawerSrc, /htmlPrintFailureMessage/);
+  assert.doesNotMatch(drawerSrc, /noopener,noreferrer/);
 });

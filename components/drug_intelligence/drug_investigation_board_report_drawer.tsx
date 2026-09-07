@@ -15,18 +15,7 @@ import { drugIntelligenceClient } from "@/lib/drug_intelligence/drug_intelligenc
 import type { DrugExportPreviewV1 } from "@/lib/drug_intelligence/drug_export_types";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_network_graph_types";
 import type { DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
-import { ApiClientError } from "@/lib/ui/api_client";
-
-function openPrintView(blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
-  if (!opened) {
-    URL.revokeObjectURL(url);
-    throw new Error("popup-blocked");
-  }
-  opened.opener = null;
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
+import { htmlPrintFailureMessage, openHtmlPrintReport } from "@/lib/export/html_print";
 
 export function DrugInvestigationBoardReportDrawer({
   open,
@@ -134,7 +123,7 @@ export function DrugInvestigationBoardReportDrawer({
           setResult({
             key,
             preview: null,
-            error: err instanceof ApiClientError ? err.message : t("di.export.downloadFailed"),
+            error: htmlPrintFailureMessage(err, t),
           });
         }
       });
@@ -154,12 +143,17 @@ export function DrugInvestigationBoardReportDrawer({
         masking: "MASKED",
         context,
       });
-      openPrintView(new Blob([downloaded.blob], { type: "text/html;charset=utf-8" }));
+      openHtmlPrintReport(new Blob([downloaded.blob], { type: "text/html;charset=utf-8" }));
+      setResult({
+        key: previewKey,
+        preview,
+        error: null,
+      });
     } catch (err) {
       setResult({
         key: previewKey,
         preview,
-        error: err instanceof ApiClientError ? err.message : t("di.export.downloadFailed"),
+        error: htmlPrintFailureMessage(err, t),
       });
     } finally {
       setDownloadBusy(false);
