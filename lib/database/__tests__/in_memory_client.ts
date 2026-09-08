@@ -31,9 +31,9 @@ class Table {
     return this.rows.find((r) => this.matchUnique(r, where)) ?? null;
   }
 
-  findMany(where?: Record<string, unknown>): Row[] {
+  findMany(where?: Record<string, unknown>, relations?: Record<string, InMemoryRelationFilter>): Row[] {
     if (!where) return this.rows.map((r) => ({ ...r }));
-    return this.rows.filter((r) => rowMatchesWhere(r, where)).map((r) => ({ ...r }));
+    return this.rows.filter((r) => rowMatchesWhere(r, where, relations)).map((r) => ({ ...r }));
   }
 
   create(data: Record<string, unknown>): Row {
@@ -69,9 +69,9 @@ class Table {
     return { count: before - this.rows.length };
   }
 
-  count(where?: Record<string, unknown>): number {
+  count(where?: Record<string, unknown>, relations?: Record<string, InMemoryRelationFilter>): number {
     if (!where) return this.rows.length;
-    return this.rows.filter((r) => rowMatchesWhere(r, where)).length;
+    return this.rows.filter((r) => rowMatchesWhere(r, where, relations)).length;
   }
 
   snapshot(): { rows: Row[]; nextId: number } {
@@ -101,18 +101,33 @@ function applyDefaults(data: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-/** DI-9.4.3B: Prisma-ish where matching for in-memory fakes (equals, in, contains, OR/AND). */
-function rowMatchesWhere(row: Row, where: Record<string, unknown>): boolean {
+/** Optional Prisma `some` relation lookup for in-memory fakes (DI-10E.5B.1). */
+interface InMemoryRelationFilter {
+  table: Table;
+  foreignKey: string;
+}
+
+/** DI-9.4.3B: Prisma-ish where matching for in-memory fakes (equals, in, contains, OR/AND, some). */
+function rowMatchesWhere(row: Row, where: Record<string, unknown>, relations?: Record<string, InMemoryRelationFilter>): boolean {
   if (Array.isArray(where.OR)) {
-    return (where.OR as Record<string, unknown>[]).some((clause) => rowMatchesWhere(row, clause));
+    return (where.OR as Record<string, unknown>[]).some((clause) => rowMatchesWhere(row, clause, relations));
   }
   if (Array.isArray(where.AND)) {
-    return (where.AND as Record<string, unknown>[]).every((clause) => rowMatchesWhere(row, clause));
+    return (where.AND as Record<string, unknown>[]).every((clause) => rowMatchesWhere(row, clause, relations));
   }
   return Object.entries(where).every(([k, v]) => {
     if (k === "OR" || k === "AND") return true;
     if (v !== null && typeof v === "object" && !Array.isArray(v) && !(v instanceof Date)) {
       const ops = v as Record<string, unknown>;
+      if ("some" in ops) {
+        const rel = relations?.[k];
+        if (!rel) return false;
+        const nested =
+          ops.some !== null && typeof ops.some === "object" && !Array.isArray(ops.some) && !(ops.some instanceof Date)
+            ? (ops.some as Record<string, unknown>)
+            : {};
+        return rel.table.findMany({ ...nested, [rel.foreignKey]: row.id }).length > 0;
+      }
       if ("in" in ops) {
         const list = ops.in as unknown[];
         return list.some((item) => row[k] === item);
@@ -139,7 +154,7 @@ function rowMatchesWhere(row: Row, where: Record<string, unknown>): boolean {
 }
 
 /** Builds a delegate object over a Table matching the ModelDelegate contract. */
-function delegate(table: Table) {
+function delegate(table: Table, relations?: Record<string, InMemoryRelationFilter>) {
   return {
     async findUnique(args: { where: Record<string, unknown> }) {
       return table.find(args.where);
@@ -151,7 +166,7 @@ function delegate(table: Table) {
       take?: number;
       select?: Record<string, boolean>;
     }) {
-      let rows = table.findMany(args?.where);
+      let rows = table.findMany(args?.where, relations);
       const orderByRaw = args?.orderBy;
       const orderByList = Array.isArray(orderByRaw) ? orderByRaw : orderByRaw ? [orderByRaw] : [];
       if (orderByList.length > 0) {
@@ -204,7 +219,7 @@ function delegate(table: Table) {
       return { count: matches.length };
     },
     async count(args?: { where?: Record<string, unknown> }) {
-      return table.count(args?.where);
+      return table.count(args?.where, relations);
     },
   };
 }
@@ -376,7 +391,10 @@ export class InMemoryDatabaseClient implements DatabaseClient {
 
   // Phase DI-1: Drug Intelligence delegates.
   get drugCase() {
-    return delegate(this.drugCases) as unknown as DatabaseClient["drugCase"];
+    return delegate(this.drugCases, {
+      seizedItems: { table: this.drugSeizedItems, foreignKey: "caseId" },
+      persons: { table: this.drugCasePersons, foreignKey: "caseId" },
+    }) as unknown as DatabaseClient["drugCase"];
   }
   get drugPerson() {
     return delegate(this.drugPersons) as unknown as DatabaseClient["drugPerson"];
