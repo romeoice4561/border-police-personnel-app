@@ -26,4 +26,18 @@ export class DrugAuditLogRepository {
   forEntity(entityType: string, entityId: string): Promise<DrugAuditLog[]> {
     return this.db.drugAuditLog.findMany({ where: { entityType, entityId }, orderBy: { createdAt: "desc" } });
   }
+
+  /**
+   * DI-10E.4: actor-scoped recent export_created rows. take is clamped to 1–50.
+   * Never returns other actors. Never unbounded.
+   */
+  recentExportsForActor(input: { actorId: string; take: number }): Promise<Array<Pick<DrugAuditLog, "id" | "createdAt" | "detail">>> {
+    const take = Math.min(50, Math.max(1, Math.trunc(input.take)));
+    return this.db.drugAuditLog.findMany({
+      where: { actorId: input.actorId, action: "export_created" },
+      orderBy: { createdAt: "desc" },
+      take,
+      select: { id: true, createdAt: true, detail: true },
+    }) as Promise<Array<Pick<DrugAuditLog, "id" | "createdAt" | "detail">>>;
+  }
 }

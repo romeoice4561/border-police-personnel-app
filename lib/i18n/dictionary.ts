@@ -1722,6 +1722,87 @@ export const DICTIONARY = {
   "di.landing.quickActions": tr("การดำเนินการด่วน", "Quick Actions"),
   "di.landing.viewAllCases": tr("ดูคดีทั้งหมด", "View All Cases"),
 
+  "di.reports.title": tr("รายงานและส่งออก", "Reports and export"),
+  "di.reports.description": tr(
+    "เลือก<fim-middle>รายงานหรือส่งออกรายการข้อมูลจากที่เดียว แล้วดูรายการที่คุณเพิ่งสร้าง",
+    "Choose a report or list export from one place, then review what you recently generated."
+  ),
+  "di.reports.forbidden": tr("คุณไม่มีสิทธิ์เปิดหน้ารายงานและส่งออก", "You do not have permission to open Reports and export."),
+  "di.reports.liveSection": tr("รายงานพร้อมใช้งาน", "Available reports"),
+  "di.reports.exportSection": tr("ส่งออกรายการข้อมูล", "Data list exports"),
+  "di.reports.historySection": tr("ล่าสุดที่สร้าง", "Recently generated"),
+  "di.reports.soonSection": tr("กำลังพัฒนา", "Coming soon"),
+  "di.reports.commanderTitle": tr("รายงานผู้บังคับบัญชา", "Commander report"),
+  "di.reports.commanderBody": tr(
+    "ภาพรวมคดี ของกลาง แนวโน้ม พื้นที่ ผลการปฏิบัติของหน่วย และรายการที่ควรติดตาม",
+    "Case overview, seizures, trends, areas, unit results, and items to follow up."
+  ),
+  "di.reports.openCommander": tr("เปิดภาพรวมผู้บังคับบัญชา", "Open commander overview"),
+  "di.reports.caseTitle": tr("รายงานข้อมูลคดี", "Case information report"),
+  "di.reports.caseBody": tr(
+    "รายละเอียดคดี บุคคล หมายเลขโทรศัพท์ SIM อุปกรณ์ ยานพาหนะ ของกลาง พื้นที่ สัญญาณวิเคราะห์ และลำดับเหตุการณ์",
+    "Case details, people, phones, SIMs, devices, vehicles, seizures, areas, analytic signals, and event order."
+  ),
+  "di.reports.caseSearchPlaceholder": tr("ค้นหาเลขคดีหรือชื่อเรื่อง", "Search case number or title"),
+  "di.reports.caseEmpty": tr("ไม่พบคดีตามคำค้นนี้", "No cases match this search."),
+  "di.reports.openCaseReport": tr("เปิดรายงานคดีที่เลือก", "Open selected case report"),
+  "di.reports.personTitle": tr("รายงานข้อมูลบุคคล", "Person information report"),
+  "di.reports.personBody": tr(
+    "ข้อมูลบุคคล ประวัติคดี ตัวระบุ หมายเลขโทรศัพท์ SIM อุปกรณ์ ยานพาหนะ พื้นที่ สัญญาณวิเคราะห์ และลำดับเหตุการณ์",
+    "Person details, case history, identifiers, phones, SIMs, devices, vehicles, areas, analytic signals, and event order."
+  ),
+  "di.reports.personSearchPlaceholder": tr("ค้นหาชื่อหรือชื่อเล่น", "Search name or nickname"),
+  "di.reports.personEmpty": tr("ไม่พบบุคคลตามคำค้นนี้", "No persons match this search."),
+  "di.reports.openPersonReport": tr("เปิดรายงานบุคคลที่เลือก", "Open selected person report"),
+  "di.reports.personCaseCount": tr("{count} คดี", "{count} cases"),
+  "di.reports.recordId": tr("รหัส", "ID"),
+  "di.reports.boardTitle": tr("รายงานผังการสืบสวน", "Investigation board report"),
+  "di.reports.boardBody": tr(
+    "รายงานนี้สร้างจากผังการสืบสวนหรือบอร์ดที่เปิดอยู่ในหน้าเครือข่าย",
+    "This report is created from the current network workspace or saved investigation board."
+  ),
+  "di.reports.openBoard": tr("เปิดผังการสืบสวน", "Open investigation board"),
+  "di.reports.search": tr("ค้นหา", "Search"),
+  "di.reports.casesCsvTitle": tr("ส่งออกรายการคดี", "Export case list"),
+  "di.reports.casesCsvBody": tr(
+    "ส่งออกรายการคดีทั้งหมดที่ระบบรองรับในครั้งนี้ ไม่ได้ใช้ตัวกรองหน้าค้นหาคดี",
+    "Exports the case list supported by the current generator. This is not the case-search page filter set."
+  ),
+  "di.reports.openCasesCsv": tr("ดูตัวอย่างแล้วดาวน์โหลด", "Preview and download"),
+  "di.reports.personsCsvTitle": tr("ส่งออกรายการบุคคล", "Export person list"),
+  "di.reports.personsCsvBody": tr(
+    "ส่งออกบุคคลที่มีสถานะใช้งานในระบบ คอลัมน์เป็นชื่อที่แสดง สถานะ จำนวนคดี และวันที่สร้าง — ไม่รวมเลขประจำตัวหรือเบอร์โทร",
+    "Exports active persons. Columns are display name, status, case count, and created date — not national IDs or phone numbers."
+  ),
+  "di.reports.personsCsvScopeLabel": tr("ขอบเขตที่จะส่งออก", "Export scope"),
+  "di.reports.personsCsvScopeAllActive": tr(
+    "บุคคลที่มีสถานะใช้งานในระบบทั้งหมด ไม่ใช่ผลการค้นหาหน้าบุคคล",
+    "All active persons in the system. This is not the current person-search result set."
+  ),
+  "di.reports.personsCsvScopeQuery": tr(
+    "บุคคลที่มีสถานะใช้งานและตรงกับข้อความที่กรอกในช่องนี้เท่านั้น",
+    "Active persons matching only the text entered in this box."
+  ),
+  "di.reports.personsCsvQueryLabel": tr("จำกัดด้วยข้อความค้นหา (ไม่บังคับ)", "Optional name text filter"),
+  "di.reports.personsCsvQueryPlaceholder": tr("เว้นว่างเพื่อส่งออกบุคคลที่ใช้งานทั้งหมด", "Leave blank to export all active persons"),
+  "di.reports.openPersonsCsv": tr("ดูตัวอย่างแล้วดาวน์โหลด", "Preview and download"),
+  "di.reports.historyEmpty": tr("ยังไม่มีประวัติการสร้างรายงานหรือส่งออกข้อมูล", "No reports or exports have been generated yet."),
+  "di.reports.recordCount": tr("{count} รายการ", "{count} records"),
+  "di.reports.kindCommander": tr("รายงานผู้บังคับบัญชา", "Commander report"),
+  "di.reports.kindCase": tr("รายงานข้อมูลคดี", "Case information report"),
+  "di.reports.kindPerson": tr("รายงานข้อมูลบุคคล", "Person information report"),
+  "di.reports.kindBoard": tr("รายงานผังการสืบสวน", "Investigation board report"),
+  "di.reports.kindWorkspace": tr("รายงานผังการสืบสวน", "Investigation board report"),
+  "di.reports.kindCasesCsv": tr("ส่งออกรายการคดี", "Case list export"),
+  "di.reports.kindPersonsCsv": tr("ส่งออกรายการบุคคล", "Person list export"),
+  "di.reports.kindOther": tr("รายงาน", "Report"),
+  "di.reports.formatPrint": tr("รายงานสำหรับพิมพ์", "Printable report"),
+  "di.reports.formatCsv": tr("ไฟล์ CSV", "CSV file"),
+  "di.reports.formatOther": tr("ไฟล์", "File"),
+  "di.reports.mapTitle": tr("รายงานพื้นที่และภูมิศาสตร์", "Geographic area report"),
+  "di.reports.alertsTitle": tr("รายงานสัญญาณข่าวกรอง", "Intelligence signal report"),
+  "di.reports.notReady": tr("ยังไม่พร้อมใช้งาน", "Not available yet"),
+
   "di.list.title": tr("คดียาเสพติด", "Drug Cases"),
   "di.list.newCase": tr("บันทึกคดีใหม่", "New Case"),
   "di.list.searchPlaceholder": tr("ค้นหาเลขคดี / ชื่อบุคคล / เบอร์โทร", "Search case number / person name / phone number"),

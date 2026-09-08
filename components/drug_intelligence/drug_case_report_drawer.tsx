@@ -23,6 +23,7 @@ export function DrugCaseReportDrawer({
   vehicleCount,
   seizedCount,
   unitCount,
+  onGenerated,
 }: {
   open: boolean;
   onClose: () => void;
@@ -35,6 +36,7 @@ export function DrugCaseReportDrawer({
   vehicleCount: number;
   seizedCount: number;
   unitCount: number;
+  onGenerated?: () => void;
 }) {
   const { user, can } = useAuth();
   const { t, language } = useT();
@@ -104,6 +106,7 @@ export function DrugCaseReportDrawer({
         preview,
         error: null,
       });
+      onGenerated?.();
     } catch (err) {
       setResult({
         key: previewKey,

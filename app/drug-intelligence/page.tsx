@@ -10,7 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-import { FileText, Users, Phone, Smartphone, Car, Plus, List, ScanSearch, Search } from "lucide-react";
+import { FileText, Users, Phone, Smartphone, Car, Plus, List, ScanSearch, Search, FolderDown } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -90,6 +90,14 @@ export default function DrugIntelligenceLandingPage() {
               {t("di.landing.viewAllCases")}
             </Link>
           </Button>
+          {can("drug.export") ? (
+            <Button asChild variant="outline" data-testid="landing-reports-link">
+              <Link href="/drug-intelligence/reports">
+                <FolderDown className="h-4 w-4" aria-hidden="true" />
+                {t("di.reports.title")}
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

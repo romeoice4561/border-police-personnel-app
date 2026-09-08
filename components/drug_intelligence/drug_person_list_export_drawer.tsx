@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
-import { caseListFiltersToExportContext, type CaseListExportFilters } from "@/lib/drug_intelligence/drug_export_case_list_context";
+import {
+  personsListFiltersToExportContext,
+  type PersonsListExportFilters,
+} from "@/lib/drug_intelligence/drug_export_persons_list_context";
 import { drugIntelligenceClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { DrugExportPreviewV1 } from "@/lib/drug_intelligence/drug_export_types";
 import { ApiClientError } from "@/lib/ui/api_client";
@@ -24,7 +27,7 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function DrugCaseListExportDrawer({
+export function DrugPersonListExportDrawer({
   open,
   onClose,
   filters,
@@ -32,7 +35,7 @@ export function DrugCaseListExportDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  filters: CaseListExportFilters;
+  filters: PersonsListExportFilters;
   onGenerated?: () => void;
 }) {
   const { user, can } = useAuth();
@@ -46,6 +49,7 @@ export function DrugCaseListExportDrawer({
   const error = result?.key === previewKey ? result.error : null;
   const previewBusy = open && Boolean(user) && result?.key !== previewKey;
   const busy = previewBusy || downloadBusy;
+  const hasQuery = Boolean(filters.searchQuery?.trim());
 
   useEffect(() => {
     if (!open || !user) return;
@@ -54,10 +58,10 @@ export function DrugCaseListExportDrawer({
     drugIntelligenceClient
       .previewExport({
         actorId: user.id,
-        exportType: "OPERATIONAL_CASES",
+        exportType: "OPERATIONAL_PERSONS",
         format: "CSV",
         masking: canFull ? masking : "MASKED",
-        context: caseListFiltersToExportContext(filters, language),
+        context: personsListFiltersToExportContext(filters, language),
       })
       .then((data) => {
         if (!cancelled) setResult({ key, preview: data, error: null });
@@ -80,14 +84,14 @@ export function DrugCaseListExportDrawer({
     if (!user) return;
     setDownloadBusy(true);
     try {
-      const result = await drugIntelligenceClient.downloadExport({
+      const downloaded = await drugIntelligenceClient.downloadExport({
         actorId: user.id,
-        exportType: "OPERATIONAL_CASES",
+        exportType: "OPERATIONAL_PERSONS",
         format: "CSV",
         masking: canFull ? masking : "MASKED",
-        context: caseListFiltersToExportContext(filters, language),
+        context: personsListFiltersToExportContext(filters, language),
       });
-      triggerDownload(result.blob, result.filename);
+      triggerDownload(downloaded.blob, downloaded.filename);
       onGenerated?.();
     } catch (err) {
       setResult({
@@ -100,29 +104,23 @@ export function DrugCaseListExportDrawer({
     }
   }
 
-  const filterBits = [
-    filters.query,
-    filters.arrestDateFrom && filters.arrestDateTo ? `${filters.arrestDateFrom} – ${filters.arrestDateTo}` : "",
-    filters.fiscalYearBe ? `FY ${filters.fiscalYearBe}` : "",
-    filters.province,
-    filters.status,
-    filters.completeness,
-  ].filter(Boolean);
-
   return (
-    <Drawer open={open} onClose={onClose} titleId="drug-case-export-title" title={t("di.export.title")}>
-      <div className="space-y-4 px-5 py-4">
+    <Drawer open={open} onClose={onClose} titleId="drug-person-export-title" title={t("di.reports.personsCsvTitle")}>
+      <div className="min-w-0 space-y-4 overflow-x-hidden px-5 py-4">
         <div>
-          <p className="text-xs font-medium text-muted">{t("di.export.currentFilters")}</p>
-          <p className="mt-1 text-sm text-foreground">{filterBits.length > 0 ? filterBits.join(" · ") : t("di.export.none")}</p>
+          <p className="text-xs font-medium text-muted">{t("di.reports.personsCsvScopeLabel")}</p>
+          <p className="mt-1 text-sm text-foreground">
+            {hasQuery ? t("di.reports.personsCsvScopeQuery") : t("di.reports.personsCsvScopeAllActive")}
+          </p>
+          {hasQuery ? <p className="mt-1 text-sm text-muted">{filters.searchQuery}</p> : null}
         </div>
         {canFull ? (
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted" htmlFor="case-export-masking">
+            <label className="mb-1.5 block text-xs font-medium text-muted" htmlFor="person-export-masking">
               {t("di.export.maskingMode")}
             </label>
             <Select
-              id="case-export-masking"
+              id="person-export-masking"
               value={masking}
               onChange={(e) => setMasking(e.target.value === "FULL" ? "FULL" : "MASKED")}
               options={[
@@ -149,7 +147,7 @@ export function DrugCaseListExportDrawer({
           </p>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" onClick={download} disabled={busy || !preview?.implemented}>
+          <Button type="button" size="sm" onClick={download} disabled={busy || !preview?.implemented} data-testid="persons-csv-download">
             <Download className="h-4 w-4" aria-hidden="true" />
             {t("di.export.downloadCsv")}
           </Button>

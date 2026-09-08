@@ -11,7 +11,13 @@
  */
 
 import { ApiClientError } from "@/lib/ui/api_client";
+import type { DrugExportHistoryItem } from "@/lib/drug_intelligence/drug_export_history";
 import type { DrugExportPreviewV1 } from "@/lib/drug_intelligence/drug_export_types";
+
+export type { DrugExportHistoryItem };
+export interface DrugExportHistoryResponse {
+  items: DrugExportHistoryItem[];
+}
 
 interface PageMeta {
   page: number;
@@ -1571,6 +1577,12 @@ export const drugIntelligenceClient = {
     return (await request<{ images: DrugInvestigationBoardImageAccess[] }>(
       `/drug-intelligence/board-images${toQueryString({ actorId, boardId, ids })}`
     )).data.images;
+  },
+
+  async listExportHistory(actorId: string, take?: number): Promise<DrugExportHistoryResponse> {
+    return (
+      await request<DrugExportHistoryResponse>(`/drug-intelligence/exports/history${toQueryString({ actorId, take })}`)
+    ).data;
   },
 
   async previewExport(body: Record<string, unknown>): Promise<DrugExportPreviewV1> {

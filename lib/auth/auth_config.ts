@@ -121,6 +121,8 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Perm
    * yet since no /drug-intelligence page exists in Round 1.
    */
   { prefix: "/drug-intelligence", permission: "drug.read" },
+  /** DI-10E.4: Reporting Center requires export, not browse-only. Longest prefix wins. */
+  { prefix: "/drug-intelligence/reports", permission: "drug.export" },
 ];
 
 /** True when `pathname` is public (no auth required). */

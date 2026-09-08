@@ -21,6 +21,7 @@ export function DrugPersonReportDrawer({
   simCount,
   deviceCount,
   vehicleCount,
+  onGenerated,
 }: {
   open: boolean;
   onClose: () => void;
@@ -31,6 +32,7 @@ export function DrugPersonReportDrawer({
   simCount: number;
   deviceCount: number;
   vehicleCount: number;
+  onGenerated?: () => void;
 }) {
   const { user, can } = useAuth();
   const { t, language } = useT();
@@ -100,6 +102,7 @@ export function DrugPersonReportDrawer({
         preview,
         error: null,
       });
+      onGenerated?.();
     } catch (err) {
       setResult({
         key: previewKey,

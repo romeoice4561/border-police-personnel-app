@@ -115,6 +115,7 @@ test("Phase DI-1: /drug-intelligence route requires drug.read (registered in ROU
   assert.equal(requiredPermissionForRoute("/drug-intelligence"), "drug.read");
   assert.equal(requiredPermissionForRoute("/drug-intelligence/cases"), "drug.read");
   assert.equal(requiredPermissionForRoute("/drug-intelligence/command"), "drug.read");
+  assert.equal(requiredPermissionForRoute("/drug-intelligence/reports"), "drug.export");
 });
 
 test("route protection map: /login is public; each route maps to the right capability; officers-detail is auth-only", () => {

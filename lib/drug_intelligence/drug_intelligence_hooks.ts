@@ -52,6 +52,7 @@ import {
   type DrugInvestigationBoardSummary,
   type DrugInvestigationBoardDetail,
   type DrugInvestigationBoardStateClient,
+  type DrugExportHistoryResponse,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugGeoResultView } from "@/lib/drug_intelligence/drug_geo_client";
 
@@ -100,6 +101,7 @@ export const drugQueryKeys = {
   advancedPersonSearch: (actorId: string | null, query: DrugPersonAdvancedSearchQuery) => ["drug-advanced-person-search", actorId, query] as const,
   // DI-8
   geo: (actorId: string | null, query: DrugGeoQueryParams) => ["drug-geo", actorId, query] as const,
+  exportHistory: (actorId: string | null) => ["drug-export-history", actorId] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -588,5 +590,13 @@ export function useDrugGeoResult(actorId: string | null, query: DrugGeoQueryPara
     queryFn: () => fetchDrugGeoResult(actorId as string, query),
     enabled: Boolean(actorId),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useDrugExportHistory(actorId: string | null): UseQueryResult<DrugExportHistoryResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.exportHistory(actorId),
+    queryFn: () => drugIntelligenceClient.listExportHistory(actorId as string),
+    enabled: Boolean(actorId),
   });
 }
