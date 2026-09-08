@@ -360,6 +360,46 @@ test("DI-10E.2 person intelligence report keys exist for both languages", () => 
   }
 });
 
+test("DI-10E.3 case intelligence report keys exist for both languages", () => {
+  const required: TranslationKey[] = [
+    "di.export.caseReportTitle",
+    "di.export.caseReportEnglishTitle",
+    "di.export.sectionCaseCounts",
+    "di.export.sectionParticipatingUnits",
+    "di.export.sectionArrestTeam",
+    "di.export.sectionCaseSignals",
+    "di.export.sectionCaseTimeline",
+    "di.export.sectionCaseMethodology",
+    "di.export.caseScope",
+    "di.export.caseMaskingNotice",
+    "di.export.caseKpiPeople",
+    "di.export.caseKpiPhones",
+    "di.export.caseKpiSims",
+    "di.export.caseKpiDevices",
+    "di.export.caseKpiVehicles",
+    "di.export.caseKpiSeizures",
+    "di.export.caseKpiUnits",
+    "di.export.caseKpiSignals",
+    "di.export.casePersonCount",
+    "di.export.caseMethodSource",
+    "di.export.caseMethodNoGuilt",
+    "di.export.caseMethodNoCollab",
+    "di.export.caseGeoNotResidence",
+    "di.export.caseOfficerName",
+    "di.export.caseOfficerUnit",
+    "di.export.printReport",
+    "di.export.close",
+    "di.export.printPopupBlocked",
+  ];
+  for (const key of required) {
+    assert.ok(DICTIONARY[key], `missing key ${key}`);
+    assert.ok(translate(key, "th").length > 0, `${key} TH missing`);
+    assert.ok(translate(key, "en").length > 0, `${key} EN missing`);
+    assert.notEqual(translate(key, "th"), key);
+    assert.notEqual(translate(key, "en"), key);
+  }
+});
+
 test("Executive Report Center title is Thai-first", () => {
   assert.equal(translate("reports.title", "th"), "ศูนย์รายงานผู้บริหาร");
   assert.equal(translate("reports.title", "en"), "Executive Report Center");

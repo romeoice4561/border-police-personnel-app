@@ -12,9 +12,12 @@ import { DrugCaseRepository } from "@/lib/database/repositories/drug_case_reposi
 import { DrugPersonRepository } from "@/lib/database/repositories/drug_person_repository";
 import { filterCasesByCompleteness } from "@/lib/drug_intelligence/drug_case_completeness";
 import {
+  CASE_REPORT_SECTION_KEYS,
   buildDrugCaseReportV1,
+  caseReportRecordCount,
   DrugExportCaseNotFoundError,
   DrugExportInvalidCaseError,
+  DrugExportTooManyCaseRowsError,
   renderDrugCaseReportHtml,
 } from "@/lib/drug_intelligence/drug_case_report";
 import {
@@ -50,6 +53,7 @@ import { parseExportIsoEnd, parseExportIsoStart, resolveExportPeriod } from "@/l
 import { assertExportColumnsAllowed, columnsForPreset } from "@/lib/drug_intelligence/drug_export_presets";
 import {
   BOARD_REPORT_SECTIONS,
+  CASE_REPORT_SECTIONS,
   COMMANDER_REPORT_SECTIONS,
   OPERATIONAL_CASES_COLUMNS,
   OPERATIONAL_PERSONS_COLUMNS,
@@ -101,6 +105,7 @@ export {
   DrugExportInvalidWorkspaceError,
   DrugExportPersonNotFoundError,
   DrugExportTooManyBoardRowsError,
+  DrugExportTooManyCaseRowsError,
   DrugExportTooManyPersonRowsError,
 };
 
@@ -158,6 +163,12 @@ function columnMeta(
     return PERSON_REPORT_SECTIONS.map((key) => ({
       key,
       label: translate(PERSON_REPORT_SECTION_KEYS[key], locale),
+    }));
+  }
+  if (exportType === "CASE_REPORT") {
+    return CASE_REPORT_SECTIONS.map((key) => ({
+      key,
+      label: translate(CASE_REPORT_SECTION_KEYS[key], locale),
     }));
   }
   if (exportType === "NETWORK_DATA" || exportType === "BOARD_DATA") {
@@ -246,10 +257,14 @@ export class DrugExportService {
       estimatedRecordCount = await this.countOperationalPersons(input.context);
     } else if (input.exportType === "CASE_REPORT") {
       if (!input.context.case?.caseId) throw new DrugExportInvalidCaseError();
-      const repo = new DrugCaseRepository(this.db);
-      const found = await repo.findById(input.context.case.caseId);
-      if (!found) throw new DrugExportCaseNotFoundError();
-      estimatedRecordCount = 1;
+      const report = await buildDrugCaseReportV1(this.db, {
+        caseId: input.context.case.caseId,
+        locale: input.context.locale,
+        generatedAt: input.context.generatedAt,
+        generatedBy: "",
+        maskingMode: input.maskingMode,
+      });
+      estimatedRecordCount = caseReportRecordCount(report);
     } else if (input.exportType === "COMMANDER_REPORT") {
       const filter = resolveCommanderDashboardScope({ id: input.context.actorId }, exportContextToCommanderFilter(input.context));
       const overview = await new DrugCommanderDashboardService(this.db).getOverview(filter);
@@ -342,7 +357,7 @@ export class DrugExportService {
         ext: "html",
         now,
       });
-      recordCount = 1;
+      recordCount = caseReportRecordCount(report);
     } else if (input.exportType === "COMMANDER_REPORT") {
       const report = await buildDrugCommanderReportV1(this.db, {
         context: input.context,

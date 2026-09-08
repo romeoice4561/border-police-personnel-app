@@ -75,14 +75,20 @@ export const OPERATIONAL_PERSONS_COLUMNS = [
 export type OperationalPersonsColumnKey = (typeof OPERATIONAL_PERSONS_COLUMNS)[number]["key"];
 
 export const CASE_REPORT_SECTIONS = [
+  "summary",
   "case",
+  "units",
+  "officers",
   "people",
   "phones",
   "sims",
   "devices",
   "vehicles",
-  "locations",
   "seizures",
+  "locations",
+  "signals",
+  "timeline",
+  "methodology",
 ] as const;
 export type CaseReportSectionKey = (typeof CASE_REPORT_SECTIONS)[number];
 

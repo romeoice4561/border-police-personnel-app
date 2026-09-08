@@ -140,7 +140,7 @@ export default function DrugCaseWorkspacePage() {
               </Button>
             ) : null}
             {can("drug.export") ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)} data-testid="case-report-btn">
                 <FileText className="h-4 w-4" aria-hidden="true" />
                 {t("di.export.caseReport")}
               </Button>
@@ -204,7 +204,19 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "notes" ? <NotesTab data={data} /> : null}
 
       <DrugPersonDrawer personId={selectedPersonId} roleInCase={selectedPersonRole} onClose={() => setSelectedPersonId("")} />
-      <DrugCaseReportDrawer open={reportOpen} onClose={() => setReportOpen(false)} caseId={caseId} caseNumber={data.case.caseNumber} />
+      <DrugCaseReportDrawer
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        caseId={caseId}
+        caseNumber={data.case.caseNumber}
+        personCount={data.personCount}
+        phoneCount={data.phoneCount}
+        simCount={data.simCount}
+        deviceCount={data.deviceCount}
+        vehicleCount={data.vehicleCount}
+        seizedCount={data.seizedItemCount}
+        unitCount={data.participatingUnits.length}
+      />
     </div>
   );
 }

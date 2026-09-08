@@ -25,6 +25,7 @@ import {
   DrugExportPersonNotFoundError,
   DrugExportService,
   DrugExportTooManyBoardRowsError,
+  DrugExportTooManyCaseRowsError,
   DrugExportTooManyPersonRowsError,
   DrugExportTooManyRowsError,
 } from "@/lib/drug_intelligence/drug_export_service";
@@ -108,7 +109,7 @@ export async function handleDrugExportCreate(service: DrugExportService, request
     if (error instanceof DrugExportInvalidFormatError) {
       return jsonError("INVALID_FORMAT", translate("di.export.invalidFormat", locale), 400);
     }
-    if (error instanceof DrugExportTooManyRowsError || error instanceof DrugExportTooManyBoardRowsError || error instanceof DrugExportTooManyPersonRowsError) {
+    if (error instanceof DrugExportTooManyRowsError || error instanceof DrugExportTooManyBoardRowsError || error instanceof DrugExportTooManyPersonRowsError || error instanceof DrugExportTooManyCaseRowsError) {
       return jsonError("TOO_MANY_ROWS", translate("di.export.tooManyRows", locale), 400);
     }
     if (error instanceof DrugExportNotImplementedError) {

@@ -16,11 +16,25 @@ export function DrugCaseReportDrawer({
   onClose,
   caseId,
   caseNumber,
+  personCount,
+  phoneCount,
+  simCount,
+  deviceCount,
+  vehicleCount,
+  seizedCount,
+  unitCount,
 }: {
   open: boolean;
   onClose: () => void;
   caseId: string;
   caseNumber: string;
+  personCount: number;
+  phoneCount: number;
+  simCount: number;
+  deviceCount: number;
+  vehicleCount: number;
+  seizedCount: number;
+  unitCount: number;
 }) {
   const { user, can } = useAuth();
   const { t, language } = useT();
@@ -103,9 +117,34 @@ export function DrugCaseReportDrawer({
 
   return (
     <Drawer open={open} onClose={onClose} titleId="drug-case-report-title" title={t("di.export.caseReport")}>
-      <div className="space-y-4 px-5 py-4">
+      <div className="min-w-0 space-y-4 overflow-x-hidden px-5 py-4">
         <p className="text-sm text-foreground">{caseNumber}</p>
-        <p className="text-sm text-muted">{t("di.export.sections")}: {t("di.export.sectionCase")}, {t("di.export.sectionPeople")}, {t("di.export.sectionPhones")}, {t("di.export.sectionSeizures")}</p>
+        <p className="text-sm text-muted">{t("di.export.caseScope")}</p>
+        <p className="text-sm text-foreground">
+          {t("di.export.casePersonCount")}: <span className="font-medium">{personCount}</span>
+        </p>
+        <p className="text-sm text-foreground">
+          {t("di.export.casePhoneCount")}: <span className="font-medium">{phoneCount}</span>
+        </p>
+        <p className="text-sm text-foreground">
+          {t("di.export.caseSimCount")}: <span className="font-medium">{simCount}</span>
+        </p>
+        <p className="text-sm text-foreground">
+          {t("di.export.caseDeviceCount")}: <span className="font-medium">{deviceCount}</span>
+        </p>
+        <p className="text-sm text-foreground">
+          {t("di.export.caseVehicleCount")}: <span className="font-medium">{vehicleCount}</span>
+        </p>
+        <p className="text-sm text-foreground">
+          {t("di.export.caseSeizureCount")}: <span className="font-medium">{seizedCount}</span>
+        </p>
+        <p className="text-sm text-foreground">
+          {t("di.export.caseUnitCount")}: <span className="font-medium">{unitCount}</span>
+        </p>
+        <p className="text-sm text-muted">{t("di.export.caseMaskingNotice")}</p>
+        {preview && preview.estimatedRecordCount != null && preview.estimatedRecordCount > preview.softLimit ? (
+          <p className="text-sm text-muted">{t("di.export.softLimitWarning")}</p>
+        ) : null}
         {canFull ? (
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted" htmlFor="case-report-masking">
@@ -135,11 +174,18 @@ export function DrugCaseReportDrawer({
           </p>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" onClick={generate} disabled={busy || !preview?.implemented}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={generate}
+            disabled={busy || !preview?.implemented}
+            aria-label={t("di.export.printReport")}
+            data-testid="case-report-print-btn"
+          >
             <FileText className="h-4 w-4" aria-hidden="true" />
             {t("di.export.printReport")}
           </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+          <Button type="button" size="sm" variant="ghost" onClick={onClose} data-testid="case-report-close-btn">
             {t("di.export.close")}
           </Button>
         </div>

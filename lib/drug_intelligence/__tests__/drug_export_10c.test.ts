@@ -326,7 +326,7 @@ test("CASE_REPORT HTML escapes injection and masks commander identifiers", async
   const fullHtml = new TextDecoder().decode(await adminFull.arrayBuffer());
   assert.match(fullHtml, /1103700123456/);
   assert.match(fullHtml, /20\.43/);
-  assert.match(fullHtml, /Drug case report/);
+  assert.match(fullHtml, /CASE INTELLIGENCE REPORT/);
   const audits = await db.drugAuditLog.findMany({ where: { action: DRUG_EXPORT_AUDIT_ACTION } });
   assert.equal(audits.length, 2);
   for (const row of audits) {
