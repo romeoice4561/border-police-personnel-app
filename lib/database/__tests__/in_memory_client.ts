@@ -101,13 +101,24 @@ function applyDefaults(data: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-/** Optional Prisma `some` relation lookup for in-memory fakes (DI-10E.5B.1). */
+/**
+ * Optional Prisma relation lookup for in-memory fakes.
+ * - `foreignKey`: to-many `some` (child.FK = this.id) — DI-10E.5B.1
+ * - `localKey`: to-one nested where (this.FK = related.id) — DI-10E.6A
+ * - `relations`: nested relation map used when matching child `some` rows
+ */
 interface InMemoryRelationFilter {
   table: Table;
-  foreignKey: string;
+  foreignKey?: string;
+  localKey?: string;
+  relations?: Record<string, InMemoryRelationFilter>;
 }
 
-/** DI-9.4.3B: Prisma-ish where matching for in-memory fakes (equals, in, contains, OR/AND, some). */
+function isPlainFilterObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date);
+}
+
+/** DI-9.4.3B / DI-10E.6A: Prisma-ish where matching (equals, in, contains, not, OR/AND, some, to-one). */
 function rowMatchesWhere(row: Row, where: Record<string, unknown>, relations?: Record<string, InMemoryRelationFilter>): boolean {
   if (Array.isArray(where.OR)) {
     return (where.OR as Record<string, unknown>[]).some((clause) => rowMatchesWhere(row, clause, relations));
@@ -117,16 +128,13 @@ function rowMatchesWhere(row: Row, where: Record<string, unknown>, relations?: R
   }
   return Object.entries(where).every(([k, v]) => {
     if (k === "OR" || k === "AND") return true;
-    if (v !== null && typeof v === "object" && !Array.isArray(v) && !(v instanceof Date)) {
-      const ops = v as Record<string, unknown>;
+    if (isPlainFilterObject(v)) {
+      const ops = v;
       if ("some" in ops) {
         const rel = relations?.[k];
-        if (!rel) return false;
-        const nested =
-          ops.some !== null && typeof ops.some === "object" && !Array.isArray(ops.some) && !(ops.some instanceof Date)
-            ? (ops.some as Record<string, unknown>)
-            : {};
-        return rel.table.findMany({ ...nested, [rel.foreignKey]: row.id }).length > 0;
+        if (!rel?.foreignKey) return false;
+        const nested = isPlainFilterObject(ops.some) ? ops.some : {};
+        return rel.table.findMany({ ...nested, [rel.foreignKey]: row.id }, rel.relations).length > 0;
       }
       if ("in" in ops) {
         const list = ops.in as unknown[];
@@ -139,6 +147,10 @@ function rowMatchesWhere(row: Row, where: Record<string, unknown>, relations?: R
         return hay.includes(needle);
       }
       if ("equals" in ops) return row[k] === ops.equals;
+      if ("not" in ops) {
+        if (ops.not === null) return row[k] !== null && row[k] !== undefined;
+        return row[k] !== ops.not;
+      }
       if ("gt" in ops || "gte" in ops || "lt" in ops || "lte" in ops) {
         const rv = row[k] as number | Date;
         if ("gt" in ops && !(rv > (ops.gt as typeof rv))) return false;
@@ -147,10 +159,37 @@ function rowMatchesWhere(row: Row, where: Record<string, unknown>, relations?: R
         if ("lte" in ops && !(rv <= (ops.lte as typeof rv))) return false;
         return true;
       }
+      const toOne = relations?.[k];
+      if (toOne?.localKey) {
+        const relatedId = row[toOne.localKey];
+        if (relatedId == null) return false;
+        const related = toOne.table.find({ id: relatedId });
+        if (!related) return false;
+        return rowMatchesWhere(related, ops, toOne.relations);
+      }
       // Nested composite unique object — fall through to equality on nested keys not used for findMany filters.
     }
     return row[k] === v;
   });
+}
+
+function comparableOrderValue(value: unknown): number | string | Date | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value.getTime();
+  return value as number | string | Date;
+}
+
+function compareOrderValues(av: unknown, bv: unknown, dir: "asc" | "desc", nulls?: "first" | "last"): number {
+  const a = comparableOrderValue(av);
+  const b = comparableOrderValue(bv);
+  const aNull = a === null;
+  const bNull = b === null;
+  if (aNull && bNull) return 0;
+  if (aNull) return (nulls ?? "first") === "first" ? -1 : 1;
+  if (bNull) return (nulls ?? "first") === "first" ? 1 : -1;
+  if (a === b) return 0;
+  const cmp = a > b ? 1 : -1;
+  return dir === "asc" ? cmp : -cmp;
 }
 
 /** Builds a delegate object over a Table matching the ModelDelegate contract. */
@@ -161,7 +200,7 @@ function delegate(table: Table, relations?: Record<string, InMemoryRelationFilte
     },
     async findMany(args?: {
       where?: Record<string, unknown>;
-      orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">>;
+      orderBy?: Record<string, "asc" | "desc" | { sort: "asc" | "desc"; nulls?: "first" | "last" }> | Array<Record<string, "asc" | "desc" | { sort: "asc" | "desc"; nulls?: "first" | "last" }>>;
       skip?: number;
       take?: number;
       select?: Record<string, boolean>;
@@ -172,12 +211,11 @@ function delegate(table: Table, relations?: Record<string, InMemoryRelationFilte
       if (orderByList.length > 0) {
         rows.sort((a, b) => {
           for (const orderBy of orderByList) {
-            const [field, dir] = Object.entries(orderBy)[0];
-            const av = a[field] as unknown as number | string | Date;
-            const bv = b[field] as unknown as number | string | Date;
-            if (av === bv) continue;
-            const cmp = av > bv ? 1 : -1;
-            return dir === "asc" ? cmp : -cmp;
+            const [field, spec] = Object.entries(orderBy)[0];
+            const dir = typeof spec === "string" ? spec : spec.sort;
+            const nulls = typeof spec === "string" ? undefined : spec.nulls;
+            const cmp = compareOrderValues(a[field], b[field], dir, nulls);
+            if (cmp !== 0) return cmp;
           }
           return 0;
         });
@@ -194,6 +232,25 @@ function delegate(table: Table, relations?: Record<string, InMemoryRelationFilte
         });
       }
       return rows;
+    },
+    async groupBy(args: { by: string[]; where?: Record<string, unknown>; _count?: true | { _all: true } }) {
+      const rows = table.findMany(args.where, relations);
+      const groups = new Map<string, { values: Record<string, unknown>; count: number }>();
+      for (const row of rows) {
+        const key = args.by.map((field) => JSON.stringify(row[field] ?? null)).join("\u0001");
+        const existing = groups.get(key);
+        if (existing) {
+          existing.count += 1;
+          continue;
+        }
+        const values: Record<string, unknown> = {};
+        for (const field of args.by) values[field] = row[field] ?? null;
+        groups.set(key, { values, count: 1 });
+      }
+      return [...groups.values()].map((group) => ({
+        ...group.values,
+        _count: { _all: group.count },
+      }));
     },
     async create(args: { data: Record<string, unknown> }) {
       return table.create(args.data);
@@ -394,6 +451,13 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     return delegate(this.drugCases, {
       seizedItems: { table: this.drugSeizedItems, foreignKey: "caseId" },
       persons: { table: this.drugCasePersons, foreignKey: "caseId" },
+      locations: {
+        table: this.drugCaseLocations,
+        foreignKey: "caseId",
+        relations: {
+          location: { table: this.drugLocations, localKey: "locationId" },
+        },
+      },
     }) as unknown as DatabaseClient["drugCase"];
   }
   get drugPerson() {
@@ -442,7 +506,17 @@ export class InMemoryDatabaseClient implements DatabaseClient {
     return delegate(this.drugLocations) as unknown as DatabaseClient["drugLocation"];
   }
   get drugCaseLocation() {
-    return delegate(this.drugCaseLocations) as unknown as DatabaseClient["drugCaseLocation"];
+    return delegate(this.drugCaseLocations, {
+      location: { table: this.drugLocations, localKey: "locationId" },
+      case: {
+        table: this.drugCases,
+        localKey: "caseId",
+        relations: {
+          seizedItems: { table: this.drugSeizedItems, foreignKey: "caseId" },
+          persons: { table: this.drugCasePersons, foreignKey: "caseId" },
+        },
+      },
+    }) as unknown as DatabaseClient["drugCaseLocation"];
   }
   get drugSeizedItem() {
     return delegate(this.drugSeizedItems) as unknown as DatabaseClient["drugSeizedItem"];

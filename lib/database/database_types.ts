@@ -85,12 +85,15 @@ export type {
   DrugInvestigationBoardImage,
 };
 
+/** Prisma `orderBy` direction, including `{ sort, nulls }` used by Map V2. */
+export type PrismaOrderDirection = "asc" | "desc" | { sort: "asc" | "desc"; nulls?: "first" | "last" };
+
 /** Generic Prisma-style delegate for a model, limited to the calls we make. */
 export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
   findUnique(args: { where: TWhereUnique }): Promise<TRow | null>;
   findMany(args?: {
     where?: Record<string, unknown>;
-    orderBy?: Record<string, "asc" | "desc"> | Array<Record<string, "asc" | "desc">>;
+    orderBy?: Record<string, PrismaOrderDirection> | Array<Record<string, PrismaOrderDirection>>;
     /** DI-9.4.3B: Prisma-native pagination (skip/take). Optional for backward compatibility. */
     skip?: number;
     take?: number;
@@ -103,6 +106,16 @@ export interface ModelDelegate<TRow, TCreate, TUpdate, TWhereUnique> {
   deleteMany(args?: { where?: Record<string, unknown> }): Promise<{ count: number }>;
   updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
   count(args?: { where?: Record<string, unknown> }): Promise<number>;
+  /**
+   * DI-10E.6A: Prisma `groupBy` for bounded aggregates (province buckets).
+   * Optional on the type so older fakes keep compiling; production Prisma
+   * and the in-memory client used by Map V2 implement it.
+   */
+  groupBy?(args: {
+    by: string[];
+    where?: Record<string, unknown>;
+    _count?: true | { _all: true };
+  }): Promise<Array<Record<string, unknown>>>;
 }
 
 /** The delegates the repositories operate through. Structurally satisfied by PrismaClient and by test fakes. */
