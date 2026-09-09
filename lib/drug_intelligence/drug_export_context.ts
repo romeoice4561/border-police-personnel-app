@@ -56,6 +56,14 @@ export const drugExportContextV1InputSchema = z
         companyId: z.number().int().positive().optional(),
       })
       .optional(),
+    leadOrganization: z
+      .object({
+        hqId: z.number().int().positive().optional(),
+        regionId: z.number().int().positive().optional(),
+        battalionId: z.number().int().positive().optional(),
+        companyId: z.number().int().positive().optional(),
+      })
+      .optional(),
     geo: z
       .object({
         province: z.string().trim().max(80).optional(),
@@ -189,6 +197,10 @@ export function summarizeExportContext(context: ResolvedDrugExportContextV1): Re
     regionId: context.organization?.regionId ?? null,
     battalionId: context.organization?.battalionId ?? null,
     companyId: context.organization?.companyId ?? null,
+    leadHqId: context.leadOrganization?.hqId ?? null,
+    leadRegionId: context.leadOrganization?.regionId ?? null,
+    leadBattalionId: context.leadOrganization?.battalionId ?? null,
+    leadCompanyId: context.leadOrganization?.companyId ?? null,
     province: context.geo?.province ?? null,
     district: context.geo?.district ?? null,
     status: context.geo?.status ?? null,

@@ -22,6 +22,7 @@ import {
 } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import type { DrugExportHistoryItem, DrugExportHistoryReportKind, DrugExportHistoryFormatKind } from "@/lib/drug_intelligence/drug_export_history";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
+import { withReturnTo } from "@/lib/ui/return_context";
 
 const PICKER_PAGE_SIZE = 8;
 
@@ -33,6 +34,7 @@ const REPORT_KIND_KEY: Record<DrugExportHistoryReportKind, TranslationKey> = {
   workspace: "di.reports.kindWorkspace",
   cases_csv: "di.reports.kindCasesCsv",
   persons_csv: "di.reports.kindPersonsCsv",
+  map: "di.reports.kindMap",
   other: "di.reports.kindOther",
 };
 
@@ -298,6 +300,26 @@ export function DrugReportingCenter() {
               </Button>
             </CardBody>
           </Card>
+
+          <Card data-testid="report-card-map">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPinned className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {t("di.reports.mapTitle")}
+              </CardTitle>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              <p className="text-sm text-muted">{t("di.reports.mapBody")}</p>
+              <Button asChild size="sm">
+                <Link
+                  href={withReturnTo("/drug-intelligence/map", "/drug-intelligence/reports")}
+                  data-testid="open-map-report"
+                >
+                  {t("di.reports.openMapReport")}
+                </Link>
+              </Button>
+            </CardBody>
+          </Card>
         </div>
       </section>
 
@@ -377,17 +399,6 @@ export function DrugReportingCenter() {
           {t("di.reports.soonSection")}
         </h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Card data-testid="coming-soon-map">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPinned className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {t("di.reports.mapTitle")}
-              </CardTitle>
-            </CardHeader>
-            <CardBody>
-              <p className="text-sm text-muted">{t("di.reports.notReady")}</p>
-            </CardBody>
-          </Card>
           <Card data-testid="coming-soon-alerts">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

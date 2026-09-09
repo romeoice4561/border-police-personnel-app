@@ -1800,6 +1800,12 @@ export const DICTIONARY = {
   "di.reports.formatCsv": tr("ไฟล์ CSV", "CSV file"),
   "di.reports.formatOther": tr("ไฟล์", "File"),
   "di.reports.mapTitle": tr("รายงานพื้นที่และภูมิศาสตร์", "Geographic area report"),
+  "di.reports.mapBody": tr(
+    "สร้างรายงานข่าวกรองเชิงพื้นที่จากตัวกรองบนแผนที่วิเคราะห์",
+    "Create a geographic intelligence report from the analysis map filters"
+  ),
+  "di.reports.openMapReport": tr("ไปที่แผนที่เพื่อออกรายงาน", "Go to the map to generate the report"),
+  "di.reports.kindMap": tr("รายงานข่าวกรองเชิงพื้นที่", "Geographic intelligence report"),
   "di.reports.alertsTitle": tr("รายงานสัญญาณข่าวกรอง", "Intelligence signal report"),
   "di.reports.notReady": tr("ยังไม่พร้อมใช้งาน", "Not available yet"),
 
@@ -2962,6 +2968,101 @@ export const DICTIONARY = {
   "di.export.methodologyCountMass": tr("ของกลางชนิดนับจำนวน (COUNT) และชนิดน้ำหนัก (MASS) แยกกันเสมอ และไม่รวมเป็นตัวเลขยาเสพติดรวม", "COUNT and MASS seizure measures are kept separate and are never combined into one total-drugs figure"),
   "di.export.methodologyAttention": tr("รายการที่ควรตรวจสอบเป็นตัวชี้วัดขั้นตอนปฏิบัติงาน เช่น คิวตรวจทานหรือข้อมูลที่ยังไม่ครบ", "Attention items are workflow indicators such as review queues or incomplete records"),
   "di.export.methodologyIncomplete": tr("ข้อมูลต้นทางที่ไม่ครบถ้วนอาจทำให้ยอดรวมต่ำกว่าความเป็นจริง", "Incomplete source data may affect totals"),
+  "di.export.geographicReport": tr("รายงานพื้นที่และภูมิศาสตร์", "Geographic area report"),
+  "di.export.geographicReportTitle": tr("รายงานข่าวกรองเชิงพื้นที่ยาเสพติด", "Drug geographic intelligence report"),
+  "di.export.geographicReportEnglishTitle": tr("GEOGRAPHIC INTELLIGENCE REPORT", "GEOGRAPHIC INTELLIGENCE REPORT"),
+  "di.export.geographicReportAction": tr("รายงานพื้นที่และภูมิศาสตร์", "Geographic area report"),
+  "di.export.geoNoMatch": tr("ไม่พบคดีที่ตรงกับเงื่อนไขรายงานนี้", "No cases match this report filter."),
+  "di.export.geoTooManyRows": tr(
+    "พบข้อมูลมากเกินขีดจำกัดของรายงาน กรุณาจำกัดช่วงเวลา พื้นที่ หรือเงื่อนไขเพิ่มเติม",
+    "Too many matching cases for this report. Narrow the period, area, or other filters."
+  ),
+  "di.export.geoCoordNote": tr(
+    "คดีที่ไม่มีพิกัดยังถูกรวมในการคำนวณสรุปตามพื้นที่ แนวโน้ม และของกลาง โดยเพียงไม่สามารถแสดงเป็นตำแหน่งบนแผนที่ได้",
+    "Cases without coordinates are still included in area, trend, and seizure totals. They cannot be shown as map positions."
+  ),
+  "di.export.geoKpiTotal": tr("จำนวนคดีทั้งหมด", "Total cases"),
+  "di.export.geoKpiWithCoords": tr("ข้อมูลมีพิกัด", "Cases with coordinates"),
+  "di.export.geoKpiWithoutCoords": tr("ข้อมูลไม่มีพิกัด", "Cases without coordinates"),
+  "di.export.geoKpiProvinces": tr("จำนวนจังหวัด", "Province count"),
+  "di.export.geoKpiDistricts": tr("จำนวนอำเภอ", "District count"),
+  "di.export.geoHasCoordinates": tr("มีพิกัด", "Has coordinates"),
+  "di.export.geoNoCoordinates": tr("ไม่มีพิกัด", "No coordinates"),
+  "di.export.geoProvinceRanking": tr("จำนวนคดีที่บันทึกตามจังหวัดภายใต้ตัวกรองนี้", "Recorded cases by province under this filter"),
+  "di.export.geoDistrictRanking": tr("จำนวนคดีที่บันทึกตามอำเภอ (ตามข้อความที่บันทึก)", "Recorded cases by district (as stored)"),
+  "di.export.geoDistrictUnspecified": tr("ไม่ระบุอำเภอ", "District unspecified"),
+  "di.export.geoProvinceUnspecified": tr("ไม่ระบุจังหวัด", "Province unspecified"),
+  "di.export.geoTrendClamped": tr("แสดงแนวโน้มล่าสุดตามขีดจำกัดของรายงาน", "Showing the latest trend within the report limit"),
+  "di.export.geoCaseListTruncated": tr("รายการคดีถูกจำกัดตามขีดจำกัดของรายงาน", "The case list is truncated at the report limit"),
+  "di.export.geoNoCoordListTruncated": tr("รายการคดีที่ไม่มีพิกัดถูกจำกัดตามขีดจำกัดของรายงาน", "The no-coordinate list is truncated at the report limit"),
+  "di.export.geoProvinceTruncated": tr("การจัดอันดับจังหวัดถูกจำกัดตามขีดจำกัดของรายงาน", "Province ranking is truncated at the report limit"),
+  "di.export.geoDistrictTruncated": tr("การจัดอันดับอำเภอถูกจำกัดตามขีดจำกัดของรายงาน", "District ranking is truncated at the report limit"),
+  "di.export.geoLeadOrgScope": tr("ขอบเขตหน่วยหลักจับกุม", "Lead arrest organization scope"),
+  "di.export.geoLeadOrgAll": tr("ทุกหน่วยหลักจับกุม", "All lead arrest units"),
+  "di.export.geoPersonScope": tr("ตัวกรองบุคคล", "Person filter"),
+  "di.export.geoPersonFilterActive": tr("จำกัดตามบุคคลที่เลือกบนแผนที่", "Limited to the person selected on the map"),
+  "di.export.geoPersonFilterNone": tr("ไม่จำกัดบุคคล", "No person filter"),
+  "di.export.geoUnrestrictedPeriod": tr("ไม่จำกัดช่วงวันที่จับกุม", "No arrest-date restriction"),
+  "di.export.geoMethodologySource": tr(
+    "รายงานอ้างอิงข้อมูลที่จัดเก็บในระบบภายใต้ตัวกรอง ณ เวลาที่สร้างรายงาน",
+    "This report uses records stored in the system under the selected filters at generation time"
+  ),
+  "di.export.geoMethodologyLocation": tr(
+    "สถานที่เกิดเหตุ/จับกุมที่บันทึก ไม่ได้หมายถึงที่อยู่อาศัยของบุคคล",
+    "A recorded incident or arrest location is not a person’s residence"
+  ),
+  "di.export.geoMethodologyArea": tr(
+    "จำนวนคดีที่สูงกว่าในพื้นที่หนึ่ง ไม่ได้หมายถึงพื้นที่เสี่ยงหรือเส้นทางลำเลียงโดยอัตโนมัติ",
+    "A higher case count in an area is not automatically a risk area or trafficking route"
+  ),
+  "di.export.geoMethodologyGuilt": tr(
+    "การปรากฏในคดีหรือข้อมูลความสัมพันธ์ ไม่ใช่ข้อสรุปว่าบุคคลมีความผิด",
+    "Appearing in a case or relationship record is not a finding of guilt"
+  ),
+  "di.export.geoMethodologyCountMass": tr(
+    "COUNT และ MASS เป็นหน่วยคนละมิติและไม่ถูกรวมเข้าด้วยกัน",
+    "COUNT and MASS are different measures and are never combined"
+  ),
+  "di.export.geoMethodologyNotRisk": tr(
+    "รายงานนี้ไม่ใช่ risk score หรือ threat score",
+    "This report is not a risk score or threat score"
+  ),
+  "di.export.geoLegendFact": tr("ข้อมูลที่จัดเก็บโดยตรงในระบบ", "Values stored directly in the system"),
+  "di.export.geoLegendAnalytic": tr("การสรุปเชิงสถิติจากข้อมูลภายใต้ตัวกรอง", "Statistical summary of records under the filter"),
+  "di.export.geoLegendQuery": tr("เงื่อนไขที่ใช้สร้างรายงาน", "Filters used to generate the report"),
+  "di.export.geoLegendKind": tr("ประเภท", "Kind"),
+  "di.export.geoSectionScope": tr("ขอบเขตรายงาน", "Report scope"),
+  "di.export.geoSectionSummary": tr("สรุปเชิงพื้นที่", "Geographic summary"),
+  "di.export.geoSectionCoords": tr("การเปิดเผยข้อมูลพิกัด", "Coordinate disclosure"),
+  "di.export.geoSectionProvinces": tr("จำนวนคดีตามจังหวัด", "Cases by province"),
+  "di.export.geoSectionDistricts": tr("จำนวนคดีตามอำเภอ", "Cases by district"),
+  "di.export.geoSectionSeizures": tr("สรุปของกลางตามพื้นที่", "Geographic seizure summary"),
+  "di.export.geoSectionTrend": tr("แนวโน้มรายเดือน", "Monthly trend"),
+  "di.export.geoSectionCases": tr("รายการคดีภายใต้ตัวกรอง", "Cases under this filter"),
+  "di.export.geoSectionNoCoords": tr("คดีที่ไม่มีพิกัด", "Cases without coordinates"),
+  "di.export.geoSectionLegend": tr("คำอธิบายชนิดข้อมูล", "Data-type legend"),
+  "di.export.geoSectionMethodology": tr("วิธีการและข้อจำกัดการตีความ", "Methodology and interpretation limits"),
+  "di.export.geoColCaseNumber": tr("เลขคดี", "Case number"),
+  "di.export.geoColArrestDate": tr("วันที่จับกุม", "Arrest date"),
+  "di.export.geoColProvince": tr("จังหวัด", "Province"),
+  "di.export.geoColDistrict": tr("อำเภอ", "District"),
+  "di.export.geoColLocation": tr("สถานที่", "Location"),
+  "di.export.geoColReporting": tr("หน่วยรายงาน", "Reporting unit"),
+  "di.export.geoColLead": tr("หน่วยหลักจับกุม", "Lead arrest unit"),
+  "di.export.geoColStatus": tr("สถานะ", "Status"),
+  "di.export.geoColCoords": tr("มีพิกัด / ไม่มีพิกัด", "Coordinates present"),
+  "di.export.geoPrintedCases": tr("จำนวนคดีที่จะพิมพ์", "Cases that will be printed"),
+  "di.export.geoCategoryScope": tr("ชนิดยาเสพติด", "Drug category"),
+  "di.export.geoStatusScope": tr("สถานะคดี", "Case status"),
+  "di.export.geoDistrictScope": tr("อำเภอ", "District"),
+  "di.export.geoAllDistricts": tr("ทุกอำเภอ", "All districts"),
+  "di.export.geoAllStatuses": tr("ทุกสถานะ", "All statuses"),
+  "di.export.geoAllCategories": tr("ทุกชนิดยาเสพติด", "All drug categories"),
+  "di.export.geoDisplayUnit": tr("หน่วยที่แสดง", "Display unit"),
+  "di.export.geoMaskingNotice": tr(
+    "รายงานนี้ไม่แสดงพิกัดละติจูด/ลองจิจูด แม้ในโหมดแสดงข้อมูลเต็ม",
+    "This report omits latitude and longitude even in full-value mode"
+  ),
   "di.export.boardReportTitle": tr("รายงานผังการสืบสวน", "Investigation board report"),
   "di.export.boardReportSubtitle": tr(
     "ผังความเชื่อมโยงจากข้อมูลในระบบ และการจัดวาง/หมายเหตุของผู้วิเคราะห์",
@@ -3509,6 +3610,7 @@ export const DICTIONARY = {
   "di.map.analysisPanelTitle":     tr("แผงวิเคราะห์", "Analysis Panel"),
   "di.map.toggleAnalysisPanel":    tr("เปิด/ปิดแผงวิเคราะห์", "Toggle Analysis Panel"),
   "di.map.refreshData":            tr("รีเฟรชข้อมูล", "Refresh Data"),
+  "di.map.geographicReport":       tr("รายงานพื้นที่และภูมิศาสตร์", "Geographic area report"),
   "di.map.viewModeCluster":        tr("ความหนาแน่น", "Density"),
   "di.map.viewModePoints":         tr("จุดจับกุม", "Points"),
   "di.map.provinceColCases":       tr("จำนวนคดีที่บันทึกไว้", "Recorded Cases"),

@@ -27,6 +27,8 @@ test("center catalogs live reports and exports without a second generator", () =
   assert.match(centerSrc, /data-testid="report-card-case"/);
   assert.match(centerSrc, /data-testid="report-card-person"/);
   assert.match(centerSrc, /data-testid="report-card-board"/);
+  assert.match(centerSrc, /data-testid="report-card-map"/);
+  assert.match(centerSrc, /\/drug-intelligence\/map/);
   assert.match(centerSrc, /data-testid="export-card-cases"/);
   assert.match(centerSrc, /data-testid="export-card-persons"/);
   assert.match(centerSrc, /DrugCaseReportDrawer/);
@@ -39,10 +41,11 @@ test("center catalogs live reports and exports without a second generator", () =
   assert.doesNotMatch(centerSrc, /mergePersons|Person A|Person F/);
 });
 
-test("coming soon tiles cannot generate MAP_DATA or OPERATIONAL_ALERTS", () => {
-  assert.match(centerSrc, /data-testid="coming-soon-map"/);
+test("coming soon alerts remain deferred; map tile launches the Map workspace", () => {
+  assert.doesNotMatch(centerSrc, /data-testid="coming-soon-map"/);
   assert.match(centerSrc, /data-testid="coming-soon-alerts"/);
   assert.match(centerSrc, /di\.reports\.notReady/);
+  assert.match(centerSrc, /data-testid="open-map-report"/);
   assert.doesNotMatch(centerSrc, /MAP_DATA|OPERATIONAL_ALERTS/);
   assert.doesNotMatch(centerSrc, /Number\.MAX_SAFE_INTEGER/);
 });
@@ -50,6 +53,7 @@ test("coming soon tiles cannot generate MAP_DATA or OPERATIONAL_ALERTS", () => {
 test("history UI uses operational labels and has no re-download", () => {
   assert.match(centerSrc, /data-testid="export-history"/);
   assert.match(centerSrc, /di\.reports\.kindCase/);
+  assert.match(centerSrc, /di\.reports\.kindMap/);
   assert.match(centerSrc, /di\.reports\.formatPrint/);
   assert.doesNotMatch(centerSrc, /CASE_REPORT|PERSON_DATA|HTML_PRINT|OPERATIONAL_PERSONS/);
   assert.doesNotMatch(centerSrc, /ดาวน์โหลดอีกครั้ง|re-download|download again/i);

@@ -193,25 +193,26 @@ test("NETWORK_DATA and BOARD_DATA HTML_PRINT are implemented; reserved formats s
   assert.equal(service.isImplemented("BOARD_DATA", "HTML_PRINT"), true);
   assert.equal(service.isImplemented("NETWORK_DATA", "CSV"), false);
   assert.equal(service.isImplemented("BOARD_DATA", "JSON"), false);
-  assert.equal(service.isImplemented("MAP_DATA", "HTML_PRINT"), false);
+  assert.equal(service.isImplemented("MAP_DATA", "HTML_PRINT"), true);
+  assert.equal(service.isImplemented("MAP_DATA", "JSON"), false);
 
   const csv = await handleDrugExportCreate(
     service,
     requestWithSession({ body: JSON.stringify(networkBody(personId, { format: "CSV" })) })
   );
   assert.equal(csv.status, 400);
-  const map = await handleDrugExportCreate(
+  const mapJson = await handleDrugExportCreate(
     service,
     requestWithSession({
       body: JSON.stringify({
         actorId: "mock:admin",
         exportType: "MAP_DATA",
-        format: "HTML_PRINT",
+        format: "JSON",
         context: { schemaVersion: 1, locale: "th", sourceRoute: "/drug-intelligence/map" },
       }),
     })
   );
-  assert.equal(map.status, 501);
+  assert.equal(mapJson.status, 501);
   for (const format of ["PDF", "XLSX", "PNG", "SVG", "GeoJSON"]) {
     const blocked = await handleDrugExportCreate(
       service,

@@ -2,7 +2,7 @@
  * DI-10B/C/D export contracts.
  * Live: OPERATIONAL_CASES/PERSONS CSV, CASE_REPORT, COMMANDER_REPORT,
  * NETWORK_DATA, BOARD_DATA, and PERSON_DATA HTML_PRINT.
- * Map generator remains deferred.
+ * Live MAP_DATA is HTML_PRINT only. CSV/JSON remain closed.
  */
 
 export const DRUG_EXPORT_TYPES = [
@@ -132,6 +132,31 @@ export const PERSON_REPORT_SECTIONS = [
 ] as const;
 export type PersonReportSectionKey = (typeof PERSON_REPORT_SECTIONS)[number];
 
+export const MAP_REPORT_SECTIONS = [
+  "scope",
+  "summary",
+  "coordinates",
+  "provinces",
+  "districts",
+  "seizures",
+  "trend",
+  "cases",
+  "noCoordinates",
+  "legend",
+  "methodology",
+] as const;
+export type MapReportSectionKey = (typeof MAP_REPORT_SECTIONS)[number];
+
+export interface DrugExportGeographicPreviewSummary {
+  totalCases: number;
+  casesWithCoordinates: number;
+  casesWithoutCoordinates: number;
+  distinctProvinceCount: number;
+  distinctDistrictCount: number;
+  printedCaseCount: number;
+  warningCodes: string[];
+}
+
 export interface DrugExportPreviewColumn {
   key: string;
   label: string;
@@ -150,4 +175,5 @@ export interface DrugExportPreviewV1 {
   maskingMode: DrugExportMaskingMode;
   warnings: string[];
   implemented: boolean;
+  geographicSummary?: DrugExportGeographicPreviewSummary;
 }

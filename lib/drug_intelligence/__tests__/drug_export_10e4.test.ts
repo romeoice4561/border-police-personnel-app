@@ -146,9 +146,10 @@ test("unsafe filenames are omitted from history", () => {
   assert.equal(item.formatKind, "print");
 });
 
-test("MAP_DATA and OPERATIONAL_ALERTS remain unimplemented", () => {
+test("MAP_DATA HTML_PRINT is implemented; OPERATIONAL_ALERTS remains unimplemented", () => {
   const service = new DrugExportService(new InMemoryDatabaseClient());
-  assert.equal(service.isImplemented("MAP_DATA", "HTML_PRINT"), false);
+  assert.equal(service.isImplemented("MAP_DATA", "HTML_PRINT"), true);
+  assert.equal(service.isImplemented("MAP_DATA", "CSV"), false);
   assert.equal(service.isImplemented("OPERATIONAL_ALERTS", "CSV"), false);
 });
 
@@ -281,16 +282,16 @@ test("persons CSV context is searchQuery or all active persons only", () => {
   assert.equal(filtered.organization, undefined);
 });
 
-test("MAP_DATA and OPERATIONAL_ALERTS generate remain 501", async () => {
+test("MAP_DATA CSV/JSON and OPERATIONAL_ALERTS generate remain 501", async () => {
   const db = new InMemoryDatabaseClient();
-  const map = await handleDrugExportCreate(
+  const mapCsv = await handleDrugExportCreate(
     new DrugExportService(db),
     requestWithSession("http://localhost/api/drug-intelligence/exports", {
       method: "POST",
       body: JSON.stringify({
         actorId: "mock:admin",
         exportType: "MAP_DATA",
-        format: "HTML_PRINT",
+        format: "CSV",
         context: { schemaVersion: 1, locale: "th", sourceRoute: "/drug-intelligence/map" },
       }),
     })
@@ -307,7 +308,7 @@ test("MAP_DATA and OPERATIONAL_ALERTS generate remain 501", async () => {
       }),
     })
   );
-  assert.equal(map.status, 501);
+  assert.equal(mapCsv.status, 501);
   assert.equal(alerts.status, 501);
 });
 

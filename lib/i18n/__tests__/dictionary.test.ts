@@ -416,8 +416,16 @@ test("DI-10E.4 reporting center keys exist and stay operational Thai", () => {
     "di.reports.personsCsvScopeAllActive",
     "di.reports.historyEmpty",
     "di.reports.mapTitle",
+    "di.reports.mapBody",
+    "di.reports.openMapReport",
+    "di.reports.kindMap",
     "di.reports.alertsTitle",
     "di.reports.notReady",
+    "di.export.geographicReportTitle",
+    "di.export.geographicReportEnglishTitle",
+    "di.export.geoCoordNote",
+    "di.export.geoMethodologyNotRisk",
+    "di.map.geographicReport",
   ];
   for (const key of required) {
     assert.ok(DICTIONARY[key], `missing key ${key}`);

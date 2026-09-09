@@ -28,6 +28,8 @@ import {
   DrugExportTooManyCaseRowsError,
   DrugExportTooManyPersonRowsError,
   DrugExportTooManyRowsError,
+  GeographicReportInvalidFilterError,
+  GeographicReportTooManyRowsError,
 } from "@/lib/drug_intelligence/drug_export_service";
 import { translate, type Language } from "@/lib/i18n/dictionary";
 
@@ -109,13 +111,16 @@ export async function handleDrugExportCreate(service: DrugExportService, request
     if (error instanceof DrugExportInvalidFormatError) {
       return jsonError("INVALID_FORMAT", translate("di.export.invalidFormat", locale), 400);
     }
+    if (error instanceof GeographicReportTooManyRowsError) {
+      return jsonError("TOO_MANY_ROWS", translate("di.export.geoTooManyRows", locale), 400);
+    }
     if (error instanceof DrugExportTooManyRowsError || error instanceof DrugExportTooManyBoardRowsError || error instanceof DrugExportTooManyPersonRowsError || error instanceof DrugExportTooManyCaseRowsError) {
       return jsonError("TOO_MANY_ROWS", translate("di.export.tooManyRows", locale), 400);
     }
     if (error instanceof DrugExportNotImplementedError) {
       return jsonError("NOT_IMPLEMENTED_FOR_TYPE", translate("di.export.notImplemented", locale), 501);
     }
-    if (error instanceof DrugExportInvalidCaseError || error instanceof DrugExportInvalidWorkspaceError || error instanceof DrugExportInvalidPersonError) {
+    if (error instanceof DrugExportInvalidCaseError || error instanceof DrugExportInvalidWorkspaceError || error instanceof DrugExportInvalidPersonError || error instanceof GeographicReportInvalidFilterError) {
       return jsonError("INVALID_CONTEXT", translate("di.export.invalidContext", locale), 400);
     }
     if (error instanceof DrugExportCaseNotFoundError) {

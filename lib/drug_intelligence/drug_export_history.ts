@@ -16,6 +16,7 @@ export const DRUG_EXPORT_HISTORY_REPORT_KINDS = [
   "workspace",
   "cases_csv",
   "persons_csv",
+  "map",
   "other",
 ] as const;
 export type DrugExportHistoryReportKind = (typeof DRUG_EXPORT_HISTORY_REPORT_KINDS)[number];
@@ -43,6 +44,7 @@ const EXPORT_TYPE_KIND: Partial<Record<DrugExportType, DrugExportHistoryReportKi
   NETWORK_DATA: "workspace",
   OPERATIONAL_CASES: "cases_csv",
   OPERATIONAL_PERSONS: "persons_csv",
+  MAP_DATA: "map",
 };
 
 const FORMAT_KIND: Partial<Record<DrugExportFormat, DrugExportHistoryFormatKind>> = {

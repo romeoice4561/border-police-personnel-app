@@ -187,9 +187,11 @@ test("Y: foundation source has no MAX_SAFE_INTEGER and does not call getGeoResul
   assert.match(src, /persons\s*=\s*\{\s*some:/);
 });
 
-test("AA: MAP_DATA HTML_PRINT remains unimplemented", () => {
+test("AA: MAP_DATA HTML_PRINT is activated by the export service, not this foundation", () => {
   const service = new DrugExportService(new InMemoryDatabaseClient());
-  assert.equal(service.isImplemented("MAP_DATA", "HTML_PRINT"), false);
+  assert.equal(service.isImplemented("MAP_DATA", "HTML_PRINT"), true);
+  const src = readFileSync(join(ROOT, FOUNDATION_FILE), "utf8");
+  assert.doesNotMatch(src, /isImplemented\(/);
 });
 
 test("AC: QA Person A and Person F remain distinct identities", () => {

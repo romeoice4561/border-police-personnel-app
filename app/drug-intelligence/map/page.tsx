@@ -59,7 +59,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Maximize2, MapPinned, ChevronDown, ChevronUp, X, RefreshCw, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Maximize2, MapPinned, ChevronDown, ChevronUp, X, RefreshCw, PanelRightClose, PanelRightOpen, FileText } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -78,6 +78,7 @@ import { DrugGeoResultList } from "@/components/drug_intelligence/drug_geo_resul
 import { DrugGeoProvinceBreakdown } from "@/components/drug_intelligence/drug_geo_province_breakdown";
 import { DrugGeoTopProvincesPanel } from "@/components/drug_intelligence/drug_geo_top_provinces_panel";
 import { DrugGeoSeizureSummaryPanel } from "@/components/drug_intelligence/drug_geo_seizure_summary_panel";
+import { DrugGeoReportDrawer } from "@/components/drug_intelligence/drug_geo_report_drawer";
 import { DrugGeoTimeTrendChart } from "@/components/drug_intelligence/drug_geo_time_trend_chart";
 import {
   drugGeoFilterStateFromSearchParams,
@@ -240,6 +241,8 @@ function DrugIntelligenceMapContent({
   organizationEngine: ReturnType<typeof useOrganizationEngine>;
 }) {
   const { t } = useT();
+  const { can } = useAuth();
+  const [reportOpen, setReportOpen] = useState(false);
   const query = useMemo(() => filterStateToQueryParams(filters), [filters]);
 
   // Section 6 (DI-8.1.1): the current filtered/deep-linked map URL, reusing
@@ -320,6 +323,17 @@ function DrugIntelligenceMapContent({
                 <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
                   {t("di.map.activeFilters")}: {activeFilterCount}
                 </span>
+              ) : null}
+              {can("drug.export") ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReportOpen(true)}
+                  data-testid="map-geographic-report-action"
+                >
+                  <FileText className="h-4 w-4" aria-hidden="true" />
+                  {t("di.map.geographicReport")}
+                </Button>
               ) : null}
               <Button variant="ghost" size="sm" onClick={() => geoQuery.refetch()}>
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -495,24 +509,36 @@ function DrugIntelligenceMapContent({
     </div>
   );
 
+  const reportDrawer = (
+    <DrugGeoReportDrawer open={reportOpen} onClose={() => setReportOpen(false)} filters={filters} />
+  );
+
   if (expanded) {
     return (
-      <div className="fixed inset-0 z-50 bg-background">
-        <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2">
-            <p className="text-sm font-semibold text-foreground">{t("di.map.title")}</p>
-            <Button variant="ghost" size="sm" onClick={() => setExpanded(false)}>
-              <X className="h-4 w-4" aria-hidden="true" />
-              {t("di.map.collapse")}
-            </Button>
+      <>
+        <div className="fixed inset-0 z-50 bg-background">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2">
+              <p className="text-sm font-semibold text-foreground">{t("di.map.title")}</p>
+              <Button variant="ghost" size="sm" onClick={() => setExpanded(false)}>
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t("di.map.collapse")}
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
         </div>
-      </div>
+        {reportDrawer}
+      </>
     );
   }
 
-  return content;
+  return (
+    <>
+      {content}
+      {reportDrawer}
+    </>
+  );
 }
 
 function KpiTile({ label, value }: { label: string; value: number }) {

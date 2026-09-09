@@ -2,7 +2,8 @@
  * DI-10C/D/E export dispatch.
  * Live generators: OPERATIONAL_CASES CSV, OPERATIONAL_PERSONS CSV,
  * CASE_REPORT HTML_PRINT, COMMANDER_REPORT HTML_PRINT,
- * NETWORK_DATA/BOARD_DATA HTML_PRINT, PERSON_DATA HTML_PRINT.
+ * NETWORK_DATA/BOARD_DATA HTML_PRINT, PERSON_DATA HTML_PRINT,
+ * MAP_DATA HTML_PRINT.
  * OPERATIONAL_ALERTS is deferred — Alert Center still uses unbounded findAll.
  */
 
@@ -44,6 +45,18 @@ import {
   renderDrugPersonReportHtml,
 } from "@/lib/drug_intelligence/drug_person_report";
 import { exportContextToCommanderFilter } from "@/lib/drug_intelligence/drug_export_commander_context";
+import { exportContextToGeographicReportFilter } from "@/lib/drug_intelligence/drug_export_geo_context";
+import {
+  buildDrugGeographicIntelligenceReport,
+  geographicReportRecordCount,
+  MAP_REPORT_SECTION_KEYS,
+  renderDrugGeographicIntelligenceReportHtml,
+} from "@/lib/drug_intelligence/drug_geographic_report";
+import {
+  DrugGeographicReportQueryService,
+  GeographicReportInvalidFilterError,
+  GeographicReportTooManyRowsError,
+} from "@/lib/drug_intelligence/drug_geographic_report_query";
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { resolveCommanderDashboardScope } from "@/lib/drug_intelligence/drug_commander_filter";
 import { recordExportCreated } from "@/lib/drug_intelligence/drug_export_audit";
@@ -55,6 +68,7 @@ import {
   BOARD_REPORT_SECTIONS,
   CASE_REPORT_SECTIONS,
   COMMANDER_REPORT_SECTIONS,
+  MAP_REPORT_SECTIONS,
   OPERATIONAL_CASES_COLUMNS,
   OPERATIONAL_PERSONS_COLUMNS,
   PERSON_REPORT_SECTIONS,
@@ -108,6 +122,8 @@ export {
   DrugExportTooManyCaseRowsError,
   DrugExportTooManyPersonRowsError,
 };
+
+export { GeographicReportInvalidFilterError, GeographicReportTooManyRowsError };
 
 function caseListParams(context: ResolvedDrugExportContextV1, pageSize: number) {
   const period = resolveExportPeriod(context.period);
@@ -183,6 +199,12 @@ function columnMeta(
       label: translate(COMMANDER_SECTION_KEYS[key], locale),
     }));
   }
+  if (exportType === "MAP_DATA") {
+    return MAP_REPORT_SECTIONS.map((key) => ({
+      key,
+      label: translate(MAP_REPORT_SECTION_KEYS[key], locale),
+    }));
+  }
   const source = exportType === "OPERATIONAL_PERSONS" ? OPERATIONAL_PERSONS_COLUMNS : OPERATIONAL_CASES_COLUMNS;
   return source.filter((c) => keys.includes(c.key)).map((c) => ({ key: c.key, label: locale === "en" ? c.labelEn : c.labelTh }));
 }
@@ -198,6 +220,7 @@ export class DrugExportService {
     if (exportType === "NETWORK_DATA" && format === "HTML_PRINT") return true;
     if (exportType === "BOARD_DATA" && format === "HTML_PRINT") return true;
     if (exportType === "PERSON_DATA" && format === "HTML_PRINT") return true;
+    if (exportType === "MAP_DATA" && format === "HTML_PRINT") return true;
     return false;
   }
 
@@ -209,6 +232,7 @@ export class DrugExportService {
     columns?: readonly string[];
     maskingMode: DrugExportMaskingMode;
     estimatedRecordCount: number | null;
+    geographicSummary?: DrugExportPreviewV1["geographicSummary"];
   }): DrugExportPreviewV1 {
     const { softLimit, hardLimit } = exportLimitsForType(input.exportType);
     const forbidden = assertExportColumnsAllowed(input.columns ?? []);
@@ -236,6 +260,7 @@ export class DrugExportService {
       maskingMode: input.maskingMode,
       warnings,
       implemented: this.isImplemented(input.exportType, input.format) && forbidden.length === 0,
+      geographicSummary: input.geographicSummary,
     };
   }
 
@@ -287,6 +312,22 @@ export class DrugExportService {
         maskingMode: input.maskingMode,
       });
       estimatedRecordCount = personReportRecordCount(report);
+    } else if (input.exportType === "MAP_DATA") {
+      const report = await this.buildGeographicReport(input.context, "", input.maskingMode);
+      estimatedRecordCount = geographicReportRecordCount(report);
+      return this.buildPreview({
+        ...input,
+        estimatedRecordCount,
+        geographicSummary: {
+          totalCases: report.summary.totalCases,
+          casesWithCoordinates: report.summary.casesWithCoordinates,
+          casesWithoutCoordinates: report.summary.casesWithoutCoordinates,
+          distinctProvinceCount: report.summary.distinctProvinceCount,
+          distinctDistrictCount: report.summary.distinctDistrictCount,
+          printedCaseCount: report.cases.length,
+          warningCodes: report.warnings,
+        },
+      });
     }
     return this.buildPreview({ ...input, estimatedRecordCount });
   }
@@ -399,6 +440,11 @@ export class DrugExportService {
       body = renderDrugPersonReportHtml(report);
       filename = buildDrugExportFilename({ kind: "drug-person", ext: "html", now });
       recordCount = personReportRecordCount(report);
+    } else if (input.exportType === "MAP_DATA") {
+      const report = await this.buildGeographicReport(input.context, input.actorName, input.maskingMode);
+      body = renderDrugGeographicIntelligenceReportHtml(report);
+      filename = buildDrugExportFilename({ kind: "drug-geographic-report", ext: "html", now });
+      recordCount = geographicReportRecordCount(report);
     } else {
       throw new DrugExportNotImplementedError();
     }
@@ -416,6 +462,23 @@ export class DrugExportService {
       filename,
     });
     return { filename, body, recordCount, exportId };
+  }
+
+  private async buildGeographicReport(
+    context: ResolvedDrugExportContextV1,
+    generatedBy: string,
+    maskingMode: DrugExportMaskingMode
+  ) {
+    const query = await new DrugGeographicReportQueryService(this.db).load(
+      exportContextToGeographicReportFilter(context)
+    );
+    return buildDrugGeographicIntelligenceReport(query, {
+      locale: context.locale,
+      generatedAt: context.generatedAt,
+      generatedBy,
+      maskingMode,
+      context,
+    });
   }
 
   private async listOperationalCases(
