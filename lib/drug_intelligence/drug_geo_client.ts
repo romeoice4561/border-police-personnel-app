@@ -1,77 +1,83 @@
 /**
- * Drug Geo Intelligence — client-facing types + fetch wrapper (Phase DI-8).
- * Mirrors DrugCaseListRow/officer_drug_arrest_performance_client.ts's own
- * convention exactly: every Date becomes an ISO string, one thin fetch
- * wrapper reusing the SAME { data, meta } / { error } envelope + typed
- * ApiClientError every other Drug Intelligence client function uses.
+ * Drug Map Intelligence — client-facing V2 types + fetch wrapper (DI-10E.6B).
+ *
+ * Live Map GET returns DrugMapQueryService shape plus list.totalPages.
+ * Marker lat/lng are interactive-Map only. Relation-heavy fields are not
+ * preloaded (persons / seizures / officers / alerts) — that is DI-10E.6C.
  */
 
 import { ApiClientError } from "@/lib/ui/api_client";
-import type { DrugGeoSeizureGroup } from "@/lib/drug_intelligence/drug_geo_marker";
-
-export type { DrugGeoSeizureGroup };
+import type { DrugMapWarningCode } from "@/lib/drug_intelligence/drug_map_query";
 
 export interface DrugGeoPersonSummaryView {
   personId: string;
   primaryFullName: string;
 }
 
-export interface DrugGeoCaseMarkerView {
+export interface DrugMapMarkerView {
   caseId: string;
-  caseNumber: string;
-  title: string;
-  status: string;
-  statusLabelTh: string;
-  arrestDate: string | null;
   latitude: number;
   longitude: number;
   coordinateSource: "CASE" | "ARREST_LOCATION";
-  province: string | null;
-  district: string | null;
-  subdistrict: string | null;
-  locationName: string | null;
-  reportingUnitText: string | null;
-  leadUnitText: string | null;
-  suspectCount: number;
-  personSummaries: DrugGeoPersonSummaryView[];
-  seizedItems: DrugGeoSeizureGroup[];
-  participatingUnitCount: number;
-  officerCount: number;
-  hasUnreviewedAlert: boolean;
-}
-
-export interface DrugGeoNoCoordinateCaseView {
-  caseId: string;
   caseNumber: string;
-  title: string;
-  status: string;
-  statusLabelTh: string;
   arrestDate: string | null;
   province: string | null;
   district: string | null;
+  status: string;
+  locationName: string | null;
   reportingUnitText: string | null;
+  leadUnitText: string | null;
 }
 
-export interface DrugGeoProvinceBreakdownRowView {
+export interface DrugMapListItemView {
+  caseId: string;
+  caseNumber: string;
+  arrestDate: string | null;
+  province: string | null;
+  district: string | null;
+  locationName: string | null;
+  status: string;
+  reportingUnitText: string | null;
+  leadUnitText: string | null;
+  hasCoordinates: boolean;
+}
+
+export interface DrugMapProvinceView {
   province: string;
+  unspecified: boolean;
   caseCount: number;
-  markerCount: number;
-  personCount: number;
-  topSeizedItems: DrugGeoSeizureGroup[];
+  withCoordinates: number;
 }
 
-export interface DrugGeoSummaryView {
+export interface DrugMapSummaryView {
   totalCases: number;
+  withCoordinates: number;
+  withoutCoordinates: number;
   markerCount: number;
-  noCoordinateCount: number;
+  markerLimitReached: boolean;
   provinceCount: number;
 }
 
-export interface DrugGeoResultView {
-  summary: DrugGeoSummaryView;
-  markers: DrugGeoCaseMarkerView[];
-  noCoordinateCases: DrugGeoNoCoordinateCaseView[];
-  provinceBreakdown: DrugGeoProvinceBreakdownRowView[];
+export interface DrugMapListView {
+  items: DrugMapListItemView[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface DrugMapResultView {
+  summary: DrugMapSummaryView;
+  markers: DrugMapMarkerView[];
+  list: DrugMapListView;
+  provinces: DrugMapProvinceView[];
+  warnings: DrugMapWarningCode[];
+  limits: {
+    markerSoft: number;
+    markerHard: number;
+    listDefaultPageSize: number;
+    listMaxPageSize: number;
+  };
 }
 
 export interface DrugGeoQueryParams {
@@ -82,6 +88,8 @@ export interface DrugGeoQueryParams {
   regionId?: number;
   battalionId?: number;
   companyId?: number;
+  dateFrom?: string;
+  dateTo?: string;
   arrestDateFrom?: string;
   arrestDateTo?: string;
   leadHeadquartersId?: number;
@@ -90,28 +98,39 @@ export interface DrugGeoQueryParams {
   leadCompanyId?: number;
   drugCategory?: string;
   personId?: string;
-  caseId?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-function toQueryString(params: Record<string, unknown>): string {
+export function drugGeoQueryToSearchParams(actorId: string, query: DrugGeoQueryParams): URLSearchParams {
   const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
+  search.set("actorId", actorId);
+  const mapped: Record<string, unknown> = {
+    ...query,
+    dateFrom: query.dateFrom || query.arrestDateFrom,
+    dateTo: query.dateTo || query.arrestDateTo,
+  };
+  delete mapped.arrestDateFrom;
+  delete mapped.arrestDateTo;
+  delete mapped.caseId;
+  for (const [key, value] of Object.entries(mapped)) {
     if (value === undefined || value === null || value === "") continue;
     search.set(key, String(value));
   }
-  const s = search.toString();
-  return s ? `?${s}` : "";
+  return search;
 }
 
-export async function fetchDrugGeoResult(actorId: string, query: DrugGeoQueryParams): Promise<DrugGeoResultView> {
+export async function fetchDrugGeoResult(actorId: string, query: DrugGeoQueryParams): Promise<DrugMapResultView> {
   let response: Response;
   try {
-    response = await fetch(`/api/drug-intelligence/map${toQueryString({ actorId, ...query })}`, { headers: { Accept: "application/json" } });
+    response = await fetch(`/api/drug-intelligence/map?${drugGeoQueryToSearchParams(actorId, query).toString()}`, {
+      headers: { Accept: "application/json" },
+    });
   } catch (cause) {
     throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
   }
 
-  let body: { data?: DrugGeoResultView; error?: { code: string; message: string; details?: unknown } };
+  let body: { data?: DrugMapResultView; error?: { code: string; message: string; details?: unknown } };
   try {
     body = await response.json();
   } catch {
@@ -123,5 +142,5 @@ export async function fetchDrugGeoResult(actorId: string, query: DrugGeoQueryPar
     throw new ApiClientError(err?.message ?? `Request failed (${response.status})`, response.status, err?.code ?? "REQUEST_FAILED", err?.details);
   }
 
-  return body.data as DrugGeoResultView;
+  return body.data as DrugMapResultView;
 }

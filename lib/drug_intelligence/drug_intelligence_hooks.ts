@@ -54,7 +54,7 @@ import {
   type DrugInvestigationBoardStateClient,
   type DrugExportHistoryResponse,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
-import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugGeoResultView } from "@/lib/drug_intelligence/drug_geo_client";
+import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugMapResultView } from "@/lib/drug_intelligence/drug_geo_client";
 
 export interface DrugPageMeta {
   page: number;
@@ -584,7 +584,7 @@ export function useDrugNetworkGroups(
 // ── DI-8: Geographic / Map Intelligence ───────────────────────────────────
 
 /** Keeps previous results while a new filter combination is in-flight, so the map/list don't flash empty on every filter change (same convention as useDrugPersonAdvancedSearch). */
-export function useDrugGeoResult(actorId: string | null, query: DrugGeoQueryParams): UseQueryResult<DrugGeoResultView> {
+export function useDrugGeoResult(actorId: string | null, query: DrugGeoQueryParams): UseQueryResult<DrugMapResultView> {
   return useQuery({
     queryKey: drugQueryKeys.geo(actorId, query),
     queryFn: () => fetchDrugGeoResult(actorId as string, query),

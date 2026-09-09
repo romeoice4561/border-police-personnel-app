@@ -24,7 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap, useMapEvent } from "react-leaflet";
 import { divIcon, type LatLngBoundsExpression } from "leaflet";
 import { computeDrugGeoClusters } from "@/lib/drug_intelligence/drug_geo_cluster";
-import type { DrugGeoCaseMarkerView } from "@/lib/drug_intelligence/drug_geo_client";
+import type { DrugMapMarkerView } from "@/lib/drug_intelligence/drug_geo_client";
 
 // Thailand-wide default view (Section 28) — a sensible national center/zoom,
 // never a precise operational location.
@@ -35,7 +35,7 @@ const SINGLE_MARKER_ZOOM = 12;
 const MARKER_COLOR = "#f97316"; // neutral/orange project accent — never risk-red
 const MARKER_SELECTED_COLOR = "#2563eb"; // accent-blue selection emphasis, not a severity color
 
-function FitBoundsController({ markers, selectedCaseId, fitToken }: { markers: DrugGeoCaseMarkerView[]; selectedCaseId: string | null; fitToken: number }) {
+function FitBoundsController({ markers, selectedCaseId, fitToken }: { markers: DrugMapMarkerView[]; selectedCaseId: string | null; fitToken: number }) {
   const map = useMap();
   const lastFitToken = useRef<number>(-1);
 
@@ -95,11 +95,11 @@ function clusterDivIcon(count: number, ariaLabel: string) {
 }
 
 export interface DrugGeoMapCanvasProps {
-  markers: DrugGeoCaseMarkerView[];
+  markers: DrugMapMarkerView[];
   selectedCaseId: string | null;
   onSelectMarker: (caseId: string) => void;
   fitToken: number;
-  renderPopup: (marker: DrugGeoCaseMarkerView) => React.ReactNode;
+  renderPopup: (marker: DrugMapMarkerView) => React.ReactNode;
   heightClassName?: string;
   /** Section 8/13 (DI-8.2): opt-in "ความหนาแน่น" view — grid-bucket clustering, off by default so the original point view is unchanged when omitted. */
   clusterMode?: boolean;
@@ -189,10 +189,10 @@ function ClusterSingleMarker({
   onSelectMarker,
   renderPopup,
 }: {
-  marker: DrugGeoCaseMarkerView;
+  marker: DrugMapMarkerView;
   selectedCaseId: string | null;
   onSelectMarker: (caseId: string) => void;
-  renderPopup: (marker: DrugGeoCaseMarkerView) => React.ReactNode;
+  renderPopup: (marker: DrugMapMarkerView) => React.ReactNode;
 }) {
   return (
     <CircleMarker

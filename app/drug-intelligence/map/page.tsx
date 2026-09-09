@@ -77,9 +77,7 @@ import { DrugGeoMarkerPopup } from "@/components/drug_intelligence/drug_geo_mark
 import { DrugGeoResultList } from "@/components/drug_intelligence/drug_geo_result_list";
 import { DrugGeoProvinceBreakdown } from "@/components/drug_intelligence/drug_geo_province_breakdown";
 import { DrugGeoTopProvincesPanel } from "@/components/drug_intelligence/drug_geo_top_provinces_panel";
-import { DrugGeoSeizureSummaryPanel } from "@/components/drug_intelligence/drug_geo_seizure_summary_panel";
 import { DrugGeoReportDrawer } from "@/components/drug_intelligence/drug_geo_report_drawer";
-import { DrugGeoTimeTrendChart } from "@/components/drug_intelligence/drug_geo_time_trend_chart";
 import {
   drugGeoFilterStateFromSearchParams,
   drugGeoFilterStateToSearchParams,
@@ -87,9 +85,8 @@ import {
   type DrugGeoFilterState,
 } from "@/lib/drug_intelligence/drug_geo_filter_state";
 import { deriveDrugGeoFilterChips } from "@/lib/drug_intelligence/drug_geo_filter_chips";
-import { combineDrugGeoSeizureGroups } from "@/lib/drug_intelligence/drug_geo_seizure_summary";
-import { computeDrugGeoMonthlyTrend } from "@/lib/drug_intelligence/drug_geo_time_trend";
-import { computeDrugGeoDefendantCount, computeDrugGeoUnitCount } from "@/lib/drug_intelligence/drug_geo_summary_extra";
+import { isDrugMapHardLimit, isDrugMapSoftLimit, isDrugMapTrueEmpty } from "@/lib/drug_intelligence/drug_map_view";
+import { MAP_LIST_DEFAULT_PAGE_SIZE } from "@/lib/drug_intelligence/drug_map_query";
 import type { DrugGeoQueryParams } from "@/lib/drug_intelligence/drug_geo_client";
 
 const VIEW_MODES = ["MAP", "LIST", "PROVINCE"] as const;
@@ -101,8 +98,8 @@ function filterStateToQueryParams(state: DrugGeoFilterState): DrugGeoQueryParams
     district: state.district || undefined,
     status: state.status || undefined,
     drugCategory: state.drugCategory || undefined,
-    arrestDateFrom: state.dateFrom || undefined,
-    arrestDateTo: state.dateTo || undefined,
+    dateFrom: state.dateFrom || undefined,
+    dateTo: state.dateTo || undefined,
     headquartersId: state.headquartersId ?? undefined,
     regionId: state.regionId ?? undefined,
     battalionId: state.battalionId ?? undefined,
@@ -243,7 +240,11 @@ function DrugIntelligenceMapContent({
   const { t } = useT();
   const { can } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
-  const query = useMemo(() => filterStateToQueryParams(filters), [filters]);
+  const [listPage, setListPage] = useState(1);
+  const query = useMemo(
+    () => ({ ...filterStateToQueryParams(filters), page: listPage, pageSize: MAP_LIST_DEFAULT_PAGE_SIZE }),
+    [filters, listPage]
+  );
 
   // Section 6 (DI-8.1.1): the current filtered/deep-linked map URL, reusing
   // DI-8's own filter-state <-> URLSearchParams serialization — never a
@@ -284,25 +285,19 @@ function DrugIntelligenceMapContent({
     [applyFilters, setViewMode, setFitToken]
   );
 
-  if (geoQuery.isLoading) return <LoadingState />;
-  if (geoQuery.isError) return <ErrorState message={geoQuery.error instanceof Error ? geoQuery.error.message : t("di.error.saveFailed")} />;
+  if (geoQuery.isLoading && !geoQuery.data) return <LoadingState />;
+  if (geoQuery.isError && !geoQuery.data) {
+    return <ErrorState message={geoQuery.error instanceof Error ? geoQuery.error.message : t("di.error.saveFailed")} />;
+  }
   if (!geoQuery.data) return null;
 
-  const { summary, markers, noCoordinateCases, provinceBreakdown } = geoQuery.data;
+  const { summary, markers, list, provinces, warnings } = geoQuery.data;
+  const hardLimit = isDrugMapHardLimit(warnings);
+  const softLimit = isDrugMapSoftLimit(warnings);
+  const trueEmpty = isDrugMapTrueEmpty(summary.totalCases);
 
   const periodLabel =
     filters.dateFrom || filters.dateTo ? `${filters.dateFrom || "…"} – ${filters.dateTo || "…"}` : t("di.map.kpiPeriodAll");
-
-  // Section 3/10/11/12 (DI-8.2): every figure below is computed CLIENT-SIDE
-  // from the already-fetched geoQuery.data — no new API call, no new
-  // backend aggregation. markerCount-scoped (defendants, seizures) vs.
-  // all-cases-scoped (unit count, trend) intentionally differ, matching
-  // what each underlying view model actually carries (see
-  // drug_geo_summary_extra.ts / drug_geo_time_trend.ts doc comments).
-  const defendantCount = computeDrugGeoDefendantCount(markers);
-  const unitCount = computeDrugGeoUnitCount([...markers, ...noCoordinateCases]);
-  const seizureSummary = combineDrugGeoSeizureGroups(markers.map((m) => m.seizedItems));
-  const monthlyTrend = computeDrugGeoMonthlyTrend([...markers, ...noCoordinateCases]);
 
   const content = (
     <div className={expanded ? "flex h-full flex-col gap-3 p-3" : "space-y-5"}>
@@ -355,16 +350,25 @@ function DrugIntelligenceMapContent({
         <div className="rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">{t("di.map.personDeepLinkNotice")}</div>
       ) : null}
 
+      {softLimit ? (
+        <div role="status" data-testid="map-marker-soft-limit" className="rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-foreground">
+          {t("di.map.markerSoftLimit")}
+        </div>
+      ) : null}
+      {hardLimit ? (
+        <div role="status" data-testid="map-marker-hard-limit" className="rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-foreground">
+          {t("di.map.markerHardLimit")}
+        </div>
+      ) : null}
+
       {!expanded && filterChips.length > 0 ? <DrugGeoFilterChips chips={filterChips} onRemove={applyFilters} /> : null}
 
       {!expanded ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <KpiTile label={t("di.map.kpiTotalCases")} value={summary.totalCases} />
-          <KpiTile label={t("di.map.kpiDefendantCount")} value={defendantCount} />
+          <KpiTile label={t("di.map.kpiMarkerCount")} value={summary.withCoordinates} />
+          <KpiTile label={t("di.map.kpiNoCoordinateCount")} value={summary.withoutCoordinates} />
           <KpiTile label={t("di.map.kpiProvinceCount")} value={summary.provinceCount} />
-          <KpiTile label={t("di.map.kpiUnitCount")} value={unitCount} />
-          <KpiTile label={t("di.map.kpiMarkerCount")} value={summary.markerCount} />
-          <KpiTile label={t("di.map.kpiNoCoordinateCount")} value={summary.noCoordinateCount} />
           <div className="rounded-xl border border-border bg-neutral-bg p-3">
             <p className="text-xs text-muted">{t("di.map.kpiPeriod")}</p>
             <p className="mt-0.5 truncate text-sm font-medium text-foreground">{periodLabel}</p>
@@ -440,7 +444,18 @@ function DrugIntelligenceMapContent({
         <div className={expanded ? "flex h-full flex-col gap-3" : "space-y-5"}>
           <div className={expanded ? "min-h-0 flex-1" : ""}>
             {viewMode === "MAP" ? (
-              markers.length === 0 ? (
+              trueEmpty ? (
+                <div data-testid="map-empty-result">
+                  <EmptyState title={t("di.map.emptyResult")} icon={<MapPinned className="h-8 w-8" />} />
+                </div>
+              ) : hardLimit ? (
+                <div
+                  data-testid="map-hard-limit-pane"
+                  className="flex min-h-[240px] items-center justify-center rounded-xl border border-border bg-neutral-bg px-4 py-8 text-center text-sm text-foreground"
+                >
+                  {t("di.map.markerHardLimit")}
+                </div>
+              ) : markers.length === 0 ? (
                 <EmptyState title={t("di.map.emptyMap")} icon={<MapPinned className="h-8 w-8" />} />
               ) : (
                 <DrugGeoMap
@@ -454,32 +469,33 @@ function DrugIntelligenceMapContent({
                 />
               )
             ) : viewMode === "LIST" ? (
-              <DrugGeoResultList markers={markers} noCoordinateCases={noCoordinateCases} selectedCaseId={selectedCaseId} onSelectMarker={handleSelectMarker} />
+              <DrugGeoResultList
+                items={list.items}
+                selectedCaseId={selectedCaseId}
+                onSelectMarker={handleSelectMarker}
+                page={list.page}
+                totalPages={list.totalPages}
+                onPageChange={setListPage}
+                fetching={geoQuery.isFetching}
+              />
             ) : (
-              <DrugGeoProvinceBreakdown rows={provinceBreakdown} onSelectProvince={handleSelectProvince} />
+              <DrugGeoProvinceBreakdown rows={provinces} onSelectProvince={handleSelectProvince} />
             )}
           </div>
 
           {!expanded && viewMode === "MAP" ? (
             <div>
               <p className="mb-2 text-sm font-semibold text-foreground">{t("di.map.resultListTitle")}</p>
-              <DrugGeoResultList markers={markers} noCoordinateCases={noCoordinateCases} selectedCaseId={selectedCaseId} onSelectMarker={handleSelectMarker} />
+              <DrugGeoResultList
+                items={list.items}
+                selectedCaseId={selectedCaseId}
+                onSelectMarker={handleSelectMarker}
+                page={list.page}
+                totalPages={list.totalPages}
+                onPageChange={setListPage}
+                fetching={geoQuery.isFetching}
+              />
             </div>
-          ) : null}
-
-          {!expanded && noCoordinateCases.length > 0 && viewMode !== "LIST" ? (
-            <Card>
-              <CardBody>
-                <p className="mb-2 text-sm font-semibold text-foreground">{t("di.map.noCoordinateSectionTitle")}</p>
-                <ul className="space-y-1 text-sm text-muted">
-                  {noCoordinateCases.map((c) => (
-                    <li key={c.caseId}>
-                      {c.caseNumber} — {c.title}
-                    </li>
-                  ))}
-                </ul>
-              </CardBody>
-            </Card>
           ) : null}
         </div>
 
@@ -488,19 +504,7 @@ function DrugIntelligenceMapContent({
             <Card>
               <CardBody className="space-y-2">
                 <p className="text-sm font-semibold text-foreground">{t("di.map.topProvincesTitle")}</p>
-                <DrugGeoTopProvincesPanel rows={provinceBreakdown} />
-              </CardBody>
-            </Card>
-            <Card>
-              <CardBody className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">{t("di.map.seizureSummaryTitle")}</p>
-                <DrugGeoSeizureSummaryPanel groups={seizureSummary} />
-              </CardBody>
-            </Card>
-            <Card>
-              <CardBody className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">{t("di.map.trendTitle")}</p>
-                <DrugGeoTimeTrendChart buckets={monthlyTrend} />
+                <DrugGeoTopProvincesPanel rows={provinces} />
               </CardBody>
             </Card>
           </div>

@@ -1,24 +1,30 @@
 /**
- * Drug Geo Intelligence API handler (Phase DI-8, Section 32/33).
+ * Drug Geo / Map Intelligence API handlers.
  *
- * GET /api/drug-intelligence/map — drug.read gated, same
- * assertDrugIntelligencePermission convention every other Drug Intelligence
- * endpoint uses. One request assembles the full map/list/no-coordinate/
- * province-breakdown payload (Section 32: "do not make the browser
- * assemble map markers from many API calls").
+ * LIVE GET /api/drug-intelligence/map (DI-10E.6B) uses DrugMapQueryService.
+ * handleDrugGeoResult remains for the legacy loader and is not the live path.
  */
 
 import { z } from "zod";
 import { badRequest, jsonError, jsonOk } from "@/lib/api/api_response";
 import type { DrugGeoIntelligenceService } from "@/lib/drug_intelligence/drug_geo_intelligence_service";
-import { drugGeoQuerySchema } from "@/lib/drug_intelligence/drug_case_api_schemas";
+import { drugGeoQuerySchema, drugMapQuerySchema } from "@/lib/drug_intelligence/drug_case_api_schemas";
 import { assertDrugIntelligencePermission } from "@/lib/drug_intelligence/drug_case_api_handlers";
+import {
+  DrugMapQueryInvalidFilterError,
+  DrugMapQueryService,
+  type DrugMapQueryInput,
+} from "@/lib/drug_intelligence/drug_map_query";
+import { mapListTotalPages } from "@/lib/drug_intelligence/drug_map_view";
 
 function zodDetails(error: z.ZodError): unknown {
   return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
 }
 
-/** GET /api/drug-intelligence/map */
+/**
+ * Legacy unbounded loader. Not used by GET /api/drug-intelligence/map.
+ * Retained so existing getGeoResult tests can still exercise the old handler.
+ */
 export async function handleDrugGeoResult(service: DrugGeoIntelligenceService, searchParams: URLSearchParams, actorId: string | null, rawHeaders: Request): Promise<Response> {
   if (!actorId) return jsonError("BAD_REQUEST", "actorId query parameter is required", 400);
 
@@ -38,4 +44,52 @@ export async function handleDrugGeoResult(service: DrugGeoIntelligenceService, s
   });
 
   return jsonOk(result);
+}
+
+/** LIVE GET /api/drug-intelligence/map — bounded Map V2. */
+export async function handleDrugMapQuery(service: DrugMapQueryService, searchParams: URLSearchParams, actorId: string | null, rawHeaders: Request): Promise<Response> {
+  if (!actorId) return jsonError("BAD_REQUEST", "actorId query parameter is required", 400);
+
+  const denied = await assertDrugIntelligencePermission(rawHeaders, actorId, "drug.read");
+  if (denied) return denied;
+
+  const queryParsed = drugMapQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!queryParsed.success) return badRequest("Invalid map query", zodDetails(queryParsed.error));
+
+  const parsed = queryParsed.data;
+  const input: DrugMapQueryInput = {
+    dateFrom: parsed.dateFrom || parsed.arrestDateFrom,
+    dateTo: parsed.dateTo || parsed.arrestDateTo,
+    status: parsed.status,
+    drugCategory: parsed.drugCategory,
+    province: parsed.province,
+    district: parsed.district,
+    headquartersId: parsed.headquartersId,
+    regionId: parsed.regionId,
+    battalionId: parsed.battalionId,
+    companyId: parsed.companyId,
+    leadHeadquartersId: parsed.leadHeadquartersId,
+    leadRegionId: parsed.leadRegionId,
+    leadBattalionId: parsed.leadBattalionId,
+    leadCompanyId: parsed.leadCompanyId,
+    personId: parsed.personId,
+    page: parsed.page,
+    pageSize: parsed.pageSize,
+  };
+
+  try {
+    const result = await service.load(input);
+    return jsonOk({
+      ...result,
+      list: {
+        ...result.list,
+        totalPages: mapListTotalPages(result.list.total, result.list.pageSize),
+      },
+    });
+  } catch (error) {
+    if (error instanceof DrugMapQueryInvalidFilterError) {
+      return badRequest("Invalid map query");
+    }
+    return jsonError("INTERNAL_ERROR", "Failed to load map query", 500);
+  }
 }

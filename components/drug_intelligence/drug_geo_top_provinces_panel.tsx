@@ -1,20 +1,17 @@
 /**
  * DrugGeoTopProvincesPanel (Phase DI-8.2, Section 11) — "จังหวัดที่มีคดีสูงสุด".
  *
- * Reuses DrugGeoResultView.provinceBreakdown as-is — it's ALREADY sorted by
- * caseCount descending (composeDrugGeoResult's own sort), so this only
- * slices the top N; it does not re-sort or re-aggregate. Renders nothing
- * when there is no province data at all (Section 11: "do not display fake
- * rankings when data is absent"), never a padded/fabricated row.
+ * Reuses server `provinces[]` as-is — already sorted by caseCount
+ * descending. Renders nothing when there is no province data.
  */
 "use client";
 
 import { useT } from "@/components/i18n/language_provider";
-import type { DrugGeoProvinceBreakdownRowView } from "@/lib/drug_intelligence/drug_geo_client";
+import type { DrugMapProvinceView } from "@/lib/drug_intelligence/drug_geo_client";
 
 const TOP_N = 5;
 
-export function DrugGeoTopProvincesPanel({ rows }: { rows: DrugGeoProvinceBreakdownRowView[] }) {
+export function DrugGeoTopProvincesPanel({ rows }: { rows: DrugMapProvinceView[] }) {
   const { t } = useT();
   const top = rows.slice(0, TOP_N);
 

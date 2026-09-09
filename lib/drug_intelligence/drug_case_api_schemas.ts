@@ -343,3 +343,30 @@ export const drugGeoQuerySchema = z.object({
   drugCategory: z.enum(DRUG_CATEGORIES).optional(),
   personId: z.string().trim().optional(),
 });
+
+/**
+ * DI-10E.6B: live Map V2 query. Accepts current URL keys (`dateFrom`/`dateTo`)
+ * plus the previous API aliases (`arrestDateFrom`/`arrestDateTo`). Unknown
+ * keys such as `caseId` / `returnTo` are stripped and never become filters.
+ */
+export const drugMapQuerySchema = z.object({
+  dateFrom: z.string().trim().optional(),
+  dateTo: z.string().trim().optional(),
+  arrestDateFrom: z.string().trim().optional(),
+  arrestDateTo: z.string().trim().optional(),
+  status: z.enum(DRUG_CASE_STATUSES).optional(),
+  province: z.string().trim().optional(),
+  district: z.string().trim().optional(),
+  headquartersId: z.coerce.number().int().positive().optional(),
+  regionId: z.coerce.number().int().positive().optional(),
+  battalionId: z.coerce.number().int().positive().optional(),
+  companyId: z.coerce.number().int().positive().optional(),
+  leadHeadquartersId: z.coerce.number().int().positive().optional(),
+  leadRegionId: z.coerce.number().int().positive().optional(),
+  leadBattalionId: z.coerce.number().int().positive().optional(),
+  leadCompanyId: z.coerce.number().int().positive().optional(),
+  drugCategory: z.enum(DRUG_CATEGORIES).optional(),
+  personId: z.string().trim().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().optional(),
+});

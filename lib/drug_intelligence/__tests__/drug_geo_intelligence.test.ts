@@ -14,7 +14,8 @@ import { InMemoryDatabaseClient } from "@/lib/database/__tests__/in_memory_clien
 import { SESSION_COOKIE_NAME } from "@/lib/auth/auth_config";
 import { DrugCaseService } from "@/lib/drug_intelligence/drug_case_service";
 import { DrugGeoIntelligenceService } from "@/lib/drug_intelligence/drug_geo_intelligence_service";
-import { handleDrugGeoResult } from "@/lib/drug_intelligence/drug_geo_api_handlers";
+import { handleDrugMapQuery } from "@/lib/drug_intelligence/drug_geo_api_handlers";
+import { DrugMapQueryService } from "@/lib/drug_intelligence/drug_map_query";
 import { resolveDrugGeoCoordinate, composeDrugGeoResult } from "@/lib/drug_intelligence/drug_geo_marker";
 import type { DrugCaseCreateRequest } from "@/lib/drug_intelligence/drug_case_types";
 
@@ -372,9 +373,9 @@ test("province breakdown groups by province, sorted by case count descending", (
 
 test("X: officer (no drug.read) is REJECTED 403 on GET /api/drug-intelligence/map", async () => {
   const db = new InMemoryDatabaseClient();
-  const geoService = new DrugGeoIntelligenceService({ db });
+  const service = new DrugMapQueryService(db);
   const req = requestWithSession("http://localhost/api/drug-intelligence/map?actorId=mock:1101700123456");
-  const res = await handleDrugGeoResult(geoService, new URLSearchParams({ actorId: "mock:1101700123456" }), "mock:1101700123456", req);
+  const res = await handleDrugMapQuery(service, new URLSearchParams({ actorId: "mock:1101700123456" }), "mock:1101700123456", req);
   assert.equal(res.status, 403);
 });
 
@@ -382,9 +383,9 @@ test("X2: commander (drug.read) CAN read the map result", async () => {
   const db = new InMemoryDatabaseClient();
   const caseService = new DrugCaseService({ db });
   await caseService.createCase(baseCase({ caseNumber: "GEO-X2", latitude: 10, longitude: 99 }));
-  const geoService = new DrugGeoIntelligenceService({ db });
+  const service = new DrugMapQueryService(db);
   const req = requestWithSession("http://localhost/api/drug-intelligence/map?actorId=mock:bpp414");
-  const res = await handleDrugGeoResult(geoService, new URLSearchParams({ actorId: "mock:bpp414" }), "mock:bpp414", req);
+  const res = await handleDrugMapQuery(service, new URLSearchParams({ actorId: "mock:bpp414" }), "mock:bpp414", req);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.data.markers.length, 1);
@@ -392,17 +393,17 @@ test("X2: commander (drug.read) CAN read the map result", async () => {
 
 test("X3: admin CAN read the map result", async () => {
   const db = new InMemoryDatabaseClient();
-  const geoService = new DrugGeoIntelligenceService({ db });
+  const service = new DrugMapQueryService(db);
   const req = requestWithSession("http://localhost/api/drug-intelligence/map?actorId=mock:admin");
-  const res = await handleDrugGeoResult(geoService, new URLSearchParams({ actorId: "mock:admin" }), "mock:admin", req);
+  const res = await handleDrugMapQuery(service, new URLSearchParams({ actorId: "mock:admin" }), "mock:admin", req);
   assert.equal(res.status, 200);
 });
 
 test("X4: missing session is REJECTED 401", async () => {
   const db = new InMemoryDatabaseClient();
-  const geoService = new DrugGeoIntelligenceService({ db });
+  const service = new DrugMapQueryService(db);
   const req = new Request("http://localhost/api/drug-intelligence/map?actorId=mock:admin");
-  const res = await handleDrugGeoResult(geoService, new URLSearchParams({ actorId: "mock:admin" }), "mock:admin", req);
+  const res = await handleDrugMapQuery(service, new URLSearchParams({ actorId: "mock:admin" }), "mock:admin", req);
   assert.equal(res.status, 401);
 });
 
@@ -412,9 +413,9 @@ test("X5: province filter is honored end-to-end through the API handler — ช�
   await caseService.createCase(baseCase({ caseNumber: "GEO-X5-1", province: "ชุมพร", latitude: 10.4934, longitude: 99.18 }));
   await caseService.createCase(baseCase({ caseNumber: "GEO-X5-2", province: "ระนอง", latitude: 9.9, longitude: 98.6 }));
 
-  const geoService = new DrugGeoIntelligenceService({ db });
+  const service = new DrugMapQueryService(db);
   const req = requestWithSession("http://localhost/api/drug-intelligence/map?actorId=mock:admin&province=ชุมพร");
-  const res = await handleDrugGeoResult(geoService, new URLSearchParams({ actorId: "mock:admin", province: "ชุมพร" }), "mock:admin", req);
+  const res = await handleDrugMapQuery(service, new URLSearchParams({ actorId: "mock:admin", province: "ชุมพร" }), "mock:admin", req);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.data.markers.length, 1);
