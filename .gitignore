@@ -67,3 +67,6 @@ scripts/sample_output/
 .netlify
 
 .vercel
+
+# Local DI-10 QA artifacts at repo root (screenshots + Playwright drivers)
+/tmp_di10*
