@@ -27,6 +27,7 @@ import { DrugTimelineService } from "@/lib/drug_intelligence/drug_timeline_servi
 import { OfficerDrugArrestPerformanceService } from "@/lib/drug_intelligence/officer_drug_arrest_performance_service";
 import { DrugGeoIntelligenceService } from "@/lib/drug_intelligence/drug_geo_intelligence_service";
 import { DrugMapQueryService } from "@/lib/drug_intelligence/drug_map_query";
+import { DrugMapCaseDetailService } from "@/lib/drug_intelligence/drug_map_case_detail";
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { DrugInvestigationBoardService } from "@/lib/drug_intelligence/drug_investigation_board_service";
 import { DrugInvestigationBoardImageService } from "@/lib/drug_intelligence/drug_investigation_board_image_service";
@@ -64,6 +65,8 @@ export interface DrugIntelligenceContainer {
   geoIntelligenceService: DrugGeoIntelligenceService;
   /** DI-10E.6B: bounded live Map V2 query. */
   mapQueryService: DrugMapQueryService;
+  /** DI-10E.6C: one-case Map popup detail. */
+  mapCaseDetailService: DrugMapCaseDetailService;
   /** Phase 2B: Commander Intelligence Dashboard read model. */
   commanderDashboardService: DrugCommanderDashboardService;
   /** Phase DI-9.5B: Saved Investigation Boards. */
@@ -98,6 +101,7 @@ export function createDrugIntelligenceContainer(
     officerDrugArrestPerformanceService: new OfficerDrugArrestPerformanceService({ db: client }),
     geoIntelligenceService: new DrugGeoIntelligenceService({ db: client }),
     mapQueryService: new DrugMapQueryService(client),
+    mapCaseDetailService: new DrugMapCaseDetailService(client),
     commanderDashboardService: new DrugCommanderDashboardService(client),
     investigationBoardService: new DrugInvestigationBoardService(client, investigationBoardImageService ?? undefined),
     investigationBoardImageService,

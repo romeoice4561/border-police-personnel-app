@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { badRequest, jsonError, jsonOk } from "@/lib/api/api_response";
+import { badRequest, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
 import type { DrugGeoIntelligenceService } from "@/lib/drug_intelligence/drug_geo_intelligence_service";
 import { drugGeoQuerySchema, drugMapQuerySchema } from "@/lib/drug_intelligence/drug_case_api_schemas";
 import { assertDrugIntelligencePermission } from "@/lib/drug_intelligence/drug_case_api_handlers";
@@ -15,6 +15,11 @@ import {
   DrugMapQueryService,
   type DrugMapQueryInput,
 } from "@/lib/drug_intelligence/drug_map_query";
+import {
+  DrugMapCaseDetailInvalidIdError,
+  DrugMapCaseDetailService,
+} from "@/lib/drug_intelligence/drug_map_case_detail";
+import { DrugCaseNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
 import { mapListTotalPages } from "@/lib/drug_intelligence/drug_map_view";
 
 function zodDetails(error: z.ZodError): unknown {
@@ -91,5 +96,31 @@ export async function handleDrugMapQuery(service: DrugMapQueryService, searchPar
       return badRequest("Invalid map query");
     }
     return jsonError("INTERNAL_ERROR", "Failed to load map query", 500);
+  }
+}
+
+/** LIVE GET /api/drug-intelligence/map/cases/{caseId} — one-case Map popup detail. */
+export async function handleDrugMapCaseDetail(
+  service: DrugMapCaseDetailService,
+  caseId: string,
+  actorId: string | null,
+  rawHeaders: Request
+): Promise<Response> {
+  if (!actorId) return jsonError("BAD_REQUEST", "actorId query parameter is required", 400);
+
+  const denied = await assertDrugIntelligencePermission(rawHeaders, actorId, "drug.read");
+  if (denied) return denied;
+
+  try {
+    const result = await service.load(caseId);
+    return jsonOk(result);
+  } catch (error) {
+    if (error instanceof DrugMapCaseDetailInvalidIdError) {
+      return badRequest("Invalid map case id");
+    }
+    if (error instanceof DrugCaseNotFoundError) {
+      return notFound(error.message);
+    }
+    return jsonError("INTERNAL_ERROR", "Failed to load map case detail", 500);
   }
 }

@@ -50,15 +50,33 @@ test("page keeps report action, returnTo, and caseId as selection only", () => {
   assert.doesNotMatch(page, /router\.push\(/);
 });
 
+test("page lazy-loads detail only for a selected marker that exists on the map", () => {
+  assert.match(page, /useDrugMapCaseDetail/);
+  assert.match(page, /detailCaseId/);
+  assert.match(page, /geoQuery\.data\?\.markers\.some/);
+  assert.doesNotMatch(page, /fetchDrugMapCaseDetail\(actorId, marker\.caseId\)/);
+  assert.doesNotMatch(page, /onMouseEnter[\s\S]{0,80}useDrugMapCaseDetail/);
+  assert.doesNotMatch(page, /onMouseEnter[\s\S]{0,80}detailCaseId/);
+});
+
 test("popup keeps lightweight fields and case navigation; drops relation-heavy sections", () => {
   assert.match(popup, /actionOpenCase/);
   assert.match(popup, /filterReportingUnit/);
   assert.match(popup, /popupLeadUnit/);
+  assert.match(popup, /detailLoading/);
+  assert.match(popup, /detailError/);
   assert.doesNotMatch(popup, /personSummaries/);
-  assert.doesNotMatch(popup, /seizedItems/);
   assert.doesNotMatch(popup, /suspectCount/);
   assert.doesNotMatch(popup, /hasUnreviewedAlert/);
   assert.doesNotMatch(popup, /DrugGeoPersonsDrawer/);
+  assert.match(popup, /persons\.items\.length > 0/);
+  assert.match(popup, /seizures\.items\.length > 0/);
+  assert.match(popup, /participatingUnits\.items\.length > 0/);
+  assert.match(popup, /officers\.count > 0/);
+  assert.match(popup, /max-h-80/);
+  assert.match(popup, /map-detail-loading/);
+  assert.match(popup, /map-detail-error/);
+  assert.match(popup, /detail\.retry/);
 });
 
 test("list uses V2 rows, reporting/lead labels, and pagination controls", () => {
@@ -75,4 +93,26 @@ test("province view uses server aggregates and does not click unknown bucket", (
   assert.match(province, /withCoordinates/);
   assert.doesNotMatch(province, /personCount/);
   assert.doesNotMatch(province, /topSeizedItems/);
+});
+
+test("map detail i18n keys exist in Thai and English", () => {
+  const dictionary = readFileSync(join(ROOT, "lib/i18n/dictionary.ts"), "utf8");
+  for (const key of [
+    "di.map.detailLoading",
+    "di.map.detailError",
+    "di.map.detailRetry",
+    "di.map.detailPersonsTitle",
+    "di.map.detailSeizuresTitle",
+    "di.map.detailUnitsTitle",
+    "di.map.detailOfficersTitle",
+    "di.map.detailTruncated",
+  ]) {
+    assert.match(dictionary, new RegExp(`"${key.replace(".", "\\.")}":\\s+tr\\("`));
+  }
+  assert.match(dictionary, /กำลังโหลดรายละเอียด\.\.\./);
+  assert.match(dictionary, /ไม่สามารถโหลดรายละเอียดเพิ่มเติมได้/);
+  assert.match(dictionary, /บุคคลที่เกี่ยวข้องในคดี/);
+  assert.match(dictionary, /ของกลางที่บันทึกในคดี/);
+  assert.match(dictionary, /หน่วยร่วมปฏิบัติ/);
+  assert.match(dictionary, /เจ้าหน้าที่ในชุดจับกุม/);
 });

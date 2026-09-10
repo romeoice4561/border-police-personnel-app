@@ -70,6 +70,7 @@ import { useOrganizationEngine } from "@/lib/ui/hooks";
 import { getSafeReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import { useDrugGeoResult } from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { useDrugMapCaseDetail } from "@/lib/drug_intelligence/use_drug_map_case_detail";
 import { DrugGeoFilterPanel } from "@/components/drug_intelligence/drug_geo_filter_panel";
 import { DrugGeoFilterChips } from "@/components/drug_intelligence/drug_geo_filter_chips";
 import { DrugGeoMap } from "@/components/drug_intelligence/drug_geo_map";
@@ -255,6 +256,8 @@ function DrugIntelligenceMapContent({
     return params.toString() ? `/drug-intelligence/map?${params.toString()}` : "/drug-intelligence/map";
   }, [filters]);
   const geoQuery = useDrugGeoResult(actorId, query);
+  const detailCaseId = viewMode === "MAP" && selectedCaseId && geoQuery.data?.markers.some((marker) => marker.caseId === selectedCaseId) ? selectedCaseId : null;
+  const caseDetail = useDrugMapCaseDetail(actorId, detailCaseId, Boolean(detailCaseId));
 
   const activeFilterCount = useMemo(() => (isDrugGeoFilterStateEmpty(filters) ? 0 : Object.entries(filters).filter(([, v]) => v !== null && v !== "").length), [filters]);
   const filterChips = useMemo(() => deriveDrugGeoFilterChips(filters, organizationEngine), [filters, organizationEngine]);
@@ -463,7 +466,13 @@ function DrugIntelligenceMapContent({
                   selectedCaseId={selectedCaseId}
                   onSelectMarker={handleSelectMarker}
                   fitToken={fitToken}
-                  renderPopup={(marker) => <DrugGeoMarkerPopup marker={marker} returnTo={mapReturnUrl} />}
+                  renderPopup={(marker) => (
+                    <DrugGeoMarkerPopup
+                      marker={marker}
+                      returnTo={mapReturnUrl}
+                      detail={marker.caseId === selectedCaseId ? caseDetail : undefined}
+                    />
+                  )}
                   heightClassName={expanded ? "h-full w-full" : undefined}
                   clusterMode={clusterMode}
                 />
