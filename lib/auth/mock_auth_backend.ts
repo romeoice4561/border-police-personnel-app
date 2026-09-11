@@ -77,6 +77,10 @@ export class MockAuthBackend implements AuthBackend {
     return cred ? toAuthUser(cred) : null;
   }
 
+  async listUsers(): Promise<AuthUser[]> {
+    return MOCK_CREDENTIALS.map(toAuthUser);
+  }
+
   async signOut(): Promise<void> {
     // No server session to revoke in the mock backend.
   }

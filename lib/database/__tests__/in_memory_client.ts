@@ -28,7 +28,8 @@ class Table {
   constructor(private readonly matchUnique: (row: Row, where: Record<string, unknown>) => boolean) {}
 
   find(where: Record<string, unknown>): Row | null {
-    return this.rows.find((r) => this.matchUnique(r, where)) ?? null;
+    const row = this.rows.find((r) => this.matchUnique(r, where)) ?? null;
+    return row ? { ...row } : null;
   }
 
   findMany(where?: Record<string, unknown>, relations?: Record<string, InMemoryRelationFilter>): Row[] {
@@ -379,6 +380,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   private readonly drugInvestigationBoards = new Table((r, w) => r.id === w.id);
   // Phase DI-9.5D: private investigation-board image metadata.
   private readonly drugInvestigationBoardImages = new Table((r, w) => r.id === w.id);
+  // DI-11B: collaboration overlay — not factual intelligence.
+  private readonly drugAnalystNotes = new Table((r, w) => r.id === w.id);
+  private readonly drugInvestigationTasks = new Table((r, w) => r.id === w.id);
 
   /**
    * When set, any timeline.create for an officer whose row has this string
@@ -554,6 +558,12 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugInvestigationBoardImage() {
     return delegate(this.drugInvestigationBoardImages) as unknown as DatabaseClient["drugInvestigationBoardImage"];
   }
+  get drugAnalystNote() {
+    return delegate(this.drugAnalystNotes) as unknown as DatabaseClient["drugAnalystNote"];
+  }
+  get drugInvestigationTask() {
+    return delegate(this.drugInvestigationTasks) as unknown as DatabaseClient["drugInvestigationTask"];
+  }
 
   /** Interactive transaction: snapshot all tables, run fn, restore all on throw (rollback). */
   async $transaction<T>(
@@ -603,6 +613,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugCaseOfficers: this.drugCaseOfficers.snapshot(),
       drugInvestigationBoards: this.drugInvestigationBoards.snapshot(),
       drugInvestigationBoardImages: this.drugInvestigationBoardImages.snapshot(),
+      drugAnalystNotes: this.drugAnalystNotes.snapshot(),
+      drugInvestigationTasks: this.drugInvestigationTasks.snapshot(),
     };
     try {
       return await fn(this);
@@ -648,6 +660,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugCaseOfficers.restore(snaps.drugCaseOfficers);
       this.drugInvestigationBoards.restore(snaps.drugInvestigationBoards);
       this.drugInvestigationBoardImages.restore(snaps.drugInvestigationBoardImages);
+      this.drugAnalystNotes.restore(snaps.drugAnalystNotes);
+      this.drugInvestigationTasks.restore(snaps.drugInvestigationTasks);
       throw error;
     }
   }

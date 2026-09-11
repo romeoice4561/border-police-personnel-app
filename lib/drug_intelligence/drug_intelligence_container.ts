@@ -31,6 +31,8 @@ import { DrugMapCaseDetailService } from "@/lib/drug_intelligence/drug_map_case_
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { DrugInvestigationBoardService } from "@/lib/drug_intelligence/drug_investigation_board_service";
 import { DrugInvestigationBoardImageService } from "@/lib/drug_intelligence/drug_investigation_board_image_service";
+import { DrugAnalystNoteService } from "@/lib/drug_intelligence/drug_analyst_note_service";
+import { DrugInvestigationTaskService } from "@/lib/drug_intelligence/drug_investigation_task_service";
 import {
   resolveBoardImageStorageConfig,
   SupabaseBoardImageObjectStore,
@@ -73,6 +75,9 @@ export interface DrugIntelligenceContainer {
   investigationBoardService: DrugInvestigationBoardService;
   /** Phase DI-9.5D: private board images. Null when storage is not configured. */
   investigationBoardImageService: DrugInvestigationBoardImageService | null;
+  /** DI-11B: collaboration foundation — no UI. */
+  analystNoteService: DrugAnalystNoteService;
+  investigationTaskService: DrugInvestigationTaskService;
 }
 
 /** Builds the container from any DatabaseClient (real or fake). Pure — no I/O. */
@@ -105,6 +110,8 @@ export function createDrugIntelligenceContainer(
     commanderDashboardService: new DrugCommanderDashboardService(client),
     investigationBoardService: new DrugInvestigationBoardService(client, investigationBoardImageService ?? undefined),
     investigationBoardImageService,
+    analystNoteService: new DrugAnalystNoteService(client),
+    investigationTaskService: new DrugInvestigationTaskService(client),
   };
 }
 

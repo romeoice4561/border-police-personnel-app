@@ -50,6 +50,8 @@ import type {
   DrugCaseOfficer,
   DrugInvestigationBoard,
   DrugInvestigationBoardImage,
+  DrugAnalystNote,
+  DrugInvestigationTask,
 } from "@/lib/generated/prisma/client";
 
 export type { Officer, Timeline, Unit, Phone, ImportJob, ImportLog, Education, Training, SalaryHistory, OfficerDocument, SkillCategory, Skill, SkillLevel, OfficerSkill };
@@ -83,6 +85,8 @@ export type {
   DrugCaseOfficer,
   DrugInvestigationBoard,
   DrugInvestigationBoardImage,
+  DrugAnalystNote,
+  DrugInvestigationTask,
 };
 
 /** Prisma `orderBy` direction, including `{ sort, nulls }` used by Map V2. */
@@ -174,6 +178,9 @@ export interface DatabaseClient {
   drugInvestigationBoard: ModelDelegate<DrugInvestigationBoard, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /** Phase DI-9.5D: private investigation-board image metadata. */
   drugInvestigationBoardImage: ModelDelegate<DrugInvestigationBoardImage, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** DI-11B: collaboration overlay — analyst notes and investigation tasks. */
+  drugAnalystNote: ModelDelegate<DrugAnalystNote, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugInvestigationTask: ModelDelegate<DrugInvestigationTask, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /**
    * Runs `fn` inside a single database transaction, passing a transaction-scoped
    * client with the same delegate surface. Mirrors PrismaClient.$transaction's

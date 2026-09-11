@@ -1561,6 +1561,9 @@ model DrugCase {
   participatingUnits   DrugCaseParticipatingUnit[]
   /// Phase DI-7.6: arrest-team officers (0..N) — see DrugCaseOfficer doc comment.
   officers             DrugCaseOfficer[]
+  /// DI-11B: collaboration overlay — not factual case evidence.
+  analystNotes         DrugAnalystNote[]
+  investigationTasks   DrugInvestigationTask[]
 
   @@index([caseNumber])
   @@index([status])
@@ -1779,6 +1782,9 @@ model DrugPerson {
   /// DI-7.3: network-role assertions (append-only, each with provenance and
   /// verification status — never a single overwritten "current role" field).
   networkRoles DrugPersonNetworkRole[]
+  /// DI-11B: collaboration overlay — not factual person intelligence.
+  analystNotes       DrugAnalystNote[]
+  investigationTasks DrugInvestigationTask[]
 
   @@index([primaryFullName])
   @@index([dateOfBirth])
@@ -2722,4 +2728,80 @@ model DrugInvestigationBoardImage {
 
   @@index([boardId])
   @@index([boardId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PHASE DI-11B — Collaboration data foundation (additive only).
+//
+// Analyst notes and investigation tasks are WORKFLOW / ANALYST WORK, never
+// factual intelligence. They must not mutate DrugCase/DrugPerson facts,
+// graph junctions, Map coordinates, Timeline events, Search, Telegram, or
+// exports. Visibility for MVP follows existing global `drug.read` — there is
+// no organization ACL, unit inbox, or private note in this phase.
+//
+// Target integrity uses typed nullable FKs (caseId XOR personId) enforced
+// in Zod/service. This repository validates combinations at the API layer,
+// never a DB CHECK constraint.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum DrugInvestigationTaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum DrugInvestigationTaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// DI-11B: analyst working note. Semantic kind ANALYST_NOTE. Not case narrative.
+model DrugAnalystNote {
+  id               String     @id @default(cuid())
+  body             String
+  case             DrugCase?  @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  caseId           String?
+  person           DrugPerson? @relation(fields: [personId], references: [id], onDelete: Restrict)
+  personId         String?
+  authorActorId    String
+  authorName       String
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  updatedByActorId String?
+  updatedByName    String?
+
+  @@index([caseId, createdAt])
+  @@index([personId, createdAt])
+  @@index([authorActorId])
+}
+
+/// DI-11B: follow-up investigation task. Semantic kind TASK. Not DrugCaseStatus.
+model DrugInvestigationTask {
+  id                String                         @id @default(cuid())
+  title             String
+  description       String?
+  case              DrugCase?                      @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  caseId            String?
+  person            DrugPerson?                    @relation(fields: [personId], references: [id], onDelete: Restrict)
+  personId          String?
+  assignedActorId   String?
+  assignedActorName String?
+  dueAt             DateTime?
+  priority          DrugInvestigationTaskPriority  @default(NORMAL)
+  status            DrugInvestigationTaskStatus    @default(OPEN)
+  createdByActorId  String
+  createdByName     String
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+  updatedByActorId  String?
+  updatedByName     String?
+  completedAt       DateTime?
+
+  @@index([status, dueAt])
+  @@index([assignedActorId, status])
+  @@index([caseId, status])
+  @@index([personId, status])
 }

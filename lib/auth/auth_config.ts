@@ -47,6 +47,13 @@ export const SESSION_STORAGE_KEY = "bppis.session";
 export const SESSION_COOKIE_NAME = "bppis_session";
 
 /**
+ * DI-11B: HttpOnly signed actor cookie used ONLY by collaboration routes.
+ * Existing Drug APIs keep using client actorId after presence-cookie check.
+ * Presence cookie (`bppis_session=1`) is unchanged.
+ */
+export const BOUND_SESSION_COOKIE_NAME = "bppis_actor";
+
+/**
  * Role → home route (requirement 3). Admin/Commander → Dashboard; Officer →
  * their own profile. Centralized so the routing rule lives in ONE place and the
  * login page stays dumb.

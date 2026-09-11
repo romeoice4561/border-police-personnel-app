@@ -20,6 +20,11 @@ export interface AuthBackend {
    * Optional for backends that have not implemented directory lookup yet.
    */
   getUserById?(id: string): Promise<AuthUser | null>;
+  /**
+   * DI-11B: canonical login directory for collaboration assignment.
+   * Optional — collaboration falls back to empty when a backend has no directory.
+   */
+  listUsers?(): Promise<AuthUser[]>;
   /** Optional server-side sign-out hook (mock backend is a no-op; a real backend revokes the session). */
   signOut?(): Promise<void>;
 }

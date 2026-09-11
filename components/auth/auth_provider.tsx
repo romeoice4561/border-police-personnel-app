@@ -130,13 +130,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await getAuthBackend().authenticate(username, password);
     if (result.ok) {
       writeStoredSession({ user: result.user, issuedAt: Date.now() }, rememberMe);
+      // DI-11B: also issue the HttpOnly signed actor cookie for collaboration
+      // routes. Failure here must not block existing login (presence cookie +
+      // local session still work for current Drug APIs).
+      try {
+        await fetch("/api/auth/session", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password, rememberMe }),
+        });
+      } catch {
+        // ignore — collaboration writes will 401 until a later successful bind
+      }
     }
     return result;
   }, []);
 
   const logout = useCallback(() => {
-    void getAuthBackend().signOut?.();
-    clearStoredSession();
+    // Collaboration APIs authorize on bppis_actor alone. Do not clear the
+    // client UI session unless the HttpOnly cookie was actually cleared —
+    // otherwise a later login-bind failure can write as the previous actor.
+    void (async () => {
+      try {
+        const response = await fetch("/api/auth/session", { method: "DELETE", credentials: "include" });
+        if (!response.ok) return;
+      } catch {
+        return;
+      }
+      void getAuthBackend().signOut?.();
+      clearStoredSession();
+    })();
   }, []);
 
   const can = useCallback((permission: Permission) => hasPerm(user?.permissions, permission), [user]);
