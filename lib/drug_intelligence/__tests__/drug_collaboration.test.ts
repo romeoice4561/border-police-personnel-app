@@ -451,14 +451,16 @@ test("source isolation: collaboration is not wired into search/network/map/expor
     "lib/drug_intelligence/drug_map_query.ts",
     "lib/drug_intelligence/drug_export_service.ts",
     "lib/personnel_search_telegram/drug_search_command.ts",
-    "app/drug-intelligence/cases/[id]/page.tsx",
-    "app/drug-intelligence/persons/[id]/page.tsx",
     "components/layout/app_shell.tsx",
   ];
   for (const file of files) {
     const src = readFileSync(join(ROOT, file), "utf8");
-    assert.doesNotMatch(src, /DrugAnalystNoteService|DrugInvestigationTaskService|analystNoteService|investigationTaskService/);
+    assert.doesNotMatch(src, /DrugAnalystNoteService|DrugInvestigationTaskService|analystNoteService|investigationTaskService|DrugAnalystNotesPanel/);
   }
+  const caseSrc = readFileSync(join(ROOT, "app/drug-intelligence/cases/[id]/page.tsx"), "utf8");
+  const personSrc = readFileSync(join(ROOT, "app/drug-intelligence/persons/[id]/page.tsx"), "utf8");
+  assert.doesNotMatch(caseSrc, /DrugAnalystNoteService|DrugInvestigationTaskService|analystNoteService|investigationTaskService/);
+  assert.doesNotMatch(personSrc, /DrugAnalystNoteService|DrugInvestigationTaskService|analystNoteService|investigationTaskService/);
   const noteRoute = readFileSync(join(ROOT, "app/api/drug-intelligence/notes/[noteId]/route.ts"), "utf8");
   const taskRoute = readFileSync(join(ROOT, "app/api/drug-intelligence/tasks/[taskId]/route.ts"), "utf8");
   assert.doesNotMatch(noteRoute, /export async function DELETE/);

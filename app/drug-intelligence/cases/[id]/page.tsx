@@ -26,6 +26,7 @@ import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
 import { DrugCaseAlertSummary } from "@/components/drug_intelligence/drug_case_alert_summary";
 import { DrugCaseTimelineSummary } from "@/components/drug_intelligence/drug_case_timeline_summary";
 import { DrugPersonDrawer } from "@/components/drug_intelligence/drug_person_drawer";
+import { DrugAnalystNotesPanel } from "@/components/drug_intelligence/drug_analyst_notes_panel";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugCase } from "@/lib/drug_intelligence/drug_intelligence_hooks";
@@ -55,6 +56,7 @@ const TABS = [
   { key: "vehicles", labelKey: "di.workspace.tabVehicles" },
   { key: "seized", labelKey: "di.workspace.tabSeized" },
   { key: "locations", labelKey: "di.workspace.tabLocations" },
+  { key: "analyst-notes", labelKey: "di.collaboration.tabAnalystNotes" },
   { key: "notes", labelKey: "di.workspace.tabNotes" },
 ] as const;
 
@@ -201,6 +203,7 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} onSelectPerson={openPersonDrawer} /> : null}
       {activeTab === "seized" ? <SeizedTab items={data.seizedItems} language={language} /> : null}
       {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
+      {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel targetKind="CASE" targetId={caseId} /> : null}
       {activeTab === "notes" ? <NotesTab data={data} /> : null}
 
       <DrugPersonDrawer personId={selectedPersonId} roleInCase={selectedPersonRole} onClose={() => setSelectedPersonId("")} />

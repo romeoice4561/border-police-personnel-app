@@ -17,6 +17,7 @@
  */
 
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
+import { THAI_MONTH_ABBREVIATIONS, yearGregorianToBE } from "@/lib/officer_profile/thai_date";
 
 const MISSING_TH = "ไม่มีข้อมูล";
 
@@ -34,4 +35,24 @@ export function formatDiDate(value: string | Date | null | undefined): string {
   const d = value instanceof Date ? value : new Date(value as string);
   if (Number.isNaN(d.getTime())) return MISSING_TH;
   return formatShortThaiDateTh(d);
+}
+
+/**
+ * Local date + time for collaboration timestamps (notes). Uses the same
+ * Buddhist-Era short-month vocabulary as formatDiDate; hours/minutes are
+ * the viewer's local clock, not a second calendar system.
+ *
+ * @example
+ * formatDiDateTime("2026-08-14T10:05:00") // "14 ส.ค. 2569 10:05" (local)
+ */
+export function formatDiDateTime(value: string | Date | null | undefined): string {
+  if (!value) return MISSING_TH;
+  const d = value instanceof Date ? value : new Date(value as string);
+  if (Number.isNaN(d.getTime())) return MISSING_TH;
+  const day = d.getDate();
+  const month = THAI_MONTH_ABBREVIATIONS[d.getMonth() + 1] ?? "";
+  const yearBE = yearGregorianToBE(d.getFullYear());
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${day} ${month} ${yearBE} ${hh}:${mm}`;
 }
