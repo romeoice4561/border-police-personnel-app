@@ -111,6 +111,7 @@ export interface InvestigationTaskDto {
   updatedByName: string | null;
   completedAt: string | null;
   isOverdue: boolean;
+  sourceNoteId: string | null;
 }
 
 export interface AnalystNoteCreateInput {
@@ -127,6 +128,7 @@ export interface InvestigationTaskCreateInput {
   assignedActorId?: string | null;
   dueAt?: Date | null;
   priority?: DrugInvestigationTaskPriority;
+  sourceNoteId?: string | null;
 }
 
 export interface InvestigationTaskPatchInput {
@@ -148,4 +150,5 @@ export interface InvestigationTaskListQuery extends CollaborationListQuery {
   assignedActorId?: string;
   priority?: DrugInvestigationTaskPriority;
   overdue?: boolean;
+  sourceNoteId?: string;
 }

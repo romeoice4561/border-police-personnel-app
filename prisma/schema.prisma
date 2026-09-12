@@ -2773,6 +2773,8 @@ model DrugAnalystNote {
   updatedByActorId String?
   updatedByName    String?
 
+  sourcedTasks DrugInvestigationTask[]
+
   @@index([caseId, createdAt])
   @@index([personId, createdAt])
   @@index([authorActorId])
@@ -2800,8 +2802,14 @@ model DrugInvestigationTask {
   updatedByName     String?
   completedAt       DateTime?
 
+  /// DI-11E.1: optional provenance to the Analyst Note that sourced this Task.
+  /// Nullable. One Note may source many Tasks. Not a factual field.
+  sourceNote   DrugAnalystNote? @relation(fields: [sourceNoteId], references: [id], onDelete: Restrict)
+  sourceNoteId String?
+
   @@index([status, dueAt])
   @@index([assignedActorId, status])
   @@index([caseId, status])
   @@index([personId, status])
+  @@index([sourceNoteId, createdAt, id])
 }

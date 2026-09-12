@@ -16,10 +16,11 @@ import {
   handleNoteGet,
   handleNotePatch,
   handleCaseTasksCreate,
+  handlePersonTasksCreate,
   handleTaskPatch,
   handleCollaborationAssignees,
 } from "@/lib/drug_intelligence/drug_collaboration_api_handlers";
-import type { DrugCaseCreateRequest } from "@/lib/drug_intelligence/drug_case_types";
+import type { DrugCaseCreateRequest, DrugCasePersonInput } from "@/lib/drug_intelligence/drug_case_types";
 import { POST as sessionPost, DELETE as sessionDelete } from "@/app/api/auth/session/route";
 import { boundSessionSecret, BoundSessionSecretError } from "@/lib/auth/bound_session";
 import { assertConfirmActorId } from "@/lib/drug_intelligence/drug_collaboration_auth";
@@ -222,10 +223,11 @@ test("note and task DTOs omit factual intelligence fields", async () => {
     assert.equal(blob.includes("imei"), false);
   }
   const noteBody = (JSON.parse(noteJson) as { data: { kind: string } }).data;
-  const taskBody = (JSON.parse(taskJson) as { data: { kind: string; description: string } }).data;
+  const taskBody = (JSON.parse(taskJson) as { data: { kind: string; description: string; sourceNoteId: string | null } }).data;
   assert.equal(noteBody.kind, "ANALYST_NOTE");
   assert.equal(taskBody.kind, "TASK");
   assert.equal(taskBody.description, "keep-in-dto");
+  assert.equal(taskBody.sourceNoteId, null);
 
   const loaded = await handleNoteGet(notes, (JSON.parse(noteJson) as { data: { id: string } }).data.id, boundRequest("mock:admin", "http://localhost/note"));
   assert.equal(loaded.status, 200);
@@ -359,4 +361,262 @@ test("session DELETE clears the HttpOnly actor cookie; production secret has no 
   );
   const local = boundSessionSecret({ NODE_ENV: "test" } as NodeJS.ProcessEnv);
   assert.ok(local.length > 0);
+});
+
+const NOTE_BODY = "secret-note-body-must-never-copy <script>alert(1)</script>";
+
+function person(name: string): DrugCasePersonInput {
+  return {
+    newPerson: {
+      primaryFullName: name,
+      nationality: null,
+      dateOfBirth: null,
+      notes: "person-note",
+      identifiers: [],
+    },
+    role: "SUSPECT",
+    linkedOfficerId: null,
+    notes: null,
+    phones: [],
+    sims: [],
+    devices: [],
+    vehicles: [],
+  };
+}
+
+async function seedLinkedTargets() {
+  const db = new InMemoryDatabaseClient();
+  const first = await new DrugCaseService({ db }).createCase({
+    ...baseCase(),
+    caseNumber: "COL-API-11E1-001",
+    persons: [person("สมชาย เอ"), person("วิไล เอฟ")],
+  });
+  const second = await new DrugCaseService({ db }).createCase({
+    ...baseCase(),
+    caseNumber: "COL-API-11E1-002",
+    title: "other-case",
+  });
+  const links = (await db.drugCasePerson.findMany({ where: { caseId: first.caseId } })) as Array<{ personId: string }>;
+  return {
+    db,
+    caseX: first.caseId,
+    caseY: second.caseId,
+    personA: links[0]!.personId,
+    personF: links[1]!.personId,
+    notes: new DrugAnalystNoteService(db),
+    tasks: new DrugInvestigationTaskService(db),
+  };
+}
+
+test("Case and Person POST accept optional sourceNoteId and keep existing create unchanged", async () => {
+  const { db, caseX, personA, notes, tasks } = await seedLinkedTargets();
+  const caseNote = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const personNote = await notes.createForPerson(personA, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+
+  const withoutNote = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", { method: "POST", body: writeJson("mock:admin", { title: "plain-task" }) })
+  );
+  assert.equal(withoutNote.status, 201);
+  const plain = ((await withoutNote.json()) as { data: { sourceNoteId: string | null; description: string | null } }).data;
+  assert.equal(plain.sourceNoteId, null);
+
+  const caseLinked = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "from-note", sourceNoteId: caseNote.id }),
+    })
+  );
+  assert.equal(caseLinked.status, 201);
+  const caseTask = ((await caseLinked.json()) as { data: { sourceNoteId: string | null; title: string; description: string | null } }).data;
+  assert.equal(caseTask.sourceNoteId, caseNote.id);
+  assert.equal(caseTask.title, "from-note");
+  assert.equal(caseTask.description, null);
+  assert.equal(JSON.stringify(caseTask).includes(NOTE_BODY), false);
+
+  const personLinked = await handlePersonTasksCreate(
+    tasks,
+    personA,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "person-from-note", sourceNoteId: personNote.id }),
+    })
+  );
+  assert.equal(personLinked.status, 201);
+  const personTask = ((await personLinked.json()) as { data: { sourceNoteId: string | null } }).data;
+  assert.equal(personTask.sourceNoteId, personNote.id);
+
+  const createdAudit = (await db.drugAuditLog.findMany({ where: { action: "investigation_task_created" } })).find((row) =>
+    String(row.detail ?? "").includes(caseNote.id)
+  );
+  assert.ok(createdAudit);
+  const detail = String(createdAudit.detail ?? "");
+  assert.match(detail, new RegExp(`"sourceNoteId":"${caseNote.id}"`));
+  assert.equal(detail.includes(NOTE_BODY), false);
+  assert.equal(detail.includes("from-note"), false);
+  assert.equal((await db.drugAuditLog.findMany({ where: { action: "note_linked_to_task" } })).length, 0);
+});
+
+test("sourceNoteId cross-target and missing-note writes fail without creating a Task", async () => {
+  const { db, caseX, caseY, personA, personF, notes, tasks } = await seedLinkedTargets();
+  const caseNote = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const personNote = await notes.createForPerson(personA, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+
+  const crossCase = await handleCaseTasksCreate(
+    tasks,
+    caseY,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "no", sourceNoteId: caseNote.id }),
+    })
+  );
+  const crossPerson = await handlePersonTasksCreate(
+    tasks,
+    personF,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "no", sourceNoteId: personNote.id }),
+    })
+  );
+  const caseToPerson = await handlePersonTasksCreate(
+    tasks,
+    personA,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "no", sourceNoteId: caseNote.id }),
+    })
+  );
+  const personToCase = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "no", sourceNoteId: personNote.id }),
+    })
+  );
+  const missing = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "no", sourceNoteId: "missing-note-id-0001" }),
+    })
+  );
+
+  assert.equal(crossCase.status, 400);
+  assert.equal(crossPerson.status, 400);
+  assert.equal(caseToPerson.status, 400);
+  assert.equal(personToCase.status, 400);
+  assert.equal(missing.status, 404);
+  for (const response of [crossCase, crossPerson, caseToPerson, personToCase, missing]) {
+    const blob = JSON.stringify(await response.json());
+    assert.equal(blob.includes(NOTE_BODY), false);
+    assert.doesNotMatch(blob, /<script>/);
+  }
+  assert.equal((await db.drugInvestigationTask.findMany({})).length, 0);
+});
+
+test("sourceNoteId create still requires confirmActorId; commander and officer stay blocked", async () => {
+  const { db, caseX, notes, tasks } = await seedLinkedTargets();
+  const note = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+
+  const missingConfirm = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title: "no", sourceNoteId: note.id }),
+    })
+  );
+  assert.equal(missingConfirm.status, 400);
+
+  const mismatch = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:bpp414", { title: "no", sourceNoteId: note.id }),
+    })
+  );
+  assert.equal(mismatch.status, 409);
+  const mismatchJson = (await mismatch.json()) as { error: { message: string; details?: { personId?: string } } };
+  assert.match(mismatchJson.error.message, /confirmActorId/);
+  assert.equal(mismatchJson.error.details?.personId, undefined);
+
+  const commander = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:bpp414", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:bpp414", { title: "no", sourceNoteId: note.id }),
+    })
+  );
+  assert.equal(commander.status, 403);
+
+  const officer = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:1101700123456", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:1101700123456", { title: "no", sourceNoteId: note.id }),
+    })
+  );
+  assert.equal(officer.status, 403);
+  assert.equal((await db.drugInvestigationTask.findMany({})).length, 0);
+});
+
+test("MERGED Person Task create with sourceNoteId remains 409 fail-closed", async () => {
+  const { db, personA, personF, notes, tasks } = await seedLinkedTargets();
+  const note = await notes.createForPerson(personA, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  await db.drugPerson.update({
+    where: { id: personA },
+    data: { status: "MERGED", mergedIntoPersonId: personF },
+  });
+
+  const merged = await handlePersonTasksCreate(
+    tasks,
+    personA,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "no", sourceNoteId: note.id }),
+    })
+  );
+  assert.equal(merged.status, 409);
+  const body = (await merged.json()) as { error: { message: string; details: { personId: string; survivorPersonId: string } } };
+  assert.equal(body.error.details.personId, personA);
+  assert.equal(body.error.details.survivorPersonId, personF);
+  assert.equal(JSON.stringify(body).includes(NOTE_BODY), false);
+  assert.equal((await db.drugInvestigationTask.findMany({})).length, 0);
+  assert.equal((await db.drugInvestigationTask.findMany({ where: { personId: personF } })).length, 0);
+  const stillOnMerged = await db.drugAnalystNote.findUnique({ where: { id: note.id } });
+  assert.equal(stillOnMerged?.personId, personA);
+});
+
+test("PATCH cannot change sourceNoteId after create", async () => {
+  const { caseX, notes, tasks } = await seedLinkedTargets();
+  const note = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const created = await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "linked", sourceNoteId: note.id }),
+    })
+  );
+  const task = ((await created.json()) as { data: { id: string; sourceNoteId: string } }).data;
+  const patched = await handleTaskPatch(
+    tasks,
+    task.id,
+    boundRequest("mock:admin", "http://localhost/task", {
+      method: "PATCH",
+      body: writeJson("mock:admin", { title: "still-linked", sourceNoteId: "other-note-id-0001" }),
+    })
+  );
+  assert.equal(patched.status, 200);
+  const body = ((await patched.json()) as { data: { title: string; sourceNoteId: string | null } }).data;
+  assert.equal(body.title, "still-linked");
+  assert.equal(body.sourceNoteId, note.id);
 });

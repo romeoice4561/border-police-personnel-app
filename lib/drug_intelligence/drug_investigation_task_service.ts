@@ -25,6 +25,7 @@ import {
 import { resolveAssignableActor } from "@/lib/drug_intelligence/drug_collaboration_auth";
 import type {
   CollaborationActor,
+  CollaborationListQuery,
   CollaborationPageMeta,
   InvestigationTaskCreateInput,
   InvestigationTaskDto,
@@ -97,6 +98,7 @@ function toDto(row: DrugInvestigationTask, now = new Date()): InvestigationTaskD
     updatedByName: row.updatedByName ? String(row.updatedByName) : null,
     completedAt: iso(row.completedAt),
     isOverdue: isTaskOverdue({ dueAt: row.dueAt, status, now }),
+    sourceNoteId: row.sourceNoteId ? String(row.sourceNoteId) : null,
   };
 }
 
@@ -148,6 +150,15 @@ export class DrugInvestigationTaskService {
   async listForPerson(personId: string, query: InvestigationTaskListQuery = {}): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
     await this.assertPersonWritable(personId, { allowMergedRead: true });
     return this.list({ personId }, query);
+  }
+
+  async listBySourceNoteId(
+    sourceNoteId: string,
+    query: CollaborationListQuery = {}
+  ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
+    const note = await this.db.drugAnalystNote.findUnique({ where: { id: sourceNoteId } });
+    if (!note) throw new CollaborationNotFoundError("NOTE", sourceNoteId);
+    return this.list({ sourceNoteId }, query);
   }
 
   async update(taskId: string, patch: InvestigationTaskPatchInput, actor: CollaborationActor): Promise<InvestigationTaskDto> {
@@ -249,6 +260,7 @@ export class DrugInvestigationTaskService {
     if (kind === "CASE") await this.assertCaseExists(targetId);
     else await this.assertPersonWritable(targetId, { allowMergedRead: false });
     const assignee = await this.resolveAssignee(input.assignedActorId ?? null);
+    const sourceNoteId = await this.resolveSourceNote(input.sourceNoteId, kind, targetId);
 
     const id = generateDrugId();
     const now = new Date();
@@ -272,6 +284,7 @@ export class DrugInvestigationTaskService {
           updatedByActorId: null,
           updatedByName: null,
           completedAt: null,
+          sourceNoteId,
         },
       });
       const audit = new DrugAuditLogRepository(tx);
@@ -281,7 +294,7 @@ export class DrugInvestigationTaskService {
         action: "investigation_task_created",
         actorId: actor.actorId,
         actorName: actor.actorName,
-        detail: safeAuditDetail({ taskId: id, targetKind: kind, targetId, priority, status: "OPEN" }),
+        detail: safeAuditDetail({ taskId: id, targetKind: kind, targetId, priority, status: "OPEN", sourceNoteId }),
       });
       if (assignee.actorId) {
         await audit.record({
@@ -299,7 +312,7 @@ export class DrugInvestigationTaskService {
   }
 
   private async list(
-    targetWhere: { caseId?: string; personId?: string },
+    targetWhere: { caseId?: string; personId?: string; sourceNoteId?: string },
     query: InvestigationTaskListQuery
   ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
     const { page, pageSize } = normalizeCollaborationPage(query.page, query.pageSize);
@@ -307,6 +320,7 @@ export class DrugInvestigationTaskService {
     if (query.status) where.status = query.status;
     if (query.assignedActorId) where.assignedActorId = query.assignedActorId;
     if (query.priority) where.priority = query.priority;
+    if (query.sourceNoteId) where.sourceNoteId = query.sourceNoteId;
     if (query.overdue) {
       where.dueAt = { lt: new Date() };
       where.status = { in: ["OPEN", "IN_PROGRESS"] };
@@ -325,6 +339,23 @@ export class DrugInvestigationTaskService {
       items: rows.map((row) => toDto(row)),
       meta: { page, pageSize, total, totalPages: collaborationTotalPages(total, pageSize) },
     };
+  }
+
+  private async resolveSourceNote(
+    sourceNoteId: string | null | undefined,
+    kind: CollaborationTargetKind,
+    targetId: string
+  ): Promise<string | null> {
+    if (sourceNoteId == null) return null;
+    const id = sourceNoteId.trim();
+    if (id === "") return null;
+    const note = await this.db.drugAnalystNote.findUnique({ where: { id } });
+    if (!note) throw new CollaborationNotFoundError("NOTE", id);
+    const noteTarget = targetOf(note);
+    if (noteTarget.targetKind !== kind || noteTarget.targetId !== targetId) {
+      throw new CollaborationValidationError("sourceNoteId must belong to the same CASE or PERSON target");
+    }
+    return id;
   }
 
   private async resolveAssignee(assignedActorId: string | null): Promise<{ actorId: string | null; actorName: string | null }> {

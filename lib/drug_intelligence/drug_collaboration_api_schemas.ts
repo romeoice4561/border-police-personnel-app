@@ -52,6 +52,7 @@ export const investigationTaskCreateSchema = z.object({
   assignedActorId: z.string().trim().min(1).optional().nullable(),
   dueAt: dueAtSchema,
   priority: z.enum(DRUG_INVESTIGATION_TASK_PRIORITIES).optional(),
+  sourceNoteId: collaborationResourceIdSchema.optional().nullable(),
 });
 
 export const investigationTaskPatchSchema = z.object({

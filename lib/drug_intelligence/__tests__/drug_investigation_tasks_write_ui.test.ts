@@ -63,6 +63,7 @@ function sampleTask(overrides: Partial<InvestigationTaskDto> = {}): Investigatio
     updatedByName: null,
     completedAt: null,
     isOverdue: false,
+    sourceNoteId: null,
     ...overrides,
   };
 }
@@ -122,6 +123,7 @@ test("create draft defaults priority NORMAL and omits status / target / complete
   assert.equal("createdByName" in payload, false);
   assert.equal("assignedActorName" in payload, false);
   assert.equal("completedAt" in payload, false);
+  assert.equal("sourceNoteId" in payload, false);
 });
 
 test("dueAt serializes the selected calendar day as Asia/Bangkok end-of-day", () => {

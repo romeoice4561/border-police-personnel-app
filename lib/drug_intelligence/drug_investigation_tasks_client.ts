@@ -40,6 +40,7 @@ export interface InvestigationTaskCreateBody {
   assignedActorId?: string | null;
   dueAt?: string | null;
   priority?: DrugInvestigationTaskPriority;
+  sourceNoteId?: string | null;
   confirmActorId: string;
 }
 
@@ -101,6 +102,7 @@ export function investigationTaskCreatePayload(input: InvestigationTaskCreateBod
   if (input.description !== undefined) body.description = input.description;
   if (input.assignedActorId !== undefined) body.assignedActorId = input.assignedActorId;
   if (input.dueAt !== undefined) body.dueAt = input.dueAt;
+  if (input.sourceNoteId !== undefined) body.sourceNoteId = input.sourceNoteId;
   return body;
 }
 

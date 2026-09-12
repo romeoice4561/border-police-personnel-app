@@ -210,6 +210,7 @@ test("task create, assignee eligibility, overdue, and terminal transitions", asy
   assert.equal(unassigned.assignedActorId, null);
   assert.equal(unassigned.status, "OPEN");
   assert.equal(unassigned.isOverdue, false);
+  assert.equal(unassigned.sourceNoteId, null);
   const storedTask = await db.drugInvestigationTask.findUnique({ where: { id: unassigned.id } });
   assert.equal(storedTask?.caseId, caseId);
   assert.equal(storedTask?.personId ?? null, null);

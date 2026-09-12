@@ -51,6 +51,7 @@ function sampleTask(overrides: Partial<InvestigationTaskDto> = {}): Investigatio
     updatedByName: null,
     completedAt: null,
     isOverdue: false,
+    sourceNoteId: null,
     ...overrides,
   };
 }
