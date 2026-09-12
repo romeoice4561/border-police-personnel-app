@@ -1,8 +1,8 @@
 /**
- * DI-11D.1 — presentational Investigation Task card.
+ * DI-11D — Investigation Task card.
  *
- * Plain-text title/description. No actor IDs, no write/delete controls,
- * no factual Case/Person fields.
+ * Plain-text title/description. No actor IDs, no delete, no factual fields.
+ * Write actions render only when the parent grants canEdit.
  */
 "use client";
 
@@ -10,14 +10,32 @@ import { useId, useState } from "react";
 import { ListChecks } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DrugInvestigationTaskActions } from "@/components/drug_intelligence/drug_investigation_task_actions";
 import { useT } from "@/components/i18n/language_provider";
 import { formatDiDate, formatDiDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import { isTaskOverdue, taskShowsCompletedAt } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
 import { DrugInvestigationTaskStatusBadge } from "@/components/drug_intelligence/drug_investigation_task_status_badge";
 import { DrugInvestigationTaskPriorityBadge } from "@/components/drug_intelligence/drug_investigation_task_priority_badge";
+import type { DrugInvestigationTaskStatus } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { InvestigationTaskDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 
-export function DrugInvestigationTaskCard({ task }: { task: InvestigationTaskDto }) {
+export function DrugInvestigationTaskCard({
+  task,
+  canEdit = false,
+  writesLocked = false,
+  pending = false,
+  actionError = null,
+  onEdit,
+  onStatus,
+}: {
+  task: InvestigationTaskDto;
+  canEdit?: boolean;
+  writesLocked?: boolean;
+  pending?: boolean;
+  actionError?: string | null;
+  onEdit?: (task: InvestigationTaskDto) => void;
+  onStatus?: (task: InvestigationTaskDto, next: DrugInvestigationTaskStatus) => void;
+}) {
   const { t } = useT();
   const descriptionId = useId();
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -26,6 +44,7 @@ export function DrugInvestigationTaskCard({ task }: { task: InvestigationTaskDto
     status: task.status,
   });
   const hasDescription = Boolean(task.description);
+  const writeDisabled = writesLocked || pending;
 
   return (
     <article
@@ -89,6 +108,31 @@ export function DrugInvestigationTaskCard({ task }: { task: InvestigationTaskDto
             </p>
           ) : null}
         </div>
+      ) : null}
+      {canEdit ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={writeDisabled}
+            onClick={() => onEdit?.(task)}
+            data-testid="investigation-task-edit"
+          >
+            {t("di.tasks.editTask")}
+          </Button>
+          <DrugInvestigationTaskActions
+            status={task.status}
+            disabled={writeDisabled}
+            pending={pending}
+            onTransition={(next) => onStatus?.(task, next)}
+          />
+        </div>
+      ) : null}
+      {actionError ? (
+        <p className="mt-2 text-sm text-critical" role="alert" data-testid="investigation-task-action-error">
+          {actionError}
+        </p>
       ) : null}
     </article>
   );

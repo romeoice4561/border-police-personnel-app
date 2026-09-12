@@ -74,13 +74,13 @@ test("overdue helper is reused and not reimplemented in the card", () => {
   const card = read("components/drug_intelligence/drug_investigation_task_card.tsx");
   assert.match(card, /isTaskOverdue/);
   assert.doesNotMatch(card, /dueAt < now/);
-  assert.match(read("lib/drug_intelligence/drug_investigation_tasks_view.ts"), /export \{ isTaskOverdue \}/);
+  assert.match(read("lib/drug_intelligence/drug_investigation_tasks_view.ts"), /export \{ isTaskOverdue/);
 });
 
 test("API load failure is not classified as empty tasks", () => {
   const failed = classifyInvestigationTasksError(new ApiClientError("boom", 500, "INTERNAL_ERROR"));
-  assert.equal(failed, "load");
-  assert.match(translate(investigationTasksErrorMessageKey(failed), "th"), /ไม่สามารถโหลดงานติดตามได้/);
+  assert.equal(failed.kind, "load");
+  assert.match(translate(investigationTasksErrorMessageKey(failed.kind), "th"), /ไม่สามารถโหลดงานติดตามได้/);
 
   const firstFail = investigationTasksListVisibility({ hasData: false, isPending: false, isError: true, itemCount: 0 });
   assert.equal(firstFail.showError, true);
@@ -183,30 +183,33 @@ test("shared panel is used by Case and Person with target mode only", () => {
   assert.match(panel, /di\.tasks\.overdueOnly/);
   assert.match(panel, /LoadingState/);
   assert.match(panel, /Pagination/);
-  assert.doesNotMatch(panel, /เพิ่มงาน|แก้ไข|เริ่มดำเนินการ|เสร็จสิ้น|ยกเลิกงาน|onDelete|Delete/);
-  assert.doesNotMatch(panel, /mutateAsync|useMutation|confirmActorId/);
+  assert.doesNotMatch(panel, /onDelete|method: "DELETE"|ลบงาน/);
   assert.doesNotMatch(caseSrc, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(personSrc, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(panel, /dangerouslySetInnerHTML/);
 });
 
-test("client lists use existing task routes, honors filters, and never POSTs", () => {
+test("client lists use existing task routes, honors filters, and never DELETEs", () => {
   const client = read("lib/drug_intelligence/drug_investigation_tasks_client.ts");
   assert.match(client, /\/drug-intelligence\/cases\//);
   assert.match(client, /\/drug-intelligence\/persons\//);
   assert.match(client, /\/drug-intelligence\/collaboration\/assignees/);
   assert.match(client, /overdue", "true"/);
-  assert.doesNotMatch(client, /method: "POST"/);
-  assert.doesNotMatch(client, /method: "PATCH"/);
+  assert.match(client, /method: "POST"/);
+  assert.match(client, /method: "PATCH"/);
   assert.doesNotMatch(client, /method: "DELETE"/);
   assert.match(client, /credentials: "include"/);
+  assert.match(client, /confirmActorId/);
+  assert.doesNotMatch(client, /assignedActorName/);
+  assert.doesNotMatch(client, /createdByName/);
 });
 
 test("merged Person list is allowed and D.1 does not redirect to survivor", () => {
   const service = read("lib/drug_intelligence/drug_investigation_task_service.ts");
   assert.match(service, /allowMergedRead: true/);
   const panel = read("components/drug_intelligence/drug_investigation_tasks_panel.tsx");
-  assert.doesNotMatch(panel, /openSurvivor|survivorPersonId|redirect/);
+  assert.match(panel, /survivorPersonId/);
+  assert.doesNotMatch(panel, /createPersonTask\(classified|mutateAsync\(survivor|redirect/);
 });
 
 test("no write UI, no schema, and no Search\/Network\/Map\/Timeline\/Export\/Telegram\/AI wiring", () => {

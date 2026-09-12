@@ -1,27 +1,41 @@
 /**
- * DI-11D.1 — read-only Investigation Tasks panel for Case and Person.
+ * DI-11D — Investigation Tasks panel for Case and Person.
  *
- * Shared UI: Case/Person supply targetKind + targetId only. No create/edit/
- * status actions. No delete. No factual mutation.
+ * Shared UI: Case/Person supply targetKind + targetId only.
+ * Writes require drug.edit. No delete. No factual mutation.
  */
 "use client";
 
-import { useState } from "react";
-import { ListChecks } from "lucide-react";
+import { useRef, useState } from "react";
+import { ListChecks, Plus } from "lucide-react";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Pagination } from "@/components/common/pagination";
 import { Card, CardBody } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { DrugInvestigationTaskCard } from "@/components/drug_intelligence/drug_investigation_task_card";
+import { DrugInvestigationTaskEditor } from "@/components/drug_intelligence/drug_investigation_task_editor";
+import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
-import { useInvestigationTasks } from "@/lib/drug_intelligence/drug_investigation_tasks_hooks";
 import {
+  useCreateInvestigationTask,
+  useInvestigationTasks,
+  useUpdateInvestigationTask,
+} from "@/lib/drug_intelligence/drug_investigation_tasks_hooks";
+import {
+  buildDirtyTaskPatch,
   classifyInvestigationTasksError,
+  draftFromInvestigationTask,
+  draftToCreateFields,
+  emptyInvestigationTaskDraft,
   investigationTasksErrorMessageKey,
   investigationTasksListVisibility,
+  validateTaskTitle,
+  type InvestigationTaskDraft,
 } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
 import { COLLABORATION_PAGE_DEFAULT, DRUG_INVESTIGATION_TASK_STATUSES } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationTargetKind, DrugInvestigationTaskStatus } from "@/lib/drug_intelligence/drug_collaboration_options";
+import type { InvestigationTaskDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const STATUS_LABEL: Record<DrugInvestigationTaskStatus, TranslationKey> = {
@@ -38,12 +52,25 @@ export function DrugInvestigationTasksPanel({
   targetKind: CollaborationTargetKind;
   targetId: string;
 }) {
+  const { user, can } = useAuth();
   const { t } = useT();
+  const canEdit = can("drug.edit");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<DrugInvestigationTaskStatus | "">("");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [editingTask, setEditingTask] = useState<InvestigationTaskDto | null>(null);
+  const [draft, setDraft] = useState<InvestigationTaskDraft>(emptyInvestigationTaskDraft());
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [survivorPersonId, setSurvivorPersonId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ taskId: string; message: string } | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
+  const saveInFlightRef = useRef(false);
 
   const tasks = useInvestigationTasks(targetKind, targetId, { page, status, overdueOnly });
+  const createTask = useCreateInvestigationTask(targetKind, targetId, user?.id ?? null);
+  const updateTask = useUpdateInvestigationTask(targetKind, targetId, user?.id ?? null);
+
   const emptyTitle = targetKind === "CASE" ? t("di.tasks.emptyCase") : t("di.tasks.emptyPerson");
   const meta = tasks.data?.meta;
   const items = tasks.data?.items ?? [];
@@ -52,21 +79,115 @@ export function DrugInvestigationTasksPanel({
     isPending: tasks.isPending,
     isError: tasks.isError,
     itemCount: items.length,
+    composing,
   });
+  const writesLocked = tasks.isFetching && tasks.data != null;
+  const pendingWrite = createTask.isPending || updateTask.isPending;
+
+  function openCreate() {
+    setEditingTask(null);
+    setDraft(emptyInvestigationTaskDraft());
+    setSaveError(null);
+    setSurvivorPersonId(null);
+    setComposing(true);
+  }
+
+  function openEdit(task: InvestigationTaskDto) {
+    setComposing(false);
+    setEditingTask(task);
+    setDraft(draftFromInvestigationTask(task));
+    setSaveError(null);
+    setSurvivorPersonId(null);
+  }
+
+  function closeEditor() {
+    setComposing(false);
+    setEditingTask(null);
+    setSaveError(null);
+    setSurvivorPersonId(null);
+  }
+
+  async function handleSave() {
+    if (saveInFlightRef.current) return;
+    const title = validateTaskTitle(draft.title);
+    if (!title.ok) {
+      setSaveError(title.reason === "too_long" ? t("di.tasks.titleTooLong") : t("di.tasks.titleRequired"));
+      return;
+    }
+    saveInFlightRef.current = true;
+    try {
+      if (editingTask) {
+        const patch = buildDirtyTaskPatch(editingTask, draft);
+        if (!patch) {
+          closeEditor();
+          return;
+        }
+        await updateTask.mutateAsync({ taskId: editingTask.id, patch });
+        closeEditor();
+      } else {
+        const fields = draftToCreateFields(draft);
+        if (!fields) {
+          setSaveError(t("di.error.validation"));
+          return;
+        }
+        await createTask.mutateAsync(fields);
+        setComposing(false);
+        setDraft(emptyInvestigationTaskDraft());
+        setSaveError(null);
+        setSurvivorPersonId(null);
+        setPage(1);
+      }
+    } catch (error) {
+      const classified = classifyInvestigationTasksError(error, "save");
+      setSaveError(t(investigationTasksErrorMessageKey(classified.kind)));
+      setSurvivorPersonId(classified.kind === "merged" ? classified.survivorPersonId : null);
+    } finally {
+      saveInFlightRef.current = false;
+    }
+  }
+
+  async function handleStatus(task: InvestigationTaskDto, next: DrugInvestigationTaskStatus) {
+    if (saveInFlightRef.current || pendingTaskId) return;
+    saveInFlightRef.current = true;
+    setPendingTaskId(task.id);
+    setActionError(null);
+    try {
+      await updateTask.mutateAsync({ taskId: task.id, patch: { status: next } });
+    } catch (error) {
+      const classified = classifyInvestigationTasksError(error, "save");
+      setActionError({ taskId: task.id, message: t(investigationTasksErrorMessageKey(classified.kind)) });
+    } finally {
+      saveInFlightRef.current = false;
+      setPendingTaskId(null);
+    }
+  }
 
   return (
     <Card data-testid="investigation-tasks-panel" data-target-kind={targetKind}>
       <CardBody className="space-y-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.tasks.sectionTitle")}</p>
-          <p className="mt-1 text-xs text-muted">{t("di.tasks.notFactual")}</p>
-          {meta ? (
-            <p className="mt-1 text-sm text-muted">
-              {t("di.tasks.count").replace("{count}", String(meta.total))}
-              {" · "}
-              {t("di.tasks.showingPageSize").replace("{pageSize}", String(meta.pageSize || COLLABORATION_PAGE_DEFAULT))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.tasks.sectionTitle")}</p>
+            <p className="mt-1 text-xs text-muted">{t("di.tasks.notFactual")}</p>
+            {meta ? (
+              <p className="mt-1 text-sm text-muted">
+                {t("di.tasks.count").replace("{count}", String(meta.total))}
+                {" · "}
+                {t("di.tasks.showingPageSize").replace("{pageSize}", String(meta.pageSize || COLLABORATION_PAGE_DEFAULT))}
+              </p>
+            ) : null}
+            {writesLocked ? <p className="mt-1 text-xs text-muted">{t("di.tasks.updating")}</p> : null}
+          </div>
+          {canEdit ? (
+            <Button type="button" variant="ghost" size="sm" onClick={openCreate} data-testid="investigation-tasks-add">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("di.tasks.addTask")}
+            </Button>
+          ) : (
+            <p className="text-xs text-muted" data-testid="investigation-tasks-readonly">
+              {t("di.tasks.readOnlyHint")}
             </p>
-          ) : null}
+          )}
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -103,23 +224,63 @@ export function DrugInvestigationTasksPanel({
           </label>
         </div>
 
+        {composing && canEdit ? (
+          <DrugInvestigationTaskEditor
+            mode="create"
+            draft={draft}
+            onChange={setDraft}
+            onSave={() => void handleSave()}
+            onCancel={closeEditor}
+            pending={pendingWrite}
+            saveError={saveError}
+            survivorPersonId={survivorPersonId}
+          />
+        ) : null}
+
         {showLoading ? <LoadingState rows={3} /> : null}
 
         {showError ? (
           <ErrorState
             title={t("di.tasks.loadError")}
-            message={t(investigationTasksErrorMessageKey(classifyInvestigationTasksError(tasks.error)))}
+            message={t(investigationTasksErrorMessageKey(classifyInvestigationTasksError(tasks.error).kind))}
             onRetry={() => void tasks.refetch()}
           />
         ) : null}
 
-        {showEmpty ? <EmptyState title={emptyTitle} icon={<ListChecks className="h-8 w-8" />} /> : null}
+        {showEmpty ? (
+          <EmptyState title={emptyTitle} icon={<ListChecks className="h-8 w-8" />} message={canEdit ? t("di.tasks.emptyHint") : undefined} />
+        ) : null}
 
         {showList ? (
           <div className="space-y-3">
-            {items.map((task) => (
-              <DrugInvestigationTaskCard key={task.id} task={task} />
-            ))}
+            {items.map((task) =>
+              editingTask?.id === task.id && canEdit ? (
+                <DrugInvestigationTaskEditor
+                  key={task.id}
+                  mode="edit"
+                  draft={draft}
+                  onChange={setDraft}
+                  onSave={() => void handleSave()}
+                  onCancel={closeEditor}
+                  pending={pendingWrite}
+                  saveError={saveError}
+                  saveDisabled={!buildDirtyTaskPatch(task, draft)}
+                  survivorPersonId={survivorPersonId}
+                  fallbackAssigneeLabel={task.assignedActorName}
+                />
+              ) : (
+                <DrugInvestigationTaskCard
+                  key={task.id}
+                  task={task}
+                  canEdit={canEdit}
+                  writesLocked={writesLocked}
+                  pending={pendingTaskId === task.id}
+                  actionError={actionError?.taskId === task.id ? actionError.message : null}
+                  onEdit={openEdit}
+                  onStatus={handleStatus}
+                />
+              )
+            )}
           </div>
         ) : null}
 
