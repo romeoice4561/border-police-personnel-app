@@ -17,6 +17,7 @@ import {
   handleNotePatch,
   handleCaseTasksCreate,
   handleTaskPatch,
+  handleCollaborationAssignees,
 } from "@/lib/drug_intelligence/drug_collaboration_api_handlers";
 import type { DrugCaseCreateRequest } from "@/lib/drug_intelligence/drug_case_types";
 import { POST as sessionPost, DELETE as sessionDelete } from "@/app/api/auth/session/route";
@@ -314,6 +315,34 @@ test("invalid pagination query is 400; pageSize 51 is rejected at the API", asyn
   );
   assert.equal(page0.status, 400);
   assert.equal(size51.status, 400);
+});
+
+test("assignee directory GET is drug.read, minimized, and excludes officer", async () => {
+  const missing = await handleCollaborationAssignees(new Request("http://localhost/assignees"));
+  assert.equal(missing.status, 401);
+
+  const officer = await handleCollaborationAssignees(boundRequest("mock:1101700123456", "http://localhost/assignees"));
+  assert.equal(officer.status, 403);
+
+  const commander = await handleCollaborationAssignees(boundRequest("mock:bpp414", "http://localhost/assignees"));
+  assert.equal(commander.status, 200);
+  const commanderJson = (await commander.json()) as { data: Array<Record<string, unknown>> };
+  const commanderIds = commanderJson.data.map((row) => row.id);
+  assert.ok(commanderIds.includes("mock:admin"));
+  assert.ok(commanderIds.includes("mock:bpp414"));
+  assert.equal(commanderIds.includes("mock:1101700123456"), false);
+  for (const row of commanderJson.data) {
+    assert.deepEqual(Object.keys(row).sort(), ["displayName", "id"]);
+    assert.equal(typeof row.id, "string");
+    assert.equal(typeof row.displayName, "string");
+    assert.equal("permissions" in row, false);
+    assert.equal("role" in row, false);
+    assert.equal("password" in row, false);
+    assert.equal("officerId" in row, false);
+  }
+
+  const admin = await handleCollaborationAssignees(boundRequest("mock:admin", "http://localhost/assignees"));
+  assert.equal(admin.status, 200);
 });
 
 test("session DELETE clears the HttpOnly actor cookie; production secret has no known fallback", async () => {

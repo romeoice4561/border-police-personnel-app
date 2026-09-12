@@ -15,7 +15,7 @@ import { readCookieValue, verifyBoundSessionToken } from "@/lib/auth/bound_sessi
 import { getAuthBackend, getAuthUserById } from "@/lib/auth/mock_auth_backend";
 import { hasPermission } from "@/lib/auth/roles";
 import type { AuthUser } from "@/lib/auth/types";
-import type { CollaborationActor } from "@/lib/drug_intelligence/drug_collaboration_types";
+import type { CollaborationActor, CollaborationAssigneeDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 
 export async function resolveBoundCollaborationUser(request: Request): Promise<AuthUser | null> {
   const token = readCookieValue(request, BOUND_SESSION_COOKIE_NAME);
@@ -64,6 +64,10 @@ export async function listAssignableCollaborationActors(): Promise<AuthUser[]> {
   const backend = getAuthBackend();
   const users = typeof backend.listUsers === "function" ? await backend.listUsers() : [];
   return users.filter((next) => next.isActive && hasPermission(next.permissions, "drug.read"));
+}
+
+export function toCollaborationAssigneeDto(user: AuthUser): CollaborationAssigneeDto {
+  return { id: user.id, displayName: user.displayName };
 }
 
 export async function resolveAssignableActor(assignedActorId: string | null | undefined): Promise<CollaborationActor | null> {

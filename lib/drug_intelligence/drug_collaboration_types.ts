@@ -64,6 +64,12 @@ export interface CollaborationActor {
   actorName: string;
 }
 
+/** Minimized assignee directory row — never includes role, permissions, or org fields. */
+export interface CollaborationAssigneeDto {
+  id: string;
+  displayName: string;
+}
+
 export interface CollaborationPageMeta {
   page: number;
   pageSize: number;

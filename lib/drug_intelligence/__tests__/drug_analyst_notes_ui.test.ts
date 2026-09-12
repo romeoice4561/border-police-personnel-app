@@ -249,18 +249,22 @@ test("existing Case notes tab remains audit metadata, distinct from analyst note
 });
 
 test("no task UI, search, network, map, timeline, reports, telegram, or AI integration", () => {
-  const files = [
+  const notesOnly = [
     "components/drug_intelligence/drug_analyst_notes_panel.tsx",
     "components/drug_intelligence/drug_analyst_note_card.tsx",
     "components/drug_intelligence/drug_analyst_note_editor.tsx",
     "lib/drug_intelligence/drug_analyst_notes_client.ts",
     "lib/drug_intelligence/drug_analyst_notes_hooks.ts",
-    "app/drug-intelligence/cases/[id]/page.tsx",
-    "app/drug-intelligence/persons/[id]/page.tsx",
   ];
-  for (const file of files) {
+  for (const file of notesOnly) {
     const src = read(file);
-    assert.doesNotMatch(src, /DrugInvestigationTaskService|investigationTaskService|useInvestigationTask/);
+    assert.doesNotMatch(src, /DrugInvestigationTaskService|investigationTaskService|DrugInvestigationTasksPanel/);
+    assert.doesNotMatch(src, /dangerouslySetInnerHTML/);
+  }
+  const pages = ["app/drug-intelligence/cases/[id]/page.tsx", "app/drug-intelligence/persons/[id]/page.tsx"];
+  for (const file of pages) {
+    const src = read(file);
+    assert.doesNotMatch(src, /DrugInvestigationTaskService|investigationTaskService/);
     assert.doesNotMatch(src, /dangerouslySetInnerHTML/);
   }
   const isolated = [

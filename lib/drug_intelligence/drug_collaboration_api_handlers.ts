@@ -8,7 +8,12 @@
 
 import { z } from "zod";
 import { badRequest, conflict, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
-import { assertCollaborationPermission, assertConfirmActorId } from "@/lib/drug_intelligence/drug_collaboration_auth";
+import {
+  assertCollaborationPermission,
+  assertConfirmActorId,
+  listAssignableCollaborationActors,
+  toCollaborationAssigneeDto,
+} from "@/lib/drug_intelligence/drug_collaboration_auth";
 import {
   analystNoteCreateSchema,
   analystNoteUpdateSchema,
@@ -271,6 +276,13 @@ export async function handleTaskGet(service: DrugInvestigationTaskService, taskI
   } catch (error) {
     return mapError(error) ?? jsonError("INTERNAL_ERROR", "Failed to load investigation task", 500);
   }
+}
+
+export async function handleCollaborationAssignees(request: Request): Promise<Response> {
+  const gated = await assertCollaborationPermission(request, "drug.read");
+  if (!gated.ok) return gated.response;
+  const users = await listAssignableCollaborationActors();
+  return jsonOk(users.map(toCollaborationAssigneeDto));
 }
 
 export async function handleTaskPatch(service: DrugInvestigationTaskService, taskId: string, request: Request): Promise<Response> {

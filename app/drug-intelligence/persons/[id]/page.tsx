@@ -15,6 +15,7 @@ import Link from "next/link";
 import { ArrowLeft, Users, Phone, Smartphone, Car, MapPin, MapPinned, AlertTriangle, Plus, Network, History, FileText } from "lucide-react";
 import { DrugPersonReportDrawer } from "@/components/drug_intelligence/drug_person_report_drawer";
 import { DrugAnalystNotesPanel } from "@/components/drug_intelligence/drug_analyst_notes_panel";
+import { DrugInvestigationTasksPanel } from "@/components/drug_intelligence/drug_investigation_tasks_panel";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Card, CardBody } from "@/components/ui/card";
@@ -81,6 +82,7 @@ const TABS = [
   { key: "identity", labelKey: "di.profile.tabIdentity" },
   { key: "review", labelKey: "di.profile.tabReview" },
   { key: "analyst-notes", labelKey: "di.collaboration.tabAnalystNotes" },
+  { key: "investigation-tasks", labelKey: "di.tasks.tab" },
 ] as const;
 
 function personRoleLabel(role: string, language: "th" | "en"): string {
@@ -304,6 +306,7 @@ function DrugPersonProfileContent() {
       {activeTab === "identity" ? <IdentityTab personId={personId} data={data} language={language} canViewFull={canViewFull} canEdit={canEdit} /> : null}
       {activeTab === "review" ? <ReviewTab personId={personId} dataQuality={data.dataQuality} mergeHistory={data.mergeHistory} /> : null}
       {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel targetKind="PERSON" targetId={personId} /> : null}
+      {activeTab === "investigation-tasks" ? <DrugInvestigationTasksPanel targetKind="PERSON" targetId={personId} /> : null}
       <DrugPersonReportDrawer
         open={reportOpen}
         onClose={() => setReportOpen(false)}
