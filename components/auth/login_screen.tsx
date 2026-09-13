@@ -1,19 +1,16 @@
 /**
- * LoginScreen (Phase 46 — Professional Login).
+ * LoginScreen — C-INTEL product branding.
  *
- * The full-screen login experience: navy gradient background with a soft glow,
- * a centered glass card with a fade/scale entrance, the official BppisLogo,
- * the system name, the credentials form, and the footer. All strings are
- * bilingual via the dictionary; all colors are existing design tokens (works in
- * light and dark). No new theme.
+ * Artwork (`c-intel-login-bg.png`) is atmosphere only. It contains a mock
+ * login form that is NOT interactive; a dark crop/overlay hides those fake
+ * fields. The real HTML form below is the only sign-in control.
  *
- * Auth flows through useAuth() → the provider-agnostic AuthBackend. On success
- * the user is routed by the CENTRALIZED homeRouteForUser helper (admin/commander
- * → dashboard, officer → own profile) — the login page never hardcodes routes.
+ * Auth behavior is unchanged: useAuth() → AuthBackend → homeRouteForUser.
  */
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2, LogIn } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
@@ -22,6 +19,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { homeRouteForUser } from "@/lib/auth/auth_config";
 import type { AuthErrorCode } from "@/lib/auth/types";
 import { BppisLogo } from "@/components/auth/bppis_logo";
+import { CIntelLogo } from "@/components/auth/c_intel_logo";
 import { PasswordField } from "@/components/auth/password_field";
 import { LanguageToggle } from "@/components/ui/language_toggle";
 
@@ -34,10 +32,7 @@ const ERROR_KEY: Record<AuthErrorCode, TranslationKey> = {
 /** The System Architect footer block — proper nouns rendered verbatim (not translated). */
 const ARCHITECT = {
   name: "พ.ต.ท.ชลัช จุมพลพักตร์",
-  lines: [
-    "รองผู้กำกับการตำรวจตระเวนชายแดนที่ 41",
-    "หัวหน้ากองร้อยตำรวจตระเวนชายแดนที่ 414",
-  ],
+  lines: ["รอง ผกก.ตชด.41", "หัวหน้ากองร้อย ตชด.414"],
   phone: "086-345-4561",
 };
 
@@ -72,46 +67,51 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0b1120] via-[#0f1e3a] to-[#0b1120] px-4 py-6">
-      {/* Soft accent glows (decorative). */}
-      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-accent/20 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-warning/10 blur-3xl" aria-hidden="true" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-[#070612] px-4 py-4 sm:py-5">
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <Image
+          src="/assets/branding/c-intel-login-bg.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[center_8%] opacity-45 sm:object-[center_12%] sm:opacity-58"
+        />
+        <div className="absolute inset-0 bg-[#070612]/55 sm:bg-[#070612]/42" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(7,6,18,0.78)_0%,rgba(7,6,18,0.42)_48%,rgba(7,6,18,0.62)_100%)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#070612]/35 via-[#070612]/50 to-[#070612]" />
+        <div className="absolute inset-x-0 bottom-0 h-[58%] bg-gradient-to-t from-[#070612] via-[#070612]/80 to-transparent" />
+      </div>
 
-      {/* Language toggle — top-right. */}
-      <div className="absolute right-4 top-4 z-10">
+      <div className="absolute right-4 top-4 z-10 rounded-lg bg-black/40">
         <LanguageToggle />
       </div>
 
-      {/* Card — glass effect + fade/scale entrance. Width ~478px (Phase 46 final polish).
-          Positioned slightly ABOVE center (negative top margin ~50px) so the footer
-          stays fully visible; on short viewports the outer items-center still keeps it
-          from clipping. */}
-      <div className="-mt-12 animate-[fadeScaleIn_0.35s_ease-out] w-full max-w-119.5 rounded-2xl border border-white/10 bg-surface/90 p-6 shadow-2xl backdrop-blur-md sm:p-7">
-        {/* Brand — official logo (~136px, centered) + system title. */}
+      <div className="relative z-10 w-full max-w-[26rem] animate-[fadeScaleIn_0.35s_ease-out] rounded-2xl border border-violet-400/22 bg-[#0b0a16]/82 p-4 shadow-[0_0_28px_rgba(88,40,160,0.16)] backdrop-blur-sm sm:p-5">
         <div className="flex flex-col items-center text-center">
-          <div className="mb-3 w-34 max-w-[62%]">
-            <BppisLogo priority />
+          <div className="mb-1 w-24 max-w-[46%] sm:w-32">
+            <CIntelLogo priority />
           </div>
-          {/* BPPIS = largest */}
-          <p className="text-3xl font-extrabold tracking-wide text-foreground">{t("auth.systemNameShort")}</p>
-          {/* Border Patrol Police = medium */}
-          <p className="mt-1 text-base font-semibold text-foreground">{t("auth.orgName")}</p>
-          {/* Personnel Intelligence System = accent gold */}
-          <p className="text-sm font-medium text-warning">{t("auth.systemNameFull")}</p>
-          {/* (BPPIS) = muted */}
-          <p className="text-xs text-muted">{t("auth.systemNameAbbrev")}</p>
-          {/* Thai subtitle = muted gray, two lines */}
-          <p className="mt-1.5 text-xs leading-relaxed text-muted">
-            {t("auth.systemSubtitleLine1")}
-            <br />
-            {t("auth.systemSubtitleLine2")}
+          <p className="text-xl font-extrabold tracking-[0.2em] text-white sm:text-2xl">{t("auth.systemNameShort")}</p>
+          <p className="mt-1 text-xs leading-snug text-violet-100/90">{t("auth.systemNameFull")}</p>
+          <p className="mt-0.5 hidden text-[10px] uppercase tracking-wide text-violet-200/60 sm:block">
+            {t("auth.systemNameFullEn")}
           </p>
+
+          <div className="mt-2 flex items-center gap-2">
+            <div className="w-6 shrink-0 sm:w-7">
+              <BppisLogo />
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] font-medium leading-tight text-white/90">{t("auth.orgName")}</p>
+              <p className="text-[10px] uppercase tracking-wide text-white/55">{t("auth.orgNameEn")}</p>
+            </div>
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+        <form onSubmit={handleSubmit} className="mt-3.5 space-y-3" noValidate>
           <div className="space-y-1.5">
-            <label htmlFor="login-username" className="block text-xs font-medium text-muted">
+            <label htmlFor="login-username" className="block text-xs font-medium text-violet-100/80">
               {t("auth.username")}
             </label>
             <input
@@ -128,7 +128,7 @@ export function LoginScreen() {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="login-password" className="block text-xs font-medium text-muted">
+            <label htmlFor="login-password" className="block text-xs font-medium text-violet-100/80">
               {t("auth.password")}
             </label>
             <PasswordField
@@ -141,9 +141,8 @@ export function LoginScreen() {
             />
           </div>
 
-          {/* Remember me + Forgot password (disabled) */}
           <div className="flex items-center justify-between">
-            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
+            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-violet-50">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -157,13 +156,12 @@ export function LoginScreen() {
               type="button"
               disabled
               title={t("auth.contactAdministrator")}
-              className="cursor-not-allowed text-xs font-medium text-muted opacity-60"
+              className="cursor-not-allowed text-xs font-medium text-violet-200/50"
             >
               {t("auth.contactAdministrator")}
             </button>
           </div>
 
-          {/* Error */}
           {error ? (
             <p className="flex items-center gap-1.5 rounded-lg border border-critical/30 bg-critical-bg/50 px-3 py-2 text-xs text-critical" role="alert" aria-live="assertive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -171,33 +169,31 @@ export function LoginScreen() {
             </p>
           ) : null}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-violet-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0a16] disabled:opacity-70"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogIn className="h-4 w-4" aria-hidden="true" />}
             {loading ? t("auth.loggingIn") : t("auth.login")}
           </button>
         </form>
 
-        {/* Footer — compact block (~20% shorter): reduced top padding + tighter
-            inter-line gaps. Typography sizes/weights are unchanged. */}
-        <div className="mt-4 border-t border-border pt-2.5 text-center">
-          <p className="text-xs font-semibold text-muted">{t("auth.versionLabel")}</p>
-          <p className="text-[11px] leading-tight text-muted">{t("auth.buildLabel")}</p>
-          <p className="mt-1 text-[11px] leading-tight text-muted/80">
-            {t("auth.authorizedOnly")}
-            <br />
-            {t("auth.unauthorizedProhibited")}
+        <div className="mt-3 border-t border-white/10 pt-1.5 text-center">
+          <p className="text-[10px] leading-tight text-violet-100/55">
+            {t("auth.versionLabel")} · {t("auth.buildLabel")}
           </p>
-          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted/80">{t("auth.systemArchitect")}</p>
-          <p className="text-xs font-semibold text-foreground">{ARCHITECT.name}</p>
+          <p className="text-[10px] leading-tight text-violet-100/45">
+            {t("auth.authorizedOnly")} · {t("auth.unauthorizedProhibited")}
+          </p>
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-violet-100/45">{t("auth.systemArchitect")}</p>
+          <p className="text-[11px] font-semibold text-white">{ARCHITECT.name}</p>
           {ARCHITECT.lines.map((line) => (
-            <p key={line} className="text-[11px] leading-tight text-muted">{line}</p>
+            <p key={line} className="text-[10px] leading-tight text-violet-100/60">
+              {line}
+            </p>
           ))}
-          <p className="mt-0.5 text-[11px] text-muted">
+          <p className="text-[10px] leading-tight text-violet-100/50">
             {t("auth.phoneLabel")} {ARCHITECT.phone}
           </p>
         </div>

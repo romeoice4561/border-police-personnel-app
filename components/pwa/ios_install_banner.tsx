@@ -14,7 +14,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
-import { BppisLogo } from "@/components/auth/bppis_logo";
+import { CIntelLogo } from "@/components/auth/c_intel_logo";
 
 const DISMISSED_KEY = "bppis_ios_install_dismissed";
 
@@ -58,7 +58,7 @@ export function IosInstallBanner() {
     <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
       <div className="flex w-full max-w-md items-start gap-3 rounded-xl border border-border bg-surface p-4 shadow-lg">
         <div className="w-9 shrink-0">
-          <BppisLogo />
+          <CIntelLogo />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{t("pwa.iosInstallTitle")}</p>

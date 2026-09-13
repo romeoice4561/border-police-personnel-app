@@ -18,7 +18,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { UserMenu } from "@/components/auth/user_menu";
 import { AppearanceSwitcher } from "@/components/theme/appearance_switcher";
-import { BppisLogo } from "@/components/auth/bppis_logo";
+import { CIntelLogo } from "@/components/auth/c_intel_logo";
 import { SidebarBrand } from "@/components/layout/sidebar_brand";
 import { AuthGate } from "@/components/auth/auth_gate";
 import { useAuth } from "@/components/auth/auth_provider";
@@ -314,10 +314,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           collapsed ? SIDEBAR_WIDTH_COLLAPSED_CLASS : SIDEBAR_WIDTH_EXPANDED_CLASS
         )}
       >
-        {/* Brand — official BPP logo + fixed org/system name lockup (expanded); logo only (collapsed). */}
-        <div className={cn("flex items-center gap-2.5 border-b border-border px-4 py-4", collapsed && "justify-center px-2")}>
-          <div className={collapsed ? "w-9" : "w-10 shrink-0"}>
-            <BppisLogo />
+        {/* Brand — C-INTEL product mark + compact product/org lockup (expanded); logo only (collapsed). */}
+        <div className={cn("flex items-center gap-2.5 border-b border-border px-4 py-3", collapsed && "justify-center px-2 py-3")}>
+          <div className={collapsed ? "w-9" : "w-11 shrink-0"}>
+            <CIntelLogo />
           </div>
           {!collapsed ? <SidebarBrand /> : null}
         </div>
@@ -361,11 +361,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Top bar (mobile/tablet) — compact official logo + the same header controls, top-right. */}
+        {/* Top bar (mobile/tablet) — compact C-INTEL product mark + header controls. */}
         <header className="sticky top-0 z-10 border-b border-border bg-surface md:hidden">
           <div className="flex items-center gap-2 px-4 py-3">
             <div className="w-8 shrink-0">
-              <BppisLogo />
+              <CIntelLogo />
             </div>
             <SidebarBrand compact />
             <span className="ml-auto flex items-center gap-2">

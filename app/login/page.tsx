@@ -6,7 +6,7 @@
 import { LoginScreen } from "@/components/auth/login_screen";
 
 export const metadata = {
-  title: "BPPIS — Sign in",
+  title: "C-INTEL | เข้าสู่ระบบ",
 };
 
 export default function LoginPage() {

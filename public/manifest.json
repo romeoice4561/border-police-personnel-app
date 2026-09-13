@@ -1,7 +1,7 @@
 {
-  "name": "Border Patrol Personnel Intelligence System",
-  "short_name": "BPPIS",
-  "description": "ระบบฐานข้อมูลและวิเคราะห์ข้อมูลกำลังพลตำรวจตระเวนชายแดนเพื่อสนับสนุนการตัดสินใจของผู้บังคับบัญชา",
+  "name": "C-INTEL — ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด",
+  "short_name": "C-INTEL",
+  "description": "ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด ตำรวจตระเวนชายแดน",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

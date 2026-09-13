@@ -18,8 +18,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Border Patrol Personnel Intelligence",
-  description: "Production dashboard for Border Patrol personnel records.",
+  title: "C-INTEL | ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด",
+  applicationName: "C-INTEL",
+  description: "ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด ตำรวจตระเวนชายแดน",
   manifest: "/manifest.json",
   icons: {
     // /favicon.ico (app/favicon.ico, Next's default-file convention) is
@@ -47,7 +48,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "BPPIS",
+    title: "C-INTEL",
   },
   other: {
     "mobile-web-app-capable": "yes",

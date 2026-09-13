@@ -9,17 +9,15 @@
  * navigations too, using the same logo and theme background so there's no
  * visual jump between this and the rest of the app.
  */
-import { BppisLogo } from "@/components/auth/bppis_logo";
+import { CIntelLogo } from "@/components/auth/c_intel_logo";
 
 export default function Loading() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6">
       <div className="w-24 shrink-0 sm:w-28">
-        <BppisLogo priority />
+        <CIntelLogo priority />
       </div>
-      <p className="text-center text-sm font-semibold tracking-wide text-foreground">
-        Border Patrol Personnel Intelligence System
-      </p>
+      <p className="text-center text-sm font-semibold tracking-wide text-foreground">C-INTEL</p>
       <span
         className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent"
         role="status"

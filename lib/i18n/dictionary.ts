@@ -91,7 +91,7 @@ export const DICTIONARY = {
 
   // ── nav.* — AppShell navigation (Phase 48A: enterprise sidebar) ──
   "nav.brand": tr("ตำรวจตระเวนชายแดน", "Border Patrol Police"),
-  "nav.brandSub": tr("ระบบข่าวกรองกำลังพล", "Personnel Intelligence System"),
+  "nav.brandSub": tr("ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด", "Personnel and Narcotics Network Database System"),
   "nav.dashboard": tr("แดชบอร์ด", "Dashboard"),
   "nav.commanderSearch": tr("ศูนย์ค้นหา", "Search Center"),
   "nav.officers": tr("กำลังพล", "Personnel"),
@@ -1291,14 +1291,14 @@ export const DICTIONARY = {
   "epf.activity.groupEarlier": tr("ก่อนหน้านี้", "Earlier"),
 
   // ── auth.* — Phase 46 login screen ──
-  "auth.systemNameShort": tr("BPPIS", "BPPIS"),
-  // Phase 46A: title parts (each styled distinctly — see requirement 3).
-  "auth.orgName": tr("Border Patrol Police", "Border Patrol Police"),
-  "auth.systemNameFull": tr("Personnel Intelligence System", "Personnel Intelligence System"),
-  "auth.systemNameAbbrev": tr("(BPPIS)", "(BPPIS)"),
-  // Two-line Thai subtitle.
-  "auth.systemSubtitleLine1": tr("ระบบสารสนเทศกำลังพล", "Border Patrol Police"),
-  "auth.systemSubtitleLine2": tr("ตำรวจตระเวนชายแดน", "Personnel Intelligence System"),
+  "auth.systemNameShort": tr("C-INTEL", "C-INTEL"),
+  "auth.orgName": tr("ตำรวจตระเวนชายแดน", "Border Patrol Police"),
+  "auth.orgNameEn": tr("BORDER PATROL POLICE", "BORDER PATROL POLICE"),
+  "auth.systemNameFull": tr("ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด", "Personnel and Narcotics Network Database System"),
+  "auth.systemNameFullEn": tr("Personnel and Narcotics Network Database System", "Personnel and Narcotics Network Database System"),
+  "auth.systemNameAbbrev": tr("C-INTEL", "C-INTEL"),
+  "auth.systemSubtitleLine1": tr("ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด", "Personnel and Narcotics Network Database System"),
+  "auth.systemSubtitleLine2": tr("ตำรวจตระเวนชายแดน", "Border Patrol Police"),
   "auth.signInTitle": tr("เข้าสู่ระบบ", "Sign in"),
   "auth.signInSubtitle": tr("กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ", "Please sign in to continue"),
   "auth.username": tr("ชื่อผู้ใช้", "Username"),
