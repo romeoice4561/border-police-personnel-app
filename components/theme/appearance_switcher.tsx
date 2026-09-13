@@ -3,8 +3,8 @@
  *
  * The visible control for changing the active theme — mounted in AppShell's
  * top bar next to LanguageToggle/UserMenu, on both desktop and mobile. A
- * dropdown disclosure (four options don't fit a compact toggle row the way
- * the two-option LanguageToggle does), built with the exact same open/close/
+ * dropdown disclosure (the theme list does not fit a compact toggle row the
+ * way the two-option LanguageToggle does), built with the exact same open/close/
  * outside-click/Escape interaction pattern as UserMenu, so it behaves
  * identically to the other header controls.
  *
@@ -28,6 +28,7 @@ const THEME_SWATCH: Record<(typeof THEMES)[number], { bg: string; accent: string
   "border-patrol-green": { bg: "#10241a", accent: "#c8a24a" },
   "classic-white": { bg: "#f5f6f7", accent: "#14509e" },
   "midnight-black": { bg: "#0a0a0b", accent: "#d98a3d" },
+  "c-intel-purple": { bg: "#070612", accent: "#7c3aed" },
 };
 
 export function AppearanceSwitcher() {

@@ -202,6 +202,32 @@
   --neutral-bg: #212226;
 }
 
+/*
+ * C-INTEL Purple — login-inspired black-violet application theme.
+ * Fixed palette (not OS-dependent). Product accent is electric violet;
+ * reserved status colors stay green / amber / orange / red.
+ */
+[data-theme="c-intel-purple"] {
+  --background: #070612; /* near-black with a violet cast */
+  --surface: #12101f; /* charcoal violet cards */
+  --border: #3a3352; /* muted violet-gray */
+  --foreground: #f4f2fa; /* near-white */
+  --muted: #a8a1bd; /* readable secondary ink */
+  --accent: #7c3aed; /* electric violet (login primary) */
+  --accent-fg: #ffffff;
+
+  --good: #5fce88;
+  --good-bg: #123321;
+  --warning: #e0b64d;
+  --warning-bg: #3a2f12;
+  --serious: #e3925a;
+  --serious-bg: #3a2415;
+  --critical: #ef7c76;
+  --critical-bg: #3a1614;
+  --neutral: #a8a1bd;
+  --neutral-bg: #1c1730;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
