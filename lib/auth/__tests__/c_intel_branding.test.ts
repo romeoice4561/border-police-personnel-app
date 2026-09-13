@@ -38,6 +38,10 @@ test("sidebar and compact header use C-INTEL product lockup", () => {
   const shell = read("components/layout/app_shell.tsx");
   assert.match(brand, /C-INTEL/);
   assert.match(brand, /ระบบฐานข้อมูลกำลังพล/);
+  assert.match(brand, /และเครือข่าย/);
+  assert.match(brand, /ยาเสพติด/);
+  assert.match(brand, /whitespace-nowrap/);
+  assert.doesNotMatch(brand, /ระบบฐานข้อมูลกำลังพลและเครือข่ายยาเสพติด/);
   assert.match(brand, /ตำรวจตระเวนชายแดน/);
   assert.match(shell, /CIntelLogo/);
   assert.doesNotMatch(shell, /BppisLogo/);
