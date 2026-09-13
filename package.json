@@ -15,6 +15,10 @@
     "db:seed:skills": "tsx scripts/seed_skills.ts",
     "portraits:rebuild": "tsx scripts/rebuild_drive_portraits.ts",
     "verify:prod": "tsx scripts/verify_prod.ts",
+    "demo:cintel:seed": "tsx scripts/cintel_demo_training_seed.ts",
+    "demo:cintel:cleanup": "tsx scripts/cintel_demo_training_cleanup.ts",
+    "demo:cintel:cleanup:dry": "tsx scripts/cintel_demo_training_cleanup.ts --dry-run",
+    "demo:cintel:cleanup:execute": "tsx scripts/cintel_demo_training_cleanup.ts --execute",
     "postinstall": "prisma generate"
   },
   "dependencies": {
