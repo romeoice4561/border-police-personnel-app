@@ -11,16 +11,29 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/components/i18n/language_provider";
 import { formatDiDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import { noteWasEdited } from "@/lib/drug_intelligence/drug_analyst_notes_view";
-import type { AnalystNoteDto } from "@/lib/drug_intelligence/drug_collaboration_types";
+import { DrugAnalystNoteRelatedTasks } from "@/components/drug_intelligence/drug_analyst_note_related_tasks";
+import type { AnalystNoteDto, CollaborationPageMeta, InvestigationTaskDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 
 export function DrugAnalystNoteCard({
   note,
   canEdit,
   onEdit,
+  onCreateTask,
+  relatedTasks = [],
+  relatedMeta = null,
+  relatedLoading = false,
+  relatedError = false,
+  onRetryRelated,
 }: {
   note: AnalystNoteDto;
   canEdit: boolean;
   onEdit?: (note: AnalystNoteDto) => void;
+  onCreateTask?: (note: AnalystNoteDto) => void;
+  relatedTasks?: InvestigationTaskDto[];
+  relatedMeta?: CollaborationPageMeta | null;
+  relatedLoading?: boolean;
+  relatedError?: boolean;
+  onRetryRelated?: () => void;
 }) {
   const { t } = useT();
   const edited = noteWasEdited(note);
@@ -59,12 +72,33 @@ export function DrugAnalystNoteCard({
         ) : null}
       </dl>
       {canEdit ? (
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => onEdit?.(note)} data-testid="analyst-note-edit">
             {t("di.collaboration.editNote")}
           </Button>
+          {onCreateTask ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onCreateTask(note)}
+              data-testid="analyst-note-create-task"
+            >
+              {t("di.collaboration.createFollowUpTask")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
+      <DrugAnalystNoteRelatedTasks
+        items={relatedTasks}
+        meta={relatedMeta}
+        loading={relatedLoading}
+        error={relatedError}
+        onRetry={onRetryRelated ?? (() => undefined)}
+        targetKind={note.targetKind}
+        targetId={note.targetId}
+        noteId={note.id}
+      />
     </article>
   );
 }

@@ -195,21 +195,36 @@ export function buildDirtyTaskPatch(
   return Object.keys(patch).length === 0 ? null : patch;
 }
 
-export function draftToCreateFields(draft: InvestigationTaskDraft): {
+export function draftToCreateFields(
+  draft: InvestigationTaskDraft,
+  sourceNoteId?: string | null
+): {
   title: string;
   description: string | null;
   assignedActorId: string | null;
   dueAt: string | null;
   priority: DrugInvestigationTaskPriority;
+  sourceNoteId?: string;
 } | null {
   const title = validateTaskTitle(draft.title);
   const description = validateTaskDescription(draft.description);
   if (!title.ok || !description.ok) return null;
-  return {
+  const fields: {
+    title: string;
+    description: string | null;
+    assignedActorId: string | null;
+    dueAt: string | null;
+    priority: DrugInvestigationTaskPriority;
+    sourceNoteId?: string;
+  } = {
     title: title.title,
     description: description.description,
     assignedActorId: draft.assignedActorId.trim() || null,
     dueAt: serializeTaskDueAt(draft.dueDate),
     priority: draft.priority,
   };
+  if (sourceNoteId) fields.sourceNoteId = sourceNoteId;
+  return fields;
 }
+
+export const RELATED_TASKS_CARD_PREVIEW = 5;

@@ -265,13 +265,7 @@ test("listBySourceNoteId is bounded, sorted, and does not fetch-all", async () =
   await assert.rejects(() => tasks.listBySourceNoteId("missing-note-id-0001"), CollaborationNotFoundError);
 });
 
-test("E.1 does not add Note/Task UI or generic link surface", () => {
-  const noteCard = readFileSync(join(ROOT, "components/drug_intelligence/drug_analyst_note_card.tsx"), "utf8");
-  const taskCard = readFileSync(join(ROOT, "components/drug_intelligence/drug_investigation_task_card.tsx"), "utf8");
-  const editor = readFileSync(join(ROOT, "components/drug_intelligence/drug_investigation_task_editor.tsx"), "utf8");
-  for (const src of [noteCard, taskCard, editor]) {
-    assert.doesNotMatch(src, /สร้างงานติดตาม|งานที่เกี่ยวข้อง|ที่มา: บันทึกนักวิเคราะห์|sourceNoteId/);
-  }
+test("E.1 schema remains a direct Note->Task FK without a generic link table", () => {
   const schema = readFileSync(join(ROOT, SCHEMA), "utf8");
   assert.doesNotMatch(schema, /model DrugCollaborationLink|sourceTaskId/);
 });

@@ -11,6 +11,7 @@ import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MAX, THAI_EXPIRY_YEAR_BE_MIN } from
 import { Field, HelperText, inputCls } from "@/components/drug_intelligence/create_case_field";
 import { DrugInvestigationTaskAssigneeSelect } from "@/components/drug_intelligence/drug_investigation_task_assignee_select";
 import { useT } from "@/components/i18n/language_provider";
+import { formatDiDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import {
   TASK_DESCRIPTION_MAX,
   TASK_TITLE_MAX,
@@ -40,6 +41,7 @@ export function DrugInvestigationTaskEditor({
   saveDisabled,
   survivorPersonId,
   fallbackAssigneeLabel,
+  sourceNote,
 }: {
   mode: "create" | "edit";
   draft: InvestigationTaskDraft;
@@ -51,6 +53,7 @@ export function DrugInvestigationTaskEditor({
   saveDisabled?: boolean;
   survivorPersonId?: string | null;
   fallbackAssigneeLabel?: string | null;
+  sourceNote?: { authorName: string; createdAt: string } | null;
 }) {
   const { t } = useT();
   const titleId = useId();
@@ -66,6 +69,15 @@ export function DrugInvestigationTaskEditor({
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-surface p-4" data-testid="investigation-task-editor">
+      {sourceNote ? (
+        <p className="text-xs text-muted" data-testid="investigation-task-source-note">
+          {t("di.collaboration.sourceNoteProvenance")}
+          {" · "}
+          {t("di.collaboration.author")} {sourceNote.authorName}
+          {" · "}
+          {t("di.collaboration.createdAt")} {formatDiDateTime(sourceNote.createdAt)}
+        </p>
+      ) : null}
       <Field label={t("di.tasks.title")} htmlFor={titleId} required>
         <input
           ref={titleRef}

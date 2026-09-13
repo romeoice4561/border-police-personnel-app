@@ -13,6 +13,7 @@ import {
   type InvestigationTaskCreateBody,
   type InvestigationTaskListFilters,
   type InvestigationTasksPage,
+  type RelatedNoteTasksPage,
 } from "@/lib/drug_intelligence/drug_investigation_tasks_client";
 import { COLLABORATION_PAGE_DEFAULT } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationTargetKind, DrugInvestigationTaskStatus } from "@/lib/drug_intelligence/drug_collaboration_options";
@@ -80,9 +81,30 @@ export function useCreateInvestigationTask(
         ? drugInvestigationTasksClient.createCaseTask(targetId, body)
         : drugInvestigationTasksClient.createPersonTask(targetId, body);
     },
-    onSuccess: () => {
+    onSuccess: (_task, input) => {
       void queryClient.invalidateQueries({ queryKey: ["drug-investigation-tasks", targetKind, targetId] });
+      if (input.sourceNoteId) {
+        void queryClient.invalidateQueries({ queryKey: relatedNoteTasksQueryKey(targetKind, targetId) });
+      }
     },
+  });
+}
+
+export const relatedNoteTasksQueryKey = (targetKind: CollaborationTargetKind, targetId: string, noteIds?: string[]) =>
+  noteIds
+    ? (["drug-note-related-tasks", targetKind, targetId, ...noteIds] as const)
+    : (["drug-note-related-tasks", targetKind, targetId] as const);
+
+export function useRelatedNoteTasksBatch(
+  targetKind: CollaborationTargetKind,
+  targetId: string,
+  noteIds: string[]
+): UseQueryResult<RelatedNoteTasksPage[]> {
+  const ids = [...new Set(noteIds)].sort();
+  return useQuery({
+    queryKey: relatedNoteTasksQueryKey(targetKind, targetId, ids),
+    queryFn: () => drugInvestigationTasksClient.listRelatedNoteTasksBatch(targetKind, targetId, ids),
+    enabled: targetId.length > 0 && ids.length > 0,
   });
 }
 

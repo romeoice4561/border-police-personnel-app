@@ -235,7 +235,7 @@ test("shared panel is used by Case and Person with target mode only", () => {
   assert.match(panel, /di\.collaboration\.readOnlyHint/);
   assert.match(panel, /di\.profile\.openSurvivor/);
   assert.doesNotMatch(panel, /Delete|ลบ|onDelete/);
-  assert.doesNotMatch(panel, /DrugInvestigationTask|investigationTask/);
+  assert.doesNotMatch(panel, /DrugInvestigationTasksPanel/);
   assert.doesNotMatch(caseSrc, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(personSrc, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(panel, /dangerouslySetInnerHTML/);

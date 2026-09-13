@@ -2,7 +2,8 @@
  * DI-11C — Analyst Notes panel for Case and Person workspaces.
  *
  * Shared UI: Case/Person supply targetKind + targetId only. Uses DI-11B note
- * APIs. No task UI. No factual mutation. No delete.
+ * APIs. DI-11E.2 reuses the shared Task editor for create-from-note.
+ * No factual mutation. No delete. No Task→Note UX.
  */
 "use client";
 
@@ -15,6 +16,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DrugAnalystNoteCard } from "@/components/drug_intelligence/drug_analyst_note_card";
 import { DrugAnalystNoteEditor } from "@/components/drug_intelligence/drug_analyst_note_editor";
+import { DrugInvestigationTaskEditor } from "@/components/drug_intelligence/drug_investigation_task_editor";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import {
@@ -22,6 +24,15 @@ import {
   useCreateAnalystNote,
   useUpdateAnalystNote,
 } from "@/lib/drug_intelligence/drug_analyst_notes_hooks";
+import { useCreateInvestigationTask, useRelatedNoteTasksBatch } from "@/lib/drug_intelligence/drug_investigation_tasks_hooks";
+import {
+  classifyInvestigationTasksError,
+  draftToCreateFields,
+  emptyInvestigationTaskDraft,
+  investigationTasksErrorMessageKey,
+  validateTaskTitle,
+  type InvestigationTaskDraft,
+} from "@/lib/drug_intelligence/drug_investigation_tasks_view";
 import {
   classifyAnalystNotesError,
   validateNoteBody,
@@ -54,11 +65,19 @@ export function DrugAnalystNotesPanel({
   const [draft, setDraft] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [survivorPersonId, setSurvivorPersonId] = useState<string | null>(null);
+  const [creatingFromNote, setCreatingFromNote] = useState<AnalystNoteDto | null>(null);
+  const [taskDraft, setTaskDraft] = useState<InvestigationTaskDraft>(emptyInvestigationTaskDraft());
+  const [taskSaveError, setTaskSaveError] = useState<string | null>(null);
+  const [taskSurvivorPersonId, setTaskSurvivorPersonId] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
+  const taskSaveInFlightRef = useRef(false);
 
   const notes = useAnalystNotes(targetKind, targetId, page);
   const createNote = useCreateAnalystNote(targetKind, targetId, user?.id ?? null);
   const updateNote = useUpdateAnalystNote(targetKind, targetId, user?.id ?? null);
+  const createTask = useCreateInvestigationTask(targetKind, targetId, user?.id ?? null);
+  const relatedNoteIds = (notes.data?.items ?? []).map((note) => note.id);
+  const relatedTasks = useRelatedNoteTasksBatch(targetKind, targetId, relatedNoteIds);
 
   const emptyTitle =
     targetKind === "CASE" ? t("di.collaboration.emptyCase") : t("di.collaboration.emptyPerson");
@@ -73,10 +92,52 @@ export function DrugAnalystNotesPanel({
 
   function openEdit(note: AnalystNoteDto) {
     setComposing(false);
+    setCreatingFromNote(null);
     setEditingNote(note);
     setDraft(note.body);
     setSaveError(null);
     setSurvivorPersonId(null);
+  }
+
+  function openCreateFromNote(note: AnalystNoteDto) {
+    setComposing(false);
+    setEditingNote(null);
+    setCreatingFromNote(note);
+    setTaskDraft(emptyInvestigationTaskDraft());
+    setTaskSaveError(null);
+    setTaskSurvivorPersonId(null);
+  }
+
+  function closeTaskEditor() {
+    setCreatingFromNote(null);
+    setTaskSaveError(null);
+    setTaskSurvivorPersonId(null);
+    setTaskDraft(emptyInvestigationTaskDraft());
+  }
+
+  async function handleCreateTaskFromNote() {
+    if (!creatingFromNote || taskSaveInFlightRef.current) return;
+    const title = validateTaskTitle(taskDraft.title);
+    if (!title.ok) {
+      setTaskSaveError(title.reason === "too_long" ? t("di.tasks.titleTooLong") : t("di.tasks.titleRequired"));
+      return;
+    }
+    const fields = draftToCreateFields(taskDraft, creatingFromNote.id);
+    if (!fields) {
+      setTaskSaveError(t("di.error.validation"));
+      return;
+    }
+    taskSaveInFlightRef.current = true;
+    try {
+      await createTask.mutateAsync(fields);
+      closeTaskEditor();
+    } catch (error) {
+      const classified = classifyInvestigationTasksError(error, "save");
+      setTaskSaveError(t(investigationTasksErrorMessageKey(classified.kind)));
+      setTaskSurvivorPersonId(classified.kind === "merged" ? classified.survivorPersonId : null);
+    } finally {
+      taskSaveInFlightRef.current = false;
+    }
   }
 
   function closeEditor() {
@@ -165,6 +226,22 @@ export function DrugAnalystNotesPanel({
           )}
         </div>
 
+        {creatingFromNote && canEdit ? (
+          <div data-testid="investigation-task-editor-from-note" data-source-note-id={creatingFromNote.id}>
+            <DrugInvestigationTaskEditor
+              mode="create"
+              draft={taskDraft}
+              onChange={setTaskDraft}
+              onSave={() => void handleCreateTaskFromNote()}
+              onCancel={closeTaskEditor}
+              pending={createTask.isPending}
+              saveError={taskSaveError}
+              survivorPersonId={taskSurvivorPersonId}
+              sourceNote={{ authorName: creatingFromNote.authorName, createdAt: creatingFromNote.createdAt }}
+            />
+          </div>
+        ) : null}
+
         {composing && canEdit ? (
           <DrugAnalystNoteEditor
             mode="create"
@@ -214,7 +291,18 @@ export function DrugAnalystNotesPanel({
                   saveError={saveError}
                 />
               ) : (
-                <DrugAnalystNoteCard key={note.id} note={note} canEdit={canEdit} onEdit={openEdit} />
+                <DrugAnalystNoteCard
+                  key={note.id}
+                  note={note}
+                  canEdit={canEdit}
+                  onEdit={openEdit}
+                  onCreateTask={canEdit ? openCreateFromNote : undefined}
+                  relatedTasks={relatedTasks.data?.find((row) => row.sourceNoteId === note.id)?.items ?? []}
+                  relatedMeta={relatedTasks.data?.find((row) => row.sourceNoteId === note.id)?.meta ?? null}
+                  relatedLoading={relatedNoteIds.length > 0 && relatedTasks.isPending}
+                  relatedError={relatedTasks.isError}
+                  onRetryRelated={() => void relatedTasks.refetch()}
+                />
               )
             )}
           </div>

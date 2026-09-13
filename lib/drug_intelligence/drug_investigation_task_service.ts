@@ -16,6 +16,8 @@ import {
   isDrugInvestigationTaskStatus,
   isTaskOverdue,
   normalizeCollaborationPage,
+  RELATED_NOTE_TASKS_BATCH_MAX_IDS,
+  RELATED_NOTE_TASKS_BATCH_MAX_ITEMS,
   TASK_DESCRIPTION_MAX,
   TASK_TITLE_MAX,
   type CollaborationTargetKind,
@@ -31,6 +33,7 @@ import type {
   InvestigationTaskDto,
   InvestigationTaskListQuery,
   InvestigationTaskPatchInput,
+  SourceNoteProvenanceDto,
 } from "@/lib/drug_intelligence/drug_collaboration_types";
 import {
   CollaborationInvalidAssigneeError,
@@ -142,12 +145,20 @@ export class DrugInvestigationTaskService {
     return toDto(row);
   }
 
-  async listForCase(caseId: string, query: InvestigationTaskListQuery = {}): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
+  async listForCase(caseId: string, query: InvestigationTaskListQuery = {}): Promise<{
+    items: InvestigationTaskDto[];
+    meta: CollaborationPageMeta;
+    sourceNotes: SourceNoteProvenanceDto[];
+  }> {
     await this.assertCaseExists(caseId);
     return this.list({ caseId }, query);
   }
 
-  async listForPerson(personId: string, query: InvestigationTaskListQuery = {}): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
+  async listForPerson(personId: string, query: InvestigationTaskListQuery = {}): Promise<{
+    items: InvestigationTaskDto[];
+    meta: CollaborationPageMeta;
+    sourceNotes: SourceNoteProvenanceDto[];
+  }> {
     await this.assertPersonWritable(personId, { allowMergedRead: true });
     return this.list({ personId }, query);
   }
@@ -155,10 +166,89 @@ export class DrugInvestigationTaskService {
   async listBySourceNoteId(
     sourceNoteId: string,
     query: CollaborationListQuery = {}
-  ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
+  ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta; sourceNotes: SourceNoteProvenanceDto[] }> {
     const note = await this.db.drugAnalystNote.findUnique({ where: { id: sourceNoteId } });
     if (!note) throw new CollaborationNotFoundError("NOTE", sourceNoteId);
     return this.list({ sourceNoteId }, query);
+  }
+
+  async listForTargetSourceNote(
+    kind: CollaborationTargetKind,
+    targetId: string,
+    sourceNoteId: string,
+    query: CollaborationListQuery = {}
+  ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta; sourceNotes: SourceNoteProvenanceDto[] }> {
+    if (kind === "CASE") await this.assertCaseExists(targetId);
+    else await this.assertPersonWritable(targetId, { allowMergedRead: true });
+    await this.assertSourceNoteOnTarget(sourceNoteId, kind, targetId);
+    return this.list({ sourceNoteId }, query);
+  }
+
+  async listForTargetSourceNotes(
+    kind: CollaborationTargetKind,
+    targetId: string,
+    sourceNoteIds: string[],
+    query: CollaborationListQuery = {}
+  ): Promise<Array<{ sourceNoteId: string; items: InvestigationTaskDto[]; meta: CollaborationPageMeta }>> {
+    if (kind === "CASE") await this.assertCaseExists(targetId);
+    else await this.assertPersonWritable(targetId, { allowMergedRead: true });
+    const unique = [...new Set(sourceNoteIds.map((id) => id.trim()).filter(Boolean))];
+    if (unique.length < 1) throw new CollaborationValidationError("ids is required");
+    if (unique.length > RELATED_NOTE_TASKS_BATCH_MAX_IDS) {
+      throw new CollaborationValidationError("Too many sourceNoteIds");
+    }
+    const notes = await this.db.drugAnalystNote.findMany({ where: { id: { in: unique } } });
+    const notesById = new Map(notes.map((row) => [String(row.id), row]));
+    for (const sourceNoteId of unique) {
+      const note = notesById.get(sourceNoteId);
+      if (!note) throw new CollaborationNotFoundError("NOTE", sourceNoteId);
+      const noteTarget = targetOf(note);
+      if (noteTarget.targetKind !== kind || noteTarget.targetId !== targetId) {
+        throw new CollaborationValidationError("sourceNoteId must belong to the same CASE or PERSON target");
+      }
+    }
+
+    const { pageSize } = normalizeCollaborationPage(1, query.pageSize);
+    const boundedPageSize = Math.min(pageSize, RELATED_NOTE_TASKS_BATCH_MAX_ITEMS);
+    const take = Math.min(unique.length * boundedPageSize, RELATED_NOTE_TASKS_BATCH_MAX_ITEMS);
+    const groupBy = this.db.drugInvestigationTask.groupBy;
+    if (!groupBy) throw new CollaborationValidationError("Related-task batch aggregate is unavailable");
+    const [groups, rows] = await Promise.all([
+      groupBy.call(this.db.drugInvestigationTask, {
+        by: ["sourceNoteId"],
+        where: { sourceNoteId: { in: unique } },
+        _count: { _all: true },
+      }),
+      this.db.drugInvestigationTask.findMany({
+        where: { sourceNoteId: { in: unique } },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        take,
+      }),
+    ]);
+    const totals = new Map<string, number>();
+    for (const group of groups) {
+      const sourceNoteId = String(group.sourceNoteId ?? "");
+      const count = typeof group._count === "object" && group._count && "_all" in group._count
+        ? Number(group._count._all ?? 0)
+        : 0;
+      totals.set(sourceNoteId, count);
+    }
+    const grouped = new Map<string, InvestigationTaskDto[]>();
+    for (const row of rows) {
+      const sourceNoteId = row.sourceNoteId ? String(row.sourceNoteId) : "";
+      const list = grouped.get(sourceNoteId) ?? [];
+      if (list.length < boundedPageSize) list.push(toDto(row));
+      grouped.set(sourceNoteId, list);
+    }
+    return unique.map((sourceNoteId) => {
+      const items = grouped.get(sourceNoteId) ?? [];
+      const total = totals.get(sourceNoteId) ?? 0;
+      return {
+        sourceNoteId,
+        items,
+        meta: { page: 1, pageSize: boundedPageSize, total, totalPages: collaborationTotalPages(total, boundedPageSize) },
+      };
+    });
   }
 
   async update(taskId: string, patch: InvestigationTaskPatchInput, actor: CollaborationActor): Promise<InvestigationTaskDto> {
@@ -314,7 +404,7 @@ export class DrugInvestigationTaskService {
   private async list(
     targetWhere: { caseId?: string; personId?: string; sourceNoteId?: string },
     query: InvestigationTaskListQuery
-  ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta }> {
+  ): Promise<{ items: InvestigationTaskDto[]; meta: CollaborationPageMeta; sourceNotes: SourceNoteProvenanceDto[] }> {
     const { page, pageSize } = normalizeCollaborationPage(query.page, query.pageSize);
     const where: Record<string, unknown> = { ...targetWhere };
     if (query.status) where.status = query.status;
@@ -335,10 +425,54 @@ export class DrugInvestigationTaskService {
         take: pageSize,
       }),
     ]);
+    const items = rows.map((row) => toDto(row));
+    const targetFilter =
+      typeof targetWhere.caseId === "string"
+        ? { caseId: targetWhere.caseId }
+        : typeof targetWhere.personId === "string"
+          ? { personId: targetWhere.personId }
+          : undefined;
     return {
-      items: rows.map((row) => toDto(row)),
+      items,
       meta: { page, pageSize, total, totalPages: collaborationTotalPages(total, pageSize) },
+      sourceNotes: await this.loadSourceNoteProvenance(
+        items.map((row) => row.sourceNoteId),
+        targetFilter
+      ),
     };
+  }
+
+  private async assertSourceNoteOnTarget(
+    sourceNoteId: string,
+    kind: CollaborationTargetKind,
+    targetId: string
+  ): Promise<void> {
+    const note = await this.db.drugAnalystNote.findUnique({ where: { id: sourceNoteId } });
+    if (!note) throw new CollaborationNotFoundError("NOTE", sourceNoteId);
+    const noteTarget = targetOf(note);
+    if (noteTarget.targetKind !== kind || noteTarget.targetId !== targetId) {
+      throw new CollaborationValidationError("sourceNoteId must belong to the same CASE or PERSON target");
+    }
+  }
+
+  private async loadSourceNoteProvenance(
+    sourceNoteIds: Array<string | null>,
+    target?: { caseId?: string; personId?: string }
+  ): Promise<SourceNoteProvenanceDto[]> {
+    const unique = [...new Set(sourceNoteIds.filter((id): id is string => Boolean(id)))];
+    if (unique.length === 0) return [];
+    const rows = await this.db.drugAnalystNote.findMany({ where: { id: { in: unique } } });
+    return rows
+      .filter((row) => {
+        if (target?.caseId) return String(row.caseId ?? "") === target.caseId;
+        if (target?.personId) return String(row.personId ?? "") === target.personId;
+        return true;
+      })
+      .map((row) => ({
+        id: String(row.id),
+        authorName: String(row.authorName),
+        createdAt: requiredIso(row.createdAt),
+      }));
   }
 
   private async resolveSourceNote(

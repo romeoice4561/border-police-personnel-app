@@ -114,6 +114,13 @@ export interface InvestigationTaskDto {
   sourceNoteId: string | null;
 }
 
+/** DI-11E.2: minimal Task provenance. Never includes Note body. */
+export interface SourceNoteProvenanceDto {
+  id: string;
+  authorName: string;
+  createdAt: string;
+}
+
 export interface AnalystNoteCreateInput {
   body: string;
 }

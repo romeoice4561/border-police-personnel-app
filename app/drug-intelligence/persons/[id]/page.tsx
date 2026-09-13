@@ -305,7 +305,7 @@ function DrugPersonProfileContent() {
       {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
       {activeTab === "identity" ? <IdentityTab personId={personId} data={data} language={language} canViewFull={canViewFull} canEdit={canEdit} /> : null}
       {activeTab === "review" ? <ReviewTab personId={personId} dataQuality={data.dataQuality} mergeHistory={data.mergeHistory} /> : null}
-      {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel targetKind="PERSON" targetId={personId} /> : null}
+      {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel key={personId} targetKind="PERSON" targetId={personId} /> : null}
       {activeTab === "investigation-tasks" ? <DrugInvestigationTasksPanel targetKind="PERSON" targetId={personId} /> : null}
       <DrugPersonReportDrawer
         open={reportOpen}

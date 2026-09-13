@@ -14,15 +14,23 @@ import type {
   CollaborationPageMeta,
   InvestigationTaskDto,
   InvestigationTaskPatchInput,
+  SourceNoteProvenanceDto,
 } from "@/lib/drug_intelligence/drug_collaboration_types";
 
 interface ApiEnvelope<T> {
   data?: T;
-  meta?: CollaborationPageMeta;
+  meta?: CollaborationPageMeta & { sourceNotes?: SourceNoteProvenanceDto[] };
   error?: { code: string; message: string; details?: unknown };
 }
 
 export interface InvestigationTasksPage {
+  items: InvestigationTaskDto[];
+  meta: CollaborationPageMeta;
+  sourceNotes: SourceNoteProvenanceDto[];
+}
+
+export interface RelatedNoteTasksPage {
+  sourceNoteId: string;
   items: InvestigationTaskDto[];
   meta: CollaborationPageMeta;
 }
@@ -46,7 +54,10 @@ export interface InvestigationTaskCreateBody {
 
 const DEFAULT_META: CollaborationPageMeta = { page: 1, pageSize: 20, total: 0, totalPages: 1 };
 
-async function collaborationRequest<T>(path: string, init: RequestInit = {}): Promise<{ data: T; meta?: CollaborationPageMeta }> {
+async function collaborationRequest<T>(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ data: T; meta?: CollaborationPageMeta & { sourceNotes?: SourceNoteProvenanceDto[] } }> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (init.body != null && !headers.has("Content-Type")) {
@@ -127,14 +138,75 @@ export const drugInvestigationTasksClient = {
     const { data, meta } = await collaborationRequest<InvestigationTaskDto[]>(
       `/drug-intelligence/cases/${encodeURIComponent(caseId)}/tasks${listQuery(filters)}`
     );
-    return { items: data, meta: meta ?? { ...DEFAULT_META, page: filters.page ?? 1, pageSize: filters.pageSize ?? COLLABORATION_PAGE_DEFAULT, total: data.length } };
+    return {
+      items: data,
+      meta: meta ?? { ...DEFAULT_META, page: filters.page ?? 1, pageSize: filters.pageSize ?? COLLABORATION_PAGE_DEFAULT, total: data.length },
+      sourceNotes: Array.isArray(meta?.sourceNotes) ? (meta.sourceNotes as SourceNoteProvenanceDto[]) : [],
+    };
   },
 
   async listPersonTasks(personId: string, filters: InvestigationTaskListFilters = {}): Promise<InvestigationTasksPage> {
     const { data, meta } = await collaborationRequest<InvestigationTaskDto[]>(
       `/drug-intelligence/persons/${encodeURIComponent(personId)}/tasks${listQuery(filters)}`
     );
-    return { items: data, meta: meta ?? { ...DEFAULT_META, page: filters.page ?? 1, pageSize: filters.pageSize ?? COLLABORATION_PAGE_DEFAULT, total: data.length } };
+    return {
+      items: data,
+      meta: meta ?? { ...DEFAULT_META, page: filters.page ?? 1, pageSize: filters.pageSize ?? COLLABORATION_PAGE_DEFAULT, total: data.length },
+      sourceNotes: Array.isArray(meta?.sourceNotes) ? (meta.sourceNotes as SourceNoteProvenanceDto[]) : [],
+    };
+  },
+
+  async listCaseNoteTasks(
+    caseId: string,
+    noteId: string,
+    page = 1,
+    pageSize = COLLABORATION_PAGE_DEFAULT
+  ): Promise<InvestigationTasksPage> {
+    const search = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const { data, meta } = await collaborationRequest<InvestigationTaskDto[]>(
+      `/drug-intelligence/cases/${encodeURIComponent(caseId)}/notes/${encodeURIComponent(noteId)}/tasks?${search.toString()}`
+    );
+    return {
+      items: data,
+      meta: meta ?? { ...DEFAULT_META, page, pageSize, total: data.length },
+      sourceNotes: [],
+    };
+  },
+
+  async listPersonNoteTasks(
+    personId: string,
+    noteId: string,
+    page = 1,
+    pageSize = COLLABORATION_PAGE_DEFAULT
+  ): Promise<InvestigationTasksPage> {
+    const search = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const { data, meta } = await collaborationRequest<InvestigationTaskDto[]>(
+      `/drug-intelligence/persons/${encodeURIComponent(personId)}/notes/${encodeURIComponent(noteId)}/tasks?${search.toString()}`
+    );
+    return {
+      items: data,
+      meta: meta ?? { ...DEFAULT_META, page, pageSize, total: data.length },
+      sourceNotes: [],
+    };
+  },
+
+  async listRelatedNoteTasksBatch(
+    targetKind: "CASE" | "PERSON",
+    targetId: string,
+    noteIds: string[],
+    page = 1,
+    pageSize = COLLABORATION_PAGE_DEFAULT
+  ): Promise<RelatedNoteTasksPage[]> {
+    const search = new URLSearchParams({
+      ids: noteIds.join(","),
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    const path =
+      targetKind === "CASE"
+        ? `/drug-intelligence/cases/${encodeURIComponent(targetId)}/related-note-tasks?${search.toString()}`
+        : `/drug-intelligence/persons/${encodeURIComponent(targetId)}/related-note-tasks?${search.toString()}`;
+    return (await collaborationRequest<RelatedNoteTasksPage[]>(path)).data;
   },
 
   async listAssignees(): Promise<CollaborationAssigneeDto[]> {

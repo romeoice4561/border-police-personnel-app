@@ -16,9 +16,14 @@ import {
   handleNoteGet,
   handleNotePatch,
   handleCaseTasksCreate,
+  handleCaseTasksList,
   handlePersonTasksCreate,
   handleTaskPatch,
   handleCollaborationAssignees,
+  handleCaseNoteRelatedTasksList,
+  handlePersonNoteRelatedTasksList,
+  handleCaseRelatedNoteTasksBatch,
+  handlePersonRelatedNoteTasksBatch,
 } from "@/lib/drug_intelligence/drug_collaboration_api_handlers";
 import type { DrugCaseCreateRequest, DrugCasePersonInput } from "@/lib/drug_intelligence/drug_case_types";
 import { POST as sessionPost, DELETE as sessionDelete } from "@/app/api/auth/session/route";
@@ -619,4 +624,226 @@ test("PATCH cannot change sourceNoteId after create", async () => {
   const body = ((await patched.json()) as { data: { title: string; sourceNoteId: string | null } }).data;
   assert.equal(body.title, "still-linked");
   assert.equal(body.sourceNoteId, note.id);
+});
+
+test("related Tasks GET is drug.read, target-scoped, and does not leak Note body", async () => {
+  const { caseX, caseY, personA, personF, notes, tasks } = await seedLinkedTargets();
+  const caseNote = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const otherCaseNote = await notes.createForCase(caseY, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const personNote = await notes.createForPerson(personA, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const personFNote = await notes.createForPerson(personF, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  await handleCaseTasksCreate(
+    tasks,
+    caseX,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "linked-case", sourceNoteId: caseNote.id }),
+    })
+  );
+  await handlePersonTasksCreate(
+    tasks,
+    personA,
+    boundRequest("mock:admin", "http://localhost/tasks", {
+      method: "POST",
+      body: writeJson("mock:admin", { title: "linked-person", sourceNoteId: personNote.id }),
+    })
+  );
+
+  const adminCase = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    caseNote.id,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  assert.equal(adminCase.status, 200);
+  const adminJson = (await adminCase.json()) as { data: Array<{ sourceNoteId: string; title: string; description: string | null }> };
+  assert.equal(adminJson.data.length, 1);
+  assert.equal(adminJson.data[0]?.sourceNoteId, caseNote.id);
+  assert.equal(JSON.stringify(adminJson).includes(NOTE_BODY), false);
+
+  const commander = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    caseNote.id,
+    new URLSearchParams(),
+    boundRequest("mock:bpp414", "http://localhost/related")
+  );
+  assert.equal(commander.status, 200);
+
+  const officer = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    caseNote.id,
+    new URLSearchParams(),
+    boundRequest("mock:1101700123456", "http://localhost/related")
+  );
+  assert.equal(officer.status, 403);
+
+  const officerBatch = await handleCaseRelatedNoteTasksBatch(
+    tasks,
+    caseX,
+    new URLSearchParams({ ids: caseNote.id }),
+    boundRequest("mock:1101700123456", "http://localhost/batch")
+  );
+  assert.equal(officerBatch.status, 403);
+
+  const crossCase = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    otherCaseNote.id,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  const caseReadsPerson = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    personNote.id,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  const personCross = await handlePersonNoteRelatedTasksList(
+    tasks,
+    personA,
+    personFNote.id,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  const missing = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    "missing-note-id-0001",
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  assert.equal(crossCase.status, 400);
+  assert.equal(caseReadsPerson.status, 400);
+  assert.equal(personCross.status, 400);
+  assert.equal(missing.status, 404);
+
+  const batchCross = await handlePersonRelatedNoteTasksBatch(
+    tasks,
+    personA,
+    new URLSearchParams({ ids: personFNote.id }),
+    boundRequest("mock:admin", "http://localhost/batch")
+  );
+  assert.equal(batchCross.status, 400);
+});
+
+test("related Tasks query stays bounded and Task list provenance omits Note body", async () => {
+  const { caseX, notes, tasks } = await seedLinkedTargets();
+  const note = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  for (let i = 0; i < 21; i += 1) {
+    await handleCaseTasksCreate(
+      tasks,
+      caseX,
+      boundRequest("mock:admin", "http://localhost/tasks", {
+        method: "POST",
+        body: writeJson("mock:admin", { title: `rel-${String(i).padStart(2, "0")}`, sourceNoteId: note.id }),
+      })
+    );
+  }
+
+  const first = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    note.id,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  const firstBody = (await first.json()) as {
+    data: Array<{ id: string; sourceNoteId: string }>;
+    meta: { pageSize: number; total: number; totalPages: number };
+  };
+  assert.equal(first.status, 200);
+  assert.equal(firstBody.meta.pageSize, 20);
+  assert.equal(firstBody.meta.total, 21);
+  assert.equal(firstBody.data.length, 20);
+  assert.equal(firstBody.meta.totalPages, 2);
+
+  const max = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    note.id,
+    new URLSearchParams({ pageSize: "50" }),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  const maxBody = (await max.json()) as { data: unknown[]; meta: { pageSize: number } };
+  assert.equal(maxBody.data.length, 21);
+  assert.equal(maxBody.meta.pageSize, 50);
+
+  const clamped = await handleCaseNoteRelatedTasksList(
+    tasks,
+    caseX,
+    note.id,
+    new URLSearchParams({ pageSize: "51" }),
+    boundRequest("mock:admin", "http://localhost/related")
+  );
+  assert.equal(clamped.status, 400);
+
+  const listed = await handleCaseTasksList(
+    tasks,
+    caseX,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/tasks")
+  );
+  const listedBody = (await listed.json()) as {
+    data: Array<{ sourceNoteId: string | null }>;
+    meta: { sourceNotes?: Array<{ id: string; authorName: string; createdAt: string; body?: string }> };
+  };
+  assert.equal(listed.status, 200);
+  assert.ok((listedBody.meta.sourceNotes ?? []).some((row) => row.id === note.id));
+  assert.equal(JSON.stringify(listedBody).includes(NOTE_BODY), false);
+  for (const row of listedBody.meta.sourceNotes ?? []) {
+    assert.equal("body" in row, false);
+  }
+});
+
+test("related-note-tasks batch rejects empty, malformed, oversized, and mixed-target ids", async () => {
+  const { caseX, caseY, notes, tasks } = await seedLinkedTargets();
+  const note = await notes.createForCase(caseX, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+  const other = await notes.createForCase(caseY, { body: NOTE_BODY }, { actorId: "mock:admin", actorName: "Administrator" });
+
+  const empty = await handleCaseRelatedNoteTasksBatch(
+    tasks,
+    caseX,
+    new URLSearchParams(),
+    boundRequest("mock:admin", "http://localhost/batch")
+  );
+  assert.equal(empty.status, 400);
+
+  const malformed = await handleCaseRelatedNoteTasksBatch(
+    tasks,
+    caseX,
+    new URLSearchParams({ ids: "not a valid id!!" }),
+    boundRequest("mock:admin", "http://localhost/batch")
+  );
+  assert.equal(malformed.status, 400);
+
+  const duplicates = await handleCaseRelatedNoteTasksBatch(
+    tasks,
+    caseX,
+    new URLSearchParams({ ids: `${note.id},${note.id},${note.id}` }),
+    boundRequest("mock:admin", "http://localhost/batch")
+  );
+  assert.equal(duplicates.status, 200);
+  const dupBody = (await duplicates.json()) as { data: Array<{ sourceNoteId: string; items: unknown[] }> };
+  assert.equal(dupBody.data.length, 1);
+  assert.equal(dupBody.data[0]?.sourceNoteId, note.id);
+
+  const tooMany = await handleCaseRelatedNoteTasksBatch(
+    tasks,
+    caseX,
+    new URLSearchParams({ ids: Array.from({ length: 21 }, (_, i) => `note-id-${String(i).padStart(2, "0")}`).join(",") }),
+    boundRequest("mock:admin", "http://localhost/batch")
+  );
+  assert.equal(tooMany.status, 400);
+
+  const mixed = await handleCaseRelatedNoteTasksBatch(
+    tasks,
+    caseX,
+    new URLSearchParams({ ids: `${note.id},${other.id}` }),
+    boundRequest("mock:admin", "http://localhost/batch")
+  );
+  assert.equal(mixed.status, 400);
 });

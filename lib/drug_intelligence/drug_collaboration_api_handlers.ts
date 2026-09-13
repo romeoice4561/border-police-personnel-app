@@ -9,6 +9,11 @@
 import { z } from "zod";
 import { badRequest, conflict, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
 import {
+  COLLABORATION_PAGE_DEFAULT,
+  RELATED_NOTE_TASKS_BATCH_MAX_IDS,
+  RELATED_NOTE_TASKS_BATCH_RAW_MAX,
+} from "@/lib/drug_intelligence/drug_collaboration_options";
+import {
   assertCollaborationPermission,
   assertConfirmActorId,
   listAssignableCollaborationActors,
@@ -194,7 +199,7 @@ export async function handleCaseTasksList(
   if (!query.success) return badRequest("Invalid task list query", zodDetails(query.error));
   try {
     const result = await service.listForCase(id.id, query.data);
-    return jsonOk(result.items, { ...result.meta });
+    return jsonOk(result.items, { ...result.meta, sourceNotes: result.sourceNotes });
   } catch (error) {
     return mapError(error) ?? jsonError("INTERNAL_ERROR", "Failed to list investigation tasks", 500);
   }
@@ -237,7 +242,7 @@ export async function handlePersonTasksList(
   if (!query.success) return badRequest("Invalid task list query", zodDetails(query.error));
   try {
     const result = await service.listForPerson(id.id, query.data);
-    return jsonOk(result.items, { ...result.meta });
+    return jsonOk(result.items, { ...result.meta, sourceNotes: result.sourceNotes });
   } catch (error) {
     return mapError(error) ?? jsonError("INTERNAL_ERROR", "Failed to list investigation tasks", 500);
   }
@@ -283,6 +288,99 @@ export async function handleCollaborationAssignees(request: Request): Promise<Re
   if (!gated.ok) return gated.response;
   const users = await listAssignableCollaborationActors();
   return jsonOk(users.map(toCollaborationAssigneeDto));
+}
+
+export async function handleCaseNoteRelatedTasksList(
+  service: DrugInvestigationTaskService,
+  caseId: string,
+  noteId: string,
+  searchParams: URLSearchParams,
+  request: Request
+): Promise<Response> {
+  const gated = await assertCollaborationPermission(request, "drug.read");
+  if (!gated.ok) return gated.response;
+  const target = parseId(caseId);
+  if (!target.ok) return target.response;
+  const note = parseId(noteId);
+  if (!note.ok) return note.response;
+  const query = collaborationListQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!query.success) return badRequest("Invalid related task list query", zodDetails(query.error));
+  try {
+    const result = await service.listForTargetSourceNote("CASE", target.id, note.id, query.data);
+    return jsonOk(result.items, { ...result.meta });
+  } catch (error) {
+    return mapError(error) ?? jsonError("INTERNAL_ERROR", "Failed to list related investigation tasks", 500);
+  }
+}
+
+export async function handlePersonNoteRelatedTasksList(
+  service: DrugInvestigationTaskService,
+  personId: string,
+  noteId: string,
+  searchParams: URLSearchParams,
+  request: Request
+): Promise<Response> {
+  const gated = await assertCollaborationPermission(request, "drug.read");
+  if (!gated.ok) return gated.response;
+  const target = parseId(personId);
+  if (!target.ok) return target.response;
+  const note = parseId(noteId);
+  if (!note.ok) return note.response;
+  const query = collaborationListQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!query.success) return badRequest("Invalid related task list query", zodDetails(query.error));
+  try {
+    const result = await service.listForTargetSourceNote("PERSON", target.id, note.id, query.data);
+    return jsonOk(result.items, { ...result.meta });
+  } catch (error) {
+    return mapError(error) ?? jsonError("INTERNAL_ERROR", "Failed to list related investigation tasks", 500);
+  }
+}
+
+export async function handleCaseRelatedNoteTasksBatch(
+  service: DrugInvestigationTaskService,
+  caseId: string,
+  searchParams: URLSearchParams,
+  request: Request
+): Promise<Response> {
+  return handleRelatedNoteTasksBatch(service, "CASE", caseId, searchParams, request);
+}
+
+export async function handlePersonRelatedNoteTasksBatch(
+  service: DrugInvestigationTaskService,
+  personId: string,
+  searchParams: URLSearchParams,
+  request: Request
+): Promise<Response> {
+  return handleRelatedNoteTasksBatch(service, "PERSON", personId, searchParams, request);
+}
+
+async function handleRelatedNoteTasksBatch(
+  service: DrugInvestigationTaskService,
+  kind: "CASE" | "PERSON",
+  targetId: string,
+  searchParams: URLSearchParams,
+  request: Request
+): Promise<Response> {
+  const gated = await assertCollaborationPermission(request, "drug.read");
+  if (!gated.ok) return gated.response;
+  const target = parseId(targetId);
+  if (!target.ok) return target.response;
+  const rawIds = (searchParams.get("ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  if (rawIds.length < 1) return badRequest("ids is required");
+  if (rawIds.length > RELATED_NOTE_TASKS_BATCH_RAW_MAX) return badRequest("Too many ids");
+  const parsedIds = rawIds.map((id) => collaborationResourceIdSchema.safeParse(id));
+  if (parsedIds.some((id) => !id.success)) return badRequest("Invalid related-task note ids");
+  const unique = [...new Set(parsedIds.map((id) => id.data as string))];
+  if (unique.length > RELATED_NOTE_TASKS_BATCH_MAX_IDS) return badRequest("Too many ids");
+  try {
+    const result = await service.listForTargetSourceNotes(kind, target.id, unique, {
+      page: 1,
+      pageSize: COLLABORATION_PAGE_DEFAULT,
+    });
+    return jsonOk(result);
+  } catch (error) {
+    return mapError(error) ?? jsonError("INTERNAL_ERROR", "Failed to list related investigation tasks", 500);
+  }
 }
 
 export async function handleTaskPatch(service: DrugInvestigationTaskService, taskId: string, request: Request): Promise<Response> {

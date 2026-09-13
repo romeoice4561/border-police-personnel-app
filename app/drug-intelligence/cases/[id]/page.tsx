@@ -205,7 +205,7 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} onSelectPerson={openPersonDrawer} /> : null}
       {activeTab === "seized" ? <SeizedTab items={data.seizedItems} language={language} /> : null}
       {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
-      {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel targetKind="CASE" targetId={caseId} /> : null}
+      {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel key={caseId} targetKind="CASE" targetId={caseId} /> : null}
       {activeTab === "investigation-tasks" ? <DrugInvestigationTasksPanel targetKind="CASE" targetId={caseId} /> : null}
       {activeTab === "notes" ? <NotesTab data={data} /> : null}
 

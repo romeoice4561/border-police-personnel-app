@@ -2002,6 +2002,12 @@ export const DICTIONARY = {
   "di.collaboration.mergedPerson": tr("บุคคลนี้ถูกรวมแล้ว ไม่สามารถเพิ่มบันทึกบนรายการเดิมได้", "This person has been merged — a new note cannot be created on the old record"),
   "di.collaboration.unauthenticated": tr("กรุณาเข้าสู่ระบบใหม่เพื่อใช้งานบันทึกนักวิเคราะห์", "Please sign in again to use analyst notes"),
   "di.collaboration.readOnlyHint": tr("คุณมีสิทธิ์อ่านอย่างเดียว — ไม่สามารถเพิ่มหรือแก้ไขบันทึกได้", "Read-only — you cannot add or edit notes"),
+  "di.collaboration.createFollowUpTask": tr("สร้างงานติดตาม", "Create follow-up task"),
+  "di.collaboration.sourceNoteProvenance": tr("ที่มา: บันทึกนักวิเคราะห์", "Source: Analyst Note"),
+  "di.collaboration.relatedTasks": tr("งานที่เกี่ยวข้อง", "Related tasks"),
+  "di.collaboration.relatedTasksLoading": tr("กำลังโหลดงานที่เกี่ยวข้อง…", "Loading related tasks…"),
+  "di.collaboration.relatedTasksError": tr("โหลดงานที่เกี่ยวข้องไม่สำเร็จ", "Could not load related tasks"),
+  "di.collaboration.relatedTasksMore": tr("ดูเพิ่มเติม", "Show more"),
 
   "di.tasks.tab": tr("งานติดตาม", "Follow-up tasks"),
   "di.tasks.sectionTitle": tr("งานติดตามการสืบสวน", "Investigation follow-up tasks"),

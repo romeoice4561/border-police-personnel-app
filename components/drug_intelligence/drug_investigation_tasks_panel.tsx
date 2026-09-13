@@ -35,7 +35,7 @@ import {
 } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
 import { COLLABORATION_PAGE_DEFAULT, DRUG_INVESTIGATION_TASK_STATUSES } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationTargetKind, DrugInvestigationTaskStatus } from "@/lib/drug_intelligence/drug_collaboration_options";
-import type { InvestigationTaskDto } from "@/lib/drug_intelligence/drug_collaboration_types";
+import type { InvestigationTaskDto, SourceNoteProvenanceDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const STATUS_LABEL: Record<DrugInvestigationTaskStatus, TranslationKey> = {
@@ -74,6 +74,9 @@ export function DrugInvestigationTasksPanel({
   const emptyTitle = targetKind === "CASE" ? t("di.tasks.emptyCase") : t("di.tasks.emptyPerson");
   const meta = tasks.data?.meta;
   const items = tasks.data?.items ?? [];
+  const sourceNotesById = new Map(
+    (tasks.data?.sourceNotes ?? []).map((note: SourceNoteProvenanceDto) => [note.id, note])
+  );
   const { showLoading, showError, showEmpty, showList } = investigationTasksListVisibility({
     hasData: tasks.data != null,
     isPending: tasks.isPending,
@@ -278,6 +281,7 @@ export function DrugInvestigationTasksPanel({
                   actionError={actionError?.taskId === task.id ? actionError.message : null}
                   onEdit={openEdit}
                   onStatus={handleStatus}
+                  sourceNote={task.sourceNoteId ? sourceNotesById.get(task.sourceNoteId) ?? null : null}
                 />
               )
             )}
