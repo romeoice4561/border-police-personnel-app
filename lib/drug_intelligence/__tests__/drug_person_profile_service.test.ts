@@ -339,3 +339,188 @@ test("DrugPersonDirectoryService.list(): query matches name, alias, and identifi
   const byIdentifier = await directoryService.list({ page: 1, pageSize: 20, query: "888888888" });
   assert.equal(byIdentifier.rows.length, 1);
 });
+
+function personOnCase(opts: {
+  name?: string;
+  existingPersonId?: string;
+  phones: string[];
+  sims?: Array<{ iccid: string }>;
+  devices?: Array<{ imei1: string }>;
+  vehicles?: Array<{ registrationNumber: string }>;
+}): DrugCaseCreateRequest["persons"][number] {
+  return {
+    ...(opts.existingPersonId
+      ? { existingPersonId: opts.existingPersonId }
+      : { newPerson: { primaryFullName: opts.name ?? "บุคคลทดสอบ", nationality: null, dateOfBirth: null, notes: null, identifiers: [] } }),
+    role: "SUSPECT",
+    linkedOfficerId: null,
+    notes: null,
+    phones: opts.phones.map((rawInput) => ({ rawInput, firstSeenAt: new Date("2026-08-01"), lastSeenAt: new Date("2026-08-01"), notes: null })),
+    sims: (opts.sims ?? []).map((sim) => ({ iccid: sim.iccid, imsi: null, carrier: null, firstSeenAt: new Date("2026-08-01"), lastSeenAt: new Date("2026-08-01"), notes: null })),
+    devices: (opts.devices ?? []).map((device) => ({
+      brand: null,
+      model: null,
+      serialNumber: null,
+      imei1: device.imei1,
+      imei2: null,
+      firstSeenAt: new Date("2026-08-01"),
+      lastSeenAt: new Date("2026-08-01"),
+      notes: null,
+    })),
+    vehicles: (opts.vehicles ?? []).map((vehicle) => ({
+      registrationNumber: vehicle.registrationNumber,
+      registrationProvince: "ชุมพร",
+      vehicleType: null,
+      brand: null,
+      model: null,
+      color: null,
+      vin: null,
+      firstSeenAt: new Date("2026-08-01"),
+      lastSeenAt: new Date("2026-08-01"),
+      notes: null,
+    })),
+  };
+}
+
+test("getProfile() distinct-counts four phones across three cases and does not double-count a duplicate in the same case", async () => {
+  const db = new InMemoryDatabaseClient();
+  const caseService = new DrugCaseService({ db });
+  const caseA = await caseService.createCase(
+    baseCase({
+      caseNumber: "PROV-A",
+      persons: [personOnCase({ name: "สี่เบอร์", phones: ["0800000001", "0800000002", "0800000001"] })],
+    })
+  );
+  const personId = ((await db.drugCasePerson.findMany({ where: { caseId: caseA.caseId } }))[0] as { personId: string }).personId;
+  const caseB = await caseService.createCase(
+    baseCase({
+      caseNumber: "PROV-B",
+      persons: [personOnCase({ existingPersonId: personId, phones: ["0800000003", "0800000001"] })],
+    })
+  );
+  const caseC = await caseService.createCase(
+    baseCase({
+      caseNumber: "PROV-C",
+      persons: [personOnCase({ existingPersonId: personId, phones: ["0800000004"] })],
+    })
+  );
+
+  const profile = await new DrugPersonProfileService(db).getProfile(personId);
+  assert.equal(profile.relatedPhones.length, 4);
+  assert.equal(profile.counts.phones, 4, "aggregate count is distinct numbers, not junction rows");
+  assert.ok(profile.phones.length > 4, "raw DrugCasePhone rows remain available");
+
+  const { countEntitiesInCase } = await import("@/lib/drug_intelligence/person_entity_provenance");
+  assert.equal(countEntitiesInCase(profile.relatedPhones, caseA.caseId), 2);
+  assert.equal(countEntitiesInCase(profile.relatedPhones, caseB.caseId), 2);
+  assert.equal(countEntitiesInCase(profile.relatedPhones, caseC.caseId), 1);
+
+  const multi = profile.relatedPhones.find((row) => row.cases.length > 1);
+  assert.ok(multi, "a phone seen in more than one case keeps multi-case provenance");
+  assert.equal(multi!.cases.length, 2);
+  assert.ok(multi!.cases.some((row) => row.caseId === caseA.caseId));
+  assert.ok(multi!.cases.some((row) => row.caseId === caseB.caseId));
+  void caseC;
+});
+
+test("getProfile() related SIM/device/vehicle provenance comes from case junction rows, not sourceCaseId inference", async () => {
+  const db = new InMemoryDatabaseClient();
+  const caseService = new DrugCaseService({ db });
+  const caseA = await caseService.createCase(
+    baseCase({
+      caseNumber: "PROV-DEV-A",
+      persons: [
+        personOnCase({
+          name: "อุปกรณ์",
+          phones: ["0810000001"],
+          sims: [{ iccid: "89000000000000000011" }],
+          devices: [{ imei1: "111111111111111" }],
+          vehicles: [{ registrationNumber: "กข-1" }],
+        }),
+      ],
+    })
+  );
+  const personId = ((await db.drugCasePerson.findMany({ where: { caseId: caseA.caseId } }))[0] as { personId: string }).personId;
+  await caseService.createCase(
+    baseCase({
+      caseNumber: "PROV-DEV-B",
+      persons: [personOnCase({ existingPersonId: personId, phones: ["0810000002"] })],
+    })
+  );
+
+  const profile = await new DrugPersonProfileService(db).getProfile(personId);
+  assert.equal(profile.counts.sims, 1);
+  assert.equal(profile.relatedSims[0]?.cases.length, 1);
+  assert.equal(profile.relatedSims[0]?.cases[0]?.caseId, caseA.caseId);
+  assert.equal(profile.relatedDevices[0]?.cases.length, 1);
+  assert.equal(profile.relatedDevices[0]?.cases[0]?.caseId, caseA.caseId);
+  assert.equal(profile.relatedVehicles[0]?.cases.length, 1);
+  assert.ok(!JSON.stringify(profile.relatedDevices).includes("sourceCaseId"));
+});
+
+test("getProfile() P002 shape: current-case phone count is 1 and aggregate distinct phones is 2", async () => {
+  const db = new InMemoryDatabaseClient();
+  const caseService = new DrugCaseService({ db });
+  const case001 = await caseService.createCase(
+    baseCase({
+      caseNumber: "DI-TEST-001",
+      arrestDate: new Date("2026-08-01"),
+      province: "ชุมพร",
+      persons: [personOnCase({ name: "นายกิตติศักดิ์ ทดสอบระบบ", phones: ["0900001001"] })],
+    })
+  );
+  const personId = ((await db.drugCasePerson.findMany({ where: { caseId: case001.caseId } }))[0] as { personId: string }).personId;
+  await caseService.createCase(
+    baseCase({
+      caseNumber: "DI-TEST-002",
+      persons: [personOnCase({ existingPersonId: personId, phones: ["0900001001"] })],
+    })
+  );
+  const case003 = await caseService.createCase(
+    baseCase({
+      caseNumber: "DI-TEST-003",
+      persons: [
+        personOnCase({
+          existingPersonId: personId,
+          phones: ["0900001001", "0900001005"],
+          sims: [{ iccid: "89000000000000000001" }],
+          devices: [{ imei1: "111111111111111" }],
+          vehicles: [{ registrationNumber: "TEST-9009" }],
+        }),
+      ],
+    })
+  );
+
+  const profile = await new DrugPersonProfileService(db).getProfile(personId);
+  const { countEntitiesInCase, splitRelatedByCurrentCase } = await import("@/lib/drug_intelligence/person_entity_provenance");
+
+  assert.equal(profile.counts.cases, 3);
+  assert.equal(profile.counts.phones, 2);
+  assert.equal(profile.relatedPhones.length, 2);
+  assert.equal(countEntitiesInCase(profile.relatedPhones, case001.caseId), 1);
+  assert.equal(countEntitiesInCase(profile.relatedPhones, case003.caseId), 2);
+
+  const tel001 = profile.relatedPhones.find((row) => row.phoneNumber?.normalizedNumber === "66900001001");
+  const tel005 = profile.relatedPhones.find((row) => row.phoneNumber?.normalizedNumber === "66900001005");
+  assert.ok(tel001);
+  assert.ok(tel005);
+  assert.equal(tel001.cases.length, 3);
+  assert.equal(tel005.cases.length, 1);
+  assert.equal(tel005.cases[0]?.caseId, case003.caseId);
+
+  const split = splitRelatedByCurrentCase(profile.relatedPhones, case001.caseId);
+  assert.equal(split.inCurrentCase.length, 1);
+  assert.equal(split.inCurrentCase[0]?.phoneNumberId, tel001.phoneNumberId);
+  assert.equal(split.inOtherCases.length, 1);
+  assert.equal(split.inOtherCases[0]?.phoneNumberId, tel005.phoneNumberId);
+
+  const split003 = splitRelatedByCurrentCase(profile.relatedPhones, case003.caseId);
+  assert.equal(split003.inCurrentCase.length, 2);
+  assert.equal(split003.inOtherCases.length, 0);
+
+  assert.equal(countEntitiesInCase(profile.relatedSims, case001.caseId), 0);
+  assert.equal(countEntitiesInCase(profile.relatedDevices, case001.caseId), 0);
+  assert.equal(countEntitiesInCase(profile.relatedVehicles, case001.caseId), 0);
+  assert.equal(splitRelatedByCurrentCase(profile.relatedSims, case001.caseId).inOtherCases[0]?.cases[0]?.caseId, case003.caseId);
+  assert.equal(profile.relatedVehicles[0]?.vehicle?.registrationNumber, "TEST-9009");
+});

@@ -17,6 +17,9 @@ import { useT } from "@/components/i18n/language_provider";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useDrugPerson } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
+import { drugPersonProfilePath } from "@/lib/drug_intelligence/drug_entity_routes";
+import { presentDrawerPhones } from "@/lib/drug_intelligence/person_entity_provenance";
+import { withReturnTo } from "@/lib/ui/return_context";
 import { DRUG_PERSON_IDENTIFIER_TYPE_LABELS, isValidDrugPersonIdentifierType } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 
@@ -35,11 +38,16 @@ function roleLabel(role: string, language: "th" | "en"): string {
 export function DrugPersonDrawer({
   personId,
   roleInCase,
+  caseId,
+  returnTo,
   onClose,
 }: {
   /** Empty string closes the drawer (matches the parent's "no selection" state). */
   personId: string;
   roleInCase?: string;
+  /** Validated later on the Person Profile; URL case-context only. */
+  caseId?: string | null;
+  returnTo?: string | null;
   onClose: () => void;
 }) {
   const { t, language } = useT();
@@ -105,10 +113,19 @@ export function DrugPersonDrawer({
             {detail.data.phones.length === 0 ? (
               <p className="mt-1 text-sm text-muted">—</p>
             ) : (
-              <ul className="mt-1 space-y-0.5 text-sm text-foreground">
-                {detail.data.phones.map((phone) => (
-                  <li key={`${phone.caseId}-${phone.phoneNumberId}`} className="font-mono">
-                    {phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—"}
+              <ul className="mt-1 space-y-2 text-sm text-foreground" data-testid="person-drawer-phones">
+                {presentDrawerPhones(detail.data.phones, caseId ?? null).map((phone) => (
+                  <li key={phone.phoneNumberId} className="min-w-0">
+                    <p className="break-all font-mono">{phone.normalizedNumber ? presentPhoneNumber(phone.normalizedNumber, canViewFull) : "—"}</p>
+                    <p className="text-xs text-muted">
+                      {caseId && phone.inCurrentCase
+                        ? phone.uniqueCaseCount > 1
+                          ? t("di.profile.drawerSeenInCurrentAndTotal").replace("{count}", String(phone.uniqueCaseCount))
+                          : t("di.profile.drawerSeenInCurrent")
+                        : caseId
+                          ? t("di.profile.drawerSeenInOther")
+                          : t("di.profile.seenInNCases").replace("{count}", String(phone.uniqueCaseCount))}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -145,7 +162,11 @@ export function DrugPersonDrawer({
           </div>
 
           <div className="border-t border-border pt-4">
-            <Link href={`/drug-intelligence/persons/${encodeURIComponent(personId)}`} className="text-sm font-medium text-accent hover:underline">
+            <Link
+              href={withReturnTo(drugPersonProfilePath(personId, { caseId }), returnTo)}
+              className="text-sm font-medium text-accent hover:underline"
+              data-testid="open-person-profile"
+            >
               {t("di.person.viewProfile")}
             </Link>
           </div>

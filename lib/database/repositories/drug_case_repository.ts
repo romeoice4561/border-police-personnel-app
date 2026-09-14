@@ -280,6 +280,12 @@ export class DrugCaseRepository {
     return this.db.drugCaseLocation.findMany({ where: { caseId } });
   }
 
+  /** Batched Case↔Location links for a bounded set of case ids — one query, never N+1 per case. */
+  caseLocationsForCases(caseIds: string[]) {
+    if (caseIds.length === 0) return Promise.resolve([]);
+    return this.db.drugCaseLocation.findMany({ where: { caseId: { in: caseIds } } });
+  }
+
   /** Section 9's phone list for the Case Workspace — raw DrugCasePhone link rows for one case. */
   casePhonesForCase(caseId: string) {
     return this.db.drugCasePhone.findMany({ where: { caseId } });

@@ -49,8 +49,6 @@ import {
   isValidDrugNetworkRoleSource,
   DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS,
   isValidDrugNetworkRoleVerificationStatus,
-  DRUG_RELATIONSHIP_STATUS_LABELS,
-  isValidDrugRelationshipStatus,
 } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_CASE_STATUS_META } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
@@ -59,16 +57,25 @@ import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
+import { resolvePersonProfileCaseContext } from "@/lib/drug_intelligence/person_case_context";
+import { splitRelatedByCurrentCase } from "@/lib/drug_intelligence/person_entity_provenance";
+import {
+  DrugPersonCaseSplitOverview,
+  DrugPersonContextBanner,
+  DrugPersonIntelligenceSummary,
+  DrugPersonProvenanceList,
+  DrugPersonProvenanceSections,
+} from "@/components/drug_intelligence/drug_person_provenance";
 import type {
   DrugPersonProfileResponse,
   DrugCaseLinkSummary,
-  DrugPersonPhoneRow,
-  DrugPersonSimSummaryRow,
-  DrugPersonDeviceRow,
-  DrugPersonVehicleRow,
-  DrugPersonProfileLocationRow,
   DrugPersonDataQualityFlag,
   DrugPersonMatchCandidate,
+  DrugPersonRelatedPhone,
+  DrugPersonRelatedSim,
+  DrugPersonRelatedDevice,
+  DrugPersonRelatedVehicle,
+  DrugPersonRelatedLocation,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 const TABS = [
@@ -148,10 +155,16 @@ function DrugPersonProfileContent() {
   const data = profile.data;
   const canViewFull = can("drug.edit");
   const canEdit = can("drug.edit");
+  const currentCaseId = resolvePersonProfileCaseContext(
+    searchParams.get("caseId"),
+    data.cases.map((link) => link.caseId),
+  );
+  const currentCase = currentCaseId ? data.cases.find((link) => link.caseId === currentCaseId) ?? null : null;
+  const currentCaseNumber = currentCase?.case?.caseNumber ?? null;
 
   if (data.person.status === "MERGED") {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5 min-w-0 overflow-x-hidden">
         <PageHeader
           title={data.person.primaryFullName}
           actions={
@@ -181,7 +194,7 @@ function DrugPersonProfileContent() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 min-w-0 overflow-x-hidden">
       <PageHeader
         title={data.person.primaryFullName}
         description={t("di.profile.personId") + ": " + data.person.id}
@@ -270,6 +283,13 @@ function DrugPersonProfileContent() {
         </CardBody>
       </Card>
 
+      <DrugPersonContextBanner
+        currentCaseId={currentCaseId}
+        currentCaseNumber={currentCaseNumber}
+        arrestDate={currentCase?.case?.arrestDate ?? null}
+        province={currentCase?.case?.province ?? null}
+      />
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <DrugKpiTile label={t("di.profile.kpiCases")} value={data.counts.cases} icon={Users} onClick={() => setActiveTab("cases")} />
         <DrugKpiTile label={t("di.profile.kpiPhones")} value={data.counts.phones} icon={Phone} onClick={() => setActiveTab("phones")} />
@@ -296,13 +316,39 @@ function DrugPersonProfileContent() {
         ))}
       </div>
 
-      {activeTab === "overview" ? <OverviewTab data={data} language={language} canViewFull={canViewFull} /> : null}
+      {activeTab === "overview" ? (
+        <OverviewTab
+          data={data}
+          language={language}
+          canViewFull={canViewFull}
+          currentCaseId={currentCaseId}
+          currentCaseNumber={currentCaseNumber}
+          currentCaseArrestDate={currentCase?.case?.arrestDate ?? null}
+          currentCaseProvince={currentCase?.case?.province ?? null}
+          returnTo={returnTo}
+          onViewCases={() => setActiveTab("cases")}
+        />
+      ) : null}
       {activeTab === "cases" ? <CasesTab cases={data.cases} language={language} /> : null}
       {activeTab === "network-roles" ? <NetworkRolesTab networkRoles={data.networkRoles ?? []} networkMemberships={data.networkMemberships ?? []} language={language} /> : null}
-      {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} canViewFull={canViewFull} /> : null}
-      {activeTab === "devices" ? <DevicesTab devices={data.devices} canViewFull={canViewFull} /> : null}
-      {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} /> : null}
-      {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
+      {activeTab === "phones" ? (
+        <PhonesTab
+          phones={data.relatedPhones ?? []}
+          sims={data.relatedSims ?? []}
+          canViewFull={canViewFull}
+          currentCaseId={currentCaseId}
+          currentCaseNumber={currentCaseNumber}
+        />
+      ) : null}
+      {activeTab === "devices" ? (
+        <DevicesTab devices={data.relatedDevices ?? []} canViewFull={canViewFull} currentCaseId={currentCaseId} currentCaseNumber={currentCaseNumber} />
+      ) : null}
+      {activeTab === "vehicles" ? (
+        <VehiclesTab vehicles={data.relatedVehicles ?? []} currentCaseId={currentCaseId} currentCaseNumber={currentCaseNumber} />
+      ) : null}
+      {activeTab === "locations" ? (
+        <LocationsTab locations={data.relatedLocations ?? []} language={language} currentCaseId={currentCaseId} currentCaseNumber={currentCaseNumber} />
+      ) : null}
       {activeTab === "identity" ? <IdentityTab personId={personId} data={data} language={language} canViewFull={canViewFull} canEdit={canEdit} /> : null}
       {activeTab === "review" ? <ReviewTab personId={personId} dataQuality={data.dataQuality} mergeHistory={data.mergeHistory} /> : null}
       {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel key={personId} targetKind="PERSON" targetId={personId} /> : null}
@@ -338,12 +384,78 @@ function calculateAge(dateOfBirth: string | Date | null | undefined): number | n
   return age;
 }
 
-function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileResponse; language: "th" | "en"; canViewFull: boolean }) {
+function OverviewTab({
+  data,
+  language,
+  canViewFull,
+  currentCaseId,
+  currentCaseNumber,
+  currentCaseArrestDate,
+  currentCaseProvince,
+  returnTo,
+  onViewCases,
+}: {
+  data: DrugPersonProfileResponse;
+  language: "th" | "en";
+  canViewFull: boolean;
+  currentCaseId: string | null;
+  currentCaseNumber: string | null;
+  currentCaseArrestDate: string | Date | null;
+  currentCaseProvince: string | null;
+  returnTo: string | null;
+  onViewCases: () => void;
+}) {
   const { t } = useT();
   const calculatedAge = calculateAge(data.person.dateOfBirth);
+  const phones = data.relatedPhones ?? [];
+  const sims = data.relatedSims ?? [];
+  const devices = data.relatedDevices ?? [];
+  const vehicles = data.relatedVehicles ?? [];
+  const locations = data.relatedLocations ?? [];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
+      {currentCaseId ? (
+        <>
+          <DrugPersonCaseSplitOverview
+            currentCaseId={currentCaseId}
+            currentCaseNumber={currentCaseNumber}
+            arrestDate={currentCaseArrestDate}
+            province={currentCaseProvince}
+            phones={phones}
+            sims={sims}
+            devices={devices}
+            vehicles={vehicles}
+            locations={locations}
+            canViewFull={canViewFull}
+          />
+          <DrugPersonIntelligenceSummary
+            personId={data.person.id}
+            returnTo={returnTo}
+            caseCount={data.counts.cases}
+            currentCaseId={currentCaseId}
+            phones={phones}
+            sims={sims}
+            devices={devices}
+            vehicles={vehicles}
+            canViewFull={canViewFull}
+          />
+        </>
+      ) : (
+        <DrugPersonIntelligenceSummary
+          personId={data.person.id}
+          returnTo={returnTo}
+          caseCount={data.counts.cases}
+          currentCaseId={null}
+          phones={phones}
+          sims={sims}
+          devices={devices}
+          vehicles={vehicles}
+          canViewFull={canViewFull}
+        />
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardBody className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewIdentity")}</p>
@@ -403,6 +515,9 @@ function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileR
         <CardBody className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewCaseSummary")}</p>
           <p className="text-sm text-foreground">{t("di.profile.casesFoundIn").replace("{count}", String(data.counts.cases))}</p>
+          <button type="button" onClick={onViewCases} className="text-sm font-medium text-accent hover:underline">
+            {t("di.profile.viewByCase")}
+          </button>
         </CardBody>
       </Card>
 
@@ -479,26 +594,7 @@ function OverviewTab({ data, language, canViewFull }: { data: DrugPersonProfileR
           </CardBody>
         </Card>
       ) : null}
-
-      <Card>
-        <CardBody className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.profile.overviewRelatedCounts")}</p>
-          <dl className="grid grid-cols-3 gap-2 text-sm">
-            <div>
-              <dt className="text-muted">{t("di.profile.kpiPhones")}</dt>
-              <dd className="text-foreground">{data.counts.phones}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">{t("di.profile.kpiDevices")}</dt>
-              <dd className="text-foreground">{data.counts.devices}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">{t("di.profile.kpiVehicles")}</dt>
-              <dd className="text-foreground">{data.counts.vehicles}</dd>
-            </div>
-          </dl>
-        </CardBody>
-      </Card>
+      </div>
     </div>
   );
 }
@@ -711,137 +807,196 @@ function CasesTab({ cases, language }: { cases: DrugCaseLinkSummary[]; language:
   );
 }
 
-function PhonesTab({ phones, sims, canViewFull }: { phones: DrugPersonPhoneRow[]; sims: DrugPersonSimSummaryRow[]; canViewFull: boolean }) {
+function PhonesTab({
+  phones,
+  sims,
+  canViewFull,
+  currentCaseId,
+  currentCaseNumber,
+}: {
+  phones: DrugPersonRelatedPhone[];
+  sims: DrugPersonRelatedSim[];
+  canViewFull: boolean;
+  currentCaseId: string | null;
+  currentCaseNumber: string | null;
+}) {
   const { t } = useT();
   if (phones.length === 0 && sims.length === 0) return <EmptyState title={t("di.profile.emptyPhones")} icon={<Phone className="h-8 w-8" />} />;
+
+  const phoneItems = phones.map((phone) => ({
+    id: phone.phoneNumberId,
+    href: `/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`,
+    title: phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—",
+    firstSeenAt: phone.firstSeenAt,
+    lastSeenAt: phone.lastSeenAt,
+    cases: phone.cases,
+  }));
+  const simItems = sims.map((row) => ({
+    id: row.simId,
+    href: row.sim ? `/drug-intelligence/sims/${encodeURIComponent(row.sim.id)}` : null,
+    title: row.sim?.iccid ? presentIdentifierValue(row.sim.iccid, canViewFull) : "—",
+    subtitle: row.sim?.carrier ?? null,
+    firstSeenAt: row.firstSeenAt,
+    lastSeenAt: row.lastSeenAt,
+    cases: row.cases,
+  }));
+
+  if (!currentCaseId) {
+    return (
+      <div className="space-y-6">
+        {phones.length > 0 ? (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground">{t("di.profile.relatedPhones")}</h2>
+            <DrugPersonProvenanceList items={phoneItems} currentCaseId={null} showObservedDates />
+          </div>
+        ) : null}
+        {sims.length > 0 ? (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground">{t("di.profile.relatedSims")}</h2>
+            <DrugPersonProvenanceList items={simItems} currentCaseId={null} showObservedDates />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  const phoneSplit = splitRelatedByCurrentCase(phoneItems, currentCaseId);
+  const simSplit = splitRelatedByCurrentCase(simItems, currentCaseId);
+
   return (
-    <div className="space-y-4">
-      {phones.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-medium">{t("di.phone.number")}</th>
-                <th className="px-4 py-3 font-medium">{t("di.phone.firstSeen")}</th>
-                <th className="px-4 py-3 font-medium">{t("di.phone.lastSeen")}</th>
-                <th className="px-4 py-3 font-medium">{t("di.workspace.provenanceStatus")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {phones.map((phone) => (
-                <tr key={`${phone.caseId}-${phone.phoneNumberId}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
-                  <td className="px-4 py-3 font-mono">
-                    {phone.phoneNumber ? (
-                      <Link href={`/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`} className="text-accent hover:underline">
-                        {presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull)}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted">{phone.firstSeenAt ? formatDiDate(String(phone.firstSeenAt)) : "—"}</td>
-                  <td className="px-4 py-3 text-muted">{phone.lastSeenAt ? formatDiDate(String(phone.lastSeenAt)) : "—"}</td>
-                  <td className="px-4 py-3 text-muted">
-                    {phone.status
-                      ? (isValidDrugRelationshipStatus(phone.status)
-                          ? DRUG_RELATIONSHIP_STATUS_LABELS[phone.status].labelTh
-                          : phone.status)
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="space-y-6">
+      <section className="space-y-3" data-testid="person-phones-current-section">
+        <h2 className="text-base font-semibold text-foreground">{t("di.profile.fromCurrentCase")}</h2>
+        <p className="text-sm font-medium text-accent break-words">{currentCaseNumber || currentCaseId}</p>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted">{t("di.profile.kpiPhones")}</h3>
+          {phoneSplit.inCurrentCase.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.noneInThisCase")}</p>
+          ) : (
+            <DrugPersonProvenanceList items={phoneSplit.inCurrentCase} currentCaseId={currentCaseId} showObservedDates />
+          )}
         </div>
-      ) : null}
-      {sims.length > 0 ? (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">SIM</p>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {sims.map((s, i) =>
-              s.sim ? (
-                <li key={i}>
-                  <Link href={`/drug-intelligence/sims/${encodeURIComponent(s.sim.id)}`} className="block rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground hover:border-accent/50">
-                    {s.sim.iccid ? presentIdentifierValue(s.sim.iccid, canViewFull) : "—"}
-                    {s.sim.carrier ? <span className="ml-2 text-muted">{s.sim.carrier}</span> : null}
-                  </Link>
-                </li>
-              ) : (
-                <li key={i} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">—</li>
-              ),
-            )}
-          </ul>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted">{t("di.profile.kpiSims")}</h3>
+          {simSplit.inCurrentCase.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.noneInThisCase")}</p>
+          ) : (
+            <DrugPersonProvenanceList items={simSplit.inCurrentCase} currentCaseId={currentCaseId} showObservedDates />
+          )}
         </div>
-      ) : null}
+      </section>
+      <section className="space-y-3" data-testid="person-phones-other-section">
+        <h2 className="text-base font-semibold text-foreground">{t("di.profile.fromOtherCasesAdditional")}</h2>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted">{t("di.profile.additionalPhones")}</h3>
+          {phoneSplit.inOtherCases.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.noneFromOtherCases")}</p>
+          ) : (
+            <DrugPersonProvenanceList items={phoneSplit.inOtherCases} currentCaseId={currentCaseId} showObservedDates />
+          )}
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted">{t("di.profile.additionalSims")}</h3>
+          {simSplit.inOtherCases.length === 0 ? (
+            <p className="text-sm text-muted">{t("di.profile.noneFromOtherCases")}</p>
+          ) : (
+            <DrugPersonProvenanceList items={simSplit.inOtherCases} currentCaseId={currentCaseId} showObservedDates />
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function DevicesTab({ devices, canViewFull }: { devices: DrugPersonDeviceRow[]; canViewFull: boolean }) {
+function DevicesTab({
+  devices,
+  canViewFull,
+  currentCaseId,
+  currentCaseNumber,
+}: {
+  devices: DrugPersonRelatedDevice[];
+  canViewFull: boolean;
+  currentCaseId: string | null;
+  currentCaseNumber: string | null;
+}) {
   const { t } = useT();
   if (devices.length === 0) return <EmptyState title={t("di.profile.emptyDevices")} icon={<Smartphone className="h-8 w-8" />} />;
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {devices.map((d) => (
-        <Link key={d.deviceId} href={`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`} className="block">
-          <Card className="h-full transition-colors hover:border-accent/50">
-            <CardBody className="space-y-1">
-              <p className="font-medium text-foreground">{[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}</p>
-              {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
-              <p className="text-xs text-muted">
-                {d.firstSeenAt ? formatDiDate(String(d.firstSeenAt)) : "—"} – {d.lastSeenAt ? formatDiDate(String(d.lastSeenAt)) : "—"}
-              </p>
-              {/* Section 6: neutral wording — never "เป็นเจ้าของ" (owner) unless the relationship explicitly supports it, which DrugPersonDevice never does. */}
-              <p className="text-xs text-muted">{t("di.profile.relationAssociated")}</p>
-            </CardBody>
-          </Card>
-        </Link>
-      ))}
-    </div>
+    <DrugPersonProvenanceSections
+      currentCaseId={currentCaseId}
+      currentCaseNumber={currentCaseNumber}
+      emptyLabel={t("di.profile.emptyDevices")}
+      showObservedDates
+      items={devices.map((d) => ({
+        id: d.deviceId,
+        href: `/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`,
+        title: [d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—",
+        subtitle: d.device?.imei1 ? presentIdentifierValue(d.device.imei1, canViewFull) : t("di.profile.relationAssociated"),
+        firstSeenAt: d.firstSeenAt,
+        lastSeenAt: d.lastSeenAt,
+        cases: d.cases,
+      }))}
+    />
   );
 }
 
-function VehiclesTab({ vehicles }: { vehicles: DrugPersonVehicleRow[] }) {
+function VehiclesTab({
+  vehicles,
+  currentCaseId,
+  currentCaseNumber,
+}: {
+  vehicles: DrugPersonRelatedVehicle[];
+  currentCaseId: string | null;
+  currentCaseNumber: string | null;
+}) {
   const { t } = useT();
   if (vehicles.length === 0) return <EmptyState title={t("di.profile.emptyVehicles")} icon={<Car className="h-8 w-8" />} />;
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {vehicles.map((v) => (
-        <Link key={v.vehicleId} href={`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`} className="block">
-          <Card className="h-full transition-colors hover:border-accent/50">
-            <CardBody className="space-y-1">
-              <p className="font-medium text-foreground">{v.vehicle?.registrationNumber || "—"}</p>
-              <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
-              <p className="text-xs text-muted">
-                {v.firstSeenAt ? formatDiDate(String(v.firstSeenAt)) : "—"} – {v.lastSeenAt ? formatDiDate(String(v.lastSeenAt)) : "—"}
-              </p>
-            </CardBody>
-          </Card>
-        </Link>
-      ))}
-    </div>
+    <DrugPersonProvenanceSections
+      currentCaseId={currentCaseId}
+      currentCaseNumber={currentCaseNumber}
+      emptyLabel={t("di.profile.emptyVehicles")}
+      showObservedDates
+      items={vehicles.map((v) => ({
+        id: v.vehicleId,
+        href: `/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`,
+        title: v.vehicle?.registrationNumber || "—",
+        subtitle: [v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || t("di.profile.relationAssociated"),
+        firstSeenAt: v.firstSeenAt,
+        lastSeenAt: v.lastSeenAt,
+        cases: v.cases,
+      }))}
+    />
   );
 }
 
-function LocationsTab({ locations, language }: { locations: DrugPersonProfileLocationRow[]; language: "th" | "en" }) {
+function LocationsTab({
+  locations,
+  language,
+  currentCaseId,
+  currentCaseNumber,
+}: {
+  locations: DrugPersonRelatedLocation[];
+  language: "th" | "en";
+  currentCaseId: string | null;
+  currentCaseNumber: string | null;
+}) {
   const { t } = useT();
   if (locations.length === 0) return <EmptyState title={t("di.profile.emptyLocations")} icon={<MapPin className="h-8 w-8" />} />;
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {locations.map((loc) => (
-        <Card key={loc.id}>
-          <CardBody>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{locationRoleLabel(loc.role, language)}</p>
-            <p className="mt-1 font-medium text-foreground">{loc.location?.name || loc.location?.addressText || "—"}</p>
-            <p className="mt-1 text-sm text-muted">{loc.location?.province || "—"}</p>
-            {loc.caseNumber ? (
-              <Link href={`/drug-intelligence/cases/${encodeURIComponent(loc.caseId)}`} className="mt-1 inline-block text-xs text-accent hover:underline">
-                {t("di.profile.sourceCase")}: {loc.caseNumber}
-              </Link>
-            ) : null}
-          </CardBody>
-        </Card>
-      ))}
+    <div className="space-y-3">
+      <p className="text-xs text-muted">{t("di.profile.locationNotPersonFact")}</p>
+      <DrugPersonProvenanceSections
+        currentCaseId={currentCaseId}
+        currentCaseNumber={currentCaseNumber}
+        emptyLabel={t("di.profile.emptyLocations")}
+        items={locations.map((loc) => ({
+          id: loc.locationId,
+          title: loc.location?.name || loc.location?.addressText || "—",
+          subtitle: [loc.role ? locationRoleLabel(loc.role, language) : null, loc.location?.province].filter(Boolean).join(" · "),
+          cases: loc.cases,
+        }))}
+      />
     </div>
   );
 }

@@ -651,6 +651,53 @@ export interface DrugPersonSimSummaryRow {
   sim: { id: string; iccid: string | null; imsi: string | null; carrier: string | null } | null;
 }
 
+export interface DrugPersonProvenanceCaseRef {
+  caseId: string;
+  caseNumber: string | null;
+  arrestDate: string | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+}
+
+export interface DrugPersonRelatedPhone {
+  phoneNumberId: string;
+  phoneNumber: DrugPhoneNumberSummary | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  cases: DrugPersonProvenanceCaseRef[];
+}
+
+export interface DrugPersonRelatedSim {
+  simId: string;
+  sim: { id: string; iccid: string | null; imsi: string | null; carrier: string | null } | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  cases: DrugPersonProvenanceCaseRef[];
+}
+
+export interface DrugPersonRelatedDevice {
+  deviceId: string;
+  device: DrugDeviceSummary | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  cases: DrugPersonProvenanceCaseRef[];
+}
+
+export interface DrugPersonRelatedVehicle {
+  vehicleId: string;
+  vehicle: DrugVehicleSummary | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  cases: DrugPersonProvenanceCaseRef[];
+}
+
+export interface DrugPersonRelatedLocation {
+  locationId: string;
+  location: DrugLocationSummary | null;
+  role: string | null;
+  cases: DrugPersonProvenanceCaseRef[];
+}
+
 export interface DrugPersonMergeHistoryRow {
   id: string;
   survivorPersonId: string;
@@ -714,6 +761,19 @@ export interface DrugPersonProfileResponse {
   vehicles: DrugPersonVehicleRow[];
   caseVehicleSightingCount: number;
   locations: DrugPersonProfileLocationRow[];
+  /** Distinct related phones with factual DrugCasePhone provenance. */
+  relatedPhones: DrugPersonRelatedPhone[];
+  /** Distinct related SIMs with factual DrugCaseSim provenance. */
+  relatedSims: DrugPersonRelatedSim[];
+  /** Distinct related devices with DrugCaseDevice sighting provenance (empty cases = person-level only). */
+  relatedDevices: DrugPersonRelatedDevice[];
+  /** Distinct related vehicles with DrugCaseVehicle sighting provenance (empty cases = person-level only). */
+  relatedVehicles: DrugPersonRelatedVehicle[];
+  /**
+   * Distinct locations recorded on cases this person is linked to.
+   * Not a claim that the person was at the location.
+   */
+  relatedLocations: DrugPersonRelatedLocation[];
   mergeHistory: DrugPersonMergeHistoryRow[];
   firstSeenAt: string;
   lastSeenAt: string;

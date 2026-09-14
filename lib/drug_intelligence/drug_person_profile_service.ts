@@ -27,10 +27,42 @@ import { DrugPersonMergeRepository } from "@/lib/database/repositories/drug_pers
 import { DrugPersonNetworkRoleRepository } from "@/lib/database/repositories/drug_person_network_role_repository";
 import { DrugPersonMatchingService } from "@/lib/drug_intelligence/drug_person_matching_service";
 import { DrugPersonNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
+import {
+  aggregateLinksByEntity,
+  uniquePreserveOrder,
+  minTimestamp,
+  maxTimestamp,
+  type PersonRelatedEntity,
+} from "@/lib/drug_intelligence/person_entity_provenance";
 
 export interface DrugPersonDataQualityFlag {
   code: "NO_IDENTIFIER" | "NO_SOURCE_CASE" | "CONFLICTING_DOB" | "POTENTIAL_DUPLICATE" | "IDENTIFIER_SHARED";
   detail: string;
+}
+
+function mergePersonAndSightingEntities(
+  personRows: Array<{ entityId: string; firstSeenAt: Date | null; lastSeenAt: Date | null }>,
+  sightings: PersonRelatedEntity[],
+): PersonRelatedEntity[] {
+  const byId = new Map<string, PersonRelatedEntity>();
+  for (const sighting of sightings) {
+    byId.set(sighting.entityId, { ...sighting, cases: [...sighting.cases] });
+  }
+  for (const row of personRows) {
+    const existing = byId.get(row.entityId);
+    if (existing) {
+      existing.firstSeenAt = minTimestamp([existing.firstSeenAt, row.firstSeenAt]);
+      existing.lastSeenAt = maxTimestamp([existing.lastSeenAt, row.lastSeenAt]);
+    } else {
+      byId.set(row.entityId, {
+        entityId: row.entityId,
+        firstSeenAt: row.firstSeenAt,
+        lastSeenAt: row.lastSeenAt,
+        cases: [],
+      });
+    }
+  }
+  return Array.from(byId.values());
 }
 
 export class DrugPersonProfileService {
@@ -64,7 +96,7 @@ export class DrugPersonProfileService {
       this.personRepo.identifiersForPerson(personId),
       this.casePersonRepo.forPerson(personId),
       this.personRepo.casePhonesForPerson(personId),
-      this.db.drugCaseSim.findMany({ where: { personId } }),
+      this.personRepo.caseSimsForPerson(personId),
       this.entityRepo.personDevicesForPerson(personId),
       this.db.drugCaseDevice.findMany({ where: { personId } }),
       this.entityRepo.personVehiclesForPerson(personId),
@@ -74,67 +106,166 @@ export class DrugPersonProfileService {
       this.personRepo.networkMembershipsForPerson(personId),
     ]);
 
-    // Cases tab (Section 6): resolve each case link to its case row.
-    const cases = await Promise.all(
-      (caseLinks as Array<{ id: string; caseId: string; role: string; createdAt: Date }>).map(async (link) => ({
-        ...link,
-        case: await this.caseRepo.findById(link.caseId),
-      }))
-    );
+    const typedCaseLinks = caseLinks as Array<{ id: string; caseId: string; role: string; createdAt: Date }>;
+    const typedPhoneLinks = casePhoneLinks as Array<{
+      id: string;
+      caseId: string;
+      phoneNumberId: string;
+      originalInput?: string | null;
+      status: string;
+      firstSeenAt: Date | null;
+      lastSeenAt: Date | null;
+      recordedBy: string;
+      notes?: string | null;
+      personId: string;
+    }>;
+    const typedSimLinks = (caseSimLinks as Array<{ caseId: string; simId: string; personId: string | null; firstSeenAt: Date | null; lastSeenAt: Date | null }>).filter((row) => row.personId === personId);
+    const typedPersonDevices = personDeviceLinks as Array<{
+      id: string;
+      deviceId: string;
+      status: string;
+      firstSeenAt: Date | null;
+      lastSeenAt: Date | null;
+      sourceCaseId: string | null;
+      recordedBy: string;
+    }>;
+    const typedCaseDevices = (caseDeviceLinks as Array<{ caseId: string; deviceId: string; personId: string | null }>).filter((row) => row.personId === personId);
+    const typedPersonVehicles = personVehicleLinks as Array<{
+      id: string;
+      vehicleId: string;
+      status: string;
+      firstSeenAt: Date | null;
+      lastSeenAt: Date | null;
+      sourceCaseId: string | null;
+      recordedBy: string;
+    }>;
+    const typedCaseVehicles = (caseVehicleLinks as Array<{ caseId: string; vehicleId: string; personId: string | null }>).filter((row) => row.personId === personId);
 
-    // Locations tab (Section 6): every DrugCaseLocation across every case this person appears in — resolved per case, never derived/guessed as "belongs to this person" (Section 6's explicit prohibition on auto-deriving a residence from an arrest location).
-    const locationsByCase = await Promise.all(
-      cases.map(async (c) => ({
-        caseId: c.caseId,
-        caseNumber: c.case?.caseNumber ?? null,
-        links: await this.caseRepo.caseLocationsForCase(c.caseId),
-      }))
-    );
-    const locations = await Promise.all(
-      locationsByCase.flatMap((group) =>
-        (group.links as Array<{ id: string; locationId: string; role: string; createdAt: Date }>).map(async (link) => ({
-          ...link,
-          caseId: group.caseId,
-          caseNumber: group.caseNumber,
-          location: await this.entityRepo.findLocationById(link.locationId),
-        }))
-      )
-    );
+    const personCaseIds = uniquePreserveOrder(typedCaseLinks.map((link) => link.caseId));
+    const provenanceCaseIds = uniquePreserveOrder([
+      ...personCaseIds,
+      ...typedPhoneLinks.map((link) => link.caseId),
+      ...typedSimLinks.map((link) => link.caseId),
+      ...typedCaseDevices.map((link) => link.caseId),
+      ...typedCaseVehicles.map((link) => link.caseId),
+    ]);
 
-    const phones = await Promise.all(
-      (casePhoneLinks as Array<{ id: string; caseId: string; phoneNumberId: string; status: string; firstSeenAt: Date | null; lastSeenAt: Date | null; recordedBy: string }>).map(async (link) => ({
-        ...link,
-        phoneNumber: await this.entityRepo.findPhoneNumberById(link.phoneNumberId),
-      }))
-    );
+    const [caseRows, locationLinks] = await Promise.all([
+      this.caseRepo.findByIds(provenanceCaseIds),
+      this.caseRepo.caseLocationsForCases(personCaseIds),
+    ]);
+    const typedLocationLinks = locationLinks as Array<{ id: string; caseId: string; locationId: string; role: string; createdAt: Date }>;
+    const caseById = new Map(caseRows.map((row) => [row.id, row]));
 
-    // Phone/device history sub-tables (DrugSimPhoneHistory/DrugSimDeviceHistory)
-    // are schema-complete but not yet wired into the DatabaseClient delegate
-    // surface (DI-1 never populated them) — Section 6 marks phone history as
-    // "SIM: ... phone history ... ถ้ามี" (optional), so the profile surfaces
-    // just the SIM entity itself here; wiring the history sub-tables in is a
-    // small additive follow-up once a write path populates them.
-    const simIds = Array.from(new Set((caseSimLinks as Array<{ simId: string }>).map((r) => r.simId)));
-    const sims = await Promise.all(
-      simIds.map(async (simId) => {
-        const simRow = (await this.db.drugSim.findMany({ where: { id: simId } }))[0] ?? null;
-        return { sim: simRow };
-      })
-    );
+    const phoneIds = uniquePreserveOrder(typedPhoneLinks.map((link) => link.phoneNumberId));
+    const simIds = uniquePreserveOrder(typedSimLinks.map((link) => link.simId));
+    const deviceIds = uniquePreserveOrder([...typedPersonDevices.map((link) => link.deviceId), ...typedCaseDevices.map((link) => link.deviceId)]);
+    const vehicleIds = uniquePreserveOrder([...typedPersonVehicles.map((link) => link.vehicleId), ...typedCaseVehicles.map((link) => link.vehicleId)]);
+    const locationIds = uniquePreserveOrder(typedLocationLinks.map((link) => link.locationId));
 
-    const devices = await Promise.all(
-      (personDeviceLinks as Array<{ id: string; deviceId: string; status: string; firstSeenAt: Date | null; lastSeenAt: Date | null; sourceCaseId: string | null; recordedBy: string }>).map(async (link) => ({
-        ...link,
-        device: await this.entityRepo.findDeviceById(link.deviceId),
-      }))
-    );
+    const [phoneRows, simRows, deviceRows, vehicleRows, locationRows] = await Promise.all([
+      this.entityRepo.findByIdsPhones(phoneIds),
+      this.entityRepo.findByIdsSims(simIds),
+      this.entityRepo.findByIdsDevices(deviceIds),
+      this.entityRepo.findByIdsVehicles(vehicleIds),
+      this.entityRepo.findByIdsLocations(locationIds),
+    ]);
+    const phoneById = new Map(phoneRows.map((row) => [row.id, row]));
+    const simById = new Map(simRows.map((row) => [row.id, row]));
+    const deviceById = new Map(deviceRows.map((row) => [row.id, row]));
+    const vehicleById = new Map(vehicleRows.map((row) => [row.id, row]));
+    const locationById = new Map(locationRows.map((row) => [row.id, row]));
 
-    const vehicles = await Promise.all(
-      (personVehicleLinks as Array<{ id: string; vehicleId: string; status: string; firstSeenAt: Date | null; lastSeenAt: Date | null; sourceCaseId: string | null; recordedBy: string }>).map(async (link) => ({
-        ...link,
-        vehicle: await this.entityRepo.findVehicleById(link.vehicleId),
-      }))
-    );
+    const cases = typedCaseLinks.map((link) => ({
+      ...link,
+      case: caseById.get(link.caseId) ?? null,
+    }));
+
+    // Locations tab: DrugCaseLocation on cases this person is linked to — never
+    // auto-derived as "this person was at this place".
+    const locations = typedLocationLinks.map((link) => ({
+      ...link,
+      caseNumber: caseById.get(link.caseId)?.caseNumber ?? null,
+      location: locationById.get(link.locationId) ?? null,
+    }));
+
+    const phones = typedPhoneLinks.map((link) => ({
+      ...link,
+      phoneNumber: phoneById.get(link.phoneNumberId) ?? null,
+    }));
+
+    const relatedPhones = aggregateLinksByEntity(
+      typedPhoneLinks,
+      (link) => link.phoneNumberId,
+      (link) => ({ firstSeenAt: link.firstSeenAt, lastSeenAt: link.lastSeenAt }),
+      caseById,
+    ).map((entity) => ({
+      phoneNumberId: entity.entityId,
+      phoneNumber: phoneById.get(entity.entityId) ?? null,
+      firstSeenAt: entity.firstSeenAt,
+      lastSeenAt: entity.lastSeenAt,
+      cases: entity.cases,
+    }));
+
+    const relatedSims = aggregateLinksByEntity(
+      typedSimLinks,
+      (link) => link.simId,
+      (link) => ({ firstSeenAt: link.firstSeenAt, lastSeenAt: link.lastSeenAt }),
+      caseById,
+    ).map((entity) => ({
+      simId: entity.entityId,
+      sim: simById.get(entity.entityId) ?? null,
+      firstSeenAt: entity.firstSeenAt,
+      lastSeenAt: entity.lastSeenAt,
+      cases: entity.cases,
+    }));
+    const sims = relatedSims.map((row) => ({ sim: row.sim }));
+
+    const relatedDevices = mergePersonAndSightingEntities(
+      typedPersonDevices.map((link) => ({ entityId: link.deviceId, firstSeenAt: link.firstSeenAt, lastSeenAt: link.lastSeenAt })),
+      aggregateLinksByEntity(typedCaseDevices, (link) => link.deviceId, () => ({ firstSeenAt: null, lastSeenAt: null }), caseById),
+    ).map((entity) => ({
+      deviceId: entity.entityId,
+      device: deviceById.get(entity.entityId) ?? null,
+      firstSeenAt: entity.firstSeenAt,
+      lastSeenAt: entity.lastSeenAt,
+      cases: entity.cases,
+    }));
+    const devices = typedPersonDevices.map((link) => ({
+      ...link,
+      device: deviceById.get(link.deviceId) ?? null,
+    }));
+
+    const relatedVehicles = mergePersonAndSightingEntities(
+      typedPersonVehicles.map((link) => ({ entityId: link.vehicleId, firstSeenAt: link.firstSeenAt, lastSeenAt: link.lastSeenAt })),
+      aggregateLinksByEntity(typedCaseVehicles, (link) => link.vehicleId, () => ({ firstSeenAt: null, lastSeenAt: null }), caseById),
+    ).map((entity) => ({
+      vehicleId: entity.entityId,
+      vehicle: vehicleById.get(entity.entityId) ?? null,
+      firstSeenAt: entity.firstSeenAt,
+      lastSeenAt: entity.lastSeenAt,
+      cases: entity.cases,
+    }));
+    const vehicles = typedPersonVehicles.map((link) => ({
+      ...link,
+      vehicle: vehicleById.get(link.vehicleId) ?? null,
+    }));
+
+    const locationRoleById = new Map<string, string>();
+    for (const link of typedLocationLinks) {
+      if (!locationRoleById.has(link.locationId)) locationRoleById.set(link.locationId, link.role);
+    }
+    const relatedLocations = aggregateLinksByEntity(
+      typedLocationLinks,
+      (link) => link.locationId,
+      () => ({ firstSeenAt: null, lastSeenAt: null }),
+      caseById,
+    ).map((entity) => ({
+      locationId: entity.entityId,
+      location: locationById.get(entity.entityId) ?? null,
+      role: locationRoleById.get(entity.entityId) ?? null,
+      cases: entity.cases,
+    }));
 
     // First/Last seen (Section 24): derived from actual provenance timestamps across every relationship, never from createdAt alone when a more accurate observed date exists.
     const observedDates: Date[] = [];
@@ -151,7 +282,7 @@ export class DrugPersonProfileService {
       if (v.lastSeenAt) observedDates.push(v.lastSeenAt);
     }
     for (const c of cases) {
-      if (c.case?.arrestDate) observedDates.push(c.case.arrestDate);
+      if (c.case?.arrestDate) observedDates.push(new Date(c.case.arrestDate));
     }
     const firstSeenAt = observedDates.length > 0 ? new Date(Math.min(...observedDates.map((d) => d.getTime()))) : person.createdAt;
     const lastSeenAt = observedDates.length > 0 ? new Date(Math.max(...observedDates.map((d) => d.getTime()))) : person.updatedAt;
@@ -170,6 +301,11 @@ export class DrugPersonProfileService {
       vehicles,
       caseVehicleSightingCount: caseVehicleLinks.length,
       locations,
+      relatedPhones,
+      relatedSims,
+      relatedDevices,
+      relatedVehicles,
+      relatedLocations,
       mergeHistory,
       /** DI-7.3: network-role assertions, ordered oldest first. */
       networkRoles,
@@ -178,7 +314,14 @@ export class DrugPersonProfileService {
       firstSeenAt,
       lastSeenAt,
       dataQuality,
-      counts: { cases: cases.length, phones: phones.length, sims: sims.length, devices: devices.length, vehicles: vehicles.length, locations: locations.length },
+      counts: {
+        cases: cases.length,
+        phones: relatedPhones.length,
+        sims: relatedSims.length,
+        devices: relatedDevices.length,
+        vehicles: relatedVehicles.length,
+        locations: relatedLocations.length,
+      },
     };
   }
 

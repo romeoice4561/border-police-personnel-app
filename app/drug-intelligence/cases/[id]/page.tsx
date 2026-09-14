@@ -209,7 +209,13 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "investigation-tasks" ? <DrugInvestigationTasksPanel targetKind="CASE" targetId={caseId} /> : null}
       {activeTab === "notes" ? <NotesTab data={data} /> : null}
 
-      <DrugPersonDrawer personId={selectedPersonId} roleInCase={selectedPersonRole} onClose={() => setSelectedPersonId("")} />
+      <DrugPersonDrawer
+        personId={selectedPersonId}
+        roleInCase={selectedPersonRole}
+        caseId={caseId}
+        returnTo={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(caseId)}`, returnTo)}
+        onClose={() => setSelectedPersonId("")}
+      />
       <DrugCaseReportDrawer
         open={reportOpen}
         onClose={() => setReportOpen(false)}

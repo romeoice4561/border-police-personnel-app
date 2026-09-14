@@ -7,6 +7,7 @@
  */
 
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { PERSON_CASE_CONTEXT_PARAM, sanitizePersonCaseContextId } from "@/lib/drug_intelligence/person_case_context";
 
 export function drugEntityDetailPath(entityType: DrugGraphNodeType, entityId: string): string {
   switch (entityType) {
@@ -31,4 +32,16 @@ export function drugEntityDetailPath(entityType: DrugGraphNodeType, entityId: st
 
 export function drugNetworkFocusPath(entityType: DrugGraphNodeType, entityId: string): string {
   return `/drug-intelligence/network?${new URLSearchParams({ focusType: entityType, focusId: entityId }).toString()}`;
+}
+
+/**
+ * Person Intelligence Profile path. Optional `caseId` is URL case-context only
+ * (validated id shape). Search / Network / directory must keep using
+ * `drugEntityDetailPath` so they do not invent a current case.
+ */
+export function drugPersonProfilePath(personId: string, opts?: { caseId?: string | null }): string {
+  const base = `/drug-intelligence/persons/${encodeURIComponent(personId)}`;
+  const caseId = sanitizePersonCaseContextId(opts?.caseId);
+  if (!caseId) return base;
+  return `${base}?${PERSON_CASE_CONTEXT_PARAM}=${encodeURIComponent(caseId)}`;
 }
