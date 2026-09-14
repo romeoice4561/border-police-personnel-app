@@ -11,13 +11,17 @@
 
 import { MarkerType, type Node, type Edge } from "@xyflow/react";
 import {
+  computeGroupByHopLayout,
   computeLayoutForMode,
+  computeVerticalPathLayout,
   edgeTypeForLayoutMode,
   type DrugNetworkLayoutMode,
   type LayoutNodeInput,
 } from "@/lib/drug_intelligence/drug_network_graph_layout";
+import type { NetworkDepthCanvasArrangement } from "@/lib/drug_intelligence/drug_network_depth_view";
 import { DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { createDefaultEdgeRoute, type DrugNetworkEdgeRouteState, type DrugNetworkEdgeRoutes } from "@/lib/drug_intelligence/drug_network_edge_routing";
+import { hopDistances, isSharedEntity, shortestUndirectedPath, shouldShowEdgeLabel } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNeighborhoodResponse, DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -29,10 +33,20 @@ export interface DrugNetworkFlowNodeData extends Record<string, unknown> {
   isFocus: boolean;
   /** Section 16: Compact node display shows icon + short label only — full detail always stays available in the drawer. */
   density: DrugNetworkNodeDensity;
-  /** Section 17: dims (never removes) nodes not directly connected to the current selection. Always false when nothing is selected. */
+  /** Section 17 / readability: dims (never removes) nodes off the selected path or, when no path exists, off the selected node's neighborhood. Always false when nothing is selected or the focus itself is selected. */
   dimmed: boolean;
   /** DI-9.2 Section 5: presentation-only — true when this node's position is excluded from auto-layout. Never part of DrugGraphNode/the factual DTO. */
   pinned: boolean;
+  /** Undirected hop distance from the current focus. Presentation only. */
+  hopDistance: number;
+  /** True when caseCount >= 2 and the node is not the focus. Uses graph-derived counts only. */
+  isShared: boolean;
+  /** True when this node sits on the highlighted path from focus to the selected secondary node. */
+  onSelectedPath: boolean;
+  /** Depth-2 hop chip. Never shown on the focus node. */
+  showHopBadge: boolean;
+  /** Stronger isolation dimming for selected-path view. */
+  stronglyDimmed: boolean;
 }
 
 export interface FlowNode extends Node {
@@ -66,7 +80,7 @@ export interface FlowEdge extends Edge {
   /** "drugRoutedEdge" only when this edge has an active non-AUTO route with at least one waypoint (Section 6/13) — every other edge keeps its original xyflow built-in type, completely unaffected by DI-9.3. */
   type: "smoothstep" | "step" | "default" | "drugRoutedEdge";
   label: string;
-  style: { stroke: string; strokeDasharray?: string; opacity?: number };
+  style: { stroke: string; strokeDasharray?: string; opacity?: number; strokeWidth?: number };
   markerEnd: { type: MarkerType };
   labelStyle: { fontSize: number };
   labelBgStyle: { fillOpacity: number };
@@ -91,6 +105,15 @@ export interface BuildFlowGraphOptions {
   boardLocked?: boolean;
   /** DI-9.3 Section 11/26: passed straight through to every edge's data so the custom edge component can report waypoint drags back to the page. A no-op default keeps this optional for any caller/test that doesn't need routing. */
   onWaypointDrag?: (edgeId: string, waypointId: string, position: { x: number; y: number }) => void;
+  /** Presentation-only hover — used to reveal edge labels without changing selection or graph data. */
+  hoveredNodeId?: string | null;
+  hoveredEdgeId?: string | null;
+  /** Depth-2 canvas arrangement. DEFAULT keeps the resolved layout mode. */
+  canvasArrangement?: NetworkDepthCanvasArrangement;
+  /** When true, off-path nodes/edges use isolate opacity. Never removes graph records. */
+  isolateSelectedPath?: boolean;
+  /** Show ชั้น 1 / ชั้น 2 chips on non-focus nodes. */
+  showHopBadges?: boolean;
 }
 
 function toLayoutNode(n: DrugGraphNode): LayoutNodeInput {
@@ -105,10 +128,11 @@ function toLayoutNode(n: DrugGraphNode): LayoutNodeInput {
  * is the fix for the DI-5.1-discovered bug where clicking a node never
  * actually set xyflow's own `selected` state.
  *
- * Section 17: when a node is selected, every OTHER node/edge not directly
- * connected to it is dimmed (opacity, never removed or hidden) so the
- * analyst can trace exactly what's connected without losing the rest of
- * the picture.
+ * When a secondary node is selected, the shortest undirected path from the
+ * focus to that node is highlighted and everything else is dimmed (never
+ * removed). Selecting the focus itself, or selecting nothing, leaves the
+ * full graph readable. Hover only reveals labels — it never changes
+ * dimming or graph data.
  */
 export function buildDrugNetworkFlowGraph(
   neighborhood: DrugGraphNeighborhoodResponse,
@@ -117,36 +141,82 @@ export function buildDrugNetworkFlowGraph(
   selectedEdgeId: string | null,
   options: BuildFlowGraphOptions
 ): { flowNodes: FlowNode[]; flowEdges: FlowEdge[] } {
-  const positions = computeLayoutForMode(
-    options.layoutMode,
-    neighborhood.focus.entityId,
-    neighborhood.nodes.map(toLayoutNode),
-    neighborhood.edges.map((e) => ({ source: e.source, target: e.target })),
-    options.pathNodeIdsInOrder
-  );
+  const layoutEdges = neighborhood.edges.map((e) => ({ source: e.source, target: e.target }));
+  const layoutNodes = neighborhood.nodes.map(toLayoutNode);
+  const arrangement = options.canvasArrangement ?? "DEFAULT";
+  const positions =
+    arrangement === "GROUP_BY_HOP"
+      ? computeGroupByHopLayout(neighborhood.focus.entityId, layoutNodes, layoutEdges)
+      : arrangement === "VERTICAL_PATH"
+        ? computeVerticalPathLayout(options.pathNodeIdsInOrder ?? [], layoutNodes)
+        : computeLayoutForMode(
+            options.layoutMode,
+            neighborhood.focus.entityId,
+            layoutNodes,
+            layoutEdges,
+            options.pathNodeIdsInOrder
+          );
 
-  const directlyConnectedIds = selectedNodeId ? connectedNodeIds(selectedNodeId, neighborhood.edges) : null;
+  const hops = hopDistances(neighborhood.focus.entityId, neighborhood.nodes.map(toLayoutNode), layoutEdges);
+  const focusId = neighborhood.focus.entityId;
+  const selectedIsSecondary = Boolean(selectedNodeId && selectedNodeId !== focusId);
+  const selectedPath = selectedIsSecondary && selectedNodeId
+    ? shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
+    : null;
+  const pathNodeIds = selectedPath ? new Set(selectedPath.nodeIds) : null;
+  const pathEdgeIds = selectedPath ? new Set(selectedPath.edgeIds) : null;
+  const neighborIds = selectedIsSecondary && selectedNodeId && !selectedPath
+    ? connectedNodeIds(selectedNodeId, neighborhood.edges)
+    : null;
 
-  const flowNodes: FlowNode[] = neighborhood.nodes.map((n) => ({
-    id: n.id,
-    type: "drugGraphNode",
-    position: positions.get(n.id) ?? { x: 0, y: 0 },
-    selected: n.id === selectedNodeId,
-    data: {
-      graphNode: n,
-      isFocus: n.id === neighborhood.focus.entityId,
-      density: options.nodeDensity,
-      dimmed: directlyConnectedIds ? !directlyConnectedIds.has(n.id) : false,
-      pinned: options.pinnedNodeIds?.has(n.id) ?? false,
-    },
-  }));
+  const flowNodes: FlowNode[] = neighborhood.nodes.map((n) => {
+    const isFocus = n.id === focusId;
+    const hopDistance = hops.get(n.id) ?? (isFocus ? 0 : 1);
+    const onSelectedPath = pathNodeIds ? pathNodeIds.has(n.id) : false;
+    const dimmed = pathNodeIds ? !pathNodeIds.has(n.id) : neighborIds ? !neighborIds.has(n.id) : false;
+    return {
+      id: n.id,
+      type: "drugGraphNode",
+      position: positions.get(n.id) ?? { x: 0, y: 0 },
+      selected: n.id === selectedNodeId,
+      data: {
+        graphNode: n,
+        isFocus,
+        density: options.nodeDensity,
+        dimmed,
+        pinned: options.pinnedNodeIds?.has(n.id) ?? false,
+        hopDistance,
+        isShared: isSharedEntity(n, isFocus),
+        onSelectedPath,
+        showHopBadge: Boolean(options.showHopBadges) && !isFocus && hopDistance >= 1,
+        stronglyDimmed: Boolean(options.isolateSelectedPath) && dimmed,
+      },
+    };
+  });
 
-  const edgeType = edgeTypeForLayoutMode(options.layoutMode);
+  const edgeType =
+    arrangement === "GROUP_BY_HOP" || arrangement === "VERTICAL_PATH"
+      ? "smoothstep"
+      : edgeTypeForLayoutMode(options.layoutMode);
+  const hoveredNodeId = options.hoveredNodeId ?? null;
+  const hoveredEdgeId = options.hoveredEdgeId ?? null;
 
   const flowEdges: FlowEdge[] = neighborhood.edges.map((e) => {
     const isSelected = e.id === selectedEdgeId;
-    const touchesSelection = selectedNodeId ? e.source === selectedNodeId || e.target === selectedNodeId : true;
-    const showLabel = options.labelMode === "ALL" || (options.labelMode === "SELECTED_ONLY" && (isSelected || touchesSelection));
+    const touchesSelectedNode = selectedNodeId ? e.source === selectedNodeId || e.target === selectedNodeId : false;
+    const isHovered = e.id === hoveredEdgeId;
+    const touchesHoveredNode = hoveredNodeId ? e.source === hoveredNodeId || e.target === hoveredNodeId : false;
+    const onPath = pathEdgeIds ? pathEdgeIds.has(e.id) : null;
+    const showLabel = shouldShowEdgeLabel({
+      labelMode: options.labelMode,
+      edgeKind: e.edgeKind,
+      isSelected,
+      touchesSelectedNode,
+      isHovered,
+      touchesHoveredNode,
+      onSelectedPath: onPath === true,
+    });
+    const edgeDimmed = onPath === null ? false : !onPath;
     const baseColor = e.edgeKind === "INFERRED" ? "var(--color-warning, #b45309)" : "var(--color-accent, #2563eb)";
     // DI-9.3 Section 6/13: an edge only ever switches to the custom routed
     // renderer once it has a non-AUTO route WITH at least one waypoint —
@@ -162,7 +232,7 @@ export function buildDrugNetworkFlowGraph(
       target: e.target,
       selected: isSelected,
       type: isRouted ? "drugRoutedEdge" : edgeType,
-      label: options.labelMode === "HIDDEN" ? "" : showLabel ? translateShortLabel(DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[e.relationshipType]) : "",
+      label: showLabel ? translateShortLabel(DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[e.relationshipType]) : "",
       data: {
         route,
         analystMode: options.analystMode ?? false,
@@ -172,7 +242,8 @@ export function buildDrugNetworkFlowGraph(
       style: {
         stroke: baseColor,
         ...(e.edgeKind === "INFERRED" ? { strokeDasharray: "5 5" } : {}),
-        opacity: touchesSelection ? 1 : 0.25,
+        opacity: edgeDimmed ? (options.isolateSelectedPath ? 0.06 : 0.08) : 1,
+        strokeWidth: onPath ? 3 : 1.5,
       },
       markerEnd: { type: MarkerType.ArrowClosed },
       labelStyle: { fontSize: 10 },
@@ -187,11 +258,53 @@ export function buildDrugNetworkFlowGraph(
       // several edges converging on it (e.g. the focus node) became
       // unclickable/undraggable at most of its surface — edges intercepted
       // the pointer before it ever reached the node.
-      zIndex: selectedNodeId ? (isSelected ? 10 : touchesSelection ? 5 : 0) : undefined,
+      zIndex: selectedNodeId ? (isSelected ? 10 : onPath ? 6 : touchesSelectedNode ? 5 : 0) : undefined,
     };
   });
 
   return { flowNodes, flowEdges };
+}
+
+/**
+ * Presentation-only hover labels. Must never recompute layout, path, or
+ * node positions — dragging updates coordinates every frame, and feeding
+ * hover into the topology rebuild is what made the canvas flicker.
+ */
+export function applyFlowEdgeHoverLabels(
+  edges: FlowEdge[],
+  neighborhood: DrugGraphNeighborhoodResponse,
+  translateShortLabel: (key: TranslationKey) => string,
+  selectedNodeId: string | null,
+  selectedEdgeId: string | null,
+  labelMode: DrugNetworkLabelMode,
+  hoveredNodeId: string | null,
+  hoveredEdgeId: string | null
+): FlowEdge[] {
+  const graphEdgeById = new Map(neighborhood.edges.map((edge) => [edge.id, edge]));
+  const selectedPath =
+    selectedNodeId && selectedNodeId !== neighborhood.focus.entityId
+      ? shortestUndirectedPath(neighborhood.focus.entityId, selectedNodeId, neighborhood.edges)
+      : null;
+  const pathEdgeIds = selectedPath ? new Set(selectedPath.edgeIds) : null;
+  let changed = false;
+  const next = edges.map((edge) => {
+    const graphEdge = graphEdgeById.get(edge.id);
+    if (!graphEdge) return edge;
+    const showLabel = shouldShowEdgeLabel({
+      labelMode,
+      edgeKind: graphEdge.edgeKind,
+      isSelected: edge.id === selectedEdgeId,
+      touchesSelectedNode: selectedNodeId ? edge.source === selectedNodeId || edge.target === selectedNodeId : false,
+      isHovered: edge.id === hoveredEdgeId,
+      touchesHoveredNode: hoveredNodeId ? edge.source === hoveredNodeId || edge.target === hoveredNodeId : false,
+      onSelectedPath: pathEdgeIds?.has(edge.id) ?? false,
+    });
+    const label = showLabel ? translateShortLabel(DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[graphEdge.relationshipType]) : "";
+    if (label === edge.label) return edge;
+    changed = true;
+    return { ...edge, label };
+  });
+  return changed ? next : edges;
 }
 
 /** The focus node's own id, plus every node reachable via exactly one edge from it — Section 17's "directly connected" set. */

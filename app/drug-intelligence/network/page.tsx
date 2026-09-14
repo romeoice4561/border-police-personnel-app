@@ -115,6 +115,8 @@ import { DrugNetworkEdgeDetail } from "@/components/drug_intelligence/drug_netwo
 import { DrugNetworkEntityPicker, type DrugNetworkEntitySelection } from "@/components/drug_intelligence/drug_network_entity_picker";
 import { DrugNetworkRelationshipFilter } from "@/components/drug_intelligence/drug_network_relationship_filter";
 import { DrugNetworkLegend } from "@/components/drug_intelligence/drug_network_legend";
+import { DrugNetworkReadabilitySummary } from "@/components/drug_intelligence/drug_network_readability_summary";
+import { DrugNetworkTypeLaneHeaders } from "@/components/drug_intelligence/drug_network_type_lane_headers";
 import { DrugNetworkAnalystToolbar } from "@/components/drug_intelligence/drug_network_analyst_toolbar";
 import {
   DrugNetworkAnnotationShapeNode,
@@ -178,6 +180,7 @@ import {
 import { hydrateInvestigationBoardState, type LiveInvestigationGraph } from "@/lib/drug_intelligence/drug_investigation_board_hydrate";
 import type { DrugInvestigationBoardGraphContextV1 } from "@/lib/drug_intelligence/drug_investigation_board_state";
 import {
+  applyFlowEdgeHoverLabels,
   buildDrugNetworkFlowGraph,
   mergePreservingManualPositions,
   type DrugNetworkFlowNodeData,
@@ -186,7 +189,39 @@ import {
   type DrugNetworkLabelMode,
   type DrugNetworkNodeDensity,
 } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
-import { resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
+import { computeGroupByTypeLaneHeaders, planGroupByHopLayout, resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
+import { appearanceReasonKey, connectingRelationshipTypes, selectedPathSteps, shortestUndirectedPath, summarizeNeighborhood } from "@/lib/drug_intelligence/drug_network_graph_readability";
+import {
+  connectionDepthUrlPatch,
+  nextSelectedEntityAfterNeighborhoodChange,
+  parseNetworkConnectionDepth,
+  type NetworkConnectionDepth,
+} from "@/lib/drug_intelligence/drug_network_connection_depth";
+import {
+  depthViewUrlPatch,
+  isolateSelectedPathInView,
+  parseNetworkDepthViewMode,
+  resolveDepthViewCanvas,
+  shouldShowDepthViewControl,
+  type NetworkDepthViewMode,
+} from "@/lib/drug_intelligence/drug_network_depth_view";
+import {
+  applyNetworkSearchParamPatch,
+  buildNetworkSameRouteHref,
+  NETWORK_SAME_ROUTE_ROUTER_OPTIONS,
+} from "@/lib/drug_intelligence/drug_network_route_navigation";
+import { DrugNetworkConnectionDepthControl } from "@/components/drug_intelligence/drug_network_connection_depth";
+import { DrugNetworkDepthViewControl } from "@/components/drug_intelligence/drug_network_depth_view";
+import { DrugNetworkHopBandHeaders } from "@/components/drug_intelligence/drug_network_hop_band_headers";
+import {
+  computeDrawerAwarePathViewport,
+  measureDrawerWidth,
+  shouldFitSelectedPath,
+} from "@/lib/drug_intelligence/drug_network_drawer_viewport";
+import {
+  computeReadableHopContextViewport,
+  resolveInitialViewportKind,
+} from "@/lib/drug_intelligence/drug_network_initial_viewport";
 import { applyPinnedPositions, prunePinnedNodeIds } from "@/lib/drug_intelligence/drug_network_graph_pinning";
 import {
   createDefaultEdgeRoute,
@@ -422,7 +457,7 @@ function DrugNetworkContent() {
   const boardId = searchParams.get("boardId");
   const urlFocusType = (searchParams.get("focusType") as DrugGraphNodeType | null) ?? null;
   const urlFocusId = searchParams.get("focusId") ?? null;
-  const urlDepth = (Number(searchParams.get("depth") ?? "1") === 2 ? 2 : 1) as 1 | 2;
+  const urlDepth = parseNetworkConnectionDepth(searchParams.get("depth"));
   const urlDateFrom = searchParams.get("dateFrom") ?? "";
   const urlDateTo = searchParams.get("dateTo") ?? "";
   const urlMaxNodesParam = searchParams.get("maxNodes");
@@ -473,7 +508,7 @@ function DrugNetworkContent() {
   ]);
   const focusType = effectiveGraphContext?.focusType ?? null;
   const focusId = effectiveGraphContext?.focusId ?? null;
-  const depth = (effectiveGraphContext?.depth === 2 ? 2 : 1) as 1 | 2;
+  const depth = parseNetworkConnectionDepth(effectiveGraphContext?.depth);
   const dateFrom = effectiveGraphContext?.dateFrom ? formatThaiPersonnelDate(effectiveGraphContext.dateFrom) : "";
   const dateTo = effectiveGraphContext?.dateTo ? formatThaiPersonnelDate(effectiveGraphContext.dateTo) : "";
   const maxNodes = effectiveGraphContext?.maxNodes;
@@ -682,12 +717,20 @@ function DrugNetworkContent() {
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<DrugGraphEdge | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const isNodeDraggingRef = useRef(false);
+  const lastPathFitSelectionRef = useRef<string | null>(null);
   const [edgeDrawerOpen, setEdgeDrawerOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<DrugNetworkLayoutMode>("AUTO");
   const [labelMode, setLabelMode] = useState<DrugNetworkLabelMode>("SELECTED_ONLY");
   const [nodeDensity, setNodeDensity] = useState<DrugNetworkNodeDensity>("STANDARD");
   const [showLabelMenu, setShowLabelMenu] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [showDepthMenu, setShowDepthMenu] = useState(false);
+  const [showDepthViewMenu, setShowDepthViewMenu] = useState(false);
+  const [boardDepthView, setBoardDepthView] = useState<NetworkDepthViewMode>("BY_DEPTH");
+  const depthViewMode = boardId ? boardDepthView : parseNetworkDepthViewMode(searchParams.get("view"));
   const [pathViewNodeIds, setPathViewNodeIds] = useState<string[] | null>(null);
   const [rearrangeToken, setRearrangeToken] = useState(0);
 
@@ -717,13 +760,8 @@ function DrugNetworkContent() {
       setGraphContextOverride(applyInvestigationBoardGraphContextPatch(base, patch));
       return;
     }
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("boardId");
-    for (const [key, value] of Object.entries(patch)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    router.push(`/drug-intelligence/network?${next.toString()}`);
+    const next = applyNetworkSearchParamPatch(searchParams, patch);
+    router.push(buildNetworkSameRouteHref(next), NETWORK_SAME_ROUTE_ROUTER_OPTIONS);
   }
 
   const neighborhood = useDrugNetworkNeighborhood(user?.id ?? null, {
@@ -750,6 +788,44 @@ function DrugNetworkContent() {
       : pathViewNodeIds !== null
         ? "PATH"
         : layoutMode;
+
+  const selectedSecondaryId =
+    selectedNode && focusId && selectedNode.id !== focusId ? selectedNode.id : null;
+  const canvasArrangement = resolveDepthViewCanvas({
+    depth,
+    viewMode: depthViewMode,
+    hasSelectedSecondary: Boolean(selectedSecondaryId),
+  });
+  const isolateSelectedPath = isolateSelectedPathInView({
+    depth,
+    viewMode: depthViewMode,
+    hasSelectedSecondary: Boolean(selectedSecondaryId),
+  });
+  const selectedInvestigationPath = useMemo(() => {
+    if (!neighborhood.data || !selectedSecondaryId) return null;
+    return shortestUndirectedPath(neighborhood.data.focus.entityId, selectedSecondaryId, neighborhood.data.edges);
+  }, [neighborhood.data, selectedSecondaryId]);
+
+  const readabilitySummary = useMemo(
+    () => (neighborhood.data ? summarizeNeighborhood(neighborhood.data) : null),
+    [neighborhood.data],
+  );
+  const typeLaneHeaders = useMemo(() => {
+    if (canvasArrangement !== "DEFAULT" || resolvedLayoutMode !== "GROUP_BY_TYPE" || !neighborhood.data) return [];
+    return computeGroupByTypeLaneHeaders(
+      neighborhood.data.focus.entityId,
+      neighborhood.data.nodes.map((node) => ({ id: node.id, type: node.type })),
+      neighborhood.data.edges.map((edge) => ({ source: edge.source, target: edge.target })),
+    );
+  }, [neighborhood.data, resolvedLayoutMode, canvasArrangement]);
+  const hopBandPlan = useMemo(() => {
+    if (canvasArrangement !== "GROUP_BY_HOP" || !neighborhood.data) return { bands: [], typeHeaders: [] };
+    return planGroupByHopLayout(
+      neighborhood.data.focus.entityId,
+      neighborhood.data.nodes.map((node) => ({ id: node.id, type: node.type })),
+      neighborhood.data.edges.map((edge) => ({ source: edge.source, target: edge.target })),
+    );
+  }, [neighborhood.data, canvasArrangement]);
 
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<FlowEdge>([]);
@@ -804,6 +880,7 @@ function DrugNetworkContent() {
     focusType, focusId, depth, dateFrom, dateTo,
     maxNodes, selectedNodeTypes, selectedRelationshipTypes,
     resolvedLayoutMode, pathViewNodeIds, rearrangeToken,
+    canvasArrangement,
   });
   const lastQuerySignatureRef = useRef<string | null>(null);
 
@@ -824,6 +901,8 @@ function DrugNetworkContent() {
       const pruned = prunePinnedNodeIds(current, currentNodeIds);
       return pruned.size === current.size ? current : pruned;
     });
+    setSelectedNode((current) => nextSelectedEntityAfterNeighborhoodChange(current, currentNodeIds));
+    setSelectedEdge((current) => nextSelectedEntityAfterNeighborhoodChange(current, neighborhood.data.edges.map((edge) => edge.id)));
   }, [neighborhood.data]);
 
   useEffect(() => {
@@ -1004,12 +1083,18 @@ function DrugNetworkContent() {
       layoutMode: resolvedLayoutMode,
       labelMode,
       nodeDensity,
-      pathNodeIdsInOrder: pathViewNodeIds ?? undefined,
+      pathNodeIdsInOrder:
+        canvasArrangement === "VERTICAL_PATH"
+          ? selectedInvestigationPath?.nodeIds
+          : pathViewNodeIds ?? undefined,
       pinnedNodeIds: effectivePinnedNodeIds,
       edgeRoutes,
       analystMode: effectiveWorkspaceMode === "ANALYST",
       boardLocked,
       onWaypointDrag: handleWaypointDrag,
+      canvasArrangement,
+      isolateSelectedPath,
+      showHopBadges: depth === 2,
     });
 
     const isNewQuery = lastQuerySignatureRef.current !== querySignature;
@@ -1062,9 +1147,132 @@ function DrugNetworkContent() {
     });
 
     setFlowEdges(built.flowEdges);
-    if (isNewQuery) window.requestAnimationFrame(() => fitView({ duration: 300 }));
+    if (isNewQuery) {
+      lastPathFitSelectionRef.current = null;
+      const hopNodes = built.flowNodes.filter((node) => node.data.hopDistance <= 1);
+      const pathFitNodes = built.flowNodes.filter((node) => node.data.onSelectedPath);
+      window.requestAnimationFrame(() => {
+        if (isNodeDraggingRef.current) return;
+        const initialViewportKind = resolveInitialViewportKind({
+          focusType,
+          depth,
+          viewMode: depthViewMode,
+          canvasArrangement,
+          hasSelectedSecondary: Boolean(selectedSecondaryId),
+        });
+        if (initialViewportKind === "PRESERVE") return;
+        if (initialViewportKind === "DRAWER_AWARE_PATH" && pathFitNodes.length >= 2) {
+          lastPathFitSelectionRef.current = selectedNode?.id ?? null;
+          const canvas = canvasContainerRef.current;
+          const canvasRect = canvas?.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const drawerWidth = measureDrawerWidth(document.querySelector("[data-app-drawer]"), viewportWidth);
+          const viewport = computeDrawerAwarePathViewport({
+            nodes: pathFitNodes.map((node) => ({
+              id: node.id,
+              position: node.position,
+              width: node.width ?? node.measured?.width,
+              height: node.height ?? node.measured?.height,
+              isFocus: node.data.isFocus,
+            })),
+            canvasWidth: canvasRect?.width ?? canvas?.clientWidth ?? 960,
+            canvasHeight: canvasRect?.height ?? canvas?.clientHeight ?? 640,
+            canvasRight: canvasRect?.right ?? viewportWidth,
+            drawerWidth,
+            viewportWidth,
+          });
+          if (viewport) setViewport(viewport, { duration: 220 });
+          return;
+        }
+        if (initialViewportKind === "READABLE_HOP_CONTEXT") {
+          const canvas = canvasContainerRef.current;
+          const canvasRect = canvas?.getBoundingClientRect();
+          const viewport = computeReadableHopContextViewport({
+            nodes: built.flowNodes.map((node) => ({
+              id: node.id,
+              position: node.position,
+              width: node.width ?? node.measured?.width,
+              height: node.height ?? node.measured?.height,
+              hopDistance: node.data.hopDistance,
+              isFocus: node.data.isFocus,
+            })),
+            hopBandHeadings: hopBandPlan.bands,
+            canvasWidth: canvasRect?.width ?? canvas?.clientWidth ?? 960,
+            canvasHeight: canvasRect?.height ?? canvas?.clientHeight ?? 640,
+          });
+          if (viewport) setViewport(viewport, { duration: 300 });
+          return;
+        }
+        if (initialViewportKind === "DEPTH1_PERSON_NEIGHBORS" && hopNodes.length > 0) {
+          fitView({ nodes: hopNodes, duration: 300, padding: 0.28, maxZoom: 1.12 });
+          return;
+        }
+        fitView({ duration: 300 });
+      });
+    } else if (
+      shouldFitSelectedPath({
+        selectedId: selectedNode?.id ?? null,
+        focusId: neighborhood.data.focus.entityId,
+        lastFittedSelectionId: lastPathFitSelectionRef.current,
+        isDragging: isNodeDraggingRef.current,
+      })
+    ) {
+      const liveById = new Map(latestFlowNodesRef.current.map((node) => [node.id, node]));
+      const pathNodes = built.flowNodes
+        .filter((node) => node.data.onSelectedPath)
+        .map((node) => {
+          const live = liveById.get(node.id);
+          return {
+            id: node.id,
+            position: live?.position ?? node.position,
+            width: live?.width ?? live?.measured?.width,
+            height: live?.height ?? live?.measured?.height,
+            isFocus: node.data.isFocus,
+          };
+        });
+      lastPathFitSelectionRef.current = selectedNode!.id;
+      if (pathNodes.length >= 2) {
+        window.requestAnimationFrame(() => {
+          const canvas = canvasContainerRef.current;
+          const canvasRect = canvas?.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const drawerWidth = measureDrawerWidth(document.querySelector("[data-app-drawer]"), viewportWidth);
+          const viewport = computeDrawerAwarePathViewport({
+            nodes: pathNodes,
+            canvasWidth: canvasRect?.width ?? canvas?.clientWidth ?? 960,
+            canvasHeight: canvasRect?.height ?? canvas?.clientHeight ?? 640,
+            canvasRight: canvasRect?.right ?? viewportWidth,
+            drawerWidth,
+            viewportWidth,
+          });
+          if (viewport) setViewport(viewport, { duration: 220 });
+        });
+      }
+    } else if (!selectedNode) {
+      lastPathFitSelectionRef.current = null;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version]);
+
+  // Hover labels are patched onto the already-built edges. Never put hover
+  // into the topology rebuild above — drag moves the pointer in/out of the
+  // node and would otherwise recompute layout + replace the graph every frame.
+  useEffect(() => {
+    if (!neighborhood.data) return;
+    const data = neighborhood.data;
+    setFlowEdges((current) =>
+      applyFlowEdgeHoverLabels(
+        current,
+        data,
+        (key) => t(key),
+        selectedNode?.id ?? null,
+        selectedEdge?.id ?? null,
+        labelMode,
+        hoveredNodeId,
+        hoveredEdgeId
+      )
+    );
+  }, [neighborhood.data, selectedNode?.id, selectedEdge?.id, labelMode, hoveredNodeId, hoveredEdgeId, t]);
 
   // ── Text change callback (stable via ref) ─────────────────────────────────────
   // Stored in a ref so it never forces the build effect to re-run (it's not
@@ -1553,6 +1761,20 @@ function DrugNetworkContent() {
   function handleLayoutSelect(mode: DrugNetworkLayoutMode) {
     setLayoutMode(mode);
     setShowLayoutMenu(false);
+  }
+
+  function setConnectionDepth(next: NetworkConnectionDepth) {
+    if (next === depth) return;
+    updateParams(connectionDepthUrlPatch(next));
+  }
+
+  function setDepthView(next: NetworkDepthViewMode) {
+    if (next === depthViewMode) return;
+    if (boardId) {
+      setBoardDepthView(next);
+      return;
+    }
+    updateParams(depthViewUrlPatch(next));
   }
 
   function handleRearrange() {
@@ -2341,16 +2563,16 @@ function DrugNetworkContent() {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <div>
                       <label htmlFor="drug-network-filter-depth" className="mb-1.5 block text-xs font-medium text-muted">
-                        {t("di.network.filterDepth")}
+                        {t("di.network.connectionDepthLabel")}
                       </label>
                       <Select
                         id="drug-network-filter-depth"
                         options={[
-                          { value: "1", label: "1" },
-                          { value: "2", label: "2" },
+                          { value: "1", label: t("di.network.connectionDepthOne") },
+                          { value: "2", label: t("di.network.connectionDepthTwo") },
                         ]}
                         value={String(depth)}
-                        onChange={(e) => updateParams({ depth: e.target.value })}
+                        onChange={(e) => updateParams(connectionDepthUrlPatch(parseNetworkConnectionDepth(e.target.value)))}
                       />
                     </div>
                     <div>
@@ -2447,6 +2669,7 @@ function DrugNetworkContent() {
             <EmptyState title={t("di.network.empty")} icon={<NetworkIcon className="h-8 w-8" />} />
           ) : (
             <>
+              {readabilitySummary ? <DrugNetworkReadabilitySummary summary={readabilitySummary} depth={depth} /> : null}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 <SummaryTile label={t("di.network.summaryNodes")} value={neighborhood.data.nodes.length} />
                 <SummaryTile label={t("di.network.summaryPersons")} value={neighborhood.data.nodes.filter((n) => n.type === "PERSON").length} />
@@ -2467,6 +2690,12 @@ function DrugNetworkContent() {
               <p className="sr-only" id="drug-network-canvas-summary">
                 {t("di.network.graphSummaryFallback")}
               </p>
+
+              {depth === 2 && depthViewMode === "SELECTED_PATH" && !selectedSecondaryId ? (
+                <p role="status" className="whitespace-pre-line rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
+                  {t("di.network.depthViewPathEmpty")}
+                </p>
+              ) : null}
 
               {pathViewNodeIds ? (
                 <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
@@ -2496,7 +2725,17 @@ function DrugNetworkContent() {
                           {t(labelKey)}
                         </Button>
                       ))}
+                      {focusType === "PERSON" && resolvedLayoutMode !== "GROUP_BY_TYPE" ? (
+                        <Button size="sm" variant="accent" onClick={() => handleLayoutSelect("GROUP_BY_TYPE")}>
+                          <Layers className="h-4 w-4" aria-hidden="true" />
+                          {t("di.network.layoutReadable")}
+                        </Button>
+                      ) : null}
                     </div>
+                    <DrugNetworkConnectionDepthControl depth={depth} onChange={setConnectionDepth} />
+                    {shouldShowDepthViewControl(depth) ? (
+                      <DrugNetworkDepthViewControl mode={depthViewMode} onChange={setDepthView} />
+                    ) : null}
                     <div className="ml-auto flex flex-wrap items-center gap-1.5">
                       <Button variant="outline" size="sm" onClick={() => fitView({ duration: 300 })}>
                         <Maximize2 className="h-4 w-4" aria-hidden="true" />
@@ -2543,6 +2782,22 @@ function DrugNetworkContent() {
 
                   {/* Mobile layout dropdown */}
                   <div className="flex flex-wrap items-center gap-2 sm:hidden">
+                    <DrugNetworkConnectionDepthControl
+                      depth={depth}
+                      onChange={setConnectionDepth}
+                      compact
+                      menuOpen={showDepthMenu}
+                      onMenuOpenChange={setShowDepthMenu}
+                    />
+                    {shouldShowDepthViewControl(depth) ? (
+                      <DrugNetworkDepthViewControl
+                        mode={depthViewMode}
+                        onChange={setDepthView}
+                        compact
+                        menuOpen={showDepthViewMenu}
+                        onMenuOpenChange={setShowDepthViewMenu}
+                      />
+                    ) : null}
                     <div className="relative">
                       <Button variant="outline" size="sm" onClick={() => setShowLayoutMenu((v) => !v)} aria-expanded={showLayoutMenu} aria-controls="drug-network-layout-menu-mobile">
                         <LayoutGrid className="h-4 w-4" aria-hidden="true" />
@@ -2605,6 +2860,7 @@ function DrugNetworkContent() {
                 ref={canvasContainerRef}
                 className="relative h-[560px] w-full overflow-hidden rounded-xl border border-border bg-surface sm:h-[640px]"
                 aria-describedby="drug-network-canvas-summary"
+                aria-busy={neighborhood.isFetching}
                 data-print-board
                 onPointerDown={handleDrawPointerDown}
                 onPointerMove={handleDrawPointerMove}
@@ -2688,9 +2944,32 @@ function DrugNetworkContent() {
                   edgesReconnectable={false}
                   onNodeClick={handleNodeClick}
                   onEdgeClick={handleEdgeClick}
+                  onNodeDragStart={(_event, node) => {
+                    isNodeDraggingRef.current = true;
+                    if (!isAnnotationId(node.id)) setHoveredNodeId(node.id);
+                    setHoveredEdgeId(null);
+                  }}
+                  onNodeDragStop={() => {
+                    isNodeDraggingRef.current = false;
+                  }}
+                  onNodeMouseEnter={(_event, node) => {
+                    if (isNodeDraggingRef.current) return;
+                    if (!isAnnotationId(node.id)) setHoveredNodeId(node.id);
+                  }}
+                  onNodeMouseLeave={() => {
+                    if (isNodeDraggingRef.current) return;
+                    setHoveredNodeId(null);
+                  }}
+                  onEdgeMouseEnter={(_event, edge) => {
+                    if (isNodeDraggingRef.current) return;
+                    setHoveredEdgeId(edge.id);
+                  }}
+                  onEdgeMouseLeave={() => {
+                    if (isNodeDraggingRef.current) return;
+                    setHoveredEdgeId(null);
+                  }}
                   onPaneClick={handlePaneClickWrapper}
                   onSelectionChange={handleSelectionChange}
-                  fitView
                   minZoom={0.2}
                   maxZoom={2}
                   nodesDraggable={effectiveWorkspaceMode === "ANALYST" && !boardLocked}
@@ -2700,6 +2979,12 @@ function DrugNetworkContent() {
                   className="di-network-board"
                 >
                   <Background />
+                  {canvasArrangement === "GROUP_BY_HOP" ? (
+                    <DrugNetworkHopBandHeaders bands={hopBandPlan.bands} typeHeaders={hopBandPlan.typeHeaders} />
+                  ) : null}
+                  {canvasArrangement === "DEFAULT" && resolvedLayoutMode === "GROUP_BY_TYPE" ? (
+                    <DrugNetworkTypeLaneHeaders headers={typeLaneHeaders} />
+                  ) : null}
                   <Controls showInteractive={false} className="hidden print:hidden" data-print-hide />
                   <MiniMap
                     pannable
@@ -2790,6 +3075,18 @@ function DrugNetworkContent() {
             onExpand={() => expandFromNode(selectedNode)}
             pinned={pinnedNodeIds.has(selectedNode.id)}
             onTogglePin={effectiveWorkspaceMode === "ANALYST" ? () => togglePinNode(selectedNode.id) : undefined}
+            isFocus={selectedNode.id === focusId}
+            hopDistance={flowNodes.find((node) => node.id === selectedNode.id)?.data.hopDistance}
+            reasonKey={
+              neighborhood.data
+                ? appearanceReasonKey({
+                    isFocus: selectedNode.id === focusId,
+                    hopDistance: flowNodes.find((node) => node.id === selectedNode.id)?.data.hopDistance,
+                    relationshipTypes: connectingRelationshipTypes(selectedNode.id, neighborhood.data.edges),
+                  })
+                : undefined
+            }
+            pathSteps={neighborhood.data ? selectedPathSteps(neighborhood.data, selectedNode.id) : []}
           />
         ) : null}
       </Drawer>

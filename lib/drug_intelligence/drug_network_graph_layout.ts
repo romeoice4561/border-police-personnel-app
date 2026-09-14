@@ -274,37 +274,211 @@ export function computeHierarchicalLayout(focusId: string, nodes: LayoutNodeInpu
 }
 
 /**
- * Section 8: Group-by-entity-type layout — one vertical lane per node type,
- * nodes stacked within their lane sorted by id for determinism. Lane order
- * follows TYPE_SECTOR_ORDER so it's visually consistent with the other
- * layouts' sector ordering.
+ * Section 8: Group-by-entity-type layout — focus sits at top-center;
+ * first-hop nodes occupy type lanes below; second-hop discoveries continue
+ * in the same column, further down. Presentation only — never adds graph
+ * entities. Lane order follows TYPE_SECTOR_ORDER.
  */
-const LANE_WIDTH = 240;
-const LANE_NODE_SPACING = 110;
+const LANE_WIDTH = 280;
+const LANE_NODE_SPACING = 150;
+const GROUP_FOCUS_Y = 0;
+const GROUP_HOP1_Y = 300;
+const GROUP_HOP2_GAP = 180;
+const GROUP_LANE_HEADER_OFFSET = 100;
+const GROUP_LANE_HEADER_CENTER_X = 90;
 
-export function computeGroupByTypeLayout(_focusId: string, nodes: LayoutNodeInput[]): Map<string, { x: number; y: number }> {
+export interface GroupByTypeLaneHeader {
+  type: LayoutNodeType;
+  x: number;
+  y: number;
+  count: number;
+  hop1Count: number;
+  hop2Count: number;
+}
+
+function planGroupByTypeLayout(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): { positions: Map<string, { x: number; y: number }>; lanes: GroupByTypeLaneHeader[] } {
   const positions = new Map<string, { x: number; y: number }>();
-  if (nodes.length === 0) return positions;
+  const lanes: GroupByTypeLaneHeader[] = [];
+  if (nodes.length === 0) return { positions, lanes };
 
+  const distance = bfsDistances(focusId, nodes, edges);
+  const others = nodes.filter((node) => node.id !== focusId);
   const byType = new Map<LayoutNodeType, string[]>();
-  for (const node of nodes) {
+  for (const node of others) {
     const bucket = byType.get(node.type) ?? [];
     bucket.push(node.id);
     byType.set(node.type, bucket);
   }
-
-  for (const type of TYPE_SECTOR_ORDER) {
-    const ids = (byType.get(type) ?? []).sort();
-    const laneIndex = sectorIndex(type);
-    const totalHeight = (ids.length - 1) * LANE_NODE_SPACING;
-    ids.forEach((id, index) => {
-      positions.set(id, {
-        x: laneIndex * LANE_WIDTH,
-        y: index * LANE_NODE_SPACING - totalHeight / 2,
-      });
-    });
+  const occupied = TYPE_SECTOR_ORDER.filter((type) => (byType.get(type)?.length ?? 0) > 0);
+  if (nodes.some((node) => node.id === focusId)) {
+    positions.set(focusId, { x: 0, y: GROUP_FOCUS_Y });
   }
 
+  occupied.forEach((type, typeIndex) => {
+    const ids = (byType.get(type) ?? []).sort();
+    const hop1 = ids.filter((id) => (distance.get(id) ?? 1) <= 1);
+    const hop2 = ids.filter((id) => (distance.get(id) ?? 1) >= 2);
+    const x = (typeIndex - (occupied.length - 1) / 2) * LANE_WIDTH;
+    hop1.forEach((id, index) => {
+      positions.set(id, { x, y: GROUP_HOP1_Y + index * LANE_NODE_SPACING });
+    });
+    hop2.forEach((id, index) => {
+      positions.set(id, {
+        x,
+        y: GROUP_HOP1_Y + hop1.length * LANE_NODE_SPACING + GROUP_HOP2_GAP + index * LANE_NODE_SPACING,
+      });
+    });
+    lanes.push({
+      type,
+      x: x + GROUP_LANE_HEADER_CENTER_X,
+      y: GROUP_HOP1_Y - GROUP_LANE_HEADER_OFFSET,
+      count: ids.length,
+      hop1Count: hop1.length,
+      hop2Count: hop2.length,
+    });
+  });
+
+  return { positions, lanes };
+}
+
+export function computeGroupByTypeLayout(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): Map<string, { x: number; y: number }> {
+  return planGroupByTypeLayout(focusId, nodes, edges).positions;
+}
+
+export function computeGroupByTypeLaneHeaders(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): GroupByTypeLaneHeader[] {
+  return planGroupByTypeLayout(focusId, nodes, edges).lanes;
+}
+
+/**
+ * Depth-2 readability: hop band is the primary hierarchy; entity type is a
+ * secondary column inside each band. Presentation only — hop distances come
+ * from the loaded undirected neighborhood, never from labels.
+ */
+const HOP_LANE_WIDTH = 240;
+const HOP_NODE_SPACING = 140;
+const HOP_FOCUS_Y = 0;
+const HOP1_HEADER_Y = 150;
+const HOP1_TYPE_HEADER_Y = 198;
+const HOP1_START_Y = 250;
+const HOP_BAND_GAP = 150;
+const HOP2_TYPE_HEADER_OFFSET = 48;
+const HOP2_START_OFFSET = 100;
+
+export interface GroupByHopBandHeader {
+  hop: 1 | 2;
+  x: number;
+  y: number;
+}
+
+export interface GroupByHopTypeHeader {
+  hop: 1 | 2;
+  type: LayoutNodeType;
+  x: number;
+  y: number;
+  count: number;
+}
+
+export function planGroupByHopLayout(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): {
+  positions: Map<string, { x: number; y: number }>;
+  bands: GroupByHopBandHeader[];
+  typeHeaders: GroupByHopTypeHeader[];
+} {
+  const positions = new Map<string, { x: number; y: number }>();
+  const bands: GroupByHopBandHeader[] = [];
+  const typeHeaders: GroupByHopTypeHeader[] = [];
+  if (nodes.length === 0) return { positions, bands, typeHeaders };
+
+  const distance = bfsDistances(focusId, nodes, edges);
+  if (nodes.some((node) => node.id === focusId)) {
+    positions.set(focusId, { x: 0, y: HOP_FOCUS_Y });
+  }
+
+  const hop1 = nodes.filter((node) => node.id !== focusId && (distance.get(node.id) ?? 1) === 1);
+  const hop2 = nodes.filter((node) => node.id !== focusId && (distance.get(node.id) ?? 1) >= 2);
+  const occupied = TYPE_SECTOR_ORDER.filter((type) => hop1.some((node) => node.type === type) || hop2.some((node) => node.type === type));
+  const columnX = (type: LayoutNodeType): number => {
+    const index = occupied.indexOf(type);
+    return (index - (occupied.length - 1) / 2) * HOP_LANE_WIDTH;
+  };
+
+  let hop1Rows = 0;
+  occupied.forEach((type) => {
+    const ids = hop1.filter((node) => node.type === type).map((node) => node.id).sort();
+    hop1Rows = Math.max(hop1Rows, ids.length);
+    ids.forEach((id, index) => {
+      positions.set(id, { x: columnX(type), y: HOP1_START_Y + index * HOP_NODE_SPACING });
+    });
+    if (ids.length > 0) {
+      typeHeaders.push({ hop: 1, type, x: columnX(type), y: HOP1_TYPE_HEADER_Y, count: ids.length });
+    }
+  });
+  if (hop1.length > 0) {
+    bands.push({ hop: 1, x: 0, y: HOP1_HEADER_Y });
+  }
+
+  const hop2HeaderY = HOP1_START_Y + Math.max(hop1Rows, 1) * HOP_NODE_SPACING + HOP_BAND_GAP;
+  occupied.forEach((type) => {
+    const ids = hop2.filter((node) => node.type === type).map((node) => node.id).sort();
+    ids.forEach((id, index) => {
+      positions.set(id, { x: columnX(type), y: hop2HeaderY + HOP2_START_OFFSET + index * HOP_NODE_SPACING });
+    });
+    if (ids.length > 0) {
+      typeHeaders.push({ hop: 2, type, x: columnX(type), y: hop2HeaderY + HOP2_TYPE_HEADER_OFFSET, count: ids.length });
+    }
+  });
+  if (hop2.length > 0) {
+    bands.push({ hop: 2, x: 0, y: hop2HeaderY });
+  }
+
+  for (const node of nodes) {
+    if (!positions.has(node.id)) positions.set(node.id, { x: 0, y: HOP1_START_Y });
+  }
+
+  return { positions, bands, typeHeaders };
+}
+
+export function computeGroupByHopLayout(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): Map<string, { x: number; y: number }> {
+  return planGroupByHopLayout(focusId, nodes, edges).positions;
+}
+
+const VERTICAL_PATH_SPACING = 200;
+const VERTICAL_OFF_PATH_X = 420;
+const VERTICAL_OFF_PATH_SPACING = 150;
+
+/** Selected-path investigation column: focus → intermediates → destination, top to bottom. */
+export function computeVerticalPathLayout(
+  pathNodeIdsInOrder: string[],
+  allNodes: LayoutNodeInput[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const pathSet = new Set(pathNodeIdsInOrder);
+  pathNodeIdsInOrder.forEach((id, index) => {
+    positions.set(id, { x: 0, y: index * VERTICAL_PATH_SPACING });
+  });
+  const offPath = allNodes.filter((node) => !pathSet.has(node.id)).sort((a, b) => a.id.localeCompare(b.id));
+  offPath.forEach((node, index) => {
+    positions.set(node.id, { x: VERTICAL_OFF_PATH_X, y: index * VERTICAL_OFF_PATH_SPACING });
+  });
   return positions;
 }
 
@@ -415,7 +589,7 @@ export interface AutoLayoutContext {
 
 export function resolveAutoLayoutMode(ctx: AutoLayoutContext): Exclude<DrugNetworkLayoutMode, "AUTO"> {
   if (ctx.isPathResult) return "PATH";
-  if (ctx.focusType === "PERSON") return "PERSON_CENTERED";
+  if (ctx.focusType === "PERSON") return "GROUP_BY_TYPE";
   if (ctx.focusType === "CASE") return "CASE_CENTERED";
   if (ctx.nodeCount > 18) return "COMPACT";
   return "HIERARCHICAL";
@@ -441,7 +615,7 @@ export function computeLayoutForMode(
     case "HIERARCHICAL":
       return computeHierarchicalLayout(focusId, nodes, edges);
     case "GROUP_BY_TYPE":
-      return computeGroupByTypeLayout(focusId, nodes);
+      return computeGroupByTypeLayout(focusId, nodes, edges);
     case "COMPACT":
       return computeCompactLayout(focusId, nodes, edges);
     case "PATH":

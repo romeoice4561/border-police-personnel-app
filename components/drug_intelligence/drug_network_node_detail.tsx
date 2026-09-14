@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import { drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
+import type { SelectedPathStep } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -41,6 +42,10 @@ export function DrugNetworkNodeDetail({
   onExpand,
   pinned,
   onTogglePin,
+  isFocus,
+  hopDistance,
+  reasonKey,
+  pathSteps,
 }: {
   node: DrugGraphNode;
   onExpand: () => void;
@@ -48,6 +53,10 @@ export function DrugNetworkNodeDetail({
   pinned?: boolean;
   /** DI-9.2: present only in Analyst Mode — omitting it hides the entire pin section (Section 3: no edit affordances in View Mode). */
   onTogglePin?: () => void;
+  isFocus?: boolean;
+  hopDistance?: number;
+  reasonKey?: TranslationKey;
+  pathSteps?: SelectedPathStep[];
 }) {
   const { t, language } = useT();
 
@@ -76,6 +85,35 @@ export function DrugNetworkNodeDetail({
 
       {node.type === "PERSON" && node.metadata.type === "PERSON" && node.metadata.canonicalTarget ? (
         <p className="rounded-lg bg-neutral-bg px-3 py-2 text-xs text-muted">{t("di.network.mergedNotice")}</p>
+      ) : null}
+
+      {reasonKey || hopDistance !== undefined ? (
+        <div className="rounded-lg bg-neutral-bg/60 px-3 py-2 text-xs text-foreground">
+          <p>
+            <span className="text-muted">{t("di.network.graphRelationHeading")}</span>{" "}
+            {isFocus || hopDistance === 0
+              ? t("di.network.hopFocus")
+              : hopDistance === 1
+                ? t("di.network.hopDirect")
+                : t("di.network.hopIndirect")}
+          </p>
+          {reasonKey ? <p className="mt-1 text-muted">{t(reasonKey)}</p> : null}
+        </div>
+      ) : null}
+
+      {pathSteps && pathSteps.length >= 2 ? (
+        <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs">
+          <p className="font-semibold uppercase tracking-wide text-muted">{t("di.network.selectedPathHeading")}</p>
+          <ol className="mt-1.5 space-y-1 text-foreground">
+            {pathSteps.map((step, index) => (
+              <li key={step.id}>
+                {index > 0 ? <span className="mr-1 text-muted">→</span> : null}
+                <span className="text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[step.type] as TranslationKey)}</span>{" "}
+                {step.label}
+              </li>
+            ))}
+          </ol>
+        </div>
       ) : null}
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

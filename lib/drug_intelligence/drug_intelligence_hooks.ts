@@ -325,6 +325,7 @@ export function useDrugNetworkNeighborhood(actorId: string | null, query: DrugGr
     queryKey: drugQueryKeys.networkNeighborhood(actorId, query),
     queryFn: () => drugIntelligenceClient.getNetworkNeighborhood(actorId as string, query),
     enabled: Boolean(actorId) && query.entityId.length > 0,
+    placeholderData: keepPreviousData,
   });
 }
 

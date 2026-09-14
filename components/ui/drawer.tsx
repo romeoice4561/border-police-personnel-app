@@ -15,6 +15,12 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
+export {
+  DRAWER_PANEL_MAX_WIDTH_PX,
+  DRAWER_PANEL_MAX_WIDTH_SM_PX,
+  DRAWER_PANEL_SM_MIN_VIEWPORT_PX,
+  resolveDrawerPanelMaxWidth,
+} from "@/lib/drug_intelligence/drug_network_drawer_viewport";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -89,6 +95,7 @@ export function Drawer({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
+        data-app-drawer=""
         className={cn(
           "relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-surface shadow-xl focus:outline-none sm:max-w-lg",
           className

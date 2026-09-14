@@ -48,6 +48,16 @@ export function DrugNetworkLegend() {
       </div>
       <div className="space-y-1 border-t border-border pt-2">
         <div className="flex items-center gap-1.5">
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-md border-2 border-critical bg-surface px-1 text-[8px] font-semibold text-critical">
+            {t("di.network.legendFocusMark")}
+          </span>
+          <span className="text-foreground">{t("di.network.legendFocusNode")}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-full bg-warning-bg px-1.5 py-px text-[9px] font-semibold text-warning">{t("di.network.sharedManyCases")}</span>
+          <span className="text-foreground">{t("di.network.legendSharedEntity")}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <svg width="24" height="8" aria-hidden="true">
             <line x1="0" y1="4" x2="24" y2="4" stroke="currentColor" strokeWidth="2" className="text-accent" />
           </svg>
@@ -58,6 +68,10 @@ export function DrugNetworkLegend() {
             <line x1="0" y1="4" x2="24" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="4 3" className="text-warning" />
           </svg>
           <span className="text-foreground">{t("di.network.legendInferredEdge")}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-6 rounded-sm ring-2 ring-accent ring-offset-1" />
+          <span className="text-foreground">{t("di.network.legendSelectedPath")}</span>
         </div>
       </div>
     </div>

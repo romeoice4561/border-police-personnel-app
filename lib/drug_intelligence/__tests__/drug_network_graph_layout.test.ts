@@ -226,15 +226,16 @@ test("Hierarchical: deterministic layer-sort ordering across repeated calls", ()
 
 // ---------------------------------------------------------------------
 
-test("Group-by-type: every node of the same type shares the same lane (x coordinate)", () => {
+test("Group-by-type: the focused person sits at top-center; same-type non-focus nodes share a lane", () => {
   const nodes: LayoutNodeInput[] = [
     { id: "p1", type: "PERSON" },
     { id: "p2", type: "PERSON" },
     { id: "ph1", type: "PHONE" },
   ];
   const positions = computeGroupByTypeLayout("p1", nodes);
-  assert.equal(positions.get("p1")!.x, positions.get("p2")!.x);
-  assert.notEqual(positions.get("p1")!.x, positions.get("ph1")!.x);
+  assert.deepEqual(positions.get("p1"), { x: 0, y: 0 });
+  assert.ok(positions.get("p2")!.y > positions.get("p1")!.y);
+  assert.notEqual(positions.get("p2")!.x, positions.get("ph1")!.x);
 });
 
 test("Group-by-type: within a lane, nodes get distinct y coordinates (stacked, not overlapping)", () => {
@@ -246,6 +247,17 @@ test("Group-by-type: within a lane, nodes get distinct y coordinates (stacked, n
   const positions = computeGroupByTypeLayout("p1", nodes);
   const ys = nodes.map((n) => positions.get(n.id)!.y);
   assert.equal(new Set(ys).size, 3);
+});
+
+test("Group-by-type: hop-2 nodes sit below hop-1 nodes; occupied type lanes keep distinct x", () => {
+  const { focusId, nodes, edges } = personNeighborhood();
+  const positions = computeGroupByTypeLayout(focusId, nodes, edges);
+  assert.deepEqual(positions.get(focusId), { x: 0, y: 0 });
+  assert.ok(positions.get("case1")!.y > positions.get(focusId)!.y);
+  assert.ok(positions.get("personB")!.y > positions.get("case1")!.y);
+  assert.ok(positions.get("loc1")!.y > positions.get("case1")!.y);
+  assert.notEqual(positions.get("case1")!.x, positions.get("phone1")!.x);
+  assert.notEqual(positions.get("phone1")!.x, positions.get("vehicle1")!.x);
 });
 
 test("Group-by-type: lane order is fixed and includes every DrugGraphNodeType exactly once", () => {
@@ -324,8 +336,8 @@ test("Path: deterministic ordering for the same path input", () => {
 
 // ---------------------------------------------------------------------
 
-test("AUTO resolver: PERSON focus resolves to PERSON_CENTERED", () => {
-  assert.equal(resolveAutoLayoutMode({ focusType: "PERSON", isPathResult: false, nodeCount: 5 }), "PERSON_CENTERED");
+test("AUTO resolver: PERSON focus resolves to GROUP_BY_TYPE", () => {
+  assert.equal(resolveAutoLayoutMode({ focusType: "PERSON", isPathResult: false, nodeCount: 5 }), "GROUP_BY_TYPE");
 });
 
 test("AUTO resolver: CASE focus resolves to CASE_CENTERED", () => {

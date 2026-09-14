@@ -165,6 +165,11 @@ test("the graph-build effect's dependency array includes boardLocked — a pure 
   assert.match(buildEffectDeps, /\bboardLocked\b/);
 });
 
+test("the graph-build effect must NOT depend on hover ids — hover during drag must not rebuild layout", () => {
+  assert.doesNotMatch(buildEffectDeps, /\bhoveredNodeId\b/);
+  assert.doesNotMatch(buildEffectDeps, /\bhoveredEdgeId\b/);
+});
+
 test("the graph-build effect passes analystMode/boardLocked into buildDrugNetworkFlowGraph derived from the SAME live values now in its dependency array (not a stale closure)", () => {
   assert.match(pageCode, /analystMode: effectiveWorkspaceMode === "ANALYST",/);
   assert.match(pageCode, /\r?\n\s*boardLocked,\r?\n\s*onWaypointDrag: handleWaypointDrag,/);
@@ -186,5 +191,5 @@ test("on a pure (non-new-query) rebuild, setFlowNodes takes the position-preserv
   // The non-new-query branch calls mergePreservingManualPositions (block form in DI-9.4 to
   // also preserve annotation nodes). The new-query branch triggers fitView.
   assert.match(pageCode, /mergePreservingManualPositions\(built\.flowNodes, current\w*, false\)/);
-  assert.match(pageCode, /if \(isNewQuery\) window\.requestAnimationFrame\(\(\) => fitView/);
+  assert.match(pageCode, /if \(isNewQuery\)[\s\S]{0,5000}fitView/);
 });

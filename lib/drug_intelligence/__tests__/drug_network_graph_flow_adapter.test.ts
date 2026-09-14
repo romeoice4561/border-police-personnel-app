@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDrugNetworkFlowGraph, mergePreservingManualPositions, type FlowNode, type BuildFlowGraphOptions } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
+import { applyFlowEdgeHoverLabels, buildDrugNetworkFlowGraph, mergePreservingManualPositions, type FlowNode, type BuildFlowGraphOptions } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import type { DrugGraphNeighborhoodResponse } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 const DEFAULT_OPTIONS: BuildFlowGraphOptions = { layoutMode: "PERSON_CENTERED", labelMode: "ALL", nodeDensity: "STANDARD" };
@@ -188,9 +188,53 @@ test("labelMode=ALL shows a label on every edge", () => {
   assert.ok(flowEdges.every((e) => e.label !== ""));
 });
 
-test("labelMode=SELECTED_ONLY: with no selection, every edge still shows a label (nothing to narrow against)", () => {
+test("labelMode=SELECTED_ONLY: with no selection and no hover, repetitive DIRECT labels stay hidden", () => {
   const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, null, null, { ...DEFAULT_OPTIONS, labelMode: "SELECTED_ONLY" });
-  assert.ok(flowEdges.every((e) => e.label !== ""));
+  assert.ok(flowEdges.every((e) => e.label === ""));
+});
+
+test("labelMode=SELECTED_ONLY: inferred relationship labels stay visible without selection", () => {
+  const data = neighborhood();
+  data.edges.push({
+    id: "inf:1",
+    source: "p1",
+    target: "c1",
+    relationshipType: "SHARED_CASE",
+    edgeKind: "INFERRED",
+    evidenceCount: 2,
+    firstSeenAt: null,
+    lastSeenAt: null,
+    sourceCaseIds: [],
+    explanation: { kind: "SHARED_CASES", count: 2 },
+  });
+  const { flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, null, null, { ...DEFAULT_OPTIONS, labelMode: "SELECTED_ONLY" });
+  assert.equal(flowEdges.find((e) => e.id === "pc:1")!.label, "");
+  assert.notEqual(flowEdges.find((e) => e.id === "inf:1")!.label, "");
+});
+
+test("labelMode=SELECTED_ONLY: hovering an edge reveals only that edge's label", () => {
+  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, null, null, {
+    ...DEFAULT_OPTIONS,
+    labelMode: "SELECTED_ONLY",
+    hoveredEdgeId: "pc:1",
+  });
+  assert.notEqual(flowEdges.find((e) => e.id === "pc:1")!.label, "");
+  assert.equal(flowEdges.find((e) => e.id === "cp:1")!.label, "");
+});
+
+test("applyFlowEdgeHoverLabels patches labels without changing edge identity, style, or topology", () => {
+  const data = neighborhood();
+  const { flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, null, null, { ...DEFAULT_OPTIONS, labelMode: "SELECTED_ONLY" });
+  const patched = applyFlowEdgeHoverLabels(flowEdges, data, (k) => k, null, null, "SELECTED_ONLY", null, "pc:1");
+  assert.notEqual(patched.find((e) => e.id === "pc:1")!.label, "");
+  assert.equal(patched.find((e) => e.id === "cp:1")!.label, "");
+  assert.equal(patched.length, flowEdges.length);
+  assert.deepEqual(
+    patched.map((e) => ({ id: e.id, source: e.source, target: e.target, style: e.style })),
+    flowEdges.map((e) => ({ id: e.id, source: e.source, target: e.target, style: e.style }))
+  );
+  const unchanged = applyFlowEdgeHoverLabels(flowEdges, data, (k) => k, null, null, "SELECTED_ONLY", null, null);
+  assert.equal(unchanged, flowEdges);
 });
 
 test("labelMode=SELECTED_ONLY: with a node selected, only edges touching that node show a label — the unrelated edge is blank", () => {
@@ -253,13 +297,19 @@ test("nodeDensity is passed through to every node's data.density", () => {
 // Phase DI-5.3, Section 17 — focus-neighbor emphasis: selecting a node dims
 // (never removes) everything not directly connected to it.
 
-test("selecting a node dims every node NOT directly connected to it, and never dims the selected node or its direct neighbors", () => {
+test("selecting the focus node does not dim the rest of the graph", () => {
   const { flowNodes } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "p1", null, DEFAULT_OPTIONS);
-  const p1 = flowNodes.find((n) => n.id === "p1")!; // selected
-  const c1 = flowNodes.find((n) => n.id === "c1")!; // direct neighbor of p1
-  const ph1 = flowNodes.find((n) => n.id === "ph1")!; // 2 hops from p1, NOT directly connected
+  assert.ok(flowNodes.every((n) => n.data.dimmed === false));
+});
+
+test("selecting a secondary node highlights the path from focus and dims off-path nodes", () => {
+  const { flowNodes } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "c1", null, DEFAULT_OPTIONS);
+  const p1 = flowNodes.find((n) => n.id === "p1")!;
+  const c1 = flowNodes.find((n) => n.id === "c1")!;
+  const ph1 = flowNodes.find((n) => n.id === "ph1")!;
   assert.equal(p1.data.dimmed, false);
   assert.equal(c1.data.dimmed, false);
+  assert.equal(c1.data.onSelectedPath, true);
   assert.equal(ph1.data.dimmed, true);
 });
 
@@ -270,19 +320,47 @@ test("with no selection, no node is dimmed", () => {
 
 test("dimming never removes a node — every node id is still present in flowNodes when one is selected", () => {
   const data = neighborhood();
-  const { flowNodes } = buildDrugNetworkFlowGraph(data, (k) => k, "p1", null, DEFAULT_OPTIONS);
+  const { flowNodes } = buildDrugNetworkFlowGraph(data, (k) => k, "c1", null, DEFAULT_OPTIONS);
   assert.deepEqual(
     flowNodes.map((n) => n.id).sort(),
     data.nodes.map((n) => n.id).sort()
   );
 });
 
-test("edges not touching the selected node get reduced opacity but are never removed", () => {
-  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "p1", null, DEFAULT_OPTIONS);
-  const touching = flowEdges.find((e) => e.id === "pc:1")!;
-  const untouched = flowEdges.find((e) => e.id === "cp:1")!;
-  assert.equal(touching.style.opacity, 1);
-  assert.ok(untouched.style.opacity! < 1);
+test("selected-path edges are thicker and fully opaque; off-path edges stay dashed/solid and dimmer", () => {
+  const data = neighborhood();
+  data.edges.push({
+    id: "inf:path",
+    source: "p1",
+    target: "c1",
+    relationshipType: "SHARED_CASE",
+    edgeKind: "INFERRED",
+    evidenceCount: 1,
+    firstSeenAt: null,
+    lastSeenAt: null,
+    sourceCaseIds: [],
+    explanation: { kind: "SHARED_CASES", count: 1 },
+  });
+  const { flowNodes, flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, "c1", null, DEFAULT_OPTIONS);
+  const pathEdge = flowEdges.find((e) => e.id === "pc:1")!;
+  const inferred = flowEdges.find((e) => e.id === "inf:path")!;
+  const offPath = flowEdges.find((e) => e.id === "cp:1")!;
+  assert.equal(flowNodes.find((n) => n.id === "c1")!.selected, true);
+  assert.equal(flowNodes.find((n) => n.id === "c1")!.data.onSelectedPath, true);
+  assert.equal(pathEdge.style.strokeWidth, 3);
+  assert.equal(pathEdge.style.opacity, 1);
+  assert.equal(pathEdge.style.strokeDasharray, undefined);
+  assert.equal(offPath.style.opacity, 0.08);
+  assert.ok((offPath.style.strokeWidth ?? 1) < 3);
+  assert.equal(inferred.style.strokeDasharray, "5 5");
+});
+
+test("edges off the selected path get reduced opacity but are never removed", () => {
+  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "c1", null, DEFAULT_OPTIONS);
+  const onPath = flowEdges.find((e) => e.id === "pc:1")!;
+  const offPath = flowEdges.find((e) => e.id === "cp:1")!;
+  assert.equal(onPath.style.opacity, 1);
+  assert.ok(offPath.style.opacity! < 1);
   assert.equal(flowEdges.length, 2, "no edge is ever removed by selection-driven dimming");
 });
 
@@ -304,6 +382,11 @@ function flowNode(id: string, position: { x: number; y: number }): FlowNode {
       density: "STANDARD",
       dimmed: false,
       pinned: false,
+      hopDistance: 0,
+      isShared: false,
+      onSelectedPath: false,
+      showHopBadge: false,
+      stronglyDimmed: false,
     },
   };
 }
