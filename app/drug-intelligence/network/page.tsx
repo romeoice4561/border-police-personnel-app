@@ -210,6 +210,15 @@ import {
   buildNetworkSameRouteHref,
   NETWORK_SAME_ROUTE_ROUTER_OPTIONS,
 } from "@/lib/drug_intelligence/drug_network_route_navigation";
+import {
+  appendNetworkTrailStep,
+  buildNetworkTrailReturnFocus,
+  clearNetworkTrailUrlPatch,
+  networkTrailUrlPatch,
+  parseNetworkInvestigationTrail,
+  shouldShowNetworkTrail,
+} from "@/lib/drug_intelligence/drug_network_investigation_trail";
+import { DrugNetworkInvestigationTrail } from "@/components/drug_intelligence/drug_network_investigation_trail";
 import { DrugNetworkConnectionDepthControl } from "@/components/drug_intelligence/drug_network_connection_depth";
 import { DrugNetworkDepthViewControl } from "@/components/drug_intelligence/drug_network_depth_view";
 import { DrugNetworkHopBandHeaders } from "@/components/drug_intelligence/drug_network_hop_band_headers";
@@ -731,6 +740,10 @@ function DrugNetworkContent() {
   const [showDepthViewMenu, setShowDepthViewMenu] = useState(false);
   const [boardDepthView, setBoardDepthView] = useState<NetworkDepthViewMode>("BY_DEPTH");
   const depthViewMode = boardId ? boardDepthView : parseNetworkDepthViewMode(searchParams.get("view"));
+  const investigationTrail = useMemo(
+    () => (boardId ? [] : parseNetworkInvestigationTrail(searchParams)),
+    [boardId, searchParams]
+  );
   const [pathViewNodeIds, setPathViewNodeIds] = useState<string[] | null>(null);
   const [rearrangeToken, setRearrangeToken] = useState(0);
 
@@ -1753,7 +1766,38 @@ function DrugNetworkContent() {
   }
 
   function expandFromNode(node: DrugGraphNode) {
-    updateParams({ focusType: node.type, focusId: node.id, depth: undefined });
+    if (boardId || !focusType || !focusId || node.id === focusId) {
+      updateParams({ focusType: node.type, focusId: node.id });
+      setSelectedNode(null);
+      setPathViewNodeIds(null);
+      return;
+    }
+    const leavingLabel =
+      neighborhood.data?.nodes.find((item) => item.id === focusId)?.label ??
+      neighborhood.data?.focus.entityId ??
+      "";
+    const nextTrail = appendNetworkTrailStep(investigationTrail, {
+      type: focusType,
+      id: focusId,
+      label: leavingLabel,
+    });
+    updateParams({
+      focusType: node.type,
+      focusId: node.id,
+      ...networkTrailUrlPatch(nextTrail),
+    });
+    setSelectedNode(null);
+    setPathViewNodeIds(null);
+  }
+
+  function returnToTrailOrigin() {
+    const origin = buildNetworkTrailReturnFocus(investigationTrail);
+    if (!origin) return;
+    updateParams({
+      focusType: origin.focusType,
+      focusId: origin.focusId,
+      ...clearNetworkTrailUrlPatch(),
+    });
     setSelectedNode(null);
     setPathViewNodeIds(null);
   }
@@ -1838,6 +1882,7 @@ function DrugNetworkContent() {
       dateFrom: undefined,
       dateTo: undefined,
       maxNodes: undefined,
+      ...clearNetworkTrailUrlPatch(),
     });
     setLayoutMode("AUTO");
     setSelectedNode(null);
@@ -2482,7 +2527,12 @@ function DrugNetworkContent() {
             <CardBody className="space-y-2">
               <DrugNetworkEntityPicker
                 onSelect={(selection) => {
-                  updateParams({ focusType: selection.entityType, focusId: selection.entityId, depth: undefined });
+                  updateParams({
+                    focusType: selection.entityType,
+                    focusId: selection.entityId,
+                    depth: undefined,
+                    ...clearNetworkTrailUrlPatch(),
+                  });
                   setPathViewNodeIds(null);
                 }}
                 placeholder={t("di.network.searchToFocus")}
@@ -2853,6 +2903,14 @@ function DrugNetworkContent() {
                     </div>
                   </CardBody>
                 </Card>
+              ) : null}
+
+              {shouldShowNetworkTrail({ previous: investigationTrail, currentFocusId: focusId, boardId }) ? (
+                <DrugNetworkInvestigationTrail
+                  previous={investigationTrail}
+                  currentLabel={neighborhood.data.nodes.find((node) => node.id === focusId)?.label ?? ""}
+                  onReturnToOrigin={returnToTrailOrigin}
+                />
               ) : null}
 
               {/* ── Canvas ─────────────────────────────────────────────────────── */}
