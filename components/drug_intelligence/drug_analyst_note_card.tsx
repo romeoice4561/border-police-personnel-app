@@ -12,7 +12,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { formatDiDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import { noteWasEdited } from "@/lib/drug_intelligence/drug_analyst_notes_view";
 import { DrugAnalystNoteRelatedTasks } from "@/components/drug_intelligence/drug_analyst_note_related_tasks";
-import type { AnalystNoteDto, CollaborationPageMeta, InvestigationTaskDto } from "@/lib/drug_intelligence/drug_collaboration_types";
+import type { AnalystNoteDto, CollaborationPageMeta, InvestigationTaskDto, SourceTaskProvenanceDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 
 export function DrugAnalystNoteCard({
   note,
@@ -24,6 +24,7 @@ export function DrugAnalystNoteCard({
   relatedLoading = false,
   relatedError = false,
   onRetryRelated,
+  sourceTask = null,
 }: {
   note: AnalystNoteDto;
   canEdit: boolean;
@@ -34,6 +35,7 @@ export function DrugAnalystNoteCard({
   relatedLoading?: boolean;
   relatedError?: boolean;
   onRetryRelated?: () => void;
+  sourceTask?: SourceTaskProvenanceDto | null;
 }) {
   const { t } = useT();
   const edited = noteWasEdited(note);
@@ -52,6 +54,19 @@ export function DrugAnalystNoteCard({
         <span className="text-[11px] font-medium uppercase tracking-wide text-muted">{t("di.collaboration.noteTagEn")}</span>
       </div>
       <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.body}</p>
+      {note.sourceTaskId ? (
+        <p className="mt-2 text-xs text-muted" data-testid="analyst-note-source-task-provenance">
+          {t("di.collaboration.sourceTaskProvenance")}
+          {sourceTask ? (
+            <>
+              {" · "}
+              {sourceTask.title}
+              {" · "}
+              {formatDiDateTime(sourceTask.createdAt)}
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
         <div>
           <dt className="inline">{t("di.collaboration.author")}: </dt>

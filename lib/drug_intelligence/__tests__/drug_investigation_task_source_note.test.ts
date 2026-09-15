@@ -93,9 +93,9 @@ test("schema and migration add nullable Restrict sourceNoteId without unique or 
   const schema = readFileSync(join(ROOT, SCHEMA), "utf8");
   const migration = readFileSync(join(ROOT, MIGRATION), "utf8");
   assert.match(schema, /sourceNoteId String\?/);
-  assert.match(schema, /sourceNote\s+DrugAnalystNote\? @relation\(fields: \[sourceNoteId\], references: \[id\], onDelete: Restrict\)/);
+  assert.match(schema, /sourceNote\s+DrugAnalystNote\? @relation\("TaskSourceNote", fields: \[sourceNoteId\], references: \[id\], onDelete: Restrict\)/);
   assert.match(schema, /@@index\(\[sourceNoteId, createdAt, id\]\)/);
-  assert.doesNotMatch(schema, /sourceTaskId|CollaborationLink|@@unique\(\[sourceNoteId/);
+  assert.doesNotMatch(schema, /model DrugCollaborationLink|@@unique\(\[sourceNoteId/);
   assert.match(migration, /ADD COLUMN "sourceNoteId" TEXT/);
   assert.match(migration, /ON DELETE RESTRICT/);
   assert.match(migration, /DrugInvestigationTask_sourceNoteId_createdAt_id_idx/);
@@ -267,5 +267,7 @@ test("listBySourceNoteId is bounded, sorted, and does not fetch-all", async () =
 
 test("E.1 schema remains a direct Note->Task FK without a generic link table", () => {
   const schema = readFileSync(join(ROOT, SCHEMA), "utf8");
-  assert.doesNotMatch(schema, /model DrugCollaborationLink|sourceTaskId/);
+  assert.doesNotMatch(schema, /model DrugCollaborationLink/);
+  assert.match(schema, /sourceNoteId String\?/);
+  assert.match(schema, /@relation\("TaskSourceNote"/);
 });

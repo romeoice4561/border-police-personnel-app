@@ -156,6 +156,7 @@ function sampleNote(overrides: Partial<AnalystNoteDto> = {}): AnalystNoteDto {
     updatedAt: "2026-09-11T03:00:00.000Z",
     updatedByActorId: null,
     updatedByName: null,
+    sourceTaskId: null,
     ...overrides,
   };
 }
@@ -304,7 +305,7 @@ test("Note card create action is a labeled button; no schema/migration in E.2 UI
   assert.match(panel, /creatingFromNote\.id/);
   assert.match(panel, /useCreateInvestigationTask/);
   assert.match(panel, /useRelatedNoteTasksBatch/);
-  assert.doesNotMatch(panel, /prisma|migrate|sourceTaskId/);
+  assert.doesNotMatch(panel, /prisma|migrate/);
 });
 
 test("N+1 strategy: one batch related-tasks query, not one request per Note or Task card", () => {
@@ -339,7 +340,7 @@ test("related-task routes stay target-scoped and do not add a global sourceNote 
   assert.doesNotMatch(tasksList, /sourceNoteId/);
 });
 
-test("E.2 does not add Search/Network/Map/Timeline/Export/Telegram/AI/sourceTask wiring", () => {
+test("E.2 does not add Search/Network/Map/Timeline/Export/Telegram/AI wiring", () => {
   const files = [
     "components/drug_intelligence/drug_analyst_notes_panel.tsx",
     "components/drug_intelligence/drug_analyst_note_card.tsx",
@@ -347,7 +348,7 @@ test("E.2 does not add Search/Network/Map/Timeline/Export/Telegram/AI/sourceTask
   ];
   for (const file of files) {
     const src = read(file);
-    assert.doesNotMatch(src, /sourceTaskId|DrugCollaborationLink|activity stream|เฉพาะหน่วยของคุณ/);
+    assert.doesNotMatch(src, /DrugCollaborationLink|activity stream|เฉพาะหน่วยของคุณ/);
     assert.doesNotMatch(src, /dangerouslySetInnerHTML/);
   }
   const isolated = [

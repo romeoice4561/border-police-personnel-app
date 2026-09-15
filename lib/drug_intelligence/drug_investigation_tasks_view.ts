@@ -228,3 +228,8 @@ export function draftToCreateFields(
 }
 
 export const RELATED_TASKS_CARD_PREVIEW = 5;
+export const RELATED_RESULT_NOTES_CARD_PREVIEW = 5;
+
+export function canCreateResultNoteFromTask(status: DrugInvestigationTaskStatus): boolean {
+  return status !== "CANCELLED";
+}

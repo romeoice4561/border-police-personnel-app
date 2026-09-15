@@ -3,7 +3,8 @@
  *
  * Shared UI: Case/Person supply targetKind + targetId only. Uses DI-11B note
  * APIs. DI-11E.2 reuses the shared Task editor for create-from-note.
- * No factual mutation. No delete. No Task→Note UX.
+ * DI-11E.3 shows Task provenance on follow-up Notes. No factual mutation.
+ * No delete.
  */
 "use client";
 
@@ -42,7 +43,7 @@ import {
 } from "@/lib/drug_intelligence/drug_analyst_notes_view";
 import { COLLABORATION_PAGE_DEFAULT } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationTargetKind } from "@/lib/drug_intelligence/drug_collaboration_options";
-import type { AnalystNoteDto } from "@/lib/drug_intelligence/drug_collaboration_types";
+import type { AnalystNoteDto, SourceTaskProvenanceDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 function writeErrorMessage(kind: AnalystNotesErrorKind, t: (key: TranslationKey) => string): string {
@@ -166,7 +167,7 @@ export function DrugAnalystNotesPanel({
         setSaveError(null);
         setSurvivorPersonId(null);
       } else {
-        await createNote.mutateAsync(parsed.body);
+        await createNote.mutateAsync({ body: parsed.body });
         setComposing(false);
         setDraft("");
         setSaveError(null);
@@ -184,6 +185,9 @@ export function DrugAnalystNotesPanel({
 
   const meta = notes.data?.meta;
   const items = notes.data?.items ?? [];
+  const sourceTasksById = new Map(
+    (notes.data?.sourceTasks ?? []).map((task: SourceTaskProvenanceDto) => [task.id, task])
+  );
   const { showLoading, showError, showEmpty, showList } = analystNotesListVisibility({
     hasData: notes.data != null,
     isPending: notes.isPending,
@@ -302,6 +306,7 @@ export function DrugAnalystNotesPanel({
                   relatedLoading={relatedNoteIds.length > 0 && relatedTasks.isPending}
                   relatedError={relatedTasks.isError}
                   onRetryRelated={() => void relatedTasks.refetch()}
+                  sourceTask={note.sourceTaskId ? sourceTasksById.get(note.sourceTaskId) ?? null : null}
                 />
               )
             )}

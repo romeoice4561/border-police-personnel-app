@@ -43,6 +43,7 @@ function sampleNote(overrides: Partial<AnalystNoteDto> = {}): AnalystNoteDto {
     updatedAt: "2026-09-11T03:00:00.000Z",
     updatedByActorId: null,
     updatedByName: null,
+    sourceTaskId: null,
     ...overrides,
   };
 }

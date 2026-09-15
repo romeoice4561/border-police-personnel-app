@@ -22,6 +22,7 @@ import {
   useInvestigationTasks,
   useUpdateInvestigationTask,
 } from "@/lib/drug_intelligence/drug_investigation_tasks_hooks";
+import { useCreateAnalystNote, useRelatedTaskNotesBatch } from "@/lib/drug_intelligence/drug_analyst_notes_hooks";
 import {
   buildDirtyTaskPatch,
   classifyInvestigationTasksError,
@@ -33,6 +34,12 @@ import {
   validateTaskTitle,
   type InvestigationTaskDraft,
 } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
+import {
+  classifyAnalystNotesError,
+  validateNoteBody,
+  analystNotesErrorMessageKey,
+} from "@/lib/drug_intelligence/drug_analyst_notes_view";
+import { DrugAnalystNoteEditor } from "@/components/drug_intelligence/drug_analyst_note_editor";
 import { COLLABORATION_PAGE_DEFAULT, DRUG_INVESTIGATION_TASK_STATUSES } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationTargetKind, DrugInvestigationTaskStatus } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { InvestigationTaskDto, SourceNoteProvenanceDto } from "@/lib/drug_intelligence/drug_collaboration_types";
@@ -65,11 +72,19 @@ export function DrugInvestigationTasksPanel({
   const [survivorPersonId, setSurvivorPersonId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<{ taskId: string; message: string } | null>(null);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
+  const [creatingFromTask, setCreatingFromTask] = useState<InvestigationTaskDto | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
+  const [noteSurvivorPersonId, setNoteSurvivorPersonId] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
+  const noteSaveInFlightRef = useRef(false);
 
   const tasks = useInvestigationTasks(targetKind, targetId, { page, status, overdueOnly });
   const createTask = useCreateInvestigationTask(targetKind, targetId, user?.id ?? null);
   const updateTask = useUpdateInvestigationTask(targetKind, targetId, user?.id ?? null);
+  const createNote = useCreateAnalystNote(targetKind, targetId, user?.id ?? null);
+  const relatedTaskIds = (tasks.data?.items ?? []).map((task) => task.id);
+  const relatedResultNotes = useRelatedTaskNotesBatch(targetKind, targetId, relatedTaskIds);
 
   const emptyTitle = targetKind === "CASE" ? t("di.tasks.emptyCase") : t("di.tasks.emptyPerson");
   const meta = tasks.data?.meta;
@@ -85,10 +100,11 @@ export function DrugInvestigationTasksPanel({
     composing,
   });
   const writesLocked = tasks.isFetching && tasks.data != null;
-  const pendingWrite = createTask.isPending || updateTask.isPending;
+  const pendingWrite = createTask.isPending || updateTask.isPending || createNote.isPending;
 
   function openCreate() {
     setEditingTask(null);
+    setCreatingFromTask(null);
     setDraft(emptyInvestigationTaskDraft());
     setSaveError(null);
     setSurvivorPersonId(null);
@@ -97,10 +113,27 @@ export function DrugInvestigationTasksPanel({
 
   function openEdit(task: InvestigationTaskDto) {
     setComposing(false);
+    setCreatingFromTask(null);
     setEditingTask(task);
     setDraft(draftFromInvestigationTask(task));
     setSaveError(null);
     setSurvivorPersonId(null);
+  }
+
+  function openCreateFromTask(task: InvestigationTaskDto) {
+    setComposing(false);
+    setEditingTask(null);
+    setCreatingFromTask(task);
+    setNoteDraft("");
+    setNoteSaveError(null);
+    setNoteSurvivorPersonId(null);
+  }
+
+  function closeNoteEditor() {
+    setCreatingFromTask(null);
+    setNoteDraft("");
+    setNoteSaveError(null);
+    setNoteSurvivorPersonId(null);
   }
 
   function closeEditor() {
@@ -162,6 +195,26 @@ export function DrugInvestigationTasksPanel({
     } finally {
       saveInFlightRef.current = false;
       setPendingTaskId(null);
+    }
+  }
+
+  async function handleCreateNoteFromTask() {
+    if (!creatingFromTask || noteSaveInFlightRef.current) return;
+    const parsed = validateNoteBody(noteDraft);
+    if (!parsed.ok) {
+      setNoteSaveError(parsed.reason === "too_long" ? t("di.collaboration.tooLong") : t("di.error.validation"));
+      return;
+    }
+    noteSaveInFlightRef.current = true;
+    try {
+      await createNote.mutateAsync({ body: parsed.body, sourceTaskId: creatingFromTask.id });
+      closeNoteEditor();
+    } catch (error) {
+      const classified = classifyAnalystNotesError(error, "save");
+      setNoteSaveError(t(analystNotesErrorMessageKey(classified.kind)));
+      setNoteSurvivorPersonId(classified.kind === "merged" ? classified.survivorPersonId : null);
+    } finally {
+      noteSaveInFlightRef.current = false;
     }
   }
 
@@ -227,6 +280,24 @@ export function DrugInvestigationTasksPanel({
           </label>
         </div>
 
+        {creatingFromTask && canEdit ? (
+          <div data-testid="analyst-note-editor-from-task" data-source-task-id={creatingFromTask.id}>
+            <DrugAnalystNoteEditor
+              mode="create"
+              value={noteDraft}
+              onChange={setNoteDraft}
+              onSave={() => void handleCreateNoteFromTask()}
+              onCancel={closeNoteEditor}
+              pending={createNote.isPending}
+              saveError={noteSaveError}
+              sourceTask={{ title: creatingFromTask.title, createdAt: creatingFromTask.createdAt }}
+            />
+            {noteSurvivorPersonId ? (
+              <p className="mt-2 text-sm text-critical">{t("di.collaboration.mergedPerson")}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         {composing && canEdit ? (
           <DrugInvestigationTaskEditor
             mode="create"
@@ -281,7 +352,13 @@ export function DrugInvestigationTasksPanel({
                   actionError={actionError?.taskId === task.id ? actionError.message : null}
                   onEdit={openEdit}
                   onStatus={handleStatus}
+                  onCreateResultNote={canEdit ? openCreateFromTask : undefined}
                   sourceNote={task.sourceNoteId ? sourceNotesById.get(task.sourceNoteId) ?? null : null}
+                  relatedResultNotes={relatedResultNotes.data?.find((row) => row.sourceTaskId === task.id)?.items ?? []}
+                  relatedResultMeta={relatedResultNotes.data?.find((row) => row.sourceTaskId === task.id)?.meta ?? null}
+                  relatedResultLoading={relatedTaskIds.length > 0 && relatedResultNotes.isPending}
+                  relatedResultError={relatedResultNotes.isError}
+                  onRetryRelatedResults={() => void relatedResultNotes.refetch()}
                 />
               )
             )}

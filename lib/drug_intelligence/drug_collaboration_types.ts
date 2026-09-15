@@ -89,6 +89,7 @@ export interface AnalystNoteDto {
   updatedAt: string;
   updatedByActorId: string | null;
   updatedByName: string | null;
+  sourceTaskId: string | null;
 }
 
 export interface InvestigationTaskDto {
@@ -121,8 +122,29 @@ export interface SourceNoteProvenanceDto {
   createdAt: string;
 }
 
+/** DI-11E.3: minimal Note provenance from a Task. Never includes Task description. */
+export interface SourceTaskProvenanceDto {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
+/** DI-11E.3: bounded result-note summary. Never includes Note body. */
+export interface ResultNoteSummaryDto {
+  id: string;
+  authorName: string;
+  createdAt: string;
+}
+
+export interface RelatedTaskNotesPage {
+  sourceTaskId: string;
+  items: ResultNoteSummaryDto[];
+  meta: CollaborationPageMeta;
+}
+
 export interface AnalystNoteCreateInput {
   body: string;
+  sourceTaskId?: string | null;
 }
 
 export interface AnalystNoteUpdateInput {

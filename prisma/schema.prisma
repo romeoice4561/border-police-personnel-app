@@ -2773,11 +2773,17 @@ model DrugAnalystNote {
   updatedByActorId String?
   updatedByName    String?
 
-  sourcedTasks DrugInvestigationTask[]
+  sourcedTasks DrugInvestigationTask[] @relation("TaskSourceNote")
+
+  /// DI-11E.3: optional provenance to the Task that sourced this follow-up Note.
+  /// Nullable. One Task may source many Notes. Not a factual field.
+  sourceTask   DrugInvestigationTask? @relation("TaskResultNotes", fields: [sourceTaskId], references: [id], onDelete: Restrict)
+  sourceTaskId String?
 
   @@index([caseId, createdAt])
   @@index([personId, createdAt])
   @@index([authorActorId])
+  @@index([sourceTaskId, createdAt, id])
 }
 
 /// DI-11B: follow-up investigation task. Semantic kind TASK. Not DrugCaseStatus.
@@ -2804,8 +2810,10 @@ model DrugInvestigationTask {
 
   /// DI-11E.1: optional provenance to the Analyst Note that sourced this Task.
   /// Nullable. One Note may source many Tasks. Not a factual field.
-  sourceNote   DrugAnalystNote? @relation(fields: [sourceNoteId], references: [id], onDelete: Restrict)
+  sourceNote   DrugAnalystNote? @relation("TaskSourceNote", fields: [sourceNoteId], references: [id], onDelete: Restrict)
   sourceNoteId String?
+
+  resultNotes DrugAnalystNote[] @relation("TaskResultNotes")
 
   @@index([status, dueAt])
   @@index([assignedActorId, status])

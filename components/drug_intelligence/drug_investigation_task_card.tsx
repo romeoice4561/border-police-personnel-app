@@ -13,11 +13,17 @@ import { Button } from "@/components/ui/button";
 import { DrugInvestigationTaskActions } from "@/components/drug_intelligence/drug_investigation_task_actions";
 import { useT } from "@/components/i18n/language_provider";
 import { formatDiDate, formatDiDateTime } from "@/lib/drug_intelligence/di_date_helpers";
-import { isTaskOverdue, taskShowsCompletedAt } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
+import { isTaskOverdue, taskShowsCompletedAt, canCreateResultNoteFromTask } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
 import { DrugInvestigationTaskStatusBadge } from "@/components/drug_intelligence/drug_investigation_task_status_badge";
 import { DrugInvestigationTaskPriorityBadge } from "@/components/drug_intelligence/drug_investigation_task_priority_badge";
-import type { DrugInvestigationTaskStatus } from "@/lib/drug_intelligence/drug_collaboration_options";
-import type { InvestigationTaskDto, SourceNoteProvenanceDto } from "@/lib/drug_intelligence/drug_collaboration_types";
+import { DrugInvestigationTaskResultNotes } from "@/components/drug_intelligence/drug_investigation_task_result_notes";
+import type { DrugInvestigationTaskStatus, CollaborationTargetKind } from "@/lib/drug_intelligence/drug_collaboration_options";
+import type {
+  CollaborationPageMeta,
+  InvestigationTaskDto,
+  ResultNoteSummaryDto,
+  SourceNoteProvenanceDto,
+} from "@/lib/drug_intelligence/drug_collaboration_types";
 
 export function DrugInvestigationTaskCard({
   task,
@@ -27,7 +33,13 @@ export function DrugInvestigationTaskCard({
   actionError = null,
   onEdit,
   onStatus,
+  onCreateResultNote,
   sourceNote = null,
+  relatedResultNotes = [],
+  relatedResultMeta = null,
+  relatedResultLoading = false,
+  relatedResultError = false,
+  onRetryRelatedResults,
 }: {
   task: InvestigationTaskDto;
   canEdit?: boolean;
@@ -36,7 +48,13 @@ export function DrugInvestigationTaskCard({
   actionError?: string | null;
   onEdit?: (task: InvestigationTaskDto) => void;
   onStatus?: (task: InvestigationTaskDto, next: DrugInvestigationTaskStatus) => void;
+  onCreateResultNote?: (task: InvestigationTaskDto) => void;
   sourceNote?: SourceNoteProvenanceDto | null;
+  relatedResultNotes?: ResultNoteSummaryDto[];
+  relatedResultMeta?: CollaborationPageMeta | null;
+  relatedResultLoading?: boolean;
+  relatedResultError?: boolean;
+  onRetryRelatedResults?: () => void;
 }) {
   const { t } = useT();
   const descriptionId = useId();
@@ -142,6 +160,18 @@ export function DrugInvestigationTaskCard({
             pending={pending}
             onTransition={(next) => onStatus?.(task, next)}
           />
+          {onCreateResultNote && canCreateResultNoteFromTask(task.status) ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={writeDisabled}
+              onClick={() => onCreateResultNote(task)}
+              data-testid="investigation-task-create-result-note"
+            >
+              {t("di.collaboration.createResultNote")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {actionError ? (
@@ -149,6 +179,16 @@ export function DrugInvestigationTaskCard({
           {actionError}
         </p>
       ) : null}
+      <DrugInvestigationTaskResultNotes
+        items={relatedResultNotes}
+        meta={relatedResultMeta}
+        loading={relatedResultLoading}
+        error={relatedResultError}
+        onRetry={onRetryRelatedResults ?? (() => undefined)}
+        targetKind={task.targetKind as CollaborationTargetKind}
+        targetId={task.targetId}
+        taskId={task.id}
+      />
     </article>
   );
 }

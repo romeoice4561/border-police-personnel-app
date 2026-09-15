@@ -7,6 +7,7 @@ import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, HelperText, inputCls } from "@/components/drug_intelligence/create_case_field";
 import { useT } from "@/components/i18n/language_provider";
+import { formatDiDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import { ANALYST_NOTE_BODY_MAX, validateNoteBody } from "@/lib/drug_intelligence/drug_analyst_notes_view";
 
 export function DrugAnalystNoteEditor({
@@ -17,6 +18,7 @@ export function DrugAnalystNoteEditor({
   pending,
   saveError,
   mode,
+  sourceTask = null,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -25,6 +27,7 @@ export function DrugAnalystNoteEditor({
   pending: boolean;
   saveError: string | null;
   mode: "create" | "edit";
+  sourceTask?: { title: string; createdAt?: string } | null;
 }) {
   const { t } = useT();
   const fieldId = useId();
@@ -39,6 +42,21 @@ export function DrugAnalystNoteEditor({
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-surface p-4" data-testid="analyst-note-editor">
+      {sourceTask ? (
+        <div className="rounded-lg border border-border bg-neutral-bg px-3 py-2" data-testid="analyst-note-source-task-context">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            {t("di.collaboration.resultNoteContext")}
+          </p>
+          <p className="mt-1 text-sm text-foreground">
+            {t("di.collaboration.resultNoteTaskLabel")}: {sourceTask.title}
+          </p>
+          {sourceTask.createdAt ? (
+            <p className="mt-0.5 text-xs text-muted">
+              {t("di.collaboration.createdAt")} {formatDiDateTime(sourceTask.createdAt)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <Field label={t("di.collaboration.noteBody")} htmlFor={fieldId} required>
         <textarea
           ref={textareaRef}

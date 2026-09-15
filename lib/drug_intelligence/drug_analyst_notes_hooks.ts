@@ -11,7 +11,7 @@ import { ApiClientError } from "@/lib/ui/api_client";
 import { drugAnalystNotesClient, type AnalystNotesPage } from "@/lib/drug_intelligence/drug_analyst_notes_client";
 import { COLLABORATION_PAGE_DEFAULT } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationTargetKind } from "@/lib/drug_intelligence/drug_collaboration_options";
-import type { AnalystNoteDto } from "@/lib/drug_intelligence/drug_collaboration_types";
+import type { AnalystNoteDto, RelatedTaskNotesPage } from "@/lib/drug_intelligence/drug_collaboration_types";
 
 export const analystNotesQueryKey = (
   targetKind: CollaborationTargetKind,
@@ -42,17 +42,20 @@ export function useCreateAnalystNote(
 ) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: string): Promise<AnalystNoteDto> => {
+    mutationFn: async (input: { body: string; sourceTaskId?: string }): Promise<AnalystNoteDto> => {
       if (!confirmActorId) {
         throw new ApiClientError("Bound collaboration session required", 401, "UNAUTHENTICATED");
       }
-      const input = { body, confirmActorId };
+      const body = { body: input.body, confirmActorId, sourceTaskId: input.sourceTaskId };
       return targetKind === "CASE"
-        ? drugAnalystNotesClient.createCaseNote(targetId, input)
-        : drugAnalystNotesClient.createPersonNote(targetId, input);
+        ? drugAnalystNotesClient.createCaseNote(targetId, body)
+        : drugAnalystNotesClient.createPersonNote(targetId, body);
     },
-    onSuccess: () => {
+    onSuccess: (_note, input) => {
       void queryClient.invalidateQueries({ queryKey: ["drug-analyst-notes", targetKind, targetId] });
+      if (input.sourceTaskId) {
+        void queryClient.invalidateQueries({ queryKey: relatedTaskNotesQueryKey(targetKind, targetId) });
+      }
     },
   });
 }
@@ -73,5 +76,23 @@ export function useUpdateAnalystNote(
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["drug-analyst-notes", targetKind, targetId] });
     },
+  });
+}
+
+export const relatedTaskNotesQueryKey = (targetKind: CollaborationTargetKind, targetId: string, taskIds?: string[]) =>
+  taskIds
+    ? (["drug-task-related-notes", targetKind, targetId, ...taskIds] as const)
+    : (["drug-task-related-notes", targetKind, targetId] as const);
+
+export function useRelatedTaskNotesBatch(
+  targetKind: CollaborationTargetKind,
+  targetId: string,
+  taskIds: string[]
+): UseQueryResult<RelatedTaskNotesPage[]> {
+  const ids = [...new Set(taskIds)].sort();
+  return useQuery({
+    queryKey: relatedTaskNotesQueryKey(targetKind, targetId, ids),
+    queryFn: () => drugAnalystNotesClient.listRelatedTaskNotesBatch(targetKind, targetId, ids),
+    enabled: targetId.length > 0 && ids.length > 0,
   });
 }

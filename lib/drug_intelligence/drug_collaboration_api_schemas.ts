@@ -26,6 +26,7 @@ export const collaborationListQuerySchema = z.object({
 
 export const analystNoteCreateSchema = z.object({
   body: z.string().trim().min(1).max(ANALYST_NOTE_BODY_MAX),
+  sourceTaskId: collaborationResourceIdSchema.optional().nullable(),
 });
 
 export const analystNoteUpdateSchema = z.object({
