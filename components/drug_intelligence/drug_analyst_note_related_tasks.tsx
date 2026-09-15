@@ -1,5 +1,6 @@
 /**
  * DI-11E.2 — compact related-task list on an Analyst Note card.
+ * Batch items are preview-only. Expansion loads the per-note page starting at 1.
  * Does not render Note body or Task description.
  */
 "use client";
@@ -13,6 +14,13 @@ import { DrugInvestigationTaskPriorityBadge } from "@/components/drug_intelligen
 import { drugInvestigationTasksClient } from "@/lib/drug_intelligence/drug_investigation_tasks_client";
 import { RELATED_TASKS_CARD_PREVIEW } from "@/lib/drug_intelligence/drug_investigation_tasks_view";
 import { COLLABORATION_PAGE_DEFAULT } from "@/lib/drug_intelligence/drug_collaboration_options";
+import {
+  appendRelatedTaskPage,
+  displayedRelatedTasks,
+  mergeRelatedTaskPreviewWithPage,
+  nextRelatedTasksExpandAction,
+  relatedTasksExpansionContextKey,
+} from "@/lib/drug_intelligence/drug_note_related_tasks_view";
 import type { CollaborationTargetKind } from "@/lib/drug_intelligence/drug_collaboration_options";
 import type { CollaborationPageMeta, InvestigationTaskDto } from "@/lib/drug_intelligence/drug_collaboration_types";
 
@@ -37,21 +45,39 @@ export function DrugAnalystNoteRelatedTasks({
 }) {
   const { t } = useT();
   const [expanded, setExpanded] = useState(false);
-  const [extra, setExtra] = useState<InvestigationTaskDto[]>([]);
-  const [page, setPage] = useState(meta?.page ?? 1);
+  const [authoritativeItems, setAuthoritativeItems] = useState<InvestigationTaskDto[] | null>(null);
+  const [authoritativePage, setAuthoritativePage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
-  const allItems = [...items, ...extra];
+  const contextKey = relatedTasksExpansionContextKey(targetKind, targetId, noteId);
+  const [boundKey, setBoundKey] = useState(contextKey);
+  if (boundKey !== contextKey) {
+    setBoundKey(contextKey);
+    setExpanded(false);
+    setAuthoritativeItems(null);
+    setAuthoritativePage(0);
+    setLoadMoreError(false);
+  }
+
+  const allItems = displayedRelatedTasks(items, authoritativeItems);
   const total = meta?.total ?? allItems.length;
   const pageSize = meta?.pageSize || COLLABORATION_PAGE_DEFAULT;
-  if (loading && allItems.length === 0) {
+  const expandAction = nextRelatedTasksExpandAction({
+    previewItems: items,
+    total,
+    expanded,
+    authoritativePage,
+    authoritativeItems,
+  });
+
+  if (loading && allItems.length === 0 && total === 0) {
     return (
       <p className="mt-3 text-xs text-muted" data-testid="analyst-note-related-loading">
         {t("di.collaboration.relatedTasksLoading")}
       </p>
     );
   }
-  if (error && allItems.length === 0) {
+  if (error && allItems.length === 0 && total === 0) {
     return (
       <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="analyst-note-related-error">
         <p className="text-xs text-critical">{t("di.collaboration.relatedTasksError")}</p>
@@ -64,25 +90,29 @@ export function DrugAnalystNoteRelatedTasks({
   if (total === 0) return null;
 
   const visible = expanded ? allItems : allItems.slice(0, RELATED_TASKS_CARD_PREVIEW);
-  const canRevealLoaded = !expanded && allItems.length > RELATED_TASKS_CARD_PREVIEW;
-  const canFetchMore = Boolean(targetKind && targetId && noteId) && allItems.length < total;
+  const canExpand = expandAction.type !== "none";
 
   async function loadMore() {
-    if (canRevealLoaded) {
+    if (expandAction.type === "none" || loadingMore) return;
+    if (expandAction.type === "reveal") {
       setExpanded(true);
       return;
     }
-    if (!targetKind || !targetId || !noteId || loadingMore) return;
+    if (!targetKind || !targetId || !noteId) return;
     setLoadingMore(true);
     setLoadMoreError(false);
     try {
-      const nextPage = page + 1;
+      const page = expandAction.page;
       const result =
         targetKind === "CASE"
-          ? await drugInvestigationTasksClient.listCaseNoteTasks(targetId, noteId, nextPage, pageSize)
-          : await drugInvestigationTasksClient.listPersonNoteTasks(targetId, noteId, nextPage, pageSize);
-      setExtra((prev) => [...prev, ...result.items]);
-      setPage(nextPage);
+          ? await drugInvestigationTasksClient.listCaseNoteTasks(targetId, noteId, page, pageSize)
+          : await drugInvestigationTasksClient.listPersonNoteTasks(targetId, noteId, page, pageSize);
+      setAuthoritativeItems((prev) =>
+        page === 1
+          ? mergeRelatedTaskPreviewWithPage(items, result.items)
+          : appendRelatedTaskPage(prev ?? items, result.items)
+      );
+      setAuthoritativePage(page);
       setExpanded(true);
     } catch {
       setLoadMoreError(true);
@@ -107,7 +137,7 @@ export function DrugAnalystNoteRelatedTasks({
           </li>
         ))}
       </ul>
-      {canRevealLoaded || canFetchMore ? (
+      {canExpand ? (
         <Button
           type="button"
           variant="ghost"

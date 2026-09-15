@@ -16,6 +16,15 @@ import { DrugAnalystNoteService } from "@/lib/drug_intelligence/drug_analyst_not
 import { DrugInvestigationTaskService } from "@/lib/drug_intelligence/drug_investigation_task_service";
 import { translate } from "@/lib/i18n/dictionary";
 import { DrugAnalystNoteCard } from "@/components/drug_intelligence/drug_analyst_note_card";
+import { DrugAnalystNoteRelatedTasks } from "@/components/drug_intelligence/drug_analyst_note_related_tasks";
+import {
+  appendRelatedTaskPage,
+  displayedRelatedTasks,
+  mergeRelatedTaskPreviewWithPage,
+  nextRelatedTasksExpandAction,
+  relatedTasksExpansionContextKey,
+  shouldResetRelatedTasksExpansion,
+} from "@/lib/drug_intelligence/drug_note_related_tasks_view";
 import { DrugInvestigationTaskCard } from "@/components/drug_intelligence/drug_investigation_task_card";
 import { DrugInvestigationTaskEditor } from "@/components/drug_intelligence/drug_investigation_task_editor";
 import {
@@ -187,6 +196,12 @@ function sampleTask(overrides: Partial<InvestigationTaskDto> = {}): Investigatio
   };
 }
 
+function sampleTasks(count: number, prefix = "task-rel"): InvestigationTaskDto[] {
+  return Array.from({ length: count }, (_, i) =>
+    sampleTask({ id: `${prefix}-${i}`, title: `งาน ${i}`, sourceNoteId: "note-e2-1" })
+  );
+}
+
 test("Thai copy uses สร้างงานติดตาม, ที่มา, and งานที่เกี่ยวข้อง", () => {
   assert.equal(translate("di.collaboration.createFollowUpTask", "th"), "สร้างงานติดตาม");
   assert.equal(translate("di.collaboration.sourceNoteProvenance", "th"), "ที่มา: บันทึกนักวิเคราะห์");
@@ -318,6 +333,220 @@ test("N+1 strategy: one batch related-tasks query, not one request per Note or T
   const service = read("lib/drug_intelligence/drug_investigation_task_service.ts");
   assert.match(service, /loadSourceNoteProvenance/);
   assert.match(service, /id: \{ in: unique \}/);
+  const related = read("components/drug_intelligence/drug_analyst_note_related_tasks.tsx");
+  assert.match(related, /async function loadMore\([\s\S]*listCaseNoteTasks\(targetId, noteId, page, pageSize\)/);
+  assert.doesNotMatch(related, /useEffect\(/);
+});
+
+test("empty related-task preview with total 4 still offers expansion and requests page 1", () => {
+  const html = renderToStaticMarkup(
+    createElement(DrugAnalystNoteRelatedTasks, {
+      items: [],
+      meta: { page: 1, pageSize: 20, total: 4, totalPages: 1 },
+      loading: false,
+      error: false,
+      onRetry: () => undefined,
+      targetKind: "CASE",
+      targetId: "case-1",
+      noteId: "note-b",
+    })
+  );
+  assert.match(html, /งานที่เกี่ยวข้อง/);
+  assert.match(html, /ดูเพิ่มเติม/);
+  assert.doesNotMatch(html, /data-testid="analyst-note-related-task"/);
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: [],
+      total: 4,
+      expanded: false,
+      authoritativePage: 0,
+      authoritativeItems: null,
+    }),
+    { type: "fetch", page: 1 }
+  );
+});
+
+test("related-task page 1 cannot be skipped for incomplete preview", () => {
+  const starved = nextRelatedTasksExpandAction({
+    previewItems: [],
+    total: 4,
+    expanded: false,
+    authoritativePage: 0,
+    authoritativeItems: null,
+  });
+  const partial = nextRelatedTasksExpandAction({
+    previewItems: sampleTasks(2),
+    total: 8,
+    expanded: false,
+    authoritativePage: 0,
+    authoritativeItems: null,
+  });
+  const looksLikePage1 = nextRelatedTasksExpandAction({
+    previewItems: sampleTasks(20),
+    total: 25,
+    expanded: false,
+    authoritativePage: 0,
+    authoritativeItems: null,
+  });
+  assert.deepEqual(starved, { type: "fetch", page: 1 });
+  assert.deepEqual(partial, { type: "fetch", page: 1 });
+  assert.deepEqual(looksLikePage1, { type: "fetch", page: 1 });
+});
+
+test("partial related-task preview fetches page 1 then dedupes by Task id", () => {
+  const preview = sampleTasks(2);
+  const page1 = [...sampleTasks(2), ...sampleTasks(6, "page1")];
+  const merged = mergeRelatedTaskPreviewWithPage(preview, page1);
+  assert.equal(merged.length, 8);
+  assert.deepEqual(
+    merged.map((row) => row.id),
+    page1.map((row) => row.id)
+  );
+  assert.equal(new Set(merged.map((row) => row.id)).size, 8);
+  assert.ok(merged.every((row) => row.sourceNoteId === "note-e2-1"));
+});
+
+test("complete related-task preview does not fetch merely to display loaded items", () => {
+  const preview = sampleTasks(8);
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: preview,
+      total: 8,
+      expanded: false,
+      authoritativePage: 0,
+      authoritativeItems: null,
+    }),
+    { type: "reveal" }
+  );
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: preview,
+      total: 8,
+      expanded: true,
+      authoritativePage: 0,
+      authoritativeItems: null,
+    }),
+    { type: "none" }
+  );
+});
+
+test("more than 20 related Tasks fetches page 1 then page 2 without skip", () => {
+  const preview = sampleTasks(20);
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: preview,
+      total: 25,
+      expanded: false,
+      authoritativePage: 0,
+      authoritativeItems: null,
+    }),
+    { type: "fetch", page: 1 }
+  );
+  const page1 = sampleTasks(20);
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: preview,
+      total: 25,
+      expanded: true,
+      authoritativePage: 1,
+      authoritativeItems: page1,
+    }),
+    { type: "fetch", page: 2 }
+  );
+});
+
+test("more than 40 related Tasks progresses page 1 then 2 then 3", () => {
+  const preview = sampleTasks(20);
+  const page1 = sampleTasks(20);
+  const afterPage2 = appendRelatedTaskPage(page1, sampleTasks(20, "p2"));
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: preview,
+      total: 45,
+      expanded: true,
+      authoritativePage: 2,
+      authoritativeItems: afterPage2,
+    }),
+    { type: "fetch", page: 3 }
+  );
+  const afterPage3 = appendRelatedTaskPage(afterPage2, sampleTasks(5, "p3"));
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: preview,
+      total: 45,
+      expanded: true,
+      authoritativePage: 3,
+      authoritativeItems: afterPage3,
+    }),
+    { type: "none" }
+  );
+});
+
+test("duplicate related Task ids never render twice after merge or append", () => {
+  const preview = sampleTasks(2);
+  const page1 = [preview[0]!, ...sampleTasks(7, "auth")];
+  const merged = mergeRelatedTaskPreviewWithPage(preview, [...page1, page1[0]!]);
+  assert.equal(merged.filter((row) => row.id === preview[0]!.id).length, 1);
+  const appended = appendRelatedTaskPage(merged, [merged[0]!, sampleTask({ id: "later-1", sourceNoteId: "note-e2-1" })]);
+  assert.equal(appended.filter((row) => row.id === merged[0]!.id).length, 1);
+  assert.ok(appended.some((row) => row.id === "later-1"));
+  assert.equal(new Set(appended.map((row) => row.id)).size, appended.length);
+});
+
+test("zero related-task total never requests a per-note page", () => {
+  assert.deepEqual(
+    nextRelatedTasksExpandAction({
+      previewItems: [],
+      total: 0,
+      expanded: false,
+      authoritativePage: 0,
+      authoritativeItems: null,
+    }),
+    { type: "none" }
+  );
+  const html = renderToStaticMarkup(
+    createElement(DrugAnalystNoteRelatedTasks, {
+      items: [],
+      meta: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
+      loading: false,
+      error: false,
+      onRetry: () => undefined,
+      targetKind: "CASE",
+      targetId: "case-1",
+      noteId: "note-b",
+    })
+  );
+  assert.equal(html, "");
+});
+
+test("Note A related-task expansion context cannot leak into Note B", () => {
+  const noteA = relatedTasksExpansionContextKey("CASE", "case-1", "note-a");
+  const noteB = relatedTasksExpansionContextKey("CASE", "case-1", "note-b");
+  assert.equal(shouldResetRelatedTasksExpansion(noteA, noteA), false);
+  assert.equal(shouldResetRelatedTasksExpansion(noteA, noteB), true);
+  const component = read("components/drug_intelligence/drug_analyst_note_related_tasks.tsx");
+  assert.match(component, /relatedTasksExpansionContextKey\(targetKind, targetId, noteId\)/);
+  assert.match(component, /if \(boundKey !== contextKey\) \{[\s\S]*setAuthoritativeItems\(null\)/);
+  assert.ok(displayedRelatedTasks(sampleTasks(2, "a"), sampleTasks(4, "b")).every((row) => row.id.startsWith("b-")));
+});
+
+test("related-task expansion fetches page 1 first and does not use page \\+ 1 as the first request", () => {
+  const component = read("components/drug_intelligence/drug_analyst_note_related_tasks.tsx");
+  assert.match(component, /nextRelatedTasksExpandAction/);
+  assert.match(component, /mergeRelatedTaskPreviewWithPage/);
+  assert.match(component, /listCaseNoteTasks\(targetId, noteId, page, pageSize\)/);
+  assert.doesNotMatch(component, /const nextPage = page \+ 1/);
+});
+
+test("E.2.1 pagination does not change Task.sourceNoteId semantics", () => {
+  const preview = sampleTasks(2).map((row) => ({ ...row, sourceNoteId: "note-e2-1" }));
+  const merged = mergeRelatedTaskPreviewWithPage(preview, preview);
+  assert.ok(merged.every((row) => row.sourceNoteId === "note-e2-1"));
+  const service = read("lib/drug_intelligence/drug_investigation_task_service.ts");
+  assert.match(service, /sourceNoteId/);
+  assert.doesNotMatch(service, /sourceTaskId/);
+  const helper = read("lib/drug_intelligence/drug_note_related_tasks_view.ts");
+  assert.doesNotMatch(helper, /sourceTaskId/);
 });
 
 test("Task PATCH payload cannot include sourceNoteId; editor has no unlink control", () => {
