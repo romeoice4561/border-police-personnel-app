@@ -350,7 +350,7 @@ test("selected-path edges are thicker and fully opaque; off-path edges stay dash
   assert.equal(pathEdge.style.strokeWidth, 3);
   assert.equal(pathEdge.style.opacity, 1);
   assert.equal(pathEdge.style.strokeDasharray, undefined);
-  assert.equal(offPath.style.opacity, 0.08);
+  assert.equal(offPath.style.opacity, 0.42);
   assert.ok((offPath.style.strokeWidth ?? 1) < 3);
   assert.equal(inferred.style.strokeDasharray, "5 5");
 });

@@ -55,7 +55,7 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo, startTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@xyflow/react/dist/style.css";
 import {
@@ -191,6 +191,7 @@ import {
 } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import { computeGroupByTypeLaneHeaders, planGroupByHopLayout, resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { appearanceReasonKey, connectingRelationshipTypes, selectedPathSteps, shortestUndirectedPath, summarizeNeighborhood } from "@/lib/drug_intelligence/drug_network_graph_readability";
+import { connectingEdgeForExplanationClick } from "@/lib/drug_intelligence/drug_network_relationship_explainability";
 import {
   connectionDepthUrlPatch,
   nextSelectedEntityAfterNeighborhoodChange,
@@ -273,7 +274,7 @@ import {
 import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { formatThaiPersonnelDate, normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
-import { getSafeReturnTo } from "@/lib/ui/return_context";
+import { getSafeReturnTo, currentInternalHref } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType, DrugInvestigationBoardStateClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -458,6 +459,7 @@ function getAnnotationFromNode(node: Node): DrugNetworkAnnotation | null {
 
 function DrugNetworkContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, can } = useAuth();
   const { t } = useT();
@@ -476,6 +478,7 @@ function DrugNetworkContent() {
   const urlRelationshipTypesParam = searchParams.get("relationshipTypes");
   const urlSelectedRelationshipTypes = urlRelationshipTypesParam ? (urlRelationshipTypesParam.split(",") as DrugGraphRelationshipType[]) : undefined;
   const returnTo = getSafeReturnTo(searchParams);
+  const currentNetworkHref = currentInternalHref(pathname, searchParams);
 
   // DI-9.1: View/Analyst mode
   const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
@@ -1711,8 +1714,23 @@ function DrugNetworkContent() {
       }
       return;
     }
-    // Factual node selected (primary for inspector)
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
+    if (!additive && neighborhood.data && graphNode.id !== focusId) {
+      const connecting = connectingEdgeForExplanationClick({
+        clickedId: graphNode.id,
+        focusId,
+        selectedNodeId: selectedNode?.id ?? null,
+        selectedEdge,
+        edges: neighborhood.data.edges,
+      });
+      if (connecting) {
+        setSelectedEdge(connecting);
+        setSelectedNode(null);
+        if (!additive) setSelectedAnnotationId(null);
+        setEdgeDrawerOpen(true);
+        return;
+      }
+    }
     setSelectedNode(graphNode);
     setSelectedEdge(null);
     if (!additive) setSelectedAnnotationId(null);
@@ -3070,6 +3088,11 @@ function DrugNetworkContent() {
                     </div>
                   ) : null}
                 </div>
+                {hoveredEdgeId ? (
+                  <p className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-lg border border-border bg-surface/95 px-3 py-1.5 text-xs text-foreground shadow-sm">
+                    {t("di.network.explainHoverHint")}
+                  </p>
+                ) : null}
               </div>
 
               {/* Hidden file input for Image annotation — opened immediately by Image tool */}
@@ -3130,6 +3153,7 @@ function DrugNetworkContent() {
         {selectedNode ? (
           <DrugNetworkNodeDetail
             node={selectedNode}
+            openReturnPath={currentNetworkHref}
             onExpand={() => expandFromNode(selectedNode)}
             pinned={pinnedNodeIds.has(selectedNode.id)}
             onTogglePin={effectiveWorkspaceMode === "ANALYST" ? () => togglePinNode(selectedNode.id) : undefined}
@@ -3148,12 +3172,20 @@ function DrugNetworkContent() {
           />
         ) : null}
       </Drawer>
-      <Drawer open={Boolean(selectedEdge) && edgeDrawerOpen} onClose={() => setEdgeDrawerOpen(false)} titleId="drug-network-edge-detail" title={t("di.network.edgeDetailTitle")}>
-        {selectedEdge ? (
+      <Drawer open={Boolean(selectedEdge) && edgeDrawerOpen} onClose={() => setEdgeDrawerOpen(false)} titleId="drug-network-edge-detail" title={selectedEdge?.edgeKind === "INFERRED" ? t("di.network.explainWhyInferredHeading") : t("di.network.explainWhyHeading")} className="max-w-[440px] sm:max-w-[440px]">
+          {selectedEdge ? (
           <DrugNetworkEdgeDetail
             edge={selectedEdge}
+            openReturnPath={currentNetworkHref}
             sourceNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.source) ?? null}
             targetNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.target) ?? null}
+            neighborhood={neighborhood.data ?? undefined}
+            focusId={focusId}
+            onFocusNode={(node) => {
+              expandFromNode(node);
+              setEdgeDrawerOpen(false);
+              setSelectedEdge(null);
+            }}
             routeEdit={
               effectiveWorkspaceMode === "ANALYST"
                 ? {

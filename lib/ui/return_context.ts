@@ -35,9 +35,23 @@ export function isSafeInternalReturnPath(value: string | null | undefined): valu
 }
 
 /** Reads and validates `returnTo` from URLSearchParams. Returns null when absent or unsafe — callers must never fall back to an unvalidated value. */
-export function getSafeReturnTo(searchParams: URLSearchParams): string | null {
+export function getSafeReturnTo(searchParams: { get(name: string): string | null }): string | null {
   const raw = searchParams.get(RETURN_TO_PARAM);
   return isSafeInternalReturnPath(raw) ? raw : null;
+}
+
+/** Current same-origin path + query (no hash). Null when the assembled href would be unsafe. */
+export function currentInternalHref(pathname: string, searchParams: { toString(): string }): string | null {
+  const qs = searchParams.toString();
+  const href = qs ? `${pathname}?${qs}` : pathname;
+  return isSafeInternalReturnPath(href) ? href : null;
+}
+
+export const ENTITY_DETAIL_SEARCH_FALLBACK = "/drug-intelligence/search";
+
+/** Entity-detail back destination: validated returnTo, else Search Center. */
+export function entityDetailBackHref(searchParams: { get(name: string): string | null }): string {
+  return getSafeReturnTo(searchParams) ?? ENTITY_DETAIL_SEARCH_FALLBACK;
 }
 
 /** Appends a validated returnTo path onto a target URL's query string. No-ops (returns the target unchanged) when returnPath is unsafe. */

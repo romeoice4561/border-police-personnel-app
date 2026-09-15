@@ -8,6 +8,7 @@
 
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { PERSON_CASE_CONTEXT_PARAM, sanitizePersonCaseContextId } from "@/lib/drug_intelligence/person_case_context";
+import { withReturnTo } from "@/lib/ui/return_context";
 
 export function drugEntityDetailPath(entityType: DrugGraphNodeType, entityId: string): string {
   switch (entityType) {
@@ -32,6 +33,15 @@ export function drugEntityDetailPath(entityType: DrugGraphNodeType, entityId: st
 
 export function drugNetworkFocusPath(entityType: DrugGraphNodeType, entityId: string): string {
   return `/drug-intelligence/network?${new URLSearchParams({ focusType: entityType, focusId: entityId }).toString()}`;
+}
+
+/** Canonical entity path plus a validated navigation-only `returnTo`. Unsafe return paths are omitted. */
+export function drugEntityDetailHref(
+  entityType: DrugGraphNodeType,
+  entityId: string,
+  returnTo?: string | null
+): string {
+  return withReturnTo(drugEntityDetailPath(entityType, entityId), returnTo);
 }
 
 /**

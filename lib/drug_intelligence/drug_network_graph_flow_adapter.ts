@@ -159,13 +159,22 @@ export function buildDrugNetworkFlowGraph(
 
   const hops = hopDistances(neighborhood.focus.entityId, neighborhood.nodes.map(toLayoutNode), layoutEdges);
   const focusId = neighborhood.focus.entityId;
+  const selectedGraphEdge = selectedEdgeId ? neighborhood.edges.find((edge) => edge.id === selectedEdgeId) ?? null : null;
   const selectedIsSecondary = Boolean(selectedNodeId && selectedNodeId !== focusId);
   const selectedPath = selectedIsSecondary && selectedNodeId
     ? shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
     : null;
-  const pathNodeIds = selectedPath ? new Set(selectedPath.nodeIds) : null;
-  const pathEdgeIds = selectedPath ? new Set(selectedPath.edgeIds) : null;
-  const neighborIds = selectedIsSecondary && selectedNodeId && !selectedPath
+  const pathNodeIds = selectedGraphEdge
+    ? new Set([selectedGraphEdge.source, selectedGraphEdge.target])
+    : selectedPath
+      ? new Set(selectedPath.nodeIds)
+      : null;
+  const pathEdgeIds = selectedGraphEdge
+    ? new Set([selectedGraphEdge.id])
+    : selectedPath
+      ? new Set(selectedPath.edgeIds)
+      : null;
+  const neighborIds = selectedIsSecondary && selectedNodeId && !selectedPath && !selectedGraphEdge
     ? connectedNodeIds(selectedNodeId, neighborhood.edges)
     : null;
 
@@ -178,7 +187,9 @@ export function buildDrugNetworkFlowGraph(
       id: n.id,
       type: "drugGraphNode",
       position: positions.get(n.id) ?? { x: 0, y: 0 },
-      selected: n.id === selectedNodeId,
+      selected:
+        n.id === selectedNodeId ||
+        (selectedGraphEdge != null && (n.id === selectedGraphEdge.source || n.id === selectedGraphEdge.target)),
       data: {
         graphNode: n,
         isFocus,
@@ -242,7 +253,7 @@ export function buildDrugNetworkFlowGraph(
       style: {
         stroke: baseColor,
         ...(e.edgeKind === "INFERRED" ? { strokeDasharray: "5 5" } : {}),
-        opacity: edgeDimmed ? (options.isolateSelectedPath ? 0.06 : 0.08) : 1,
+        opacity: edgeDimmed ? (options.isolateSelectedPath ? 0.28 : 0.42) : 1,
         strokeWidth: onPath ? 3 : 1.5,
       },
       markerEnd: { type: MarkerType.ArrowClosed },
@@ -258,7 +269,16 @@ export function buildDrugNetworkFlowGraph(
       // several edges converging on it (e.g. the focus node) became
       // unclickable/undraggable at most of its surface — edges intercepted
       // the pointer before it ever reached the node.
-      zIndex: selectedNodeId ? (isSelected ? 10 : onPath ? 6 : touchesSelectedNode ? 5 : 0) : undefined,
+      zIndex:
+        selectedNodeId || selectedEdgeId
+          ? isSelected
+            ? 10
+            : onPath
+              ? 6
+              : touchesSelectedNode
+                ? 5
+                : 0
+          : undefined,
     };
   });
 

@@ -1,28 +1,43 @@
 /**
- * Phone entity detail (Phase DI-3 — Section 13). Never says "owner" — uses
- * "พบเกี่ยวข้องกับ" (found associated with), matching Section 17's wording rule.
+ * Phone entity detail (Phase DI-3 — Section 13; DI-9.5.2 presentation).
+ * Never says "owner" — uses "พบเกี่ยวข้องกับ" / "บุคคลที่พบเกี่ยวข้อง".
  */
 "use client";
 
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Phone as PhoneIcon, Users, FileSpreadsheet, Network, History } from "lucide-react";
-import { PageHeader } from "@/components/common/page_header";
-import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
-import { Card, CardBody } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useParams, useSearchParams } from "next/navigation";
+import { LoadingState, ErrorState } from "@/components/common/states";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugPhoneDetail } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { DrugEntityAlertSummary } from "@/components/drug_intelligence/drug_entity_alert_summary";
+import {
+  DrugEntityActionBar,
+  DrugEntityFindings,
+  DrugEntityHero,
+  DrugEntityInfoNotice,
+  DrugEntityKpiCard,
+  DrugEntityRelatedCaseList,
+  DrugEntityRelatedPersonList,
+} from "@/components/drug_intelligence/drug_entity_detail_layout";
 import { presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
+import {
+  caseCountByPersonId,
+  resolveEntityDetailCaseContext,
+  shouldShowRecurrenceBadge,
+} from "@/lib/drug_intelligence/drug_entity_detail_presentation";
+import { drugNetworkFocusPath } from "@/lib/drug_intelligence/drug_entity_routes";
+import { PERSON_CASE_CONTEXT_PARAM } from "@/lib/drug_intelligence/person_case_context";
+import { entityDetailBackHref, getSafeReturnTo } from "@/lib/ui/return_context";
+import { entityDetailBackLabelKey } from "@/lib/ui/return_to_back_label";
 
 export default function DrugPhoneDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const phoneNumberId = decodeURIComponent(params.id);
   const { user, can } = useAuth();
-  const { t, language } = useT();
+  const { t } = useT();
 
   const detail = useDrugPhoneDetail(user?.id ?? null, phoneNumberId);
 
@@ -34,85 +49,67 @@ export default function DrugPhoneDetailPage() {
 
   const data = detail.data;
   const canViewFull = can("drug.edit");
+  const title = presentPhoneNumber(data.phone.normalizedNumber, canViewFull);
+  const personCounts = caseCountByPersonId(data.caseLinks);
+  const currentCaseId = resolveEntityDetailCaseContext(
+    searchParams.get(PERSON_CASE_CONTEXT_PARAM),
+    data.sourceCases.map((item) => item.id)
+  );
+  const inboundReturnTo = getSafeReturnTo(searchParams);
+  const findings: string[] = [];
+  if (data.caseCount > 0) findings.push(t("di.entity.phoneFindingsCases").replace("{count}", String(data.caseCount)));
+  if (data.relatedPersonCount > 0) findings.push(t("di.entity.phoneFindingsPersons").replace("{count}", String(data.relatedPersonCount)));
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title={presentPhoneNumber(data.phone.normalizedNumber, canViewFull)}
-        description={t("di.entity.phoneTitle")}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/drug-intelligence/network?focusType=PHONE&focusId=${encodeURIComponent(phoneNumberId)}`}>
-                <Network className="h-4 w-4" aria-hidden="true" />
-                {t("di.network.openNetwork")}
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/drug-intelligence/timeline?phoneNumberId=${encodeURIComponent(phoneNumberId)}`}>
-                <History className="h-4 w-4" aria-hidden="true" />
-                {t("di.timeline.navLabel")}
-              </Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/drug-intelligence/search">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                {t("di.entity.backToSearch")}
-              </Link>
-            </Button>
-          </div>
-        }
+      <DrugEntityHero
+        entityType="PHONE"
+        title={title}
+        subtitle={t("di.entity.phoneTitle")}
+        caseCount={data.caseCount}
+        copyValue={title}
       />
 
-      <Card>
-        <CardBody className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-          <span className="text-muted">
-            {t("di.entity.firstSeen")}: <span className="text-foreground">{new Date(data.firstSeenAt).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}</span>
-          </span>
-          <span className="text-muted">
-            {t("di.entity.lastSeen")}: <span className="text-foreground">{new Date(data.lastSeenAt).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}</span>
-          </span>
-        </CardBody>
-      </Card>
+      <DrugEntityActionBar
+        networkHref={drugNetworkFocusPath("PHONE", phoneNumberId)}
+        timelineHref={`/drug-intelligence/timeline?phoneNumberId=${encodeURIComponent(phoneNumberId)}`}
+        backHref={entityDetailBackHref(searchParams)}
+        backLabelKey={entityDetailBackLabelKey(inboundReturnTo)}
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DrugEntityKpiCard emoji="📅" label={t("di.entity.firstSeen")} value={formatDiDate(data.firstSeenAt)} />
+        <DrugEntityKpiCard emoji="🗓️" label={t("di.entity.lastSeen")} value={formatDiDate(data.lastSeenAt)} />
+        <DrugEntityKpiCard emoji="📚" label={t("di.entity.caseCountKpi")} value={t("di.entity.kpiCaseCountValue").replace("{count}", String(data.caseCount))} />
+        <DrugEntityKpiCard emoji="👤" label={t("di.entity.relatedPersonCountKpi")} value={t("di.entity.kpiPersonCountValue").replace("{count}", String(data.relatedPersonCount))} />
+      </div>
+
+      <DrugEntityFindings items={findings} />
+      {shouldShowRecurrenceBadge(data.caseCount) ? (
+        <p className="text-sm leading-relaxed text-foreground">{t("di.entity.phoneRepeatedStory").replace("{count}", String(data.caseCount))}</p>
+      ) : null}
 
       <DrugEntityAlertSummary entityType="PHONE" entityId={phoneNumberId} titleKey="di.alert.entityHistoryTitle" />
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{t("di.entity.relatedPersons")}</h2>
-        {data.relatedPersons.length === 0 ? (
-          <EmptyState title={t("di.entity.emptyRelatedPersons")} icon={<Users className="h-8 w-8" />} />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {data.relatedPersons.map((person) => (
-              <Link key={person.id} href={`/drug-intelligence/persons/${encodeURIComponent(person.id)}`} className="block rounded-xl border border-border bg-surface p-4 hover:border-accent/50">
-                <p className="font-medium text-foreground">{person.primaryFullName}</p>
-                <p className="mt-1 text-xs text-muted">{t("di.entity.foundAssociatedWith")}</p>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      <DrugEntityRelatedPersonList
+        persons={data.relatedPersons.map((person) => ({
+          id: person.id,
+          name: person.primaryFullName,
+          linkedCaseCount: personCounts.get(person.id),
+        }))}
+      />
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{t("di.entity.sourceCases")}</h2>
-        {data.sourceCases.length === 0 ? (
-          <EmptyState title={t("di.entity.emptySourceCases")} icon={<FileSpreadsheet className="h-8 w-8" />} />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {data.sourceCases.map((drugCase) => (
-              <Link key={drugCase.id} href={`/drug-intelligence/cases/${encodeURIComponent(drugCase.id)}`} className="block rounded-xl border border-border bg-surface p-4 hover:border-accent/50">
-                <p className="font-medium text-foreground">{drugCase.caseNumber}</p>
-                <p className="mt-1 text-sm text-muted">{drugCase.title}</p>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      <DrugEntityRelatedCaseList
+        currentCaseId={currentCaseId}
+        cases={data.sourceCases.map((drugCase) => ({
+          id: drugCase.id,
+          caseNumber: drugCase.caseNumber,
+          title: drugCase.title,
+          arrestDate: drugCase.arrestDate,
+        }))}
+      />
 
-      <p className="text-xs text-muted">
-        <PhoneIcon className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
-        {t("di.entity.relatedPersons")}: {data.relatedPersonCount} · {t("di.entity.sourceCases")}: {data.caseCount}
-      </p>
+      <DrugEntityInfoNotice>{t("di.entity.phoneSimSafetyNotice")}</DrugEntityInfoNotice>
     </div>
   );
 }

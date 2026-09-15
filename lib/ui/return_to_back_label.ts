@@ -40,3 +40,15 @@ export function isCommanderDashboardReturnTo(returnTo: string | null | undefined
   if (!returnTo) return false;
   return returnTo.toLowerCase().startsWith("/drug-intelligence/command");
 }
+
+export function isNetworkReturnTo(returnTo: string | null | undefined): boolean {
+  if (!returnTo) return false;
+  return returnTo.toLowerCase().startsWith("/drug-intelligence/network");
+}
+
+/** Back-button copy on Phone/SIM/Device/Vehicle detail pages. */
+export function entityDetailBackLabelKey(returnTo: string | null | undefined): TranslationKey {
+  if (!returnTo) return "di.entity.backToSearch";
+  if (isNetworkReturnTo(returnTo)) return "di.entity.backToNetwork";
+  return returnToBackLabelKey(returnTo);
+}

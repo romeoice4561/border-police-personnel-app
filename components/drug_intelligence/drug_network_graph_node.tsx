@@ -67,7 +67,7 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         onSelectedPath && !selected && !isFocus ? "ring-1 ring-accent/40" : "",
         isIndirect && !isFocus && !selected && !onSelectedPath ? "opacity-80" : "",
         isIndirect && !isFocus && !selected ? "scale-[0.92] border-dashed" : "",
-        stronglyDimmed ? "opacity-[0.08]" : dimmed ? "opacity-20" : ""
+        stronglyDimmed ? "opacity-30" : dimmed ? "opacity-50" : ""
       )}
     >
       <Handle type="target" position={Position.Top} className="!bg-border" />

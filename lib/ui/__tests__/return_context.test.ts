@@ -3,7 +3,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSafeInternalReturnPath, getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
+import {
+  isSafeInternalReturnPath,
+  getSafeReturnTo,
+  withReturnTo,
+  currentInternalHref,
+  entityDetailBackHref,
+  ENTITY_DETAIL_SEARCH_FALLBACK,
+} from "@/lib/ui/return_context";
 
 test("valid internal /drug-intelligence/map path is accepted", () => {
   assert.equal(isSafeInternalReturnPath("/drug-intelligence/map"), true);
@@ -169,4 +176,27 @@ test("H: Timeline query/filter state remains intact alongside returnTo", () => {
   assert.equal(params.get("groupMode"), "DAY");
   assert.equal(params.get("sort"), "NEWEST_FIRST");
   assert.equal(params.get("province"), "ชุมพร");
+});
+
+test("currentInternalHref preserves pathname plus the live query string", () => {
+  const href = currentInternalHref(
+    "/drug-intelligence/network",
+    new URLSearchParams("focusType=PERSON&focusId=abc&depth=2&view=by-depth&from=CASE:case-1&fromLabels=DI-TEST-003")
+  );
+  assert.equal(
+    href,
+    "/drug-intelligence/network?focusType=PERSON&focusId=abc&depth=2&view=by-depth&from=CASE%3Acase-1&fromLabels=DI-TEST-003"
+  );
+});
+
+test("currentInternalHref rejects an assembled protocol-relative path", () => {
+  assert.equal(currentInternalHref("//evil.example", new URLSearchParams()), null);
+});
+
+test("entityDetailBackHref uses a validated returnTo and otherwise Search Center", () => {
+  const network = "/drug-intelligence/network?focusType=PERSON&focusId=abc";
+  assert.equal(entityDetailBackHref(new URLSearchParams({ returnTo: network })), network);
+  assert.equal(entityDetailBackHref(new URLSearchParams()), ENTITY_DETAIL_SEARCH_FALLBACK);
+  assert.equal(entityDetailBackHref(new URLSearchParams({ returnTo: "https://evil.example" })), ENTITY_DETAIL_SEARCH_FALLBACK);
+  assert.equal(entityDetailBackHref(new URLSearchParams({ returnTo: "//evil.example" })), ENTITY_DETAIL_SEARCH_FALLBACK);
 });

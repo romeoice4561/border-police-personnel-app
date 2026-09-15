@@ -177,7 +177,7 @@ test("selected-path view isolates the existing shortest walk without mutating th
   assert.ok(pathYs[0]! < pathYs[1]! && pathYs[1]! < pathYs[2]!);
   assert.equal(flowNodes.find((item) => item.id === "c5")!.data.stronglyDimmed, false);
   assert.equal(flowNodes.find((item) => item.id === "c6")!.data.stronglyDimmed, true);
-  assert.ok((flowEdges.find((item) => item.id === "e-c6")!.style.opacity ?? 1) <= 0.08);
+  assert.ok((flowEdges.find((item) => item.id === "e-c6")!.style.opacity ?? 1) <= 0.28);
   assert.equal(isolateSelectedPathInView({ depth: 2, viewMode: "SELECTED_PATH", hasSelectedSecondary: true }), true);
 });
 

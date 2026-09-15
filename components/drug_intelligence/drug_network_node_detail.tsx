@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import { drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes";
+import { withReturnTo } from "@/lib/ui/return_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { SelectedPathStep } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
@@ -46,6 +47,7 @@ export function DrugNetworkNodeDetail({
   hopDistance,
   reasonKey,
   pathSteps,
+  openReturnPath = null,
 }: {
   node: DrugGraphNode;
   onExpand: () => void;
@@ -57,6 +59,8 @@ export function DrugNetworkNodeDetail({
   hopDistance?: number;
   reasonKey?: TranslationKey;
   pathSteps?: SelectedPathStep[];
+  /** Navigation-only Network (or other internal) path to restore after opening this entity. */
+  openReturnPath?: string | null;
 }) {
   const { t, language } = useT();
 
@@ -200,7 +204,7 @@ export function DrugNetworkNodeDetail({
         </Button>
         {showOpenLink ? (
           <Button asChild size="sm">
-            <Link href={drugEntityDetailPath(node.type, node.id)}>{actionLabel}</Link>
+            <Link href={withReturnTo(drugEntityDetailPath(node.type, node.id), openReturnPath)}>{actionLabel}</Link>
           </Button>
         ) : null}
       </div>
