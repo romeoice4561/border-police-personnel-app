@@ -41,6 +41,8 @@ export interface DrugCaseCreateInput {
   latitude: number | null;
   longitude: number | null;
   narrative: string | null;
+  investigatorName?: string | null;
+  investigatorPhone?: string | null;
   createdBy: string;
   createdByName: string;
 }
@@ -68,6 +70,8 @@ export interface DrugCasePatch {
   latitude?: number | null;
   longitude?: number | null;
   narrative?: string | null;
+  investigatorName?: string | null;
+  investigatorPhone?: string | null;
   updatedBy: string;
   updatedByName: string;
 }
@@ -140,6 +144,8 @@ export class DrugCaseRepository {
         leadBattalionId: input.leadBattalionId ?? null,
         leadCompanyId: input.leadCompanyId ?? null,
         leadUnitText: input.leadUnitText ?? null,
+        investigatorName: input.investigatorName ?? null,
+        investigatorPhone: input.investigatorPhone ?? null,
         updatedBy: null,
         updatedByName: null,
       },

@@ -13,6 +13,9 @@
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
 import { kilogramsToGrams } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { LATITUDE_MIN, LATITUDE_MAX, LONGITUDE_MIN, LONGITUDE_MAX } from "@/lib/drug_intelligence/drug_coordinate_validation";
+import { participatingUnitHasSelection } from "@/lib/drug_intelligence/resolve_bpp_org_selection";
+import { isValidThaiTime } from "@/lib/drug_intelligence/thai_time";
+import { normalizeInvestigatorContactName, normalizeInvestigatorContactPhone } from "@/lib/drug_intelligence/investigator_contact";
 import type { DrugCaseCreateRequest, DrugCaseCreatePersonInput } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 let draftKeyCounter = 0;
@@ -221,6 +224,12 @@ export interface CreateCaseDraft {
    * lead-unit wire fields at submit time rather than duplicating state here.
    */
   sameAsReportingUnit: boolean;
+  /**
+   * UI-only: whether our reporting unit was the lead arrest unit or a
+   * supporting/integrated unit. Never sent to the API — maps onto
+   * `sameAsReportingUnit` plus the existing lead-unit fields.
+   */
+  ourArrestRole: "" | "LEAD" | "SUPPORTING";
   leadHeadquartersId: number | null;
   leadHeadquartersText: string;
   leadRegionId: number | null;
@@ -238,6 +247,8 @@ export interface CreateCaseDraft {
   latitude: string;
   longitude: string;
   narrative: string;
+  investigatorName: string;
+  investigatorPhone: string;
   persons: PersonDraft[];
   seizedItems: SeizedItemDraft[];
   locations: LocationDraft[];
@@ -354,6 +365,7 @@ export function createEmptyDraft(): CreateCaseDraft {
     useManualUnit: false,
     manualUnitText: "",
     sameAsReportingUnit: false,
+    ourArrestRole: "",
     leadHeadquartersId: null,
     leadHeadquartersText: "",
     leadRegionId: null,
@@ -371,6 +383,8 @@ export function createEmptyDraft(): CreateCaseDraft {
     latitude: "",
     longitude: "",
     narrative: "",
+    investigatorName: "",
+    investigatorPhone: "",
     persons: [],
     seizedItems: [],
     locations: [],
@@ -401,6 +415,7 @@ function toNumberOrNull(raw: string): number | null {
 export interface ValidationError {
   step: string;
   message: string;
+  field?: string;
 }
 
 /**
@@ -434,8 +449,11 @@ function validateCoordinatePair(latitude: string, longitude: string, step: strin
 
 export function validateDraft(draft: CreateCaseDraft): ValidationError[] {
   const errors: ValidationError[] = [];
-  if (!draft.caseNumber.trim()) errors.push({ step: "arrest", message: "กรุณากรอกเลขคดี" });
-  if (!draft.title.trim()) errors.push({ step: "arrest", message: "กรุณากรอกชื่อ/หัวข้อคดี" });
+  if (!draft.caseNumber.trim()) errors.push({ step: "arrest", field: "caseNumber", message: "กรุณากรอกบันทึกคดี" });
+  if (!draft.title.trim()) errors.push({ step: "arrest", field: "title", message: "กรุณากรอกชื่อ/หัวข้อคดี" });
+  if (draft.arrestTime.trim() && !isValidThaiTime(draft.arrestTime)) {
+    errors.push({ step: "arrest", field: "arrestTime", message: "กรุณาเลือกเวลาให้ถูกต้อง หรือล้างเวลา" });
+  }
 
   validateCoordinatePair(draft.latitude, draft.longitude, "arrest", "พิกัดจุดจับกุม", errors);
   draft.locations.forEach((location, index) => {
@@ -455,11 +473,13 @@ export function validateDraft(draft: CreateCaseDraft): ValidationError[] {
       errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุชื่อสารเมื่อเลือก "อื่น ๆ"` });
     }
     if (!item.measurementKind) {
-      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาเลือกหน่วยวัด (จำนวนนับ/น้ำหนัก)` });
+      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาเลือกรูปแบบการวัด (จำนวนนับ/น้ำหนัก)` });
     } else if (item.measurementKind === "COUNT" && !item.quantity.trim()) {
-      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุจำนวน` });
+      errors.push({ step: "seized", field: `seized.${index}.quantity`, message: `ของกลางลำดับที่ ${index + 1}: กรุณากรอกจำนวน` });
     } else if (item.measurementKind === "MASS" && !item.weightKilograms.trim()) {
-      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุน้ำหนัก` });
+      errors.push({ step: "seized", field: `seized.${index}.quantity`, message: `ของกลางลำดับที่ ${index + 1}: กรุณากรอกน้ำหนัก` });
+    } else if (item.measurementKind === "VOLUME") {
+      errors.push({ step: "seized", field: `seized.${index}.measurementKind`, message: `ของกลางลำดับที่ ${index + 1}: ระบบนี้ยังไม่รองรับการวัดแบบปริมาตร` });
     }
   });
 
@@ -599,6 +619,8 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
     latitude: toNumberOrNull(draft.latitude),
     longitude: toNumberOrNull(draft.longitude),
     narrative: draft.narrative.trim() || null,
+    investigatorName: normalizeInvestigatorContactName(draft.investigatorName),
+    investigatorPhone: normalizeInvestigatorContactPhone(draft.investigatorPhone),
     persons: draft.persons.map(personToRequest),
     seizedItems: draft.seizedItems
       .filter((item) => item.drugType.trim())
@@ -632,10 +654,7 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
       notes: loc.notes.trim() || null,
     })),
     participatingUnits: draft.participatingUnits
-      // A row with no unit chosen (canonical or manual) and no id at all is
-      // an untouched "+ เพิ่มหน่วยร่วมจับกุม" row — dropped rather than sent as
-      // an ambiguous empty unit (mirrors the seizedItems filter above).
-      .filter((u) => (u.useManualUnit ? u.manualUnitText.trim() : u.headquartersId || u.regionId || u.battalionId || u.companyId))
+      .filter(participatingUnitHasSelection)
       .map((u) => ({
         headquartersId: u.useManualUnit ? null : u.headquartersId,
         regionId: u.useManualUnit ? null : u.regionId,

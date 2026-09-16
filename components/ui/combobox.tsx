@@ -27,9 +27,11 @@ export interface ComboboxProps {
   className?: string;
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   "aria-label"?: string;
+  /** Visible suggestion cap. Default 8 preserves existing combobox density. */
+  maxSuggestions?: number;
 }
 
-const MAX_SUGGESTIONS = 8;
+const DEFAULT_MAX_SUGGESTIONS = 8;
 
 export function Combobox({
   id,
@@ -41,6 +43,7 @@ export function Combobox({
   className,
   inputMode,
   "aria-label": ariaLabel,
+  maxSuggestions = DEFAULT_MAX_SUGGESTIONS,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
@@ -51,8 +54,8 @@ export function Combobox({
     const needle = value.trim().toLowerCase();
     const pool = needle.length === 0 ? suggestions : suggestions.filter((s) => s.toLowerCase().includes(needle));
     // Never suggest the exact current value as a redundant option.
-    return pool.filter((s) => s !== value).slice(0, MAX_SUGGESTIONS);
-  }, [suggestions, value]);
+    return pool.filter((s) => s !== value).slice(0, maxSuggestions);
+  }, [suggestions, value, maxSuggestions]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -128,7 +131,7 @@ export function Combobox({
               <button
                 type="button"
                 className={cn(
-                  "block w-full truncate px-3 py-1.5 text-left text-sm text-foreground hover:bg-neutral-bg",
+                  "block w-full whitespace-normal break-words px-3 py-1.5 text-left text-sm text-foreground hover:bg-neutral-bg",
                   i === highlighted && "bg-neutral-bg"
                 )}
                 onMouseDown={(e) => e.preventDefault()}

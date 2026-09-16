@@ -1,16 +1,13 @@
 /**
  * Create Case — Units & Arrest Team step (Phase DI-7.6, Sections 8/9).
  *
- * หน่วยร่วมจับกุม (participating units, 0..N) — each row is EITHER the
- * canonical OrgHierarchyPicker OR the same "หน่วยอื่น / ไม่พบหน่วย" manual
- * fallback used everywhere else in Drug Intelligence (Section 8: never
- * forces an external organization like ป.ป.ส./ฝ่ายปกครอง/ทหาร into the BPP
- * org hierarchy).
+ * Participating units keep three distinct sources:
+ *   BPP cascade (reporting/lead semantics stay elsewhere)
+ *   joint/external organization suggestions from หน่วยที่ชอบจับยา.txt
+ *   "หน่วยอื่น / ไม่พบหน่วย"
  *
- * ชุดจับกุม (arrest team, 0..N, entirely optional per Section 9) — each row
- * is EITHER an internal officer picked via OfficerPicker (stores the
- * officerId business key) OR manual external fields with an explicit
- * "will not create a new personnel record" helper text (Section 6).
+ * Selecting a participating organization never copies it into reporting or
+ * lead arrest unit.
  */
 "use client";
 
@@ -20,7 +17,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Field, HelperText, inputCls } from "@/components/drug_intelligence/create_case_field";
-import { OrgHierarchyPicker } from "@/components/officer/org_hierarchy_picker";
+import { CreateCaseOrgSourcePicker } from "@/components/drug_intelligence/create_case_org_source_picker";
 import { OfficerPicker } from "@/components/drug_intelligence/officer_picker";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_CASE_UNIT_ROLES, DRUG_CASE_UNIT_ROLE_LABELS, DRUG_CASE_OFFICER_ROLES, DRUG_CASE_OFFICER_ROLE_LABELS } from "@/lib/drug_intelligence/drug_case_officer_options";
@@ -65,8 +62,11 @@ export function CreateCaseUnitsStep({
     <div className="space-y-4">
       <Card>
         <CardBody className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.participatingUnits.sectionLabel")}</p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">{t("di.participatingUnits.sectionLabel")}</p>
+              <p className="text-xs text-muted">{t("di.participatingUnits.stepHelper")}</p>
+            </div>
             <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ participatingUnits: [...draft.participatingUnits, createEmptyParticipatingUnitDraft()] })}>
               {t("di.participatingUnits.addButton")}
             </Button>
@@ -133,57 +133,42 @@ function ParticipatingUnitRow({
   onRemove: () => void;
 }) {
   const { t } = useT();
+
   return (
     <div className="rounded-lg border border-border bg-background/50 p-3">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 space-y-2">
-          {!unit.useManualUnit ? (
-            <>
-              {organizationEngine ? (
-                <OrgHierarchyPicker
-                  organizationEngine={organizationEngine}
-                  value={{
-                    headquartersId: unit.headquartersId,
-                    headquartersText: unit.headquartersText,
-                    regionId: unit.regionId,
-                    regionText: unit.regionText,
-                    battalionId: unit.battalionId,
-                    battalionText: unit.battalionText,
-                    companyId: unit.companyId,
-                    companyText: unit.companyText,
-                  }}
-                  onChange={(v) =>
-                    onChange({
-                      headquartersId: v.headquartersId,
-                      headquartersText: v.headquartersText,
-                      regionId: v.regionId,
-                      regionText: v.regionText,
-                      battalionId: v.battalionId,
-                      battalionText: v.battalionText,
-                      companyId: v.companyId,
-                      companyText: v.companyText,
-                    })
-                  }
-                />
-              ) : (
-                <p className="text-sm text-muted">{t("common.loading")}</p>
-              )}
-              <button type="button" className="text-xs text-accent hover:underline" onClick={() => onChange({ useManualUnit: true, headquartersId: null, regionId: null, battalionId: null, companyId: null })}>
-                {t("di.org.fallbackOption")}
-              </button>
-            </>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">
-                <span>{t("di.org.manualLabel")}</span>
-                <button type="button" className="ml-auto text-xs text-accent hover:underline" onClick={() => onChange({ useManualUnit: false, manualUnitText: "" })}>
-                  {t("di.org.switchToCanonical")}
-                </button>
-              </div>
-              <input className={inputCls} value={unit.manualUnitText} onChange={(e) => onChange({ manualUnitText: e.target.value })} placeholder={t("di.hint.orgOther")} />
-              <HelperText>{t("di.org.manualHelperText")}</HelperText>
-            </div>
-          )}
+        <div className="min-w-0 flex-1 space-y-2">
+          <CreateCaseOrgSourcePicker
+            organizationEngine={organizationEngine}
+            value={{
+              useManual: unit.useManualUnit,
+              manualText: unit.manualUnitText,
+              bpp: {
+                headquartersId: unit.headquartersId,
+                headquartersText: unit.headquartersText,
+                regionId: unit.regionId,
+                regionText: unit.regionText,
+                battalionId: unit.battalionId,
+                battalionText: unit.battalionText,
+                companyId: unit.companyId,
+                companyText: unit.companyText,
+              },
+            }}
+            onChange={(next) =>
+              onChange({
+                useManualUnit: next.useManual,
+                manualUnitText: next.manualText,
+                headquartersId: next.bpp.headquartersId,
+                headquartersText: next.bpp.headquartersText,
+                regionId: next.bpp.regionId,
+                regionText: next.bpp.regionText,
+                battalionId: next.bpp.battalionId,
+                battalionText: next.bpp.battalionText,
+                companyId: next.bpp.companyId,
+                companyText: next.bpp.companyText,
+              })
+            }
+          />
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
           <X className="h-4 w-4" aria-hidden="true" />

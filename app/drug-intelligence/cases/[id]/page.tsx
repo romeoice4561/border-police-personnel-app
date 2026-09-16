@@ -37,6 +37,7 @@ import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_i
 import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
 import { DRUG_CASE_UNIT_ROLE_LABELS, isValidDrugCaseUnitRole, DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
 import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analytics";
+import { DrugCaseInvestigatorContactCard } from "@/components/drug_intelligence/drug_case_investigator_contact_card";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type {
   DrugCaseDetailResponse,
@@ -277,6 +278,11 @@ function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
         subdistrict={data.case.subdistrict}
         latitude={data.case.latitude}
         longitude={data.case.longitude}
+      />
+      <DrugCaseInvestigatorContactCard
+        caseId={data.case.id}
+        investigatorName={data.case.investigatorName}
+        investigatorPhone={data.case.investigatorPhone}
       />
       <DrugCaseUnitsAndTeamCard data={data} language={language} />
       <Card>

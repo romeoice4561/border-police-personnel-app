@@ -19,6 +19,7 @@ import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_optio
 import { DRUG_CATEGORIES, DRUG_MEASUREMENT_KINDS } from "@/lib/drug_intelligence/drug_seized_item_options";
 import { DRUG_CASE_OFFICER_ROLES, DRUG_CASE_UNIT_ROLES } from "@/lib/drug_intelligence/drug_case_officer_options";
 import { withCoordinatePair } from "@/lib/drug_intelligence/drug_coordinate_validation";
+import { normalizeInvestigatorContactName, normalizeInvestigatorContactPhone } from "@/lib/drug_intelligence/investigator_contact";
 
 const MAX_FIELD = 500;
 
@@ -280,6 +281,14 @@ export const drugCaseCreateSchema = withCoordinatePair({
   subdistrict: optionalText,
   locationName: optionalText,
   narrative: optionalText,
+  investigatorName: optionalText.transform((v) => normalizeInvestigatorContactName(v)),
+  investigatorPhone: z
+    .string()
+    .trim()
+    .max(50)
+    .nullable()
+    .optional()
+    .transform((v) => normalizeInvestigatorContactPhone(v)),
   persons: z.array(personSchema).default([]),
   seizedItems: z.array(seizedItemSchema).default([]),
   locations: z.array(locationSchema).default([]),
@@ -370,3 +379,28 @@ export const drugMapQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   pageSize: z.coerce.number().int().positive().optional(),
 });
+
+/**
+ * Narrow case-contact PATCH. `.strict()` rejects any other DrugCase field
+ * so this cannot become a general case-edit endpoint.
+ */
+export const drugCaseInvestigatorContactPatchSchema = z
+  .object({
+    actorId: z.string().trim().min(1, "actorId is required"),
+    actorName: z.string().trim().min(1, "actorName is required"),
+    investigatorName: z
+      .string()
+      .trim()
+      .max(MAX_FIELD)
+      .nullable()
+      .transform((v) => normalizeInvestigatorContactName(v)),
+    investigatorPhone: z
+      .string()
+      .trim()
+      .max(50)
+      .nullable()
+      .transform((v) => normalizeInvestigatorContactPhone(v)),
+  })
+  .strict();
+
+export type DrugCaseInvestigatorContactPatchBody = z.infer<typeof drugCaseInvestigatorContactPatchSchema>;

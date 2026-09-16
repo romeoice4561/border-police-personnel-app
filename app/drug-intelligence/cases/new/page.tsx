@@ -50,6 +50,7 @@ export default function CreateDrugCasePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdCase, setCreatedCase] = useState<{ caseId: string; alerts: DrugIntelligenceAlert[] } | null>(null);
+  const [showStepErrors, setShowStepErrors] = useState(false);
   const generateAlerts = useGenerateDrugAlerts(user?.id ?? null, user?.displayName ?? "");
 
   if (!can("drug.create")) {
@@ -62,9 +63,20 @@ export default function CreateDrugCasePage() {
 
   const currentStep = STEPS[stepIndex];
   const errors = validateDraft(draft);
+  const stepErrors = errors.filter((e) => e.step === currentStep.key);
 
   function patchDraft(patch: Partial<CreateCaseDraft>) {
     setDraft((prev) => ({ ...prev, ...patch }));
+  }
+
+  function handleNext() {
+    const blocking = errors.filter((e) => e.step === currentStep.key);
+    if (blocking.length > 0) {
+      setShowStepErrors(true);
+      return;
+    }
+    setShowStepErrors(false);
+    setStepIndex((i) => Math.min(STEPS.length - 1, i + 1));
   }
 
   function jumpToStep(stepKey: string) {
@@ -187,16 +199,28 @@ export default function CreateDrugCasePage() {
       </div>
 
       {submitError ? <div className="rounded-xl border border-critical/40 bg-critical/5 p-4 text-sm text-critical">{submitError}</div> : null}
+      {showStepErrors && stepErrors.length > 0 ? (
+        <div className="rounded-xl border border-critical/40 bg-critical/5 p-4 text-sm text-critical">
+          <p className="font-medium">{t("di.create.stepErrors")}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {stepErrors.map((error) => (
+              <li key={`${error.step}-${error.field ?? error.message}`}>{error.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div>
         {currentStep.key === "arrest" ? (
-          <CreateCaseArrestStep draft={draft} onChange={patchDraft} organizationEngine={organizationEngine} />
+          <CreateCaseArrestStep draft={draft} onChange={patchDraft} organizationEngine={organizationEngine} errors={showStepErrors ? stepErrors : []} />
         ) : null}
         {currentStep.key === "units" ? (
           <CreateCaseUnitsStep draft={draft} onChange={patchDraft} organizationEngine={organizationEngine} />
         ) : null}
         {currentStep.key === "persons" ? <CreateCasePersonsStep persons={draft.persons} onChange={(persons) => patchDraft({ persons })} /> : null}
-        {currentStep.key === "seized" ? <CreateCaseSeizedStep items={draft.seizedItems} onChange={(seizedItems) => patchDraft({ seizedItems })} /> : null}
+        {currentStep.key === "seized" ? (
+          <CreateCaseSeizedStep items={draft.seizedItems} onChange={(seizedItems) => patchDraft({ seizedItems })} errors={showStepErrors ? stepErrors : []} />
+        ) : null}
         {currentStep.key === "locations" ? <CreateCaseLocationsStep locations={draft.locations} onChange={(locations) => patchDraft({ locations })} /> : null}
         {currentStep.key === "review" ? <CreateCaseReviewStep draft={draft} errors={errors} onJumpToStep={jumpToStep} /> : null}
       </div>
@@ -207,7 +231,7 @@ export default function CreateDrugCasePage() {
           {t("di.create.back")}
         </Button>
         {stepIndex < STEPS.length - 1 ? (
-          <Button type="button" onClick={() => setStepIndex((i) => Math.min(STEPS.length - 1, i + 1))}>
+          <Button type="button" onClick={handleNext}>
             {t("di.create.next")}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>

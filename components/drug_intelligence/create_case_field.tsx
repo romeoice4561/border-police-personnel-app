@@ -9,7 +9,19 @@ import type { ReactNode } from "react";
 export const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
-export function Field({ label, htmlFor, required, children }: { label: string; htmlFor?: string; required?: boolean; children: ReactNode }) {
+export function Field({
+  label,
+  htmlFor,
+  required,
+  error,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  required?: boolean;
+  error?: string;
+  children: ReactNode;
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-muted" htmlFor={htmlFor}>
@@ -17,6 +29,11 @@ export function Field({ label, htmlFor, required, children }: { label: string; h
         {required ? <span className="ml-0.5 text-critical">*</span> : null}
       </label>
       {children}
+      {error ? (
+        <p className="mt-1 text-xs text-critical" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

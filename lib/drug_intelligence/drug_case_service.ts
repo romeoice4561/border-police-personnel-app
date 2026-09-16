@@ -44,6 +44,11 @@ import {
 } from "@/lib/drug_intelligence/drug_case_types";
 import { generateDrugId } from "@/lib/drug_intelligence/drug_id";
 import { filterCasesByCompleteness } from "@/lib/drug_intelligence/drug_case_completeness";
+import {
+  normalizeInvestigatorContactName,
+  normalizeInvestigatorContactPhone,
+  omitInvestigatorPhoneFromListRow,
+} from "@/lib/drug_intelligence/investigator_contact";
 
 export interface DrugCaseServiceDependencies {
   db: DatabaseClient;
@@ -111,6 +116,8 @@ export class DrugCaseService {
         latitude: input.latitude,
         longitude: input.longitude,
         narrative: input.narrative,
+        investigatorName: normalizeInvestigatorContactName(input.investigatorName),
+        investigatorPhone: normalizeInvestigatorContactPhone(input.investigatorPhone),
         createdBy: input.actorId,
         createdByName: input.actorName,
       });
@@ -603,6 +610,42 @@ export class DrugCaseService {
   }
 
   /**
+   * Narrow administrative-contact update. Writes only investigatorName /
+   * investigatorPhone — never a DrugPhoneNumber, never a DrugCaseOfficer row.
+   */
+  async updateInvestigatorContact(
+    caseId: string,
+    input: { investigatorName: string | null; investigatorPhone: string | null; actorId: string; actorName: string }
+  ): Promise<{ investigatorName: string | null; investigatorPhone: string | null }> {
+    const caseRepo = new DrugCaseRepository(this.db);
+    const existing = await caseRepo.findById(caseId);
+    if (!existing) throw new DrugCaseNotFoundError(caseId);
+
+    const investigatorName = normalizeInvestigatorContactName(input.investigatorName);
+    const investigatorPhone = normalizeInvestigatorContactPhone(input.investigatorPhone);
+
+    const updated = await caseRepo.update(caseId, {
+      investigatorName,
+      investigatorPhone,
+      updatedBy: input.actorId,
+      updatedByName: input.actorName,
+    });
+    if (!updated) throw new DrugCaseNotFoundError(caseId);
+
+    const auditRepo = new DrugAuditLogRepository(this.db);
+    await auditRepo.record({
+      entityType: "DrugCase",
+      entityId: caseId,
+      action: "investigator_contact_updated",
+      actorId: input.actorId,
+      actorName: input.actorName,
+      detail: `name=${investigatorName ?? ""} phone=${investigatorPhone ?? ""}`,
+    });
+
+    return { investigatorName, investigatorPhone };
+  }
+
+  /**
    * Section 16's list page. Each row is enriched with its person/seized-item
    * counts (the list's "persons count" / "drug summary" columns) via the
    * same per-case count queries getCase uses — acceptable N+1 at DI-1's
@@ -698,7 +741,12 @@ export class DrugCaseService {
           caseRepo.countPersonsForCase(row.id),
           caseRepo.seizedItemsForCase(row.id),
         ]);
-        return { ...row, personCount, seizedItemCount: seizedItems.length, seizedItemsSummary: summarizeSeizedItems(seizedItems) };
+        return {
+          ...omitInvestigatorPhoneFromListRow(row),
+          personCount,
+          seizedItemCount: seizedItems.length,
+          seizedItemsSummary: summarizeSeizedItems(seizedItems),
+        };
       })
     );
 

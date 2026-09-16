@@ -154,6 +154,9 @@ export interface DrugCaseCreateRequest {
   latitude: number | null;
   longitude: number | null;
   narrative: string | null;
+  /** Case-level investigating-officer contact. Administrative text only — never a DrugPhoneNumber. */
+  investigatorName?: string | null;
+  investigatorPhone?: string | null;
   persons: DrugCasePersonInput[];
   seizedItems: DrugCaseSeizedItemInput[];
   locations: DrugCaseLocationInput[];

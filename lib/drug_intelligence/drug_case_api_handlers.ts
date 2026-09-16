@@ -20,7 +20,7 @@ import { z } from "zod";
 import { badRequest, conflict, jsonError, jsonOk, notFound } from "@/lib/api/api_response";
 import type { DrugCaseService } from "@/lib/drug_intelligence/drug_case_service";
 import type { DrugStatsService } from "@/lib/drug_intelligence/drug_stats_service";
-import { drugCaseCreateSchema, drugCaseListQuerySchema } from "@/lib/drug_intelligence/drug_case_api_schemas";
+import { drugCaseCreateSchema, drugCaseListQuerySchema, drugCaseInvestigatorContactPatchSchema } from "@/lib/drug_intelligence/drug_case_api_schemas";
 import { DrugDuplicatePersonError, DrugCaseNotFoundError, DrugPersonNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
 import { AUTH_ENFORCED, SESSION_COOKIE_NAME } from "@/lib/auth/auth_config";
 import { getAuthUserById } from "@/lib/auth/mock_auth_backend";
@@ -117,6 +117,39 @@ export async function handleDrugCaseDetail(service: DrugCaseService, caseId: str
 
   try {
     const result = await service.getCase(caseId);
+    return jsonOk(result);
+  } catch (error) {
+    if (error instanceof DrugCaseNotFoundError) return notFound(error.message);
+    throw error;
+  }
+}
+
+/** PATCH /api/drug-intelligence/cases/{id} — investigator contact only. Requires drug.edit. */
+export async function handleDrugCaseInvestigatorContactUpdate(
+  service: DrugCaseService,
+  caseId: string,
+  request: Request
+): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return badRequest("Request body must be valid JSON");
+  }
+
+  const parsed = drugCaseInvestigatorContactPatchSchema.safeParse(body);
+  if (!parsed.success) return badRequest("Invalid investigator contact update", zodDetails(parsed.error));
+
+  const denied = await assertDrugIntelligencePermission(request, parsed.data.actorId, "drug.edit");
+  if (denied) return denied;
+
+  try {
+    const result = await service.updateInvestigatorContact(caseId, {
+      investigatorName: parsed.data.investigatorName,
+      investigatorPhone: parsed.data.investigatorPhone,
+      actorId: parsed.data.actorId,
+      actorName: parsed.data.actorName,
+    });
     return jsonOk(result);
   } catch (error) {
     if (error instanceof DrugCaseNotFoundError) return notFound(error.message);

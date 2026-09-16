@@ -317,6 +317,8 @@ export interface DrugCaseDetail {
   latitude: string | null;
   longitude: string | null;
   narrative: string | null;
+  investigatorName: string | null;
+  investigatorPhone: string | null;
   createdBy: string;
   createdByName: string;
   updatedBy: string | null;
@@ -446,6 +448,8 @@ export interface DrugCaseCreateRequest {
   latitude?: number | null;
   longitude?: number | null;
   narrative?: string | null;
+  investigatorName?: string | null;
+  investigatorPhone?: string | null;
   persons: DrugCaseCreatePersonInput[];
   /** Phase DI-7.6: หน่วยร่วมจับกุม — zero or many. */
   participatingUnits: Array<{
@@ -1285,6 +1289,18 @@ export const drugIntelligenceClient = {
 
   async getCase(caseId: string, actorId: string): Promise<DrugCaseDetailResponse> {
     return (await request<DrugCaseDetailResponse>(`/drug-intelligence/cases/${encodeURIComponent(caseId)}${toQueryString({ actorId })}`)).data;
+  },
+
+  async updateInvestigatorContact(
+    caseId: string,
+    body: { actorId: string; actorName: string; investigatorName: string | null; investigatorPhone: string | null }
+  ): Promise<{ investigatorName: string | null; investigatorPhone: string | null }> {
+    return (
+      await requestPatch<{ investigatorName: string | null; investigatorPhone: string | null }>(
+        `/drug-intelligence/cases/${encodeURIComponent(caseId)}`,
+        body
+      )
+    ).data;
   },
 
   async createCase(body: DrugCaseCreateRequest): Promise<DrugCaseCreateResponse> {

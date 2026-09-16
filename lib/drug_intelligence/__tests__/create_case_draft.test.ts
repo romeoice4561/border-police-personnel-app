@@ -13,7 +13,8 @@ import { buildCreateCaseRequest, createEmptyDraft, createEmptyPersonDraft, valid
 test("validateDraft requires caseNumber and title", () => {
   const draft = createEmptyDraft();
   const errors = validateDraft(draft);
-  assert.ok(errors.some((e) => e.message.includes("เลขคดี")));
+  assert.ok(errors.some((e) => e.message.includes("บันทึกคดี")));
+  assert.ok(errors.some((e) => e.field === "caseNumber"));
   assert.ok(errors.some((e) => e.message.includes("ชื่อ/หัวข้อคดี")));
 });
 

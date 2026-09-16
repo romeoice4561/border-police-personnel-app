@@ -129,6 +129,30 @@ export function useDrugCase(actorId: string | null, caseId: string): UseQueryRes
   });
 }
 
+export function useUpdateInvestigatorContact(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      caseId,
+      investigatorName,
+      investigatorPhone,
+    }: {
+      caseId: string;
+      investigatorName: string | null;
+      investigatorPhone: string | null;
+    }) =>
+      drugIntelligenceClient.updateInvestigatorContact(caseId, {
+        actorId: actorId as string,
+        actorName,
+        investigatorName,
+        investigatorPhone,
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.case(actorId, variables.caseId) });
+    },
+  });
+}
+
 /** Section 18's Person Detail Drawer data — enabled only while a person is actually selected (personId non-empty), so opening the drawer is what triggers the fetch, not the workspace mounting. */
 export function useDrugPerson(actorId: string | null, personId: string): UseQueryResult<DrugPersonDetailResponse> {
   return useQuery({

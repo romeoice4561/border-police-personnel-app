@@ -1541,6 +1541,12 @@ model DrugCase {
 
   narrative String?
 
+  /// Case-level investigating-officer contact for operational coordination.
+  /// Administrative text only — never a DrugPhoneNumber / DrugCasePhone /
+  /// network entity, and never synchronized with DrugCaseOfficer INVESTIGATOR.
+  investigatorName  String?
+  investigatorPhone String?
+
   createdBy     String
   createdByName String
   updatedBy     String?
