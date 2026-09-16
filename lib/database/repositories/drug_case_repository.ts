@@ -281,6 +281,10 @@ export class DrugCaseRepository {
     return this.db.drugSeizedItem.findMany({ where: { caseId } });
   }
 
+  evidenceItemsForCase(caseId: string) {
+    return this.db.drugCaseEvidenceItem.findMany({ where: { caseId } });
+  }
+
   /** Section 13's location list — raw DrugCaseLocation link rows for one case (caller resolves the DrugLocation row per link). */
   caseLocationsForCase(caseId: string) {
     return this.db.drugCaseLocation.findMany({ where: { caseId } });

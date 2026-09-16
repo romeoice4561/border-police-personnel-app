@@ -12,6 +12,7 @@ import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/d
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
 import { DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
 import type { CreateCaseDraft, ValidationError } from "@/lib/drug_intelligence/create_case_draft";
+import { evidenceReviewGroups } from "@/lib/drug_intelligence/create_case_draft";
 
 /**
  * Section 14's Review step displays draft.persons[].role / draft.locations[].role
@@ -66,6 +67,7 @@ export function CreateCaseReviewStep({
   const { t, language } = useT();
   const { user } = useAuth();
   const alertSummary = useDraftAlertSummary(user?.id ?? null, draft.persons);
+  const evidenceGroups = evidenceReviewGroups(draft);
 
   return (
     <div className="space-y-4">
@@ -201,18 +203,44 @@ export function CreateCaseReviewStep({
 
       <Card>
         <CardBody>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.seizedSummary")}</p>
-          {draft.seizedItems.length === 0 ? (
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.seizedSummary")}</p>
+            <button type="button" onClick={() => onJumpToStep("seized")} className="text-xs text-accent hover:underline">
+              {t("di.review.editEvidence")}
+            </button>
+          </div>
+          {evidenceGroups.every((group) => group.count === 0) ? (
             <p className="text-sm text-muted">—</p>
           ) : (
-            <p className="text-sm text-foreground">
-              {draft.seizedItems
-                .map((item) => {
-                  const amount = item.measurementKind === "MASS" ? (item.weightKilograms ? `${item.weightKilograms} กก.` : "") : `${item.quantity || ""} ${item.unit || ""}`.trim();
-                  return `${item.drugType} ${amount}`.trim();
-                })
-                .join(" • ")}
-            </p>
+            <div className="space-y-3">
+              {evidenceGroups
+                .filter((group) => group.count > 0)
+                .map((group) => (
+                  <div key={group.key}>
+                    <p className="text-sm font-medium text-foreground">
+                      {t(
+                        group.key === "drugs"
+                          ? "di.review.evidenceDrugs"
+                          : group.key === "vehicles"
+                            ? "di.review.evidenceVehicles"
+                            : group.key === "devices"
+                              ? "di.review.evidenceDevices"
+                              : group.key === "sims"
+                                ? "di.review.evidenceSims"
+                                : group.key === "firearms"
+                                  ? "di.review.evidenceFirearms"
+                                  : "di.review.evidenceOther"
+                      )}{" "}
+                      {t("di.review.evidenceCount").replace("{count}", String(group.count))}
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-sm text-foreground">
+                      {group.lines.map((line, lineIndex) => (
+                        <li key={`${group.key}-${lineIndex}`}>- {line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+            </div>
           )}
         </CardBody>
       </Card>

@@ -163,6 +163,48 @@ export interface DrugCaseCreateRequest {
   /** Phase DI-7.6: participating units and arrest team — both optional (Section 9/18). */
   participatingUnits?: DrugCaseParticipatingUnitInput[];
   officers?: DrugCaseOfficerInput[];
+  /** Case-level seized vehicles — canonical DrugVehicle + DrugCaseVehicle (personId null). */
+  seizedVehicles?: Array<{
+    registrationNumber: string | null;
+    registrationProvince: string | null;
+    vehicleType: string | null;
+    brand: string | null;
+    model: string | null;
+    color: string | null;
+    vin: string | null;
+    notes: string | null;
+  }>;
+  /** Case-level seized devices; associatedPhone becomes DrugCasePhone with personId null. */
+  seizedDevices?: Array<{
+    brand: string | null;
+    model: string | null;
+    serialNumber: string | null;
+    imei1: string | null;
+    imei2: string | null;
+    associatedPhone: string | null;
+    notes: string | null;
+  }>;
+  /** Case-level seized SIMs; associatedPhone is SIM-number history + case phone, never ownership. */
+  seizedSims?: Array<{
+    iccid: string | null;
+    imsi: string | null;
+    carrier: string | null;
+    associatedPhone: string | null;
+    notes: string | null;
+  }>;
+  /** FIREARM / OTHER — DrugCaseEvidenceItem only, not Network entities. */
+  seizedEvidenceItems?: Array<{
+    kind: string;
+    label: string;
+    quantity: number | null;
+    unit: string | null;
+    serialNumber: string | null;
+    brand: string | null;
+    model: string | null;
+    caliberOrSize: string | null;
+    recordedDescription: string | null;
+    notes: string | null;
+  }>;
   actorId: string;
   actorName: string;
 }

@@ -47,6 +47,7 @@ import type {
   DrugCaseDeviceRow,
   DrugCaseVehicleRow,
   DrugSeizedItemRow,
+  DrugCaseEvidenceItemRow,
   DrugCaseLocationRow,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 
@@ -204,7 +205,7 @@ export default function DrugCaseWorkspacePage() {
       {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "devices" ? <DevicesTab devices={data.devices} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} onSelectPerson={openPersonDrawer} /> : null}
-      {activeTab === "seized" ? <SeizedTab items={data.seizedItems} language={language} /> : null}
+      {activeTab === "seized" ? <SeizedTab items={data.seizedItems} evidenceItems={data.evidenceItems ?? []} language={language} /> : null}
       {activeTab === "locations" ? <LocationsTab locations={data.locations} language={language} /> : null}
       {activeTab === "analyst-notes" ? <DrugAnalystNotesPanel key={caseId} targetKind="CASE" targetId={caseId} /> : null}
       {activeTab === "investigation-tasks" ? <DrugInvestigationTasksPanel targetKind="CASE" targetId={caseId} /> : null}
@@ -422,7 +423,7 @@ function PhonesTab({
             </thead>
             <tbody>
               {phones.map((phone) => (
-                <tr key={`${phone.personId}-${phone.phoneNumberId}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
+                <tr key={`${phone.phoneNumberId}-${phone.personId ?? "case"}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
                   <td className="px-4 py-3 font-mono">
                     {phone.phoneNumber ? (
                       <Link href={`/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`} className="text-accent hover:underline">
@@ -433,9 +434,13 @@ function PhonesTab({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => onSelectPerson(phone.personId, undefined)} className="text-accent hover:underline">
-                      {phone.person?.primaryFullName || "—"}
-                    </button>
+                    {phone.personId ? (
+                      <button type="button" onClick={() => onSelectPerson(phone.personId as string, undefined)} className="text-accent hover:underline">
+                        {phone.person?.primaryFullName || "—"}
+                      </button>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">{phone.status}</td>
                 </tr>
@@ -510,30 +515,73 @@ function VehiclesTab({ vehicles, onSelectPerson }: { vehicles: DrugCaseVehicleRo
   );
 }
 
-function SeizedTab({ items, language }: { items: DrugSeizedItemRow[]; language: "th" | "en" }) {
+function SeizedTab({ items, evidenceItems, language }: { items: DrugSeizedItemRow[]; evidenceItems: DrugCaseEvidenceItemRow[]; language: "th" | "en" }) {
   const { t } = useT();
-  if (items.length === 0) return <EmptyState title={t("di.workspace.emptySeized")} icon={<Package className="h-8 w-8" />} />;
+  if (items.length === 0 && evidenceItems.length === 0) return <EmptyState title={t("di.workspace.emptySeized")} icon={<Package className="h-8 w-8" />} />;
+  const firearms = evidenceItems.filter((item) => item.kind === "FIREARM");
+  const other = evidenceItems.filter((item) => item.kind !== "FIREARM");
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {items.map((item) => {
-        const categoryLabel = drugCategoryLabel(item.drugCategory, language);
-        return (
-          <Card key={item.id}>
-            <CardBody>
-              <p className="font-medium text-foreground">{item.drugType}</p>
-              {categoryLabel ? <p className="mt-0.5 text-xs text-muted">{categoryLabel}</p> : null}
-              <p className="mt-1 text-sm text-muted">
-                {item.measurementKind === "MASS" && item.weightGrams
-                  ? `${gramsToKilograms(Number(item.weightGrams)).toLocaleString(language === "th" ? "th-TH" : "en-US", { maximumFractionDigits: 2 })} กก.`
-                  : item.quantity
-                    ? `${Number(item.quantity).toLocaleString(language === "th" ? "th-TH" : "en-US")} ${item.unit || ""}`
-                    : null}
-                {item.packageCount ? ` · ${item.packageCount} packages` : null}
-              </p>
-            </CardBody>
-          </Card>
-        );
-      })}
+    <div className="space-y-5">
+      <p className="text-sm font-semibold text-foreground">{t("di.review.seizedSummary")}</p>
+      {items.length > 0 ? (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.evidenceDrugs")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {items.map((item) => {
+              const categoryLabel = drugCategoryLabel(item.drugCategory, language);
+              return (
+                <Card key={item.id}>
+                  <CardBody>
+                    <p className="font-medium text-foreground">{item.drugType}</p>
+                    {categoryLabel ? <p className="mt-0.5 text-xs text-muted">{categoryLabel}</p> : null}
+                    <p className="mt-1 text-sm text-muted">
+                      {item.measurementKind === "MASS" && item.weightGrams
+                        ? `${gramsToKilograms(Number(item.weightGrams)).toLocaleString(language === "th" ? "th-TH" : "en-US", { maximumFractionDigits: 2 })} กก.`
+                        : item.quantity
+                          ? `${Number(item.quantity).toLocaleString(language === "th" ? "th-TH" : "en-US")} ${item.unit || ""}`
+                          : null}
+                      {item.packageCount ? ` · ${item.packageCount} packages` : null}
+                    </p>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      {firearms.length > 0 ? (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.evidenceFirearms")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {firearms.map((item) => (
+              <Card key={item.id}>
+                <CardBody className="space-y-1">
+                  <p className="font-medium text-foreground">{item.label}</p>
+                  <p className="text-sm text-muted">{[item.brand, item.model, item.caliberOrSize].filter(Boolean).join(" · ") || "—"}</p>
+                  {item.quantity ? <p className="text-sm text-muted">{String(item.quantity)}</p> : null}
+                  {item.recordedDescription ? <p className="text-sm text-muted">{item.recordedDescription}</p> : null}
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {other.length > 0 ? (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.evidenceOther")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {other.map((item) => (
+              <Card key={item.id}>
+                <CardBody className="space-y-1">
+                  <p className="font-medium text-foreground">{item.label}</p>
+                  <p className="text-sm text-muted">{[item.quantity, item.unit].filter(Boolean).join(" ") || "—"}</p>
+                  {item.recordedDescription ? <p className="text-sm text-muted">{item.recordedDescription}</p> : null}
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

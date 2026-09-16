@@ -17,6 +17,7 @@ import { DRUG_CASE_PERSON_ROLES, DRUG_NETWORK_ROLE_VERIFICATION_STATUSES } from 
 import { DRUG_PERSON_IDENTIFIER_TYPES } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_LOCATION_ROLES } from "@/lib/drug_intelligence/drug_location_options";
 import { DRUG_CATEGORIES, DRUG_MEASUREMENT_KINDS } from "@/lib/drug_intelligence/drug_seized_item_options";
+import { DRUG_CASE_EVIDENCE_KINDS } from "@/lib/drug_intelligence/drug_case_evidence_options";
 import { DRUG_CASE_OFFICER_ROLES, DRUG_CASE_UNIT_ROLES } from "@/lib/drug_intelligence/drug_case_officer_options";
 import { withCoordinatePair } from "@/lib/drug_intelligence/drug_coordinate_validation";
 import { normalizeInvestigatorContactName, normalizeInvestigatorContactPhone } from "@/lib/drug_intelligence/investigator_contact";
@@ -87,6 +88,67 @@ const vehicleSchema = z.object({
   vin: optionalText,
   firstSeenAt: thaiPersonnelDate,
   lastSeenAt: thaiPersonnelDate,
+  notes: optionalText,
+});
+
+const seizedVehicleSchema = z
+  .object({
+    registrationNumber: optionalText,
+    registrationProvince: optionalText,
+    vehicleType: optionalText,
+    brand: optionalText,
+    model: optionalText,
+    color: optionalText,
+    vin: optionalText,
+    notes: optionalText,
+  })
+  .superRefine((v, ctx) => {
+    const hasRegistration = Boolean(v.registrationNumber && v.registrationProvince);
+    if (!hasRegistration && !v.vin) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "registrationNumber with registrationProvince, or vin, is required" });
+    }
+  });
+
+const seizedDeviceSchema = z
+  .object({
+    brand: optionalText,
+    model: optionalText,
+    serialNumber: optionalText,
+    imei1: optionalText,
+    imei2: optionalText,
+    associatedPhone: optionalText,
+    notes: optionalText,
+  })
+  .superRefine((v, ctx) => {
+    if (!v.imei1 && !v.imei2 && !v.serialNumber && !v.associatedPhone) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "imei1, serialNumber, or associatedPhone is required" });
+    }
+  });
+
+const seizedSimSchema = z
+  .object({
+    iccid: optionalText,
+    imsi: optionalText,
+    carrier: optionalText,
+    associatedPhone: optionalText,
+    notes: optionalText,
+  })
+  .superRefine((v, ctx) => {
+    if (!v.iccid && !v.imsi && !v.associatedPhone) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "iccid, imsi, or associatedPhone is required" });
+    }
+  });
+
+const seizedEvidenceItemSchema = z.object({
+  kind: z.enum(DRUG_CASE_EVIDENCE_KINDS),
+  label: z.string().trim().min(1).max(MAX_FIELD),
+  quantity: z.coerce.number().nonnegative().nullable().optional().transform((v) => v ?? null),
+  unit: optionalText,
+  serialNumber: optionalText,
+  brand: optionalText,
+  model: optionalText,
+  caliberOrSize: optionalText,
+  recordedDescription: optionalText,
   notes: optionalText,
 });
 
@@ -291,6 +353,10 @@ export const drugCaseCreateSchema = withCoordinatePair({
     .transform((v) => normalizeInvestigatorContactPhone(v)),
   persons: z.array(personSchema).default([]),
   seizedItems: z.array(seizedItemSchema).default([]),
+  seizedVehicles: z.array(seizedVehicleSchema).default([]),
+  seizedDevices: z.array(seizedDeviceSchema).default([]),
+  seizedSims: z.array(seizedSimSchema).default([]),
+  seizedEvidenceItems: z.array(seizedEvidenceItemSchema).default([]),
   locations: z.array(locationSchema).default([]),
   // Phase DI-7.6: participating units and arrest team — both optional/empty-array-safe (Section 9/18: old cases/flows without team data must keep working).
   participatingUnits: z.array(participatingUnitSchema).default([]),

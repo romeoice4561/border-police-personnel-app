@@ -37,6 +37,8 @@ import type {
   DrugLocation,
   DrugCaseLocation,
   DrugSeizedItem,
+  DrugCaseEvidenceItem,
+  DrugSimPhoneHistory,
   DrugAuditLog,
   DrugPersonMatchReview,
   DrugPersonMerge,
@@ -74,6 +76,8 @@ export type {
   DrugLocation,
   DrugCaseLocation,
   DrugSeizedItem,
+  DrugCaseEvidenceItem,
+  DrugSimPhoneHistory,
   DrugAuditLog,
   DrugPersonMatchReview,
   DrugPersonMerge,
@@ -161,6 +165,8 @@ export interface DatabaseClient {
   drugLocation: ModelDelegate<DrugLocation, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   drugCaseLocation: ModelDelegate<DrugCaseLocation, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   drugSeizedItem: ModelDelegate<DrugSeizedItem, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugCaseEvidenceItem: ModelDelegate<DrugCaseEvidenceItem, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  drugSimPhoneHistory: ModelDelegate<DrugSimPhoneHistory, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   drugAuditLog: ModelDelegate<DrugAuditLog, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /** Phase DI-2: Entity Resolution — persistent match-review decisions and merge history. Same narrow ModelDelegate convention. */
   drugPersonMatchReview: ModelDelegate<DrugPersonMatchReview, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;

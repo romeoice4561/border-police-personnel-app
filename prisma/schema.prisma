@@ -1560,6 +1560,8 @@ model DrugCase {
   devices              DrugCaseDevice[]
   vehicles             DrugCaseVehicle[]
   seizedItems          DrugSeizedItem[]
+  /// Bounded seized-evidence rows for FIREARM / OTHER — not intelligence entities.
+  evidenceItems        DrugCaseEvidenceItem[]
   locations            DrugCaseLocation[]
   relationships        DrugRelationship[]      @relation("RelationshipSourceCase")
   personNetworkRoles   DrugPersonNetworkRole[]
@@ -1901,24 +1903,19 @@ model DrugPhoneNumber {
   @@index([normalizedNumber])
 }
 
-/// Section 6/12: the relationship edge "this Person used/was associated with
-/// this Phone Number, observed via this Case" — carries the full provenance
-/// triad (Section 12: source case, first/last seen, status, recordedBy) so
-/// no permanent "owns" conclusion is ever implied by a single sighting
-/// (Section 12's explicit prohibition). `originalInput` preserves exactly
-/// what was typed/found (e.g. "081-234-5678") independently of
-/// DrugPhoneNumber.normalizedNumber, per Section 6's "keep original input if
-/// useful" note. This is simultaneously the Case↔Phone AND Person↔Phone edge
-/// (a phone is always observed FOR a person WITHIN a case — there is no
-/// scenario in this module where a case references a bare phone number with
-/// no associated person, so one junction row captures both edges without
-/// forcing a redundant second table).
+/// Section 6/12: the Case↔Phone sighting, with an OPTIONAL Person association.
+/// When `personId` is set, this row is also the Person↔Phone observation for
+/// that case — never a permanent "owns" conclusion (Section 12). When
+/// `personId` is null, the number was recorded on the case (e.g. seized
+/// evidence) without claiming a specific person used or owned it. Duplicate
+/// Case+Phone junctions are skipped at write time; existing person-linked
+/// rows are never overwritten to null.
 model DrugCasePhone {
   id            String          @id @default(cuid())
   case          DrugCase        @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId        String
-  person        DrugPerson      @relation(fields: [personId], references: [id], onDelete: Cascade)
-  personId      String
+  person        DrugPerson?     @relation(fields: [personId], references: [id], onDelete: SetNull)
+  personId      String?
   phoneNumber   DrugPhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
   phoneNumberId String
   originalInput String?
@@ -2309,6 +2306,40 @@ model DrugSeizedItem {
   @@index([caseId])
   @@index([drugType])
   @@index([drugCategory])
+}
+
+/// Bounded seized-evidence row for categories that have NO canonical
+/// intelligence entity (firearm, miscellaneous). Not a Network node, not
+/// Search-matchable as Phone/SIM/Device/Vehicle, and never a Person
+/// ownership claim. Drug seizures stay on DrugSeizedItem; phones/SIMs/
+/// devices/vehicles stay on their canonical tables.
+enum DrugCaseEvidenceKind {
+  FIREARM
+  OTHER
+}
+
+model DrugCaseEvidenceItem {
+  id       String               @id @default(cuid())
+  case     DrugCase             @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId   String
+  kind     DrugCaseEvidenceKind
+  /// Officer-facing name: weapon type, or miscellaneous evidence name.
+  label    String
+  quantity Decimal?             @db.Decimal(12, 3)
+  unit     String?
+  serialNumber        String?
+  brand               String?
+  model               String?
+  /// Firearm size/caliber as recorded; unused for OTHER.
+  caliberOrSize       String?
+  recordedDescription String?
+  notes               String?
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([kind])
 }
 
 /// Section 12/23: a GENERIC graph edge between any two entities in this

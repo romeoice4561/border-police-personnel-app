@@ -27,7 +27,7 @@ import { createEmptyDraft, buildCreateCaseRequest, validateDraft, type CreateCas
 import { CreateCaseArrestStep } from "@/components/drug_intelligence/create_case_arrest_step";
 import { CreateCaseUnitsStep } from "@/components/drug_intelligence/create_case_units_step";
 import { CreateCasePersonsStep } from "@/components/drug_intelligence/create_case_persons_step";
-import { CreateCaseSeizedStep } from "@/components/drug_intelligence/create_case_seized_step";
+import { CreateCaseEvidenceStep } from "@/components/drug_intelligence/create_case_evidence_step";
 import { CreateCaseLocationsStep } from "@/components/drug_intelligence/create_case_locations_step";
 import { CreateCaseReviewStep } from "@/components/drug_intelligence/create_case_review_step";
 
@@ -219,7 +219,7 @@ export default function CreateDrugCasePage() {
         ) : null}
         {currentStep.key === "persons" ? <CreateCasePersonsStep persons={draft.persons} onChange={(persons) => patchDraft({ persons })} /> : null}
         {currentStep.key === "seized" ? (
-          <CreateCaseSeizedStep items={draft.seizedItems} onChange={(seizedItems) => patchDraft({ seizedItems })} errors={showStepErrors ? stepErrors : []} />
+          <CreateCaseEvidenceStep draft={draft} onChange={patchDraft} errors={showStepErrors ? stepErrors : []} />
         ) : null}
         {currentStep.key === "locations" ? <CreateCaseLocationsStep locations={draft.locations} onChange={(locations) => patchDraft({ locations })} /> : null}
         {currentStep.key === "review" ? <CreateCaseReviewStep draft={draft} errors={errors} onJumpToStep={jumpToStep} /> : null}

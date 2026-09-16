@@ -263,7 +263,10 @@ export class DrugPersonAdvancedSearchService {
     const networkRolesByPerson = groupBy(allNetworkRoleRows, (r) => r.personId);
     const membershipsByPerson = groupBy(allMembershipRows, (m) => m.personId);
     const casePersonsByPerson = groupBy(allCasePersonRows, (cp) => cp.personId);
-    const casePhonesByPerson = groupBy(allCasePhoneRows, (cp) => cp.personId);
+    const casePhonesByPerson = groupBy(
+      allCasePhoneRows.filter((cp): cp is DrugCasePhone & { personId: string } => Boolean(cp.personId)),
+      (cp) => cp.personId
+    );
     const casesById = new Map(allCaseRows.map((c) => [c.id, c]));
     const phoneNumbersById = new Map(allPhoneNumberRows.map((p) => [p.id, p]));
 

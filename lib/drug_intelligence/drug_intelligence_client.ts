@@ -193,7 +193,7 @@ export interface DrugPhoneNumberSummary {
 
 export interface DrugCasePhoneRow {
   caseId: string;
-  personId: string;
+  personId: string | null;
   phoneNumberId: string;
   originalInput: string | null;
   status: string;
@@ -271,6 +271,21 @@ export interface DrugSeizedItemRow {
   unit: string | null;
   weightGrams: string | null;
   packageCount: number | null;
+  notes: string | null;
+}
+
+export interface DrugCaseEvidenceItemRow {
+  id: string;
+  caseId: string;
+  kind: string;
+  label: string;
+  quantity: string | null;
+  unit: string | null;
+  serialNumber: string | null;
+  brand: string | null;
+  model: string | null;
+  caliberOrSize: string | null;
+  recordedDescription: string | null;
   notes: string | null;
 }
 
@@ -369,6 +384,7 @@ export interface DrugCaseDetailResponse {
   devices: DrugCaseDeviceRow[];
   vehicles: DrugCaseVehicleRow[];
   seizedItems: DrugSeizedItemRow[];
+  evidenceItems: DrugCaseEvidenceItemRow[];
   locations: DrugCaseLocationRow[];
   participatingUnits: DrugCaseParticipatingUnitRow[];
   officers: DrugCaseOfficerRow[];
@@ -481,6 +497,44 @@ export interface DrugCaseCreateRequest {
     unit?: string | null;
     weightGrams?: number | null;
     packageCount?: number | null;
+    notes?: string | null;
+  }>;
+  seizedVehicles?: Array<{
+    registrationNumber?: string | null;
+    registrationProvince?: string | null;
+    vehicleType?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    vin?: string | null;
+    notes?: string | null;
+  }>;
+  seizedDevices?: Array<{
+    brand?: string | null;
+    model?: string | null;
+    serialNumber?: string | null;
+    imei1?: string | null;
+    imei2?: string | null;
+    associatedPhone?: string | null;
+    notes?: string | null;
+  }>;
+  seizedSims?: Array<{
+    iccid?: string | null;
+    imsi?: string | null;
+    carrier?: string | null;
+    associatedPhone?: string | null;
+    notes?: string | null;
+  }>;
+  seizedEvidenceItems?: Array<{
+    kind: string;
+    label: string;
+    quantity?: number | null;
+    unit?: string | null;
+    serialNumber?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    caliberOrSize?: string | null;
+    recordedDescription?: string | null;
     notes?: string | null;
   }>;
   locations: Array<{

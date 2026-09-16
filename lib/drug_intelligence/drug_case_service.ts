@@ -457,6 +457,8 @@ export class DrugCaseService {
         await entityRepo.addSeizedItem({ caseId, ...item, createdBy: input.actorId });
       }
 
+      await this.persistCaseLevelEvidence(entityRepo, auditRepo, caseId, input);
+
       for (const location of input.locations) {
         const locationEntity = await entityRepo.createLocation({
           name: location.name,
@@ -482,6 +484,188 @@ export class DrugCaseService {
   }
 
   /**
+   * Case-level seized Phone/SIM/Device/Vehicle reuse canonical findOrCreate
+   * and Case junctions with personId null. FIREARM/OTHER persist as
+   * DrugCaseEvidenceItem only — never Person ownership, never CDR.
+   */
+  private async persistCaseLevelEvidence(
+    entityRepo: DrugEntityRepository,
+    auditRepo: DrugAuditLogRepository,
+    caseId: string,
+    input: DrugCaseCreateRequest
+  ): Promise<void> {
+    for (const vehicle of input.seizedVehicles ?? []) {
+      if (!vehicle.registrationNumber && !vehicle.vin) continue;
+      const vehicleEntity = await entityRepo.findOrCreateVehicle({
+        registrationNumber: vehicle.registrationNumber,
+        registrationProvince: vehicle.registrationProvince,
+        vehicleType: vehicle.vehicleType,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        color: vehicle.color,
+        vin: vehicle.vin,
+        createdBy: input.actorId,
+      });
+      await entityRepo.linkCaseVehicle({
+        caseId,
+        personId: null,
+        vehicleId: vehicleEntity.id,
+        status: "REPORTED",
+        recordedBy: input.actorId,
+        notes: vehicle.notes,
+      });
+      await auditRepo.record({
+        entityType: "DrugVehicle",
+        entityId: vehicleEntity.id,
+        action: "vehicle_added",
+        actorId: input.actorId,
+        actorName: input.actorName,
+        detail: `case=${caseId} seized`,
+      });
+    }
+
+    for (const device of input.seizedDevices ?? []) {
+      const hasDeviceIdentity = Boolean(device.imei1 || device.imei2 || device.serialNumber);
+      if (hasDeviceIdentity) {
+        const deviceEntity = await entityRepo.findOrCreateDevice({
+          brand: device.brand,
+          model: device.model,
+          serialNumber: device.serialNumber,
+          imei1: device.imei1,
+          imei2: device.imei2,
+          createdBy: input.actorId,
+        });
+        await entityRepo.linkCaseDevice({
+          caseId,
+          personId: null,
+          deviceId: deviceEntity.id,
+          status: "REPORTED",
+          recordedBy: input.actorId,
+          notes: device.notes,
+        });
+        await auditRepo.record({
+          entityType: "DrugDevice",
+          entityId: deviceEntity.id,
+          action: "device_added",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: `case=${caseId} seized`,
+        });
+      }
+      const normalizedNumber = device.associatedPhone ? normalizePhoneMatchingKey(device.associatedPhone) : "";
+      if (normalizedNumber) {
+        const phoneEntity = await entityRepo.findOrCreatePhoneNumber(normalizedNumber, input.actorId);
+        await entityRepo.linkCasePhone({
+          caseId,
+          personId: null,
+          phoneNumberId: phoneEntity.id,
+          originalInput: device.associatedPhone,
+          status: "REPORTED",
+          firstSeenAt: null,
+          lastSeenAt: null,
+          recordedBy: input.actorId,
+          notes: device.notes,
+        });
+        await auditRepo.record({
+          entityType: "DrugPhoneNumber",
+          entityId: phoneEntity.id,
+          action: "phone_added",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: `case=${caseId} seized`,
+        });
+      }
+    }
+
+    for (const sim of input.seizedSims ?? []) {
+      let simId: string | null = null;
+      if (sim.iccid || sim.imsi) {
+        const simEntity = await entityRepo.findOrCreateSim({
+          iccid: sim.iccid,
+          imsi: sim.imsi,
+          carrier: sim.carrier,
+          createdBy: input.actorId,
+        });
+        simId = simEntity.id;
+        await entityRepo.linkCaseSim({
+          caseId,
+          personId: null,
+          simId: simEntity.id,
+          status: "REPORTED",
+          firstSeenAt: null,
+          lastSeenAt: null,
+          recordedBy: input.actorId,
+          notes: sim.notes,
+        });
+        await auditRepo.record({
+          entityType: "DrugSim",
+          entityId: simEntity.id,
+          action: "sim_added",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: `case=${caseId} seized`,
+        });
+      }
+      const normalizedNumber = sim.associatedPhone ? normalizePhoneMatchingKey(sim.associatedPhone) : "";
+      if (normalizedNumber) {
+        const phoneEntity = await entityRepo.findOrCreatePhoneNumber(normalizedNumber, input.actorId);
+        await entityRepo.linkCasePhone({
+          caseId,
+          personId: null,
+          phoneNumberId: phoneEntity.id,
+          originalInput: sim.associatedPhone,
+          status: "REPORTED",
+          firstSeenAt: null,
+          lastSeenAt: null,
+          recordedBy: input.actorId,
+          notes: sim.notes,
+        });
+        if (simId) {
+          await entityRepo.linkSimPhoneHistory({
+            simId,
+            phoneNumberId: phoneEntity.id,
+            sourceCaseId: caseId,
+            recordedBy: input.actorId,
+          });
+        }
+        await auditRepo.record({
+          entityType: "DrugPhoneNumber",
+          entityId: phoneEntity.id,
+          action: "phone_added",
+          actorId: input.actorId,
+          actorName: input.actorName,
+          detail: `case=${caseId} seized`,
+        });
+      }
+    }
+
+    for (const item of input.seizedEvidenceItems ?? []) {
+      await entityRepo.addEvidenceItem({
+        caseId,
+        kind: item.kind,
+        label: item.label,
+        quantity: item.quantity,
+        unit: item.unit,
+        serialNumber: item.serialNumber,
+        brand: item.brand,
+        model: item.model,
+        caliberOrSize: item.caliberOrSize,
+        recordedDescription: item.recordedDescription,
+        notes: item.notes,
+        createdBy: input.actorId,
+      });
+      await auditRepo.record({
+        entityType: "DrugCaseEvidenceItem",
+        entityId: caseId,
+        action: item.kind === "FIREARM" ? "firearm_evidence_added" : "other_evidence_added",
+        actorId: input.actorId,
+        actorName: input.actorName,
+        detail: `case=${caseId}`,
+      });
+    }
+  }
+
+  /**
    * Section 18's Case Workspace: the full case plus every linked entity,
    * resolved to display-ready rows (person names, phone numbers, device
    * brand/IMEI, vehicle plate, location name/role, seized-item lines) — not
@@ -499,13 +683,14 @@ export class DrugCaseService {
     const personRepo = new DrugPersonRepository(this.db);
     const entityRepo = new DrugEntityRepository(this.db);
 
-    const [casePersonLinks, casePhoneLinks, caseSimLinks, caseDeviceLinks, caseVehicleLinks, seizedItems, caseLocationLinks] = await Promise.all([
+    const [casePersonLinks, casePhoneLinks, caseSimLinks, caseDeviceLinks, caseVehicleLinks, seizedItems, evidenceItems, caseLocationLinks] = await Promise.all([
       casePersonRepo.forCase(caseId),
       caseRepo.casePhonesForCase(caseId),
       caseRepo.caseSimsForCase(caseId),
       caseRepo.caseDevicesForCase(caseId),
       caseRepo.caseVehiclesForCase(caseId),
       caseRepo.seizedItemsForCase(caseId),
+      caseRepo.evidenceItemsForCase(caseId),
       caseRepo.caseLocationsForCase(caseId),
     ]);
 
@@ -514,7 +699,7 @@ export class DrugCaseService {
     // through) — small, bounded set at DI-1's expected case size.
     const personIds = new Set<string>();
     for (const link of casePersonLinks) personIds.add(link.personId);
-    for (const link of casePhoneLinks) personIds.add(link.personId);
+    for (const link of casePhoneLinks) if (link.personId) personIds.add(link.personId);
     for (const link of caseSimLinks) if (link.personId) personIds.add(link.personId);
     for (const link of caseDeviceLinks) if (link.personId) personIds.add(link.personId);
     for (const link of caseVehicleLinks) if (link.personId) personIds.add(link.personId);
@@ -530,7 +715,7 @@ export class DrugCaseService {
       casePhoneLinks.map(async (link) => ({
         ...link,
         phoneNumber: await entityRepo.findPhoneNumberById(link.phoneNumberId),
-        person: personById.get(link.personId) ?? null,
+        person: link.personId ? (personById.get(link.personId) ?? null) : null,
       }))
     );
 
@@ -597,6 +782,7 @@ export class DrugCaseService {
       devices,
       vehicles,
       seizedItems,
+      evidenceItems,
       locations,
       participatingUnits,
       officers,
@@ -605,7 +791,7 @@ export class DrugCaseService {
       simCount: sims.length,
       deviceCount: devices.length,
       vehicleCount: vehicles.length,
-      seizedItemCount: seizedItems.length,
+      seizedItemCount: seizedItems.length + evidenceItems.length,
     };
   }
 

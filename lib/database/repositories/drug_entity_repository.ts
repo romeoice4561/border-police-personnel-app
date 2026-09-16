@@ -43,7 +43,7 @@ export class DrugEntityRepository {
 
   async linkCasePhone(input: {
     caseId: string;
-    personId: string;
+    personId: string | null;
     phoneNumberId: string;
     originalInput: string | null;
     status: string;
@@ -52,6 +52,10 @@ export class DrugEntityRepository {
     recordedBy: string;
     notes: string | null;
   }) {
+    const existing = await this.db.drugCasePhone.findMany({ where: { caseId: input.caseId, phoneNumberId: input.phoneNumberId } });
+    const samePerson = existing.find((row) => row.personId === input.personId);
+    if (samePerson) return samePerson;
+    if (input.personId === null && existing.length > 0) return existing[0];
     return this.db.drugCasePhone.create({ data: input });
   }
 
@@ -74,7 +78,26 @@ export class DrugEntityRepository {
     recordedBy: string;
     notes: string | null;
   }) {
+    const existing = await this.db.drugCaseSim.findMany({ where: { caseId: input.caseId, simId: input.simId } });
+    const samePerson = existing.find((row) => row.personId === input.personId);
+    if (samePerson) return samePerson;
+    if (input.personId === null && existing.length > 0) return existing[0];
     return this.db.drugCaseSim.create({ data: input });
+  }
+
+  async linkSimPhoneHistory(input: {
+    simId: string;
+    phoneNumberId: string;
+    sourceCaseId: string | null;
+    recordedBy: string;
+  }) {
+    const existing = await this.db.drugSimPhoneHistory.findMany({
+      where: { simId: input.simId, phoneNumberId: input.phoneNumberId },
+    });
+    if (existing.length > 0) return existing[0];
+    return this.db.drugSimPhoneHistory.create({
+      data: { ...input, validFrom: null, validTo: null },
+    });
   }
 
   // ── Device / IMEI (Section 8) ─────────────────────────────────────────
@@ -147,6 +170,10 @@ export class DrugEntityRepository {
     recordedBy: string;
     notes: string | null;
   }) {
+    const existing = await this.db.drugCaseDevice.findMany({ where: { caseId: input.caseId, deviceId: input.deviceId } });
+    const samePerson = existing.find((row) => row.personId === input.personId);
+    if (samePerson) return samePerson;
+    if (input.personId === null && existing.length > 0) return existing[0];
     return this.db.drugCaseDevice.create({ data: input });
   }
 
@@ -217,6 +244,10 @@ export class DrugEntityRepository {
     recordedBy: string;
     notes: string | null;
   }) {
+    const existing = await this.db.drugCaseVehicle.findMany({ where: { caseId: input.caseId, vehicleId: input.vehicleId } });
+    const samePerson = existing.find((row) => row.personId === input.personId);
+    if (samePerson) return samePerson;
+    if (input.personId === null && existing.length > 0) return existing[0];
     return this.db.drugCaseVehicle.create({ data: input });
   }
 
@@ -421,5 +452,22 @@ export class DrugEntityRepository {
     createdBy: string;
   }) {
     return this.db.drugSeizedItem.create({ data: input });
+  }
+
+  async addEvidenceItem(input: {
+    caseId: string;
+    kind: string;
+    label: string;
+    quantity: number | null;
+    unit: string | null;
+    serialNumber: string | null;
+    brand: string | null;
+    model: string | null;
+    caliberOrSize: string | null;
+    recordedDescription: string | null;
+    notes: string | null;
+    createdBy: string;
+  }) {
+    return this.db.drugCaseEvidenceItem.create({ data: input });
   }
 }

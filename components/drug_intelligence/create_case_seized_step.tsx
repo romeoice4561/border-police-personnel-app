@@ -25,10 +25,12 @@ export function CreateCaseSeizedStep({
   items,
   onChange,
   errors = [],
+  embedded = false,
 }: {
   items: SeizedItemDraft[];
   onChange: (items: SeizedItemDraft[]) => void;
   errors?: ValidationError[];
+  embedded?: boolean;
 }) {
   const { t, language } = useT();
 
@@ -55,10 +57,10 @@ export function CreateCaseSeizedStep({
 
   return (
     <div className="space-y-4">
-      {items.length === 0 ? <p className="text-sm text-muted">{t("di.seized.empty")}</p> : null}
+      {!embedded && items.length === 0 ? <p className="text-sm text-muted">{t("di.seized.empty")}</p> : null}
       {items.map((item, index) => {
         const quantityError = errors.find((e) => e.field === `seized.${index}.quantity`)?.message;
-        const categoryError = errors.find((e) => e.message.includes(`ของกลางลำดับที่ ${index + 1}`) && e.message.includes("ประเภทของกลาง"))?.message;
+        const categoryError = errors.find((e) => e.field === `seized.${index}.category`)?.message;
         const quantityLabel = item.measurementKind === "MASS" ? t("di.seized.massQuantity") : item.measurementKind === "VOLUME" ? t("di.seized.volumeQuantity") : t("di.seized.countQuantity");
         const quantityHint = item.measurementKind === "MASS" ? t("di.seized.massHint") : t("di.seized.countHint");
         return (
@@ -165,8 +167,8 @@ export function CreateCaseSeizedStep({
           </Card>
         );
       })}
-      <Button type="button" variant="outline" onClick={add}>
-        {t("di.seized.addItem")}
+      <Button type="button" variant="outline" onClick={add} className="min-h-11 w-full sm:w-auto">
+        {embedded ? t("di.seized.addDrug") : t("di.seized.addItem")}
       </Button>
     </div>
   );

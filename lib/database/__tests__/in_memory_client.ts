@@ -350,6 +350,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   private readonly drugLocations = new Table((r, w) => r.id === w.id);
   private readonly drugCaseLocations = new Table((r, w) => r.id === w.id);
   private readonly drugSeizedItems = new Table((r, w) => r.id === w.id);
+  private readonly drugCaseEvidenceItems = new Table((r, w) => r.id === w.id);
+  private readonly drugSimPhoneHistories = new Table((r, w) => r.id === w.id);
   private readonly drugAuditLogs = new Table((r, w) => r.id === w.id);
 
   // Phase DI-2: Entity Resolution tables — same cuid()-string-id convention.
@@ -525,6 +527,12 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugSeizedItem() {
     return delegate(this.drugSeizedItems) as unknown as DatabaseClient["drugSeizedItem"];
   }
+  get drugCaseEvidenceItem() {
+    return delegate(this.drugCaseEvidenceItems) as unknown as DatabaseClient["drugCaseEvidenceItem"];
+  }
+  get drugSimPhoneHistory() {
+    return delegate(this.drugSimPhoneHistories) as unknown as DatabaseClient["drugSimPhoneHistory"];
+  }
   get drugAuditLog() {
     return delegate(this.drugAuditLogs) as unknown as DatabaseClient["drugAuditLog"];
   }
@@ -602,6 +610,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugLocations: this.drugLocations.snapshot(),
       drugCaseLocations: this.drugCaseLocations.snapshot(),
       drugSeizedItems: this.drugSeizedItems.snapshot(),
+      drugCaseEvidenceItems: this.drugCaseEvidenceItems.snapshot(),
+      drugSimPhoneHistories: this.drugSimPhoneHistories.snapshot(),
       drugAuditLogs: this.drugAuditLogs.snapshot(),
       drugPersonMatchReviews: this.drugPersonMatchReviews.snapshot(),
       drugPersonMerges: this.drugPersonMerges.snapshot(),
@@ -649,6 +659,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugLocations.restore(snaps.drugLocations);
       this.drugCaseLocations.restore(snaps.drugCaseLocations);
       this.drugSeizedItems.restore(snaps.drugSeizedItems);
+      this.drugCaseEvidenceItems.restore(snaps.drugCaseEvidenceItems);
+      this.drugSimPhoneHistories.restore(snaps.drugSimPhoneHistories);
       this.drugAuditLogs.restore(snaps.drugAuditLogs);
       this.drugPersonMatchReviews.restore(snaps.drugPersonMatchReviews);
       this.drugPersonMerges.restore(snaps.drugPersonMerges);

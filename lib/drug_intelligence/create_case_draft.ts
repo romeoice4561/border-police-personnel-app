@@ -148,6 +148,60 @@ export interface SeizedItemDraft {
   notes: string;
 }
 
+export interface SeizedVehicleDraft {
+  key: string;
+  registrationNumber: string;
+  registrationProvince: string;
+  vehicleType: string;
+  brand: string;
+  model: string;
+  color: string;
+  vin: string;
+  notes: string;
+}
+
+export interface SeizedDeviceDraft {
+  key: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  imei1: string;
+  imei2: string;
+  associatedPhone: string;
+  notes: string;
+}
+
+export interface SeizedSimDraft {
+  key: string;
+  iccid: string;
+  imsi: string;
+  carrier: string;
+  associatedPhone: string;
+  notes: string;
+}
+
+export interface SeizedFirearmDraft {
+  key: string;
+  firearmType: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  caliberOrSize: string;
+  quantity: string;
+  recordedDescription: string;
+  notes: string;
+}
+
+export interface SeizedOtherDraft {
+  key: string;
+  label: string;
+  quantity: string;
+  unit: string;
+  serialNumber: string;
+  recordedDescription: string;
+  notes: string;
+}
+
 export interface LocationDraft {
   key: string;
   name: string;
@@ -251,6 +305,11 @@ export interface CreateCaseDraft {
   investigatorPhone: string;
   persons: PersonDraft[];
   seizedItems: SeizedItemDraft[];
+  seizedVehicles: SeizedVehicleDraft[];
+  seizedDevices: SeizedDeviceDraft[];
+  seizedSims: SeizedSimDraft[];
+  seizedFirearms: SeizedFirearmDraft[];
+  seizedOtherItems: SeizedOtherDraft[];
   locations: LocationDraft[];
   /** DI-7.6: หน่วยร่วมจับกุม — zero or many. */
   participatingUnits: ParticipatingUnitDraft[];
@@ -309,6 +368,55 @@ export function createEmptySeizedItemDraft(): SeizedItemDraft {
     packageCount: "",
     notes: "",
   };
+}
+
+export function createEmptySeizedVehicleDraft(): SeizedVehicleDraft {
+  return {
+    key: nextDraftKey(),
+    registrationNumber: "",
+    registrationProvince: "",
+    vehicleType: "",
+    brand: "",
+    model: "",
+    color: "",
+    vin: "",
+    notes: "",
+  };
+}
+
+export function createEmptySeizedDeviceDraft(): SeizedDeviceDraft {
+  return {
+    key: nextDraftKey(),
+    brand: "",
+    model: "",
+    serialNumber: "",
+    imei1: "",
+    imei2: "",
+    associatedPhone: "",
+    notes: "",
+  };
+}
+
+export function createEmptySeizedSimDraft(): SeizedSimDraft {
+  return { key: nextDraftKey(), iccid: "", imsi: "", carrier: "", associatedPhone: "", notes: "" };
+}
+
+export function createEmptySeizedFirearmDraft(): SeizedFirearmDraft {
+  return {
+    key: nextDraftKey(),
+    firearmType: "",
+    brand: "",
+    model: "",
+    serialNumber: "",
+    caliberOrSize: "",
+    quantity: "",
+    recordedDescription: "",
+    notes: "",
+  };
+}
+
+export function createEmptySeizedOtherDraft(): SeizedOtherDraft {
+  return { key: nextDraftKey(), label: "", quantity: "", unit: "", serialNumber: "", recordedDescription: "", notes: "" };
 }
 
 export function createEmptyLocationDraft(): LocationDraft {
@@ -387,6 +495,11 @@ export function createEmptyDraft(): CreateCaseDraft {
     investigatorPhone: "",
     persons: [],
     seizedItems: [],
+    seizedVehicles: [],
+    seizedDevices: [],
+    seizedSims: [],
+    seizedFirearms: [],
+    seizedOtherItems: [],
     locations: [],
     participatingUnits: [],
     officers: [],
@@ -409,6 +522,94 @@ function toNumberOrNull(raw: string): number | null {
   if (!raw.trim()) return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
+}
+
+function hasAnyText(...values: string[]): boolean {
+  return values.some((value) => value.trim() !== "");
+}
+
+export function seizedVehicleHasInput(item: SeizedVehicleDraft): boolean {
+  return hasAnyText(item.registrationNumber, item.registrationProvince, item.vehicleType, item.brand, item.model, item.color, item.vin, item.notes);
+}
+
+export function seizedDeviceHasInput(item: SeizedDeviceDraft): boolean {
+  return hasAnyText(item.brand, item.model, item.serialNumber, item.imei1, item.imei2, item.associatedPhone, item.notes);
+}
+
+export function seizedSimHasInput(item: SeizedSimDraft): boolean {
+  return hasAnyText(item.iccid, item.imsi, item.carrier, item.associatedPhone, item.notes);
+}
+
+export function seizedFirearmHasInput(item: SeizedFirearmDraft): boolean {
+  return hasAnyText(item.firearmType, item.brand, item.model, item.serialNumber, item.caliberOrSize, item.quantity, item.recordedDescription, item.notes);
+}
+
+export function seizedOtherHasInput(item: SeizedOtherDraft): boolean {
+  return hasAnyText(item.label, item.quantity, item.unit, item.serialNumber, item.recordedDescription, item.notes);
+}
+
+export interface EvidenceReviewGroup {
+  key: string;
+  count: number;
+  lines: string[];
+}
+
+export function evidenceReviewGroups(draft: CreateCaseDraft): EvidenceReviewGroup[] {
+  const drugs = draft.seizedItems.filter((item) => item.drugType.trim() || item.drugCategory);
+  const vehicles = draft.seizedVehicles.filter(seizedVehicleHasInput);
+  const devices = draft.seizedDevices.filter(seizedDeviceHasInput);
+  const sims = draft.seizedSims.filter(seizedSimHasInput);
+  const firearms = draft.seizedFirearms.filter(seizedFirearmHasInput);
+  const other = draft.seizedOtherItems.filter(seizedOtherHasInput);
+  return [
+    {
+      key: "drugs",
+      count: drugs.length,
+      lines: drugs.map((item) => {
+        const amount = item.measurementKind === "MASS" ? (item.weightKilograms ? `${item.weightKilograms} กก.` : "") : `${item.quantity || ""} ${item.unit || ""}`.trim();
+        return `${item.drugType || "—"} ${amount}`.trim();
+      }),
+    },
+    {
+      key: "vehicles",
+      count: vehicles.length,
+      lines: vehicles.map((item) => {
+        const name = [item.brand, item.model].filter((part) => part.trim()).join(" ") || item.vehicleType || "ยานพาหนะ";
+        const plate = item.registrationNumber.trim() || item.vin.trim();
+        return plate ? `${name} — ${plate}` : name;
+      }),
+    },
+    {
+      key: "devices",
+      count: devices.length,
+      lines: devices.map((item) => {
+        const name = [item.brand, item.model].filter((part) => part.trim()).join(" ") || "อุปกรณ์";
+        const id = item.imei1.trim() || item.serialNumber.trim() || item.associatedPhone.trim();
+        return id ? `${name} — ${id}` : name;
+      }),
+    },
+    {
+      key: "sims",
+      count: sims.length,
+      lines: sims.map((item) => item.iccid.trim() || item.associatedPhone.trim() || item.imsi.trim() || "SIM"),
+    },
+    {
+      key: "firearms",
+      count: firearms.length,
+      lines: firearms.map((item) => {
+        const qty = item.quantity.trim() ? ` × ${item.quantity.trim()}` : "";
+        return `${item.firearmType.trim() || "อาวุธปืน"}${qty}`;
+      }),
+    },
+    {
+      key: "other",
+      count: other.length,
+      lines: other.map((item) => {
+        const qty = [item.quantity, item.unit].filter((part) => part.trim()).join(" ");
+        return qty ? `${item.label.trim() || "ของกลาง"} — ${qty}` : (item.label.trim() || "ของกลาง");
+      }),
+    },
+  ];
 }
 
 /** Section 14/2's validation set — every case this UI must reject BEFORE calling the API, so the user never round-trips to the server for an obvious mistake. */
@@ -467,19 +668,55 @@ export function validateDraft(draft: CreateCaseDraft): ValidationError[] {
   });
 
   draft.seizedItems.forEach((item, index) => {
-    if (!item.drugType.trim()) errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุประเภท` });
-    if (!item.drugCategory) errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาเลือกประเภทของกลาง` });
+    if (!item.drugType.trim()) errors.push({ step: "seized", message: `ยาเสพติด #${index + 1}: กรุณาระบุประเภท` });
+    if (!item.drugCategory) errors.push({ step: "seized", field: `seized.${index}.category`, message: `ยาเสพติด #${index + 1}: กรุณาเลือกประเภทของกลาง` });
     if (item.drugCategory === "OTHER" && !item.otherDrugCategoryLabel.trim()) {
-      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาระบุชื่อสารเมื่อเลือก "อื่น ๆ"` });
+      errors.push({ step: "seized", message: `ยาเสพติด #${index + 1}: กรุณาระบุชื่อสารเมื่อเลือก "อื่น ๆ"` });
     }
     if (!item.measurementKind) {
-      errors.push({ step: "seized", message: `ของกลางลำดับที่ ${index + 1}: กรุณาเลือกรูปแบบการวัด (จำนวนนับ/น้ำหนัก)` });
+      errors.push({ step: "seized", message: `ยาเสพติด #${index + 1}: กรุณาเลือกรูปแบบการวัด (จำนวนนับ/น้ำหนัก)` });
     } else if (item.measurementKind === "COUNT" && !item.quantity.trim()) {
-      errors.push({ step: "seized", field: `seized.${index}.quantity`, message: `ของกลางลำดับที่ ${index + 1}: กรุณากรอกจำนวน` });
+      errors.push({ step: "seized", field: `seized.${index}.quantity`, message: `ยาเสพติด #${index + 1}: กรุณากรอกจำนวน` });
     } else if (item.measurementKind === "MASS" && !item.weightKilograms.trim()) {
-      errors.push({ step: "seized", field: `seized.${index}.quantity`, message: `ของกลางลำดับที่ ${index + 1}: กรุณากรอกน้ำหนัก` });
+      errors.push({ step: "seized", field: `seized.${index}.quantity`, message: `ยาเสพติด #${index + 1}: กรุณากรอกน้ำหนัก` });
     } else if (item.measurementKind === "VOLUME") {
-      errors.push({ step: "seized", field: `seized.${index}.measurementKind`, message: `ของกลางลำดับที่ ${index + 1}: ระบบนี้ยังไม่รองรับการวัดแบบปริมาตร` });
+      errors.push({ step: "seized", field: `seized.${index}.measurementKind`, message: `ยาเสพติด #${index + 1}: ระบบนี้ยังไม่รองรับการวัดแบบปริมาตร` });
+    }
+  });
+
+  draft.seizedVehicles.forEach((item, index) => {
+    if (!seizedVehicleHasInput(item)) return;
+    const hasRegistration = Boolean(item.registrationNumber.trim() && item.registrationProvince.trim());
+    if (!hasRegistration && !item.vin.trim()) {
+      errors.push({ step: "seized", field: `seizedVehicle.${index}`, message: `ยานพาหนะ #${index + 1}: กรุณาระบุทะเบียนหรือ VIN` });
+    }
+  });
+
+  draft.seizedDevices.forEach((item, index) => {
+    if (!seizedDeviceHasInput(item)) return;
+    if (!item.imei1.trim() && !item.imei2.trim() && !item.serialNumber.trim() && !item.associatedPhone.trim()) {
+      errors.push({ step: "seized", field: `seizedDevice.${index}`, message: `โทรศัพท์/อุปกรณ์ #${index + 1}: กรุณาระบุ IMEI, Serial หรือหมายเลขโทรศัพท์` });
+    }
+  });
+
+  draft.seizedSims.forEach((item, index) => {
+    if (!seizedSimHasInput(item)) return;
+    if (!item.iccid.trim() && !item.imsi.trim() && !item.associatedPhone.trim()) {
+      errors.push({ step: "seized", field: `seizedSim.${index}`, message: `SIM #${index + 1}: กรุณาระบุ ICCID, IMSI หรือหมายเลขโทรศัพท์` });
+    }
+  });
+
+  draft.seizedFirearms.forEach((item, index) => {
+    if (!seizedFirearmHasInput(item)) return;
+    if (!item.firearmType.trim()) {
+      errors.push({ step: "seized", field: `seizedFirearm.${index}`, message: `อาวุธปืน #${index + 1}: กรุณาระบุประเภทอาวุธ` });
+    }
+  });
+
+  draft.seizedOtherItems.forEach((item, index) => {
+    if (!seizedOtherHasInput(item)) return;
+    if (!item.label.trim()) {
+      errors.push({ step: "seized", field: `seizedOther.${index}`, message: `ของกลางอื่น ๆ #${index + 1}: กรุณาระบุชื่อของกลาง` });
     }
   });
 
@@ -642,6 +879,58 @@ export function buildCreateCaseRequest(draft: CreateCaseDraft, actorId: string, 
           notes: item.notes.trim() || null,
         };
       }),
+    seizedVehicles: draft.seizedVehicles.filter(seizedVehicleHasInput).map((item) => ({
+      registrationNumber: item.registrationNumber.trim() || null,
+      registrationProvince: item.registrationProvince.trim() || null,
+      vehicleType: item.vehicleType.trim() || null,
+      brand: item.brand.trim() || null,
+      model: item.model.trim() || null,
+      color: item.color.trim() || null,
+      vin: item.vin.trim() || null,
+      notes: item.notes.trim() || null,
+    })),
+    seizedDevices: draft.seizedDevices.filter(seizedDeviceHasInput).map((item) => ({
+      brand: item.brand.trim() || null,
+      model: item.model.trim() || null,
+      serialNumber: item.serialNumber.trim() || null,
+      imei1: item.imei1.trim() || null,
+      imei2: item.imei2.trim() || null,
+      associatedPhone: item.associatedPhone.trim() || null,
+      notes: item.notes.trim() || null,
+    })),
+    seizedSims: draft.seizedSims.filter(seizedSimHasInput).map((item) => ({
+      iccid: item.iccid.trim() || null,
+      imsi: item.imsi.trim() || null,
+      carrier: item.carrier.trim() || null,
+      associatedPhone: item.associatedPhone.trim() || null,
+      notes: item.notes.trim() || null,
+    })),
+    seizedEvidenceItems: [
+      ...draft.seizedFirearms.filter(seizedFirearmHasInput).map((item) => ({
+        kind: "FIREARM",
+        label: item.firearmType.trim(),
+        quantity: toNumberOrNull(item.quantity),
+        unit: null,
+        serialNumber: item.serialNumber.trim() || null,
+        brand: item.brand.trim() || null,
+        model: item.model.trim() || null,
+        caliberOrSize: item.caliberOrSize.trim() || null,
+        recordedDescription: item.recordedDescription.trim() || null,
+        notes: item.notes.trim() || null,
+      })),
+      ...draft.seizedOtherItems.filter(seizedOtherHasInput).map((item) => ({
+        kind: "OTHER",
+        label: item.label.trim(),
+        quantity: toNumberOrNull(item.quantity),
+        unit: item.unit.trim() || null,
+        serialNumber: item.serialNumber.trim() || null,
+        brand: null,
+        model: null,
+        caliberOrSize: null,
+        recordedDescription: item.recordedDescription.trim() || null,
+        notes: item.notes.trim() || null,
+      })),
+    ],
     locations: draft.locations.map((loc) => ({
       name: loc.name.trim() || null,
       addressText: loc.addressText.trim() || null,

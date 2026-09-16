@@ -191,7 +191,7 @@ export class DrugPersonMergeService {
       }
       await tx.drugCasePerson.deleteMany({ where: { personId: merged.id } });
 
-      // ── Phones (personId is required/non-nullable on DrugCasePhone — every link just gets repointed; no case+person uniqueness constraint exists on this table so no dedupe collision is possible) ──
+      // ── Phones (personId is optional; only person-linked rows are repointed. Case-level seized phones with personId null are not merge targets.) ──
       await tx.drugCasePhone.updateMany({ where: { personId: merged.id }, data: { personId: survivor.id } });
 
       // ── SIMs (personId nullable) ──
