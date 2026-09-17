@@ -447,3 +447,66 @@ test("Case -> Location edge is DIRECT and Location never implies a shared networ
   // No PERSON<->PERSON inferred edge should ever be derived from a shared LOCATION alone.
   assert.ok(!result.edges.some((e) => e.edgeKind === "INFERRED" && e.relationshipType.startsWith("SHARED")), "location-sharing must never infer a person-to-person connection");
 });
+
+test("focus-only neighborhood returns the expected connected Person/Case/Phone graph", async () => {
+  const db = await seedPersonCasePhone();
+  const graph = new DrugNetworkGraphService(db);
+  const personId = (await db.drugPerson.findMany({}))[0].id;
+  const result = await graph.getNeighborhood({ entityType: "PERSON", entityId: personId, depth: 1 }, { canViewFull: true });
+  assert.deepEqual(result.nodes.map((n) => n.type).sort(), ["CASE", "PERSON", "PHONE"]);
+  assert.ok(result.edges.some((e) => e.relationshipType === "PERSON_CASE"));
+  assert.ok(result.edges.some((e) => e.relationshipType === "PERSON_PHONE"));
+});
+
+test("focus plus a broad date range still returns the fixture connections", async () => {
+  const db = await seedPersonCasePhone();
+  const graph = new DrugNetworkGraphService(db);
+  const personId = (await db.drugPerson.findMany({}))[0].id;
+  const result = await graph.getNeighborhood(
+    { entityType: "PERSON", entityId: personId, depth: 1, dateFrom: new Date("2026-01-01"), dateTo: new Date("2026-12-31") },
+    { canViewFull: true }
+  );
+  assert.ok(result.nodes.some((n) => n.type === "PHONE"));
+  assert.ok(result.edges.some((e) => e.relationshipType === "PERSON_PHONE"));
+  assert.ok(result.edges.some((e) => e.relationshipType === "PERSON_CASE"));
+});
+
+test("focus plus one relationship type keeps only that DIRECT type during expansion", async () => {
+  const db = await seedPersonCasePhone();
+  const graph = new DrugNetworkGraphService(db);
+  const personId = (await db.drugPerson.findMany({}))[0].id;
+  const result = await graph.getNeighborhood(
+    { entityType: "PERSON", entityId: personId, depth: 1, relationshipTypes: ["PERSON_CASE"] },
+    { canViewFull: true }
+  );
+  assert.ok(result.edges.every((e) => e.relationshipType === "PERSON_CASE" || e.edgeKind === "INFERRED"));
+  assert.ok(result.edges.some((e) => e.relationshipType === "PERSON_CASE"));
+  assert.ok(!result.edges.some((e) => e.relationshipType === "PERSON_PHONE"));
+  assert.ok(!result.nodes.some((n) => n.type === "PHONE"));
+});
+
+test("focus plus multiple relationship types uses inclusion OR of the selected DIRECT types", async () => {
+  const db = await seedPersonCasePhone();
+  const graph = new DrugNetworkGraphService(db);
+  const personId = (await db.drugPerson.findMany({}))[0].id;
+  const result = await graph.getNeighborhood(
+    { entityType: "PERSON", entityId: personId, depth: 1, relationshipTypes: ["PERSON_CASE", "PERSON_PHONE"] },
+    { canViewFull: true }
+  );
+  const directTypes = [...new Set(result.edges.filter((e) => e.edgeKind === "DIRECT").map((e) => e.relationshipType))].sort();
+  assert.ok(directTypes.includes("PERSON_CASE"));
+  assert.ok(directTypes.includes("PERSON_PHONE"));
+  assert.ok(!directTypes.includes("CASE_PHONE"), "unselected DIRECT types stay excluded — existing inclusion filter, not a new AND");
+});
+
+test("narrowing the date range drops dated phone edges and keeps undated PERSON_CASE edges", async () => {
+  const db = await seedPersonCasePhone();
+  const graph = new DrugNetworkGraphService(db);
+  const personId = (await db.drugPerson.findMany({}))[0].id;
+  const result = await graph.getNeighborhood(
+    { entityType: "PERSON", entityId: personId, depth: 1, dateFrom: new Date("2026-05-01"), dateTo: new Date("2026-09-17") },
+    { canViewFull: true }
+  );
+  assert.ok(result.edges.some((e) => e.relationshipType === "PERSON_CASE"), "PERSON_CASE has null seen-at and existing date semantics keep it");
+  assert.ok(!result.edges.some((e) => e.relationshipType === "PERSON_PHONE"), "January 2026 phone lastSeen is outside May–Sep 2026");
+});

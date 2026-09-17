@@ -107,7 +107,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Drawer } from "@/components/ui/drawer";
-import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
+import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MAX, THAI_EXPIRY_YEAR_BE_MIN } from "@/components/ui/thai_date_picker";
 import { DrugNetworkGraphNode } from "@/components/drug_intelligence/drug_network_graph_node";
 import { DrugNetworkRoutedEdge } from "@/components/drug_intelligence/drug_network_routed_edge";
 import { DrugNetworkNodeDetail } from "@/components/drug_intelligence/drug_network_node_detail";
@@ -212,6 +212,14 @@ import {
   NETWORK_SAME_ROUTE_ROUTER_OPTIONS,
 } from "@/lib/drug_intelligence/drug_network_route_navigation";
 import {
+  hasActiveNetworkFilterParams,
+  hasActiveNetworkGraphFilters,
+  parseRelationshipTypesParam,
+  resolveNetworkFilterDisplayState,
+  resolveNetworkWorkspaceResultKind,
+  serializeRelationshipTypesParam,
+} from "@/lib/drug_intelligence/drug_network_relationship_filter_state";
+import {
   appendNetworkTrailStep,
   buildNetworkTrailReturnFocus,
   clearNetworkTrailUrlPatch,
@@ -273,10 +281,10 @@ import {
 } from "@/lib/drug_intelligence/drug_network_annotations";
 import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
-import { formatThaiPersonnelDate, normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo, currentInternalHref } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
-import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType, DrugInvestigationBoardStateClient } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugInvestigationBoardStateClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const ALL_NODE_TYPES: DrugGraphNodeType[] = ["PERSON", "PHONE", "SIM", "DEVICE", "VEHICLE", "CASE", "LOCATION"];
@@ -331,7 +339,7 @@ export default function DrugNetworkPage() {
 
 function toIsoDate(thaiDate: string): string | undefined {
   if (!thaiDate) return undefined;
-  return normalizeThaiPersonnelDateForSave(thaiDate) ?? undefined;
+  return toGregorianDateInputValue(thaiDate) ?? undefined;
 }
 
 // ─── Annotation ↔ FlowNode helpers ───────────────────────────────────────────
@@ -476,7 +484,10 @@ function DrugNetworkContent() {
   const urlNodeTypesParam = searchParams.get("nodeTypes");
   const urlSelectedNodeTypes = urlNodeTypesParam ? (urlNodeTypesParam.split(",") as DrugGraphNodeType[]) : undefined;
   const urlRelationshipTypesParam = searchParams.get("relationshipTypes");
-  const urlSelectedRelationshipTypes = urlRelationshipTypesParam ? (urlRelationshipTypesParam.split(",") as DrugGraphRelationshipType[]) : undefined;
+  const urlSelectedRelationshipTypes = useMemo(
+    () => parseRelationshipTypesParam(urlRelationshipTypesParam),
+    [urlRelationshipTypesParam]
+  );
   const returnTo = getSafeReturnTo(searchParams);
   const currentNetworkHref = currentInternalHref(pathname, searchParams);
 
@@ -521,11 +532,21 @@ function DrugNetworkContent() {
   const focusType = effectiveGraphContext?.focusType ?? null;
   const focusId = effectiveGraphContext?.focusId ?? null;
   const depth = parseNetworkConnectionDepth(effectiveGraphContext?.depth);
-  const dateFrom = effectiveGraphContext?.dateFrom ? formatThaiPersonnelDate(effectiveGraphContext.dateFrom) : "";
-  const dateTo = effectiveGraphContext?.dateTo ? formatThaiPersonnelDate(effectiveGraphContext.dateTo) : "";
+  const filterDisplay = resolveNetworkFilterDisplayState({
+    hasGraphContext: Boolean(effectiveGraphContext),
+    contextRelationshipTypes: effectiveGraphContext?.relationshipTypes,
+    contextDateFrom: effectiveGraphContext?.dateFrom,
+    contextDateTo: effectiveGraphContext?.dateTo,
+    urlRelationshipTypes: urlRelationshipTypesParam,
+    urlDateFrom,
+    urlDateTo,
+    formatDate: (value) => (value ? formatThaiPersonnelDate(value) : ""),
+  });
+  const dateFrom = filterDisplay.dateFrom;
+  const dateTo = filterDisplay.dateTo;
   const maxNodes = effectiveGraphContext?.maxNodes;
   const selectedNodeTypes = effectiveGraphContext?.nodeTypes;
-  const selectedRelationshipTypes = effectiveGraphContext?.relationshipTypes;
+  const selectedRelationshipTypes = filterDisplay.selectedRelationshipTypes;
   const isArchivedBoard = boardQuery.data?.status === "ARCHIVED";
   const canManageBoard = Boolean(
     canUseAnalystMode &&
@@ -722,7 +743,15 @@ function DrugNetworkContent() {
     }
   }, [activeTool, effectiveWorkspaceMode]);
 
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(() =>
+    hasActiveNetworkFilterParams({
+      dateFrom: urlDateFrom,
+      dateTo: urlDateTo,
+      relationshipTypes: urlRelationshipTypesParam,
+      nodeTypes: urlNodeTypesParam,
+      maxNodes: urlMaxNodesParam,
+    })
+  );
   const [showLegend, setShowLegend] = useState(false);
   const [showFindConnection, setShowFindConnection] = useState(false);
   const [pathFrom, setPathFrom] = useState<DrugNetworkEntitySelection | null>(null);
@@ -789,6 +818,17 @@ function DrugNetworkContent() {
     dateFrom: effectiveGraphContext?.dateFrom,
     dateTo: effectiveGraphContext?.dateTo,
     maxNodes,
+  });
+  const workspaceResultKind = resolveNetworkWorkspaceResultKind({
+    hasFocus: Boolean(focusType && focusId),
+    hasActiveFilters: hasActiveNetworkGraphFilters({
+      relationshipTypes: selectedRelationshipTypes,
+      nodeTypes: selectedNodeTypes,
+      dateFrom,
+      dateTo,
+    }),
+    nodeCount: neighborhood.data?.nodes.length ?? 0,
+    edgeCount: neighborhood.data?.edges.length ?? 0,
   });
 
   const pathQuery = pathFrom && pathTo ? { fromType: pathFrom.entityType, fromId: pathFrom.entityId, toType: pathTo.entityType, toId: pathTo.entityId } : null;
@@ -2541,19 +2581,28 @@ function DrugNetworkContent() {
         <ErrorState title={t("di.network.permissionDenied")} />
       ) : (
         <>
-          <Card>
-            <CardBody className="space-y-2">
+          <Card data-testid="network-focus-picker">
+            <CardBody className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{t("di.network.searchOriginLabel")}</p>
+                {!focusType || !focusId ? (
+                  <ol className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                    <li>1. {t("di.network.flowHint1")}</li>
+                    <li>2. {t("di.network.flowHint2")}</li>
+                    <li>3. {t("di.network.flowHint3")}</li>
+                  </ol>
+                ) : null}
+              </div>
               <DrugNetworkEntityPicker
                 onSelect={(selection) => {
                   updateParams({
                     focusType: selection.entityType,
                     focusId: selection.entityId,
-                    depth: undefined,
                     ...clearNetworkTrailUrlPatch(),
                   });
                   setPathViewNodeIds(null);
                 }}
-                placeholder={t("di.network.searchToFocus")}
+                placeholder={t("di.network.searchOriginPlaceholder")}
               />
             </CardBody>
           </Card>
@@ -2628,6 +2677,11 @@ function DrugNetworkContent() {
               </button>
               {showFilters ? (
                 <div id="drug-network-filters-panel" className="space-y-4">
+                  {!focusType || !focusId ? (
+                    <p className="text-xs text-muted" data-testid="network-filters-require-focus">
+                      {t("di.network.filtersApplyAfterFocus")}
+                    </p>
+                  ) : null}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <div>
                       <label htmlFor="drug-network-filter-depth" className="mb-1.5 block text-xs font-medium text-muted">
@@ -2664,13 +2718,33 @@ function DrugNetworkContent() {
                       <label htmlFor="drug-network-filter-date-from" className="mb-1.5 block text-xs font-medium text-muted">
                         {t("di.network.filterDateFrom")}
                       </label>
-                      <ThaiDatePicker value={dateFrom} onChange={(v) => updateParams({ dateFrom: v || undefined })} placeholder="DD/MM/YYYY" />
+                      <ThaiDatePicker
+                        id="drug-network-filter-date-from"
+                        value={dateFrom}
+                        onChange={(v) => updateParams({ dateFrom: v || undefined })}
+                        placeholder="DD/MM/YYYY"
+                        aria-label={t("di.network.filterDateFrom")}
+                        commitOnBrowse={false}
+                        showTodayButton
+                        yearRangeBE={{ min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX }}
+                        data-testid="network-filter-date-from"
+                      />
                     </div>
                     <div>
                       <label htmlFor="drug-network-filter-date-to" className="mb-1.5 block text-xs font-medium text-muted">
                         {t("di.network.filterDateTo")}
                       </label>
-                      <ThaiDatePicker value={dateTo} onChange={(v) => updateParams({ dateTo: v || undefined })} placeholder="DD/MM/YYYY" />
+                      <ThaiDatePicker
+                        id="drug-network-filter-date-to"
+                        value={dateTo}
+                        onChange={(v) => updateParams({ dateTo: v || undefined })}
+                        placeholder="DD/MM/YYYY"
+                        aria-label={t("di.network.filterDateTo")}
+                        commitOnBrowse={false}
+                        showTodayButton
+                        yearRangeBE={{ min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX }}
+                        data-testid="network-filter-date-to"
+                      />
                     </div>
                     <div>
                       <label htmlFor="drug-network-filter-max-nodes" className="mb-1.5 block text-xs font-medium text-muted">
@@ -2693,7 +2767,7 @@ function DrugNetworkContent() {
                     <p className="mb-1.5 block text-xs font-medium text-muted">{t("di.network.filterRelationshipTypes")}</p>
                     <DrugNetworkRelationshipFilter
                       selected={selectedRelationshipTypes}
-                      onChange={(next) => updateParams({ relationshipTypes: next ? next.join(",") : undefined })}
+                      onChange={(next) => updateParams({ relationshipTypes: serializeRelationshipTypesParam(next) })}
                     />
                   </div>
 
@@ -2728,13 +2802,38 @@ function DrugNetworkContent() {
           ) : waitingForSavedBoard ? (
             <LoadingState rows={10} label={t("di.network.loading")} />
           ) : !focusType || !focusId ? (
-            <EmptyState title={t("di.network.noFocus")} icon={<NetworkIcon className="h-8 w-8" />} />
+            <div data-testid="network-no-focus-state">
+              <EmptyState
+                title={t("di.network.chooseOriginTitle")}
+                message={t("di.network.chooseOriginBody")}
+                icon={<NetworkIcon className="h-8 w-8" />}
+              />
+            </div>
           ) : neighborhood.isPending ? (
             <LoadingState rows={10} label={t("di.network.loading")} />
           ) : neighborhood.isError ? (
             <ErrorState message={t("di.network.errorLoad")} onRetry={() => neighborhood.refetch()} />
-          ) : neighborhood.data.nodes.length === 0 ? (
-            <EmptyState title={t("di.network.empty")} icon={<NetworkIcon className="h-8 w-8" />} />
+          ) : workspaceResultKind === "FILTERED_EMPTY" ? (
+            <div className="space-y-3" data-testid="network-filtered-empty-state">
+              <EmptyState
+                title={t("di.network.filteredEmpty")}
+                message={t("di.network.filteredEmptyHint")}
+                icon={<NetworkIcon className="h-8 w-8" />}
+              />
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateParams({ nodeTypes: undefined, relationshipTypes: undefined, dateFrom: undefined, dateTo: undefined, maxNodes: undefined })}
+                >
+                  {t("di.network.clearFilters")}
+                </Button>
+              </div>
+            </div>
+          ) : workspaceResultKind === "EMPTY" ? (
+            <div data-testid="network-empty-state">
+              <EmptyState title={t("di.network.empty")} icon={<NetworkIcon className="h-8 w-8" />} />
+            </div>
           ) : (
             <>
               {readabilitySummary ? <DrugNetworkReadabilitySummary summary={readabilitySummary} depth={depth} /> : null}

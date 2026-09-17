@@ -2796,7 +2796,26 @@ export const DICTIONARY = {
     "Visualizes connections between persons, phones, SIMs, devices, vehicles, and cases from recorded data"
   ),
   "di.network.openNetwork": tr("เปิดผังความเชื่อมโยง", "Open Network"),
-  "di.network.noFocus": tr("เลือกบุคคล คดี หรือรายการอื่นเพื่อเริ่มดูผังความเชื่อมโยง", "Select a person, case, or other entity to begin viewing the network"),
+  "di.network.noFocus": tr("เลือกจุดเริ่มต้นของผัง", "Choose a starting point for the network"),
+  "di.network.chooseOriginTitle": tr("เลือกจุดเริ่มต้นของผัง", "Choose a starting point for the network"),
+  "di.network.chooseOriginBody": tr(
+    "ค้นหาและเลือกบุคคล คดี เบอร์โทรศัพท์ SIM อุปกรณ์ หรือยานพาหนะ ก่อน จากนั้นระบบจะสร้างผังและใช้ตัวกรองด้านบนเพื่อจำกัดความเชื่อมโยงที่ต้องการดู",
+    "Search and select a person, case, phone, SIM, device, or vehicle first. The system then builds the network and applies the filters above to the connections you want to see."
+  ),
+  "di.network.searchOriginLabel": tr("ค้นหาจุดเริ่มต้นของผัง", "Search for a network starting point"),
+  "di.network.searchOriginPlaceholder": tr(
+    "ค้นหาชื่อ เบอร์โทร IMEI ทะเบียน หรือเลขคดี — บุคคล คดี เบอร์โทร SIM อุปกรณ์ ยานพาหนะ",
+    "Search name, phone, IMEI, registration, or case number — person, case, phone, SIM, device, vehicle"
+  ),
+  "di.network.flowHint1": tr("เลือกจุดเริ่มต้น", "Choose a starting point"),
+  "di.network.flowHint2": tr("ระบบสร้างผัง", "The system builds the network"),
+  "di.network.flowHint3": tr("ใช้ตัวกรองจำกัดความเชื่อมโยง", "Use filters to narrow connections"),
+  "di.network.filtersApplyAfterFocus": tr("ตัวกรองนี้จะใช้กับผังหลังจากเลือกจุดเริ่มต้น", "These filters apply to the network after a starting point is selected"),
+  "di.network.filteredEmpty": tr("ไม่พบความเชื่อมโยงตามตัวกรองที่เลือก", "No connections match the selected filters"),
+  "di.network.filteredEmptyHint": tr(
+    "ลองขยายช่วงวันที่ ลดเงื่อนไขความเชื่อมโยง หรือล้างตัวกรองบางรายการ",
+    "Try widening the date range, reducing relationship conditions, or clearing some filters"
+  ),
   "di.network.searchToFocus": tr("ค้นหาเพื่อเลือกจุดเริ่มต้น", "Search to choose a starting point"),
   "di.network.loading": tr("กำลังโหลดผังความเชื่อมโยง", "Loading network"),
   "di.network.errorLoad": tr("ไม่สามารถโหลดผังความเชื่อมโยงได้ กรุณาลองใหม่อีกครั้ง", "Could not load the network — please try again"),
@@ -2903,6 +2922,10 @@ export const DICTIONARY = {
   "di.network.filters": tr("ตัวกรอง", "Filters"),
   "di.network.filterNodeTypes": tr("ประเภทรายการ", "Entity types"),
   "di.network.filterRelationshipTypes": tr("ประเภทความเชื่อมโยง", "Relationship types"),
+  "di.network.relationshipNoneSelected": tr("ยังไม่ได้เลือกประเภทความเชื่อมโยง", "No relationship types selected"),
+  "di.network.relationshipSelectedCount": tr("เลือกแล้ว {count} เงื่อนไข", "{count} conditions selected"),
+  "di.network.clearRelationshipFilters": tr("ล้างทั้งหมด", "Clear all"),
+  "di.network.removeRelationshipFilter": tr("ลบเงื่อนไข", "Remove condition"),
   "di.network.filterDateFrom": tr("จากวันที่", "From date"),
   "di.network.filterDateTo": tr("ถึงวันที่", "To date"),
   "di.network.filterDepth": tr("ระดับความเชื่อมโยง", "Connection level"),

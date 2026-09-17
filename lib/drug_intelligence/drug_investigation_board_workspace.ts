@@ -22,6 +22,7 @@ import type { DrugNetworkEdgeRoutes } from "@/lib/drug_intelligence/drug_network
 import type { DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import type { DrugNetworkLabelMode, DrugNetworkNodeDensity } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import type { DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_network_graph_types";
+import { parseRelationshipTypesParam } from "@/lib/drug_intelligence/drug_network_relationship_filter_state";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 
 const UNPERSISTABLE_IMAGE_SRC = /^(blob:|data:|https?:)/i;
@@ -147,8 +148,9 @@ export function applyInvestigationBoardGraphContextPatch(
     else next.nodeTypes = patch.nodeTypes.split(",") as DrugGraphNodeType[];
   }
   if ("relationshipTypes" in patch) {
-    if (!patch.relationshipTypes) delete next.relationshipTypes;
-    else next.relationshipTypes = patch.relationshipTypes.split(",") as DrugGraphRelationshipType[];
+    const parsed = parseRelationshipTypesParam(patch.relationshipTypes);
+    if (!parsed) delete next.relationshipTypes;
+    else next.relationshipTypes = parsed;
   }
   return next;
 }
