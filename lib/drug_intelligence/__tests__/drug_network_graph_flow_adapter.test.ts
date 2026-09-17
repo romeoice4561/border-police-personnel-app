@@ -387,6 +387,10 @@ function flowNode(id: string, position: { x: number; y: number }): FlowNode {
       onSelectedPath: false,
       showHopBadge: false,
       stronglyDimmed: false,
+      compareRole: null,
+      compareSlot: null,
+      compareJunction: false,
+      compareInspect: false,
     },
   };
 }

@@ -11,17 +11,23 @@ import { translate } from "@/lib/i18n/dictionary";
 import { DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { applyNetworkSearchParamPatch } from "@/lib/drug_intelligence/drug_network_route_navigation";
 import {
+  buildLinkCompareApiQuery,
   buildLinkCompareExplanationParts,
   buildLinkCompareHref,
   canAnalyzeLinkCompare,
   classifyLinkCompareHttpError,
   clearLinkCompareSlot,
   connectionHeadlineKey,
+  findLinkComparePair,
   groupSharedEntities,
+  hasTripleIntersection,
   isAnalyzeDisabled,
   isSameCanonicalEntity,
+  isThreeEntityCompare,
+  linkCompareInspectNetworkHref,
   linkCompareNetworkFocusHref,
   pairIdentityKey,
+  pairSlotLabel,
   parseLinkCompareReturnTo,
   parseLinkCompareSearchParams,
   relationshipWordingKey,
@@ -135,10 +141,11 @@ test("URL hydration uses type+id identity and never treats labels as identity", 
 });
 
 test("malformed URL types and LOCATION fail safely as empty slots", () => {
-  const params = new URLSearchParams("aType=LOCATION&aId=loc-1&bType=NOPE&bId=x&cType=PERSON&cId=p-1");
+  const params = new URLSearchParams("aType=LOCATION&aId=loc-1&bType=NOPE&bId=x&cType=LOCATION&cId=loc-1");
   const parsed = parseLinkCompareSearchParams(params);
   assert.equal(parsed.A, null);
   assert.equal(parsed.B, null);
+  assert.equal(parsed.C ?? null, null);
 });
 
 test("duplicate A/B in URL is detected and must not fetch", () => {
@@ -273,7 +280,9 @@ test("LC-2B page and workspace source contracts", () => {
   assert.match(workspace, /di\.linkCompare\.analyze/);
   assert.match(workspace, /disabled=\{isAnalyzeDisabled/);
   assert.match(workspace, /md:grid-cols-2/);
-  assert.doesNotMatch(workspace, /slotKey=\"C\"|key: \"C\"|cType|cId/);
+  assert.match(workspace, /link-compare-add-c/);
+  assert.match(workspace, /data-box-count/);
+  assert.match(workspace, /slotKey=\"C\"/);
   assert.doesNotMatch(workspace, /onDrop|onDragOver|draggable/);
   assert.doesNotMatch(workspace, /openai|useChat|llm/i);
   assert.match(slot, /di\.linkCompare\.chooseEntity/);
@@ -283,7 +292,7 @@ test("LC-2B page and workspace source contracts", () => {
   assert.match(result, /di\.linkCompare\.viewInNetwork/);
   assert.match(result, /di\.linkCompare\.otherSharedData/);
   assert.match(result, /linkCompareCaseHref/);
-  assert.match(result, /linkCompareNetworkFocusHref/);
+  assert.match(result, /linkCompareInspectNetworkHref/);
   assert.match(result, /link-compare-loading/);
   assert.match(result, /link-compare-error-/);
   assert.match(result, /onRetry=\{kind === \"retryable\"/);
@@ -312,6 +321,7 @@ test("client calls the existing compare API and does not write intelligence", ()
   assert.match(client, /\/drug-intelligence\/network\/compare/);
   assert.match(client, /getLinkCompare/);
   assert.doesNotMatch(client, /requestPost<.*>\(\"\/drug-intelligence\/network\/compare\"/);
+  assert.match(client, /cType\?: DrugLinkCompareEntityType/);
   assert.match(hooks, /useDrugLinkCompare/);
   assert.match(hooks, /enabled: Boolean\(actorId\) && Boolean\(query\)/);
 });
@@ -454,4 +464,223 @@ test("Investigation Trail reset remains a graph control, not the only way back f
   assert.doesNotMatch(trail, /network\/compare/);
   const resetBody = network.slice(network.indexOf("function handleBackToStart"), network.indexOf("function exitPathView"));
   assert.doesNotMatch(resetBody, /network\/compare|LINK_COMPARE_PATH/);
+});
+
+test("default two-box page does not require Point C and Analyze 2 entities is unchanged", () => {
+  const two = { A: personA, B: vehicleB };
+  assert.equal(isThreeEntityCompare(two), false);
+  assert.equal(canAnalyzeLinkCompare(two), true);
+  const query = buildLinkCompareApiQuery(two);
+  assert.equal(query?.aId, personA.entityId);
+  assert.equal(query?.bId, vehicleB.entityId);
+  assert.equal(query?.cType, undefined);
+  assert.equal(query?.cId, undefined);
+  const serialized = serializeLinkCompareSearchParams(two);
+  assert.equal(serialized.get("cType"), null);
+  assert.equal(serialized.get("cId"), null);
+  const workspace = read("components/drug_intelligence/drug_link_compare_workspace.tsx");
+  assert.match(workspace, /di\.linkCompare\.addPointC/);
+  assert.match(workspace, /data-box-count=\{cVisible \? \"3\" : \"2\"\}/);
+});
+
+test("selecting C hydrates URL; removing C preserves A/B only", () => {
+  const afterC = selectLinkCompareSlot({ A: personA, B: vehicleB }, "C", phoneC);
+  assert.equal(afterC.error, null);
+  assert.equal(afterC.state.C?.entityId, phoneC.entityId);
+  const serialized = serializeLinkCompareSearchParams(afterC.state);
+  assert.equal(serialized.get("aId"), personA.entityId);
+  assert.equal(serialized.get("bId"), vehicleB.entityId);
+  assert.equal(serialized.get("cType"), "PHONE");
+  assert.equal(serialized.get("cId"), phoneC.entityId);
+  assert.equal(serialized.get("cLabel"), null);
+
+  const parsed = parseLinkCompareSearchParams(serialized);
+  assert.equal(parsed.C?.entityType, "PHONE");
+  assert.equal(parsed.C?.entityId, phoneC.entityId);
+  assert.equal(parsed.C?.label, "");
+
+  const caseC: LinkCompareSlotSelection = {
+    entityType: "CASE",
+    entityId: "c-003",
+    label: "DI-TEST-003",
+    caseCount: null,
+  };
+  const changed = selectLinkCompareSlot(afterC.state, "C", caseC);
+  assert.equal(changed.error, null);
+  assert.equal(changed.state.C?.entityId, "c-003");
+  assert.equal(changed.state.A?.entityId, personA.entityId);
+  assert.equal(changed.state.B?.entityId, vehicleB.entityId);
+
+  const removed = clearLinkCompareSlot(afterC.state, "C");
+  assert.equal(removed.A?.entityId, personA.entityId);
+  assert.equal(removed.B?.entityId, vehicleB.entityId);
+  assert.equal(removed.C, null);
+  const afterRemove = serializeLinkCompareSearchParams(removed);
+  assert.equal(afterRemove.get("cType"), null);
+  assert.equal(afterRemove.get("cId"), null);
+  assert.equal(afterRemove.get("aId"), personA.entityId);
+  assert.equal(afterRemove.get("bId"), vehicleB.entityId);
+});
+
+test("malformed or partial C fails safely and does not invalidate A/B", () => {
+  const malformed = parseLinkCompareSearchParams(
+    new URLSearchParams("aType=PERSON&aId=p-kittisak&bType=VEHICLE&bId=v-9009&cType=LOCATION&cId=loc-1")
+  );
+  assert.equal(malformed.A?.entityId, personA.entityId);
+  assert.equal(malformed.B?.entityId, vehicleB.entityId);
+  assert.equal(malformed.C, null);
+  const partial = parseLinkCompareSearchParams(
+    new URLSearchParams("aType=PERSON&aId=p-kittisak&bType=VEHICLE&bId=v-9009&cType=PHONE")
+  );
+  assert.equal(partial.C, null);
+  assert.equal(canAnalyzeLinkCompare(partial), true);
+  assert.equal(buildLinkCompareApiQuery(partial)?.cId, undefined);
+});
+
+test("duplicate A/C and B/C are rejected without replacing slots", () => {
+  const withAB = { A: personA, B: vehicleB, C: null };
+  const dupA = selectLinkCompareSlot(withAB, "C", { ...personA, label: "same person" });
+  assert.equal(dupA.error, "duplicate");
+  assert.equal(dupA.state.C, null);
+  const dupB = selectLinkCompareSlot(withAB, "C", { ...vehicleB, label: "same vehicle" });
+  assert.equal(dupB.error, "duplicate");
+  const withC = { A: personA, B: vehicleB, C: phoneC };
+  const dupOntoA = selectLinkCompareSlot(withC, "A", phoneC);
+  assert.equal(dupOntoA.error, "duplicate");
+  assert.equal(dupOntoA.state.A?.entityId, personA.entityId);
+  assert.equal(canAnalyzeLinkCompare({ A: personA, B: vehicleB, C: personA }), false);
+  assert.equal(buildLinkCompareApiQuery({ A: personA, B: vehicleB, C: personA }), null);
+});
+
+test("Analyze 3 entities uses one existing API query with A/B/C", () => {
+  const three = { A: personA, B: vehicleB, C: phoneC };
+  assert.equal(isThreeEntityCompare(three), true);
+  assert.equal(canAnalyzeLinkCompare(three), true);
+  const query = buildLinkCompareApiQuery(three);
+  assert.deepEqual(query, {
+    aType: "PERSON",
+    aId: "p-kittisak",
+    bType: "VEHICLE",
+    bId: "v-9009",
+    cType: "PHONE",
+    cId: "ph-1001",
+  });
+  const submitted = pairIdentityKey(three);
+  assert.equal(shouldFetchLinkCompare(submitted, three), true);
+  assert.equal(shouldFetchLinkCompare(pairIdentityKey({ A: personA, B: vehicleB }), three), false);
+  const client = read("lib/drug_intelligence/drug_intelligence_client.ts");
+  assert.match(client, /cType\?:/);
+  assert.match(client, /getLinkCompare/);
+  assert.doesNotMatch(client, /requestPost<.*>\(\"\/drug-intelligence\/network\/compare\"/);
+});
+
+test("three pair summaries and demo DIRECT/DIRECT/INDIRECT plus triple DI-TEST-003", () => {
+  assert.equal(pairSlotLabel("A", "B"), "A ↔ B");
+  assert.equal(translate("di.linkCompare.direct", "th"), "พบความเชื่อมโยงโดยตรง");
+  assert.equal(translate("di.linkCompare.indirect", "th"), "พบความเชื่อมโยงผ่านตัวกลาง");
+  assert.equal(translate("di.linkCompare.tripleJunction", "th"), "จุดเชื่อมร่วมของทั้ง 3 รายการ");
+  assert.equal(translate("di.linkCompare.noTripleJunction", "th"), "ยังไม่พบจุดเชื่อมร่วมของทั้ง 3 รายการ");
+  assert.doesNotMatch(translate("di.linkCompare.noTripleJunction", "th"), /ไม่เกี่ยวข้องกัน/);
+  const pairs = [
+    { left: "A" as const, right: "B" as const, connectionKind: "DIRECT" as const },
+    { left: "A" as const, right: "C" as const, connectionKind: "DIRECT" as const },
+    { left: "B" as const, right: "C" as const, connectionKind: "INDIRECT" as const },
+  ];
+  assert.equal(findLinkComparePair(pairs, "A", "B")?.connectionKind, "DIRECT");
+  assert.equal(findLinkComparePair(pairs, "A", "C")?.connectionKind, "DIRECT");
+  assert.equal(findLinkComparePair(pairs, "B", "C")?.connectionKind, "INDIRECT");
+  assert.equal(hasTripleIntersection({ cases: [{ caseNumber: "DI-TEST-003" }], entities: [] }), true);
+  assert.equal(hasTripleIntersection({ cases: [], entities: [] }), false);
+  assert.equal(hasTripleIntersection(null), false);
+  const result = read("components/drug_intelligence/drug_link_compare_result.tsx");
+  assert.match(result, /link-compare-pairwise/);
+  assert.match(result, /link-compare-triple-junction/);
+  assert.match(result, /link-compare-no-triple/);
+  assert.match(result, /di\.linkCompare\.tripleSharedData/);
+  assert.match(result, /data-compare-mode/);
+  assert.doesNotMatch(result, /เป็นเจ้าของ|โทรหา|CDR|call detail/i);
+});
+
+test("Network returnTo preserves A/B/C and still rejects unsafe values", () => {
+  const three = { A: personA, B: vehicleB, C: phoneC };
+  const compareHref = buildLinkCompareHref(three);
+  assert.equal(
+    compareHref,
+    "/drug-intelligence/network/compare?aType=PERSON&aId=p-kittisak&bType=VEHICLE&bId=v-9009&cType=PHONE&cId=ph-1001"
+  );
+  assert.doesNotMatch(compareHref, /กิตติศักดิ์|66900001001|label=/);
+  const networkHref = linkCompareNetworkFocusHref("PHONE", phoneC.entityId, compareHref);
+  const restored = parseLinkCompareReturnTo(getSafeReturnTo(new URLSearchParams(networkHref.split("?")[1] ?? "")));
+  assert.equal(restored?.A?.entityId, personA.entityId);
+  assert.equal(restored?.B?.entityId, vehicleB.entityId);
+  assert.equal(restored?.C?.entityId, phoneC.entityId);
+  assert.equal(parseLinkCompareReturnTo("https://evil.example/drug-intelligence/network/compare"), null);
+});
+
+test("three-box copy has no ownership or CDR wording; mobile stacks", () => {
+  assert.doesNotMatch(translate("di.linkCompare.tripleInCase", "th"), /เจ้าของ|CDR|โทรหา/);
+  assert.doesNotMatch(translate("di.linkCompare.addPointC", "th"), /เจ้าของ/);
+  const workspace = read("components/drug_intelligence/drug_link_compare_workspace.tsx");
+  assert.match(workspace, /grid-cols-1/);
+  assert.match(workspace, /md:grid-cols-2/);
+  assert.match(workspace, /xl:grid-cols-3/);
+  assert.match(workspace, /emptyCForSearch === searchKey/);
+  assert.doesNotMatch(workspace, /onDrop|draggable/);
+  const slot = read("components/drug_intelligence/drug_link_compare_slot.tsx");
+  assert.match(slot, /di\.linkCompare\.slotC/);
+  assert.match(slot, /link-compare-change-\$\{slotKey\}/);
+  assert.match(slot, /showRemoveWhenEmpty/);
+});
+
+test("masking with C uses server DTO labels only", () => {
+  const result = read("components/drug_intelligence/drug_link_compare_result.tsx");
+  assert.match(result, /item\.label/);
+  assert.match(result, /slotDisplayLabel/);
+  assert.doesNotMatch(result, /unmask|normalizedNumber|canViewFull/);
+  const workspace = read("components/drug_intelligence/drug_link_compare_workspace.tsx");
+  assert.match(workspace, /dto\.label/);
+  assert.match(workspace, /can\(\"drug\.read\"\)/);
+  assert.doesNotMatch(workspace, /drug\.edit/);
+  const api = read("lib/drug_intelligence/__tests__/drug_link_compare_api_handlers.test.ts");
+  assert.match(api, /commander phone labels stay masked/);
+  assert.match(api, /admin sees the unmasked phone on the DTO/);
+  assert.match(api, /officer without drug\.read is 403/);
+});
+
+test("LC-2C.3 Compare open B/C stays A-centered and inspects the slot", () => {
+  const two = { A: personA, B: vehicleB };
+  const twoHref = linkCompareInspectNetworkHref({ inspect: "B", slots: two, compareHref: buildLinkCompareHref(two) });
+  const twoQs = new URLSearchParams(twoHref.split("?")[1] ?? "");
+  assert.equal(twoQs.get("focusType"), "PERSON");
+  assert.equal(twoQs.get("focusId"), personA.entityId);
+  assert.equal(twoQs.get("cmpInspect"), "B");
+  assert.doesNotMatch(twoHref, /กิตติศักดิ์|TEST-9009/);
+  assert.equal(parseLinkCompareReturnTo(getSafeReturnTo(twoQs))?.B?.entityId, vehicleB.entityId);
+
+  const three = { A: personA, B: vehicleB, C: phoneC };
+  const openC = linkCompareInspectNetworkHref({ inspect: "C", slots: three, compareHref: buildLinkCompareHref(three) });
+  const openCQs = new URLSearchParams(openC.split("?")[1] ?? "");
+  assert.equal(openCQs.get("focusType"), "PERSON");
+  assert.equal(openCQs.get("focusId"), personA.entityId);
+  assert.equal(openCQs.get("cmpInspect"), "C");
+  assert.equal(parseLinkCompareReturnTo(getSafeReturnTo(openCQs))?.C?.entityId, phoneC.entityId);
+
+  const openA = linkCompareInspectNetworkHref({ inspect: "A", slots: three, compareHref: buildLinkCompareHref(three) });
+  const openAQs = new URLSearchParams(openA.split("?")[1] ?? "");
+  assert.equal(openAQs.get("focusType"), "PERSON");
+  assert.equal(openAQs.get("cmpInspect"), "A");
+
+  const result = read("components/drug_intelligence/drug_link_compare_result.tsx");
+  assert.match(result, /inspect: \"B\"/);
+  assert.match(result, /inspect: \"C\"/);
+  assert.doesNotMatch(result, /linkCompareNetworkFocusHref\(/);
+});
+
+test("ordinary Network vehicle focus path remains vehicle-centered", () => {
+  const compareHref = buildLinkCompareHref({ A: personA, B: vehicleB });
+  const href = linkCompareNetworkFocusHref("VEHICLE", vehicleB.entityId, compareHref);
+  const qs = new URLSearchParams(href.split("?")[1] ?? "");
+  assert.equal(qs.get("focusType"), "VEHICLE");
+  assert.equal(qs.get("focusId"), vehicleB.entityId);
+  assert.equal(qs.get("cmpInspect"), null);
 });

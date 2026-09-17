@@ -1,8 +1,8 @@
 /**
- * Link Compare LC-2B — two-box client state (pure).
+ * Link Compare LC-2B/LC-2C — two-box client state with optional Point C.
  *
  * URL identity is type + canonical id only. Labels are presentation cache,
- * never identity. Analyze is explicit; Box C / drag-drop / AI are out of scope.
+ * never identity. Analyze is explicit. Drag-drop / AI / manual subjects stay out of scope.
  */
 
 import { ApiClientError } from "@/lib/ui/api_client";
@@ -18,7 +18,17 @@ import {
   type DrugLinkCompareSlotKey,
 } from "@/lib/drug_intelligence/drug_link_compare_types";
 import { DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
-import type { DrugGraphPath, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type {
+  DrugGraphPath,
+  DrugGraphRelationshipType,
+  DrugLinkCompareQuery,
+} from "@/lib/drug_intelligence/drug_intelligence_client";
+import {
+  withCompareHighlightParams,
+  withCompareInspectParam,
+  type CompareHighlightSlot,
+  type LinkCompareHighlightContext,
+} from "@/lib/drug_intelligence/drug_link_compare_highlight";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 export const LINK_COMPARE_PATH = "/drug-intelligence/network/compare";
@@ -40,7 +50,16 @@ export type LinkCompareSlotSelection = {
 export type LinkCompareTwoBoxState = {
   A: LinkCompareSlotSelection | null;
   B: LinkCompareSlotSelection | null;
+  C?: LinkCompareSlotSelection | null;
 };
+
+export function slotC(state: LinkCompareTwoBoxState): LinkCompareSlotSelection | null {
+  return state.C ?? null;
+}
+
+export function isThreeEntityCompare(state: LinkCompareTwoBoxState): boolean {
+  return Boolean(state.A && state.B && slotC(state));
+}
 
 export type LinkCompareHttpErrorKind = "invalid" | "unauthenticated" | "forbidden" | "not_found" | "retryable";
 
@@ -58,7 +77,10 @@ export function isSameCanonicalEntity(left: LinkCompareSlotSelection | null, rig
 }
 
 export function canAnalyzeLinkCompare(state: LinkCompareTwoBoxState): boolean {
-  return Boolean(state.A && state.B && !isSameCanonicalEntity(state.A, state.B));
+  if (!state.A || !state.B || isSameCanonicalEntity(state.A, state.B)) return false;
+  const c = slotC(state);
+  if (!c) return true;
+  return !isSameCanonicalEntity(state.A, c) && !isSameCanonicalEntity(state.B, c);
 }
 
 export function isAnalyzeDisabled(state: LinkCompareTwoBoxState, loading: boolean): boolean {
@@ -67,26 +89,34 @@ export function isAnalyzeDisabled(state: LinkCompareTwoBoxState, loading: boolea
 
 export function pairIdentityKey(state: LinkCompareTwoBoxState): string | null {
   if (!canAnalyzeLinkCompare(state) || !state.A || !state.B) return null;
-  return `${canonicalEntityKey(state.A.entityType, state.A.entityId)}|${canonicalEntityKey(state.B.entityType, state.B.entityId)}`;
+  const parts = [
+    canonicalEntityKey(state.A.entityType, state.A.entityId),
+    canonicalEntityKey(state.B.entityType, state.B.entityId),
+  ];
+  const c = slotC(state);
+  if (c) parts.push(canonicalEntityKey(c.entityType, c.entityId));
+  return parts.join("|");
+}
+
+function otherSlots(state: LinkCompareTwoBoxState, slot: DrugLinkCompareSlotKey): Array<LinkCompareSlotSelection | null> {
+  if (slot === "A") return [state.B, slotC(state)];
+  if (slot === "B") return [state.A, slotC(state)];
+  return [state.A, state.B];
 }
 
 export function selectLinkCompareSlot(
   state: LinkCompareTwoBoxState,
-  slot: Exclude<DrugLinkCompareSlotKey, "C">,
+  slot: DrugLinkCompareSlotKey,
   selection: LinkCompareSlotSelection
 ): { state: LinkCompareTwoBoxState; error: "duplicate" | null } {
-  const other = slot === "A" ? state.B : state.A;
-  if (isSameCanonicalEntity(selection, other)) {
+  if (otherSlots(state, slot).some((other) => isSameCanonicalEntity(selection, other))) {
     return { state, error: "duplicate" };
   }
-  return { state: { ...state, [slot]: selection }, error: null };
+  return { state: { A: state.A ?? null, B: state.B ?? null, C: slotC(state), [slot]: selection }, error: null };
 }
 
-export function clearLinkCompareSlot(
-  state: LinkCompareTwoBoxState,
-  slot: Exclude<DrugLinkCompareSlotKey, "C">
-): LinkCompareTwoBoxState {
-  return { ...state, [slot]: null };
+export function clearLinkCompareSlot(state: LinkCompareTwoBoxState, slot: DrugLinkCompareSlotKey): LinkCompareTwoBoxState {
+  return { A: state.A ?? null, B: state.B ?? null, C: slotC(state), [slot]: null };
 }
 
 function readSlot(
@@ -105,6 +135,7 @@ export function parseLinkCompareSearchParams(params: URLSearchParams): LinkCompa
   return {
     A: readSlot(params, "aType", "aId"),
     B: readSlot(params, "bType", "bId"),
+    C: readSlot(params, "cType", "cId"),
   };
 }
 
@@ -123,31 +154,74 @@ export function serializeLinkCompareSearchParams(
     next.set("bType", state.B.entityType);
     next.set("bId", state.B.entityId);
   }
+  const c = slotC(state);
+  if (c) {
+    next.set("cType", c.entityType);
+    next.set("cId", c.entityId);
+  }
   return next;
 }
 
 /** Canonical compare URL for Network returnTo — type/id only, never labels or nested returnTo. */
 export function buildLinkCompareHref(state: LinkCompareTwoBoxState): string {
-  const params = new URLSearchParams();
-  if (state.A) {
-    params.set("aType", state.A.entityType);
-    params.set("aId", state.A.entityId);
-  }
-  if (state.B) {
-    params.set("bType", state.B.entityType);
-    params.set("bId", state.B.entityId);
-  }
+  const params = serializeLinkCompareSearchParams({ A: state.A ?? null, B: state.B ?? null, C: slotC(state) });
+  params.delete("returnTo");
   const qs = params.toString();
   const href = qs ? `${LINK_COMPARE_PATH}?${qs}` : LINK_COMPARE_PATH;
   return isSafeInternalReturnPath(href) ? href : LINK_COMPARE_PATH;
 }
 
+export function buildLinkCompareApiQuery(state: LinkCompareTwoBoxState): DrugLinkCompareQuery | null {
+  if (!canAnalyzeLinkCompare(state) || !state.A || !state.B) return null;
+  const query: DrugLinkCompareQuery = {
+    aType: state.A.entityType,
+    aId: state.A.entityId,
+    bType: state.B.entityType,
+    bId: state.B.entityId,
+  };
+  const c = slotC(state);
+  if (c) {
+    query.cType = c.entityType;
+    query.cId = c.entityId;
+  }
+  return query;
+}
+
 export function linkCompareNetworkFocusHref(
   entityType: DrugLinkCompareEntityType,
   entityId: string,
-  compareHref: string
+  compareHref: string,
+  highlight?: LinkCompareHighlightContext | null
 ): string {
-  return withReturnTo(drugNetworkFocusPath(entityType, entityId), compareHref);
+  return withReturnTo(withCompareHighlightParams(drugNetworkFocusPath(entityType, entityId), highlight ?? null), compareHref);
+}
+
+/** Compare-mode open-in-graph: always A-centered neighborhood, inspect A/B/C without changing focus. */
+export function linkCompareInspectNetworkHref(options: {
+  inspect: CompareHighlightSlot;
+  slots: LinkCompareTwoBoxState;
+  compareHref: string;
+  highlight?: LinkCompareHighlightContext | null;
+}): string {
+  const { inspect, slots, compareHref, highlight } = options;
+  const anchor = slots.A;
+  if (!anchor) {
+    const fallback = inspect === "C" ? slotC(slots) : inspect === "B" ? slots.B : null;
+    if (!fallback) return withReturnTo(LINK_COMPARE_NETWORK_PATH, compareHref);
+    return withReturnTo(
+      withCompareHighlightParams(drugNetworkFocusPath(fallback.entityType, fallback.entityId), highlight ?? null),
+      compareHref
+    );
+  }
+  const slot: CompareHighlightSlot =
+    inspect === "C" && !slotC(slots) ? "A" : inspect === "B" && !slots.B ? "A" : inspect;
+  return withReturnTo(
+    withCompareInspectParam(
+      withCompareHighlightParams(drugNetworkFocusPath(anchor.entityType, anchor.entityId), highlight ?? null),
+      slot
+    ),
+    compareHref
+  );
 }
 
 export function linkCompareCaseHref(caseId: string, compareHref: string): string {
@@ -175,7 +249,26 @@ export function mergeHydratedSlots(
   return {
     A: hydrate(fromUrl.A, previous.A),
     B: hydrate(fromUrl.B, previous.B),
+    C: hydrate(fromUrl.C ?? null, previous.C ?? null),
   };
+}
+
+export function findLinkComparePair<T extends { left: DrugLinkCompareSlotKey; right: DrugLinkCompareSlotKey }>(
+  pairs: T[],
+  left: DrugLinkCompareSlotKey,
+  right: DrugLinkCompareSlotKey
+): T | undefined {
+  return pairs.find((pair) => pair.left === left && pair.right === right);
+}
+
+export function hasTripleIntersection(
+  triple: { cases: unknown[]; entities: unknown[] } | null | undefined
+): boolean {
+  return Boolean(triple && (triple.cases.length > 0 || triple.entities.length > 0));
+}
+
+export function pairSlotLabel(left: DrugLinkCompareSlotKey, right: DrugLinkCompareSlotKey): string {
+  return `${left} ↔ ${right}`;
 }
 
 export function shouldFetchLinkCompare(submittedKey: string | null, state: LinkCompareTwoBoxState): boolean {

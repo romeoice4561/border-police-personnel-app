@@ -8,32 +8,43 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { DrugEntityIconMark } from "@/components/drug_intelligence/drug_entity_visual";
 import { useT } from "@/components/i18n/language_provider";
+import { cn } from "@/lib/ui/cn";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { LinkCompareSlotSelection } from "@/lib/drug_intelligence/drug_link_compare_client_state";
 import type { DrugLinkCompareSlotKey } from "@/lib/drug_intelligence/drug_link_compare_types";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
+function slotTitleKey(slotKey: DrugLinkCompareSlotKey): TranslationKey {
+  if (slotKey === "A") return "di.linkCompare.slotA";
+  if (slotKey === "B") return "di.linkCompare.slotB";
+  return "di.linkCompare.slotC";
+}
+
 export function DrugLinkCompareSlot({
   slotKey,
   selection,
   duplicateError,
+  className,
+  showRemoveWhenEmpty = false,
   onChoose,
   onChange,
   onRemove,
 }: {
-  slotKey: Exclude<DrugLinkCompareSlotKey, "C">;
+  slotKey: DrugLinkCompareSlotKey;
   selection: LinkCompareSlotSelection | null;
   duplicateError: boolean;
+  className?: string;
+  showRemoveWhenEmpty?: boolean;
   onChoose: () => void;
   onChange: () => void;
   onRemove: () => void;
 }) {
   const { t } = useT();
-  const title = slotKey === "A" ? t("di.linkCompare.slotA") : t("di.linkCompare.slotB");
+  const title = t(slotTitleKey(slotKey));
 
   return (
     <Card
-      className="min-w-0"
+      className={cn("min-w-0", className)}
       data-testid={`link-compare-slot-${slotKey}`}
       data-slot-filled={selection ? "true" : "false"}
     >
@@ -67,15 +78,22 @@ export function DrugLinkCompareSlot({
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={onChoose}
-            data-testid={`link-compare-choose-${slotKey}`}
-            className="flex min-h-24 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-neutral-bg/40 px-3 py-4 text-sm font-medium text-foreground hover:bg-neutral-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {t("di.linkCompare.chooseEntity")}
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={onChoose}
+              data-testid={`link-compare-choose-${slotKey}`}
+              className="flex min-h-24 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-neutral-bg/40 px-3 py-4 text-sm font-medium text-foreground hover:bg-neutral-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {t("di.linkCompare.chooseEntity")}
+            </button>
+            {showRemoveWhenEmpty ? (
+              <Button type="button" variant="ghost" size="sm" onClick={onRemove} data-testid={`link-compare-remove-${slotKey}`}>
+                {t("di.linkCompare.remove")}
+              </Button>
+            ) : null}
+          </div>
         )}
         {duplicateError ? (
           <p className="text-sm text-critical" role="alert" data-testid="link-compare-duplicate">

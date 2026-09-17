@@ -190,6 +190,14 @@ import {
   type DrugNetworkLabelMode,
   type DrugNetworkNodeDensity,
 } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
+import { DrugNetworkCompareHighlightBar } from "@/components/drug_intelligence/drug_network_compare_highlight_bar";
+import {
+  compareHighlightIdentityKey,
+  compareHighlightPathEdgeIds,
+  compareInspectGraphNodeId,
+  parseCompareHighlightSearchParams,
+  parseCompareInspectSlot,
+} from "@/lib/drug_intelligence/drug_link_compare_highlight";
 import { computeGroupByTypeLaneHeaders, planGroupByHopLayout, resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { appearanceReasonKey, connectingRelationshipTypes, selectedPathSteps, shortestUndirectedPath, summarizeNeighborhood } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import { connectingEdgeForExplanationClick } from "@/lib/drug_intelligence/drug_network_relationship_explainability";
@@ -491,6 +499,17 @@ function DrugNetworkContent() {
   );
   const returnTo = getSafeReturnTo(searchParams);
   const currentNetworkHref = currentInternalHref(pathname, searchParams);
+  const compareHighlight = useMemo(
+    () => (boardId ? null : parseCompareHighlightSearchParams(searchParams)),
+    [boardId, searchParams]
+  );
+  const compareHighlightKey = compareHighlightIdentityKey(compareHighlight);
+  const compareInspectSlot = useMemo(
+    () => parseCompareInspectSlot(searchParams, compareHighlight),
+    [searchParams, compareHighlight]
+  );
+  const [compareEmphasisForKey, setCompareEmphasisForKey] = useState({ key: "", on: true });
+  const compareHighlightEmphasize = compareHighlightKey === compareEmphasisForKey.key ? compareEmphasisForKey.on : true;
 
   // DI-9.1: View/Analyst mode
   const [workspaceMode, setWorkspaceMode] = useState<DrugNetworkWorkspaceMode>("VIEW");
@@ -847,7 +866,11 @@ function DrugNetworkContent() {
         : layoutMode;
 
   const selectedSecondaryId =
-    selectedNode && focusId && selectedNode.id !== focusId ? selectedNode.id : null;
+    compareHighlight
+      ? null
+      : selectedNode && focusId && selectedNode.id !== focusId
+        ? selectedNode.id
+        : null;
   const canvasArrangement = resolveDepthViewCanvas({
     depth,
     viewMode: depthViewMode,
@@ -961,6 +984,16 @@ function DrugNetworkContent() {
     setSelectedNode((current) => nextSelectedEntityAfterNeighborhoodChange(current, currentNodeIds));
     setSelectedEdge((current) => nextSelectedEntityAfterNeighborhoodChange(current, neighborhood.data.edges.map((edge) => edge.id)));
   }, [neighborhood.data]);
+
+  useEffect(() => {
+    if (!neighborhood.data || !compareHighlight || !compareInspectSlot) return;
+    const inspectId = compareInspectGraphNodeId(neighborhood.data.nodes, compareHighlight, compareInspectSlot);
+    if (!inspectId) return;
+    const node = neighborhood.data.nodes.find((item) => item.id === inspectId);
+    if (!node) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedNode((current) => (current?.id === node.id ? current : node));
+  }, [neighborhood.data, compareHighlight, compareInspectSlot]);
 
   useEffect(() => {
     if (!neighborhood.data) return;
@@ -1152,6 +1185,9 @@ function DrugNetworkContent() {
       canvasArrangement,
       isolateSelectedPath,
       showHopBadges: depth === 2,
+      compareHighlight,
+      compareHighlightEmphasize,
+      compareInspectSlot,
     });
 
     const isNewQuery = lastQuerySignatureRef.current !== querySignature;
@@ -1309,7 +1345,7 @@ function DrugNetworkContent() {
       lastPathFitSelectionRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot]);
 
   // Hover labels are patched onto the already-built edges. Never put hover
   // into the topology rebuild above — drag moves the pointer in/out of the
@@ -1317,6 +1353,10 @@ function DrugNetworkContent() {
   useEffect(() => {
     if (!neighborhood.data) return;
     const data = neighborhood.data;
+    const comparePathEdgeIds =
+      compareHighlight && compareHighlightEmphasize
+        ? compareHighlightPathEdgeIds(data.edges, data.nodes, compareHighlight)
+        : null;
     setFlowEdges((current) =>
       applyFlowEdgeHoverLabels(
         current,
@@ -1326,10 +1366,11 @@ function DrugNetworkContent() {
         selectedEdge?.id ?? null,
         labelMode,
         hoveredNodeId,
-        hoveredEdgeId
+        hoveredEdgeId,
+        comparePathEdgeIds
       )
     );
-  }, [neighborhood.data, selectedNode?.id, selectedEdge?.id, labelMode, hoveredNodeId, hoveredEdgeId, t]);
+  }, [neighborhood.data, selectedNode?.id, selectedEdge?.id, labelMode, hoveredNodeId, hoveredEdgeId, t, compareHighlight, compareHighlightEmphasize]);
 
   // ── Text change callback (stable via ref) ─────────────────────────────────────
   // Stored in a ref so it never forces the build effect to re-run (it's not
@@ -2857,6 +2898,18 @@ function DrugNetworkContent() {
                 <SummaryTile label={t("di.network.summaryCases")} value={neighborhood.data.nodes.filter((n) => n.type === "CASE").length} />
                 <SummaryTile label={t("di.network.summaryInferred")} value={neighborhood.data.edges.filter((e) => e.edgeKind === "INFERRED").length} />
               </div>
+
+              {compareHighlight ? (
+                <DrugNetworkCompareHighlightBar
+                  context={compareHighlight}
+                  emphasize={compareHighlightEmphasize}
+                  inspectSlot={compareInspectSlot}
+                  nodes={neighborhood.data.nodes}
+                  edges={neighborhood.data.edges}
+                  onEmphasize={() => setCompareEmphasisForKey({ key: compareHighlightKey, on: true })}
+                  onShowAll={() => setCompareEmphasisForKey({ key: compareHighlightKey, on: false })}
+                />
+              ) : null}
 
               {neighborhood.data.truncated ? (
                 <p role="status" className="flex items-center gap-1.5 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">

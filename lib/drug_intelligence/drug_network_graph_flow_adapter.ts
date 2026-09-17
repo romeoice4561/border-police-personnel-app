@@ -19,11 +19,22 @@ import {
   type LayoutNodeInput,
 } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import type { NetworkDepthCanvasArrangement } from "@/lib/drug_intelligence/drug_network_depth_view";
-import { DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
+import {
+  DRUG_GRAPH_RELATIONSHIP_LABEL_KEY,
+  DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY,
+} from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { createDefaultEdgeRoute, type DrugNetworkEdgeRouteState, type DrugNetworkEdgeRoutes } from "@/lib/drug_intelligence/drug_network_edge_routing";
 import { hopDistances, isSharedEntity, shortestUndirectedPath, shouldShowEdgeLabel } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNeighborhoodResponse, DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
+import {
+  COMPARE_HIGHLIGHT_CONTEXT_EDGE_OPACITY,
+  COMPARE_HIGHLIGHT_PATH_STROKE_WIDTH,
+  classifyCompareHighlightNode,
+  compareHighlightGraphNodeIds,
+  isFactualComparePathEdge,
+  type LinkCompareHighlightContext,
+} from "@/lib/drug_intelligence/drug_link_compare_highlight";
 
 export type DrugNetworkLabelMode = "ALL" | "SELECTED_ONLY" | "HIDDEN";
 export type DrugNetworkNodeDensity = "STANDARD" | "COMPACT";
@@ -47,6 +58,14 @@ export interface DrugNetworkFlowNodeData extends Record<string, unknown> {
   showHopBadge: boolean;
   /** Stronger isolation dimming for selected-path view. */
   stronglyDimmed: boolean;
+  /** LC-2C.1 compare-highlight role. Null when Compare Highlight Mode is off. */
+  compareRole: "endpoint" | "path" | "context" | null;
+  /** A/B/C badge when this node is a compared endpoint. */
+  compareSlot: "A" | "B" | "C" | null;
+  /** True when this node is connecting evidence on the compared path (e.g. shared Case). */
+  compareJunction: boolean;
+  /** LC-2C.3: this compared endpoint is the current inspection target. */
+  compareInspect: boolean;
 }
 
 export interface FlowNode extends Node {
@@ -114,6 +133,12 @@ export interface BuildFlowGraphOptions {
   isolateSelectedPath?: boolean;
   /** Show ชั้น 1 / ชั้น 2 chips on non-focus nodes. */
   showHopBadges?: boolean;
+  /** LC-2C.1 presentation-only compare emphasis. Absent on ordinary Network. */
+  compareHighlight?: LinkCompareHighlightContext | null;
+  /** When false, compare context is present but visual weights stay normal. */
+  compareHighlightEmphasize?: boolean;
+  /** LC-2C.3 presentation-only A/B/C inspection inside the stable Compare graph. */
+  compareInspectSlot?: "A" | "B" | "C" | null;
 }
 
 function toLayoutNode(n: DrugGraphNode): LayoutNodeInput {
@@ -161,28 +186,50 @@ export function buildDrugNetworkFlowGraph(
   const focusId = neighborhood.focus.entityId;
   const selectedGraphEdge = selectedEdgeId ? neighborhood.edges.find((edge) => edge.id === selectedEdgeId) ?? null : null;
   const selectedIsSecondary = Boolean(selectedNodeId && selectedNodeId !== focusId);
-  const selectedPath = selectedIsSecondary && selectedNodeId
-    ? shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
-    : null;
-  const pathNodeIds = selectedGraphEdge
-    ? new Set([selectedGraphEdge.source, selectedGraphEdge.target])
-    : selectedPath
-      ? new Set(selectedPath.nodeIds)
+  const compareHighlight = options.compareHighlight ?? null;
+  const compareEmphasize = Boolean(compareHighlight && options.compareHighlightEmphasize !== false);
+  const compareInspectSlot = options.compareInspectSlot ?? null;
+  const selectedPath =
+    !compareHighlight && selectedIsSecondary && selectedNodeId
+      ? shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
       : null;
-  const pathEdgeIds = selectedGraphEdge
-    ? new Set([selectedGraphEdge.id])
-    : selectedPath
-      ? new Set(selectedPath.edgeIds)
-      : null;
-  const neighborIds = selectedIsSecondary && selectedNodeId && !selectedPath && !selectedGraphEdge
-    ? connectedNodeIds(selectedNodeId, neighborhood.edges)
+  const comparePathIds = compareEmphasize && compareHighlight
+    ? compareHighlightGraphNodeIds(neighborhood.nodes, compareHighlight).pathIds
     : null;
+  const pathNodeIds = comparePathIds
+    ? comparePathIds
+    : selectedGraphEdge
+      ? new Set([selectedGraphEdge.source, selectedGraphEdge.target])
+      : selectedPath
+        ? new Set(selectedPath.nodeIds)
+        : null;
+  const pathEdgeIds = comparePathIds
+    ? new Set(
+        neighborhood.edges.filter((edge) => isFactualComparePathEdge(edge, comparePathIds)).map((edge) => edge.id)
+      )
+    : selectedGraphEdge
+      ? new Set([selectedGraphEdge.id])
+      : selectedPath
+        ? new Set(selectedPath.edgeIds)
+        : null;
+  const neighborIds =
+    !compareHighlight && !comparePathIds && selectedIsSecondary && selectedNodeId && !selectedPath && !selectedGraphEdge
+      ? connectedNodeIds(selectedNodeId, neighborhood.edges)
+      : null;
 
   const flowNodes: FlowNode[] = neighborhood.nodes.map((n) => {
     const isFocus = n.id === focusId;
     const hopDistance = hops.get(n.id) ?? (isFocus ? 0 : 1);
+    const inspectClass = compareHighlight ? classifyCompareHighlightNode(n, compareHighlight) : null;
+    const compareClass = compareEmphasize ? inspectClass : null;
     const onSelectedPath = pathNodeIds ? pathNodeIds.has(n.id) : false;
-    const dimmed = pathNodeIds ? !pathNodeIds.has(n.id) : neighborIds ? !neighborIds.has(n.id) : false;
+    const dimmed = compareClass
+      ? compareClass.role === "context"
+      : pathNodeIds
+        ? !pathNodeIds.has(n.id)
+        : neighborIds
+          ? !neighborIds.has(n.id)
+          : false;
     return {
       id: n.id,
       type: "drugGraphNode",
@@ -200,7 +247,11 @@ export function buildDrugNetworkFlowGraph(
         isShared: isSharedEntity(n, isFocus),
         onSelectedPath,
         showHopBadge: Boolean(options.showHopBadges) && !isFocus && hopDistance >= 1,
-        stronglyDimmed: Boolean(options.isolateSelectedPath) && dimmed,
+        stronglyDimmed: compareClass ? compareClass.role === "context" : Boolean(options.isolateSelectedPath) && dimmed,
+        compareRole: compareClass?.role ?? null,
+        compareSlot: compareClass?.slot ?? null,
+        compareJunction: compareClass?.junction ?? false,
+        compareInspect: Boolean(inspectClass?.slot && inspectClass.slot === compareInspectSlot),
       },
     };
   });
@@ -228,6 +279,8 @@ export function buildDrugNetworkFlowGraph(
       onSelectedPath: onPath === true,
     });
     const edgeDimmed = onPath === null ? false : !onPath;
+    const comparePathEdge = Boolean(comparePathIds && onPath === true);
+    const showPathReason = comparePathEdge && isFactualComparePathEdge(e, comparePathIds ?? new Set());
     const baseColor = e.edgeKind === "INFERRED" ? "var(--color-warning, #b45309)" : "var(--color-accent, #2563eb)";
     // DI-9.3 Section 6/13: an edge only ever switches to the custom routed
     // renderer once it has a non-AUTO route WITH at least one waypoint —
@@ -243,7 +296,14 @@ export function buildDrugNetworkFlowGraph(
       target: e.target,
       selected: isSelected,
       type: isRouted ? "drugRoutedEdge" : edgeType,
-      label: showLabel ? translateShortLabel(DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[e.relationshipType]) : "",
+      label:
+        showPathReason || showLabel
+          ? translateShortLabel(
+              showPathReason
+                ? DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[e.relationshipType]
+                : DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[e.relationshipType]
+            )
+          : "",
       data: {
         route,
         analystMode: options.analystMode ?? false,
@@ -253,8 +313,14 @@ export function buildDrugNetworkFlowGraph(
       style: {
         stroke: baseColor,
         ...(e.edgeKind === "INFERRED" ? { strokeDasharray: "5 5" } : {}),
-        opacity: edgeDimmed ? (options.isolateSelectedPath ? 0.28 : 0.42) : 1,
-        strokeWidth: onPath ? 3 : 1.5,
+        opacity: edgeDimmed
+          ? comparePathIds
+            ? COMPARE_HIGHLIGHT_CONTEXT_EDGE_OPACITY
+            : options.isolateSelectedPath
+              ? 0.28
+              : 0.42
+          : 1,
+        strokeWidth: onPath ? COMPARE_HIGHLIGHT_PATH_STROKE_WIDTH : 1.5,
       },
       markerEnd: { type: MarkerType.ArrowClosed },
       labelStyle: { fontSize: 10 },
@@ -270,7 +336,7 @@ export function buildDrugNetworkFlowGraph(
       // unclickable/undraggable at most of its surface — edges intercepted
       // the pointer before it ever reached the node.
       zIndex:
-        selectedNodeId || selectedEdgeId
+        selectedNodeId || selectedEdgeId || comparePathEdge
           ? isSelected
             ? 10
             : onPath
@@ -298,14 +364,19 @@ export function applyFlowEdgeHoverLabels(
   selectedEdgeId: string | null,
   labelMode: DrugNetworkLabelMode,
   hoveredNodeId: string | null,
-  hoveredEdgeId: string | null
+  hoveredEdgeId: string | null,
+  comparePathEdgeIds?: ReadonlySet<string> | null
 ): FlowEdge[] {
   const graphEdgeById = new Map(neighborhood.edges.map((edge) => [edge.id, edge]));
   const selectedPath =
     selectedNodeId && selectedNodeId !== neighborhood.focus.entityId
       ? shortestUndirectedPath(neighborhood.focus.entityId, selectedNodeId, neighborhood.edges)
       : null;
-  const pathEdgeIds = selectedPath ? new Set(selectedPath.edgeIds) : null;
+  const pathEdgeIds = comparePathEdgeIds
+    ? new Set(comparePathEdgeIds)
+    : selectedPath
+      ? new Set(selectedPath.edgeIds)
+      : null;
   let changed = false;
   const next = edges.map((edge) => {
     const graphEdge = graphEdgeById.get(edge.id);
@@ -319,7 +390,16 @@ export function applyFlowEdgeHoverLabels(
       touchesHoveredNode: hoveredNodeId ? edge.source === hoveredNodeId || edge.target === hoveredNodeId : false,
       onSelectedPath: pathEdgeIds?.has(edge.id) ?? false,
     });
-    const label = showLabel ? translateShortLabel(DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[graphEdge.relationshipType]) : "";
+    const comparePathEdge = Boolean(comparePathEdgeIds?.has(edge.id));
+    const showPathReason = comparePathEdge && isFactualComparePathEdge(graphEdge, new Set([graphEdge.source, graphEdge.target]));
+    const label =
+      showPathReason || showLabel
+        ? translateShortLabel(
+            showPathReason
+              ? DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[graphEdge.relationshipType]
+              : DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[graphEdge.relationshipType]
+          )
+        : "";
     if (label === edge.label) return edge;
     changed = true;
     return { ...edge, label };

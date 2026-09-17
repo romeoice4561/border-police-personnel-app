@@ -1160,6 +1160,8 @@ export interface DrugLinkCompareQuery {
   aId: string;
   bType: DrugLinkCompareEntityType;
   bId: string;
+  cType?: DrugLinkCompareEntityType;
+  cId?: string;
 }
 
 export interface DrugLinkCompareSlotDto {

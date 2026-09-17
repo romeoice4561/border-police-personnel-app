@@ -39,7 +39,7 @@ const NODE_TONE: Record<DrugGraphNodeType, string> = {
 };
 
 export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: DrugNetworkFlowNodeData }) {
-  const { graphNode, isFocus, density, dimmed, pinned, hopDistance, isShared, onSelectedPath, showHopBadge, stronglyDimmed } = data;
+  const { graphNode, isFocus, density, dimmed, pinned, hopDistance, isShared, onSelectedPath, showHopBadge, stronglyDimmed, compareRole, compareSlot, compareJunction, compareInspect } = data;
   const { t } = useT();
   const Icon = NODE_ICON[graphNode.type];
   const hasRisk = graphNode.riskIndicators.length > 0;
@@ -50,13 +50,20 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
   const sharedCaption = graphNode.caseCount > 2
     ? `${t("di.network.sharedLinkPrefix")} ${graphNode.caseCount} ${t("di.network.summaryCases")}`
     : t("di.network.sharedManyCases");
+  const compareEndpoint = compareRole === "endpoint";
+  const comparePath = compareRole === "path";
+  const compareJunctionNode = Boolean(compareJunction && comparePath);
 
   return (
     <div
       role="button"
       tabIndex={0}
       title={card.titleTitle}
-      aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${card.title}${isFocus ? ` (${focusCaption})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}${pinned ? ` (${t("di.network.pinnedNode")})` : ""}${isShared ? ` (${sharedCaption})` : ""}`}
+      aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${card.title}${isFocus ? ` (${focusCaption})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}${pinned ? ` (${t("di.network.pinnedNode")})` : ""}${isShared ? ` (${sharedCaption})` : ""}${compareSlot ? ` (${compareSlot})` : ""}${compareJunctionNode ? ` (${t("di.network.compareJunctionBadge")})` : ""}`}
+      data-compare-role={compareRole ?? undefined}
+      data-compare-slot={compareSlot ?? undefined}
+      data-compare-junction={compareJunctionNode ? "true" : undefined}
+      data-compare-inspect={compareInspect ? "true" : undefined}
       className={cn(
         "relative flex min-w-[120px] max-w-[180px] flex-col items-center gap-1 border-2 bg-surface px-3 py-2 text-center shadow-sm transition-[box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         isCompact ? "min-w-20 max-w-30 px-2 py-1.5" : "",
@@ -64,12 +71,24 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         isFocus && graphNode.type === "PERSON" ? "rounded-2xl" : NODE_SHAPE[graphNode.type],
         NODE_TONE[graphNode.type],
         selected && !isFocus ? "ring-2 ring-accent ring-offset-2 shadow-md" : "",
-        onSelectedPath && !selected && !isFocus ? "ring-1 ring-accent/40" : "",
-        isIndirect && !isFocus && !selected && !onSelectedPath ? "opacity-80" : "",
-        isIndirect && !isFocus && !selected ? "scale-[0.92] border-dashed" : "",
+        compareEndpoint && !selected ? "ring-2 ring-accent ring-offset-2 shadow-md" : "",
+        compareInspect && !isFocus ? "ring-2 ring-accent ring-offset-4 shadow-md" : "",
+        compareJunctionNode && !selected && !compareEndpoint ? "ring-2 ring-warning ring-offset-1 shadow-md" : "",
+        comparePath && !selected && !compareEndpoint && !compareJunctionNode ? "ring-1 ring-accent" : "",
+        onSelectedPath && !selected && !isFocus && !compareEndpoint && !comparePath ? "ring-1 ring-accent/40" : "",
+        isIndirect && !isFocus && !selected && !onSelectedPath && !compareEndpoint && !comparePath ? "opacity-80" : "",
+        isIndirect && !isFocus && !selected && !compareEndpoint && !comparePath ? "scale-[0.92] border-dashed" : "",
         stronglyDimmed ? "opacity-30" : dimmed ? "opacity-50" : ""
       )}
     >
+      {compareSlot ? (
+        <span
+          className="absolute -left-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border border-accent bg-accent px-1 text-[10px] font-bold text-surface shadow-sm"
+          data-testid={`network-compare-slot-${compareSlot}`}
+        >
+          {compareSlot}
+        </span>
+      ) : null}
       <Handle type="target" position={Position.Top} className="!bg-border" />
       <Handle type="source" position={Position.Bottom} className="!bg-border" />
       {pinned ? (
@@ -97,6 +116,14 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         <span className="rounded-full bg-neutral-bg px-1.5 py-px text-[9px] font-medium text-muted">{t("di.network.hopBadgeTwo")}</span>
       ) : null}
       {selected && !isFocus ? <span className="text-[9px] font-semibold uppercase tracking-wide text-accent">{t("di.network.selectedNode")}</span> : null}
+      {compareJunctionNode ? (
+        <span
+          className="rounded-full bg-warning-bg px-1.5 py-px text-[9px] font-semibold text-warning"
+          data-testid="network-compare-junction-badge"
+        >
+          {t("di.network.compareJunctionBadge")}
+        </span>
+      ) : null}
       {isShared ? (
         <span
           title={`${t("di.network.sharedLinkPrefix")} ${graphNode.caseCount} ${t("di.network.summaryCases")}`}
