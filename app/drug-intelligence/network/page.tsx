@@ -77,6 +77,7 @@ import {
   RotateCcw,
   Maximize2,
   GitCompare,
+  ArrowLeftRight,
   ChevronDown,
   ChevronUp,
   Info,
@@ -282,8 +283,8 @@ import {
 import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
-import { getSafeReturnTo, currentInternalHref } from "@/lib/ui/return_context";
-import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
+import { getSafeReturnTo, currentInternalHref, withReturnTo } from "@/lib/ui/return_context";
+import { isLinkCompareReturnTo, returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugInvestigationBoardStateClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -2335,7 +2336,8 @@ function DrugNetworkContent() {
               <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link
                   href={returnTo}
-                  data-testid="back-via-return-to"
+                  data-testid={isLinkCompareReturnTo(returnTo) ? "link-compare-return" : "back-via-return-to"}
+                  data-link-compare-return={isLinkCompareReturnTo(returnTo) ? "true" : undefined}
                   onClick={(event) => {
                     if (!shouldConfirmLeaveSavedBoard(isBoardDirty) && !imageUploadBusy) return;
                     event.preventDefault();
@@ -2349,6 +2351,15 @@ function DrugNetworkContent() {
             <Button variant="outline" size="sm" onClick={() => setShowFindConnection((v) => !v)}>
               <GitCompare className="h-4 w-4" aria-hidden="true" />
               {t("di.network.findConnection")}
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={withReturnTo("/drug-intelligence/network/compare", currentNetworkHref)}
+                data-testid="link-compare-entry"
+              >
+                <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+                {t("di.linkCompare.title")}
+              </Link>
             </Button>
             <Button
               variant="outline"

@@ -178,6 +178,15 @@ test("H: Timeline query/filter state remains intact alongside returnTo", () => {
   assert.equal(params.get("province"), "ชุมพร");
 });
 
+test("Link Compare returnTo round-trips through Network and rejects unsafe values", () => {
+  const compare = "/drug-intelligence/network/compare?aType=PERSON&aId=p-kittisak&bType=VEHICLE&bId=v-9009";
+  const networkUrl = withReturnTo("/drug-intelligence/network?focusType=PERSON&focusId=p-kittisak", compare);
+  const restored = getSafeReturnTo(new URLSearchParams(networkUrl.split("?")[1] ?? ""));
+  assert.equal(restored, compare);
+  assert.equal(getSafeReturnTo(new URLSearchParams({ returnTo: "javascript:alert(1)" })), null);
+  assert.equal(getSafeReturnTo(new URLSearchParams({ focusType: "PERSON", focusId: "p-kittisak" })), null);
+});
+
 test("currentInternalHref preserves pathname plus the live query string", () => {
   const href = currentInternalHref(
     "/drug-intelligence/network",

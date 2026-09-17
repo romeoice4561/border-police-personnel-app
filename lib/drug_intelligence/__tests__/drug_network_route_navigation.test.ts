@@ -55,3 +55,18 @@ test("fitView/setViewport are graph-only and do not call window page scroll help
   assert.match(pageSource, /fitView\(/);
   assert.match(pageSource, /setViewport\(/);
 });
+
+test("same-route Network patches keep an inbound Link Compare returnTo", () => {
+  const compare = "/drug-intelligence/network/compare?aType=VEHICLE&aId=v-9009&bType=PHONE&bId=ph-1001";
+  const current = new URLSearchParams({
+    focusType: "VEHICLE",
+    focusId: "v-9009",
+    depth: "2",
+    view: "by-depth",
+    returnTo: compare,
+  });
+  const after = applyNetworkSearchParamPatch(current, { focusType: "CASE", focusId: "c3" });
+  assert.equal(after.get("returnTo"), compare);
+  assert.equal(after.get("focusType"), "CASE");
+  assert.equal(after.get("depth"), "2");
+});

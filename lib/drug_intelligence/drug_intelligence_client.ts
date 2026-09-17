@@ -1152,6 +1152,57 @@ export interface DrugGraphPathQuery {
   maxDepth?: number;
 }
 
+export type DrugLinkCompareEntityType = Exclude<DrugGraphNodeType, "LOCATION">;
+export type DrugLinkCompareConnectionKind = "DIRECT" | "INDIRECT" | "NONE_KNOWN";
+
+export interface DrugLinkCompareQuery {
+  aType: DrugLinkCompareEntityType;
+  aId: string;
+  bType: DrugLinkCompareEntityType;
+  bId: string;
+}
+
+export interface DrugLinkCompareSlotDto {
+  key: "A" | "B" | "C";
+  kind: "DATABASE" | "MANUAL" | "EMPTY";
+  entityType: DrugLinkCompareEntityType | null;
+  entityId: string | null;
+  label: string | null;
+  caseCount: number | null;
+}
+
+export interface DrugLinkCompareSharedCaseDto {
+  caseId: string;
+  caseNumber: string;
+  label: string;
+}
+
+export interface DrugLinkCompareSharedEntityDto {
+  entityType: Exclude<DrugLinkCompareEntityType, "CASE" | "PERSON">;
+  entityId: string;
+  label: string;
+}
+
+export interface DrugLinkComparePairDto {
+  left: "A" | "B" | "C";
+  right: "A" | "B" | "C";
+  connectionKind: DrugLinkCompareConnectionKind;
+  hopCount: number | null;
+  shortestPath: DrugGraphPath | null;
+  sharedCases: DrugLinkCompareSharedCaseDto[];
+  sharedEntities: DrugLinkCompareSharedEntityDto[];
+  truncated: boolean;
+  absenceExplanationKey: "di.linkCompare.noneKnown" | null;
+}
+
+export interface DrugLinkCompareResponse {
+  interpretation: { kind: "QUERY" };
+  slots: DrugLinkCompareSlotDto[];
+  pairs: DrugLinkComparePairDto[];
+  tripleIntersection: { cases: DrugLinkCompareSharedCaseDto[]; entities: DrugLinkCompareSharedEntityDto[] } | null;
+  bounds: { maxEntities: number; maxPathDepth: number; maxVisited: number };
+}
+
 // ── DI-6: Repeat Entity Detection & Intelligence Alerts ───────────────────
 
 export type DrugAlertType =
@@ -1508,6 +1559,10 @@ export const drugIntelligenceClient = {
 
   async getNetworkPath(actorId: string, query: DrugGraphPathQuery): Promise<DrugGraphPathResponse> {
     return (await request<DrugGraphPathResponse>(`/drug-intelligence/network/path${toQueryString({ actorId, ...query })}`)).data;
+  },
+
+  async getLinkCompare(actorId: string, query: DrugLinkCompareQuery): Promise<DrugLinkCompareResponse> {
+    return (await request<DrugLinkCompareResponse>(`/drug-intelligence/network/compare${toQueryString({ actorId, ...query })}`)).data;
   },
 
   // ── DI-6: Repeat Entity Detection & Intelligence Alerts ─────────────────

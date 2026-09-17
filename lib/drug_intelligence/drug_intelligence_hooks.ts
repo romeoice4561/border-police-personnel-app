@@ -39,6 +39,8 @@ import {
   type DrugGraphNeighborhoodResponse,
   type DrugGraphPathQuery,
   type DrugGraphPathResponse,
+  type DrugLinkCompareQuery,
+  type DrugLinkCompareResponse,
   type DrugAlertListQuery,
   type DrugAlertListResponse,
   type DrugAlertEntityType,
@@ -89,6 +91,7 @@ export const drugQueryKeys = {
   investigationBoards: (actorId: string | null, status?: "ACTIVE" | "ARCHIVED") => ["drug-investigation-boards", actorId, status ?? "ACTIVE"] as const,
   investigationBoard: (actorId: string | null, boardId: string | null) => ["drug-investigation-board", actorId, boardId] as const,
   networkPath: (actorId: string | null, query: DrugGraphPathQuery) => ["drug-network-path", actorId, query] as const,
+  networkCompare: (actorId: string | null, query: DrugLinkCompareQuery | null) => ["drug-network-compare", actorId, query] as const,
   // DI-6
   alertList: (actorId: string | null, query: DrugAlertListQuery) => ["drug-alert-list", actorId, query] as const,
   alertsForEntity: (actorId: string | null, entityType: DrugAlertEntityType, entityId: string) => ["drug-alerts-for-entity", actorId, entityType, entityId] as const,
@@ -358,6 +361,17 @@ export function useDrugNetworkPath(actorId: string | null, query: DrugGraphPathQ
     queryKey: drugQueryKeys.networkPath(actorId, query ?? { fromType: "PERSON", fromId: "", toType: "PERSON", toId: "" }),
     queryFn: () => drugIntelligenceClient.getNetworkPath(actorId as string, query as DrugGraphPathQuery),
     enabled: Boolean(actorId) && Boolean(query) && query!.fromId.length > 0 && query!.toId.length > 0,
+  });
+}
+
+export function useDrugLinkCompare(
+  actorId: string | null,
+  query: DrugLinkCompareQuery | null
+): UseQueryResult<DrugLinkCompareResponse> {
+  return useQuery({
+    queryKey: drugQueryKeys.networkCompare(actorId, query),
+    queryFn: () => drugIntelligenceClient.getLinkCompare(actorId as string, query as DrugLinkCompareQuery),
+    enabled: Boolean(actorId) && Boolean(query) && query!.aId.length > 0 && query!.bId.length > 0,
   });
 }
 

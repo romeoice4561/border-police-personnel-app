@@ -21,6 +21,7 @@ import { DrugPersonProfileService, DrugPersonDirectoryService } from "@/lib/drug
 import { DrugIntelligenceSearchService } from "@/lib/drug_intelligence/drug_intelligence_search_service";
 import { DrugEntityDetailService } from "@/lib/drug_intelligence/drug_entity_detail_service";
 import { DrugNetworkGraphService } from "@/lib/drug_intelligence/drug_network_graph_service";
+import { DrugLinkCompareService } from "@/lib/drug_intelligence/drug_link_compare_service";
 import { DrugIntelligenceRelationshipQueryService } from "@/lib/drug_intelligence/drug_intelligence_relationship_query_service";
 import { DrugIntelligenceAlertService } from "@/lib/drug_intelligence/drug_intelligence_alert_service";
 import { DrugTimelineService } from "@/lib/drug_intelligence/drug_timeline_service";
@@ -55,6 +56,8 @@ export interface DrugIntelligenceContainer {
   entityDetailService: DrugEntityDetailService;
   /** Phase DI-5: Network Intelligence / Link Analysis. */
   networkGraphService: DrugNetworkGraphService;
+  /** LC-2A: Link Compare read-only QUERY analysis. */
+  linkCompareService: DrugLinkCompareService;
   /** Intelligence Search Center Phase 1B: Relationship Search orchestration. */
   relationshipQueryService: DrugIntelligenceRelationshipQueryService;
   /** Phase DI-6: Repeat Entity Detection & Intelligence Alerts. */
@@ -88,6 +91,7 @@ export function createDrugIntelligenceContainer(
   const investigationBoardImageService = imageStore
     ? new DrugInvestigationBoardImageService(client, imageStore)
     : null;
+  const networkGraphService = new DrugNetworkGraphService(client);
   return {
     db: client,
     caseService: new DrugCaseService({ db: client }),
@@ -99,7 +103,8 @@ export function createDrugIntelligenceContainer(
     directoryService: new DrugPersonDirectoryService(client),
     searchService: new DrugIntelligenceSearchService(client),
     entityDetailService: new DrugEntityDetailService(client),
-    networkGraphService: new DrugNetworkGraphService(client),
+    networkGraphService,
+    linkCompareService: new DrugLinkCompareService(client, networkGraphService),
     relationshipQueryService: new DrugIntelligenceRelationshipQueryService(client),
     alertService: new DrugIntelligenceAlertService(client),
     timelineService: new DrugTimelineService(client),

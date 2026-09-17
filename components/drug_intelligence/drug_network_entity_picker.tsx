@@ -33,6 +33,8 @@ export interface DrugNetworkEntitySelection {
   matchedField?: DrugSearchMatchedField;
   /** Policy-masked matched value from Search when available. */
   matchedValueMasked?: string;
+  /** Case membership count from Search — presentation only, never identity. */
+  caseCount?: number | null;
 }
 
 const DEBOUNCE_MS = 300;
@@ -45,6 +47,7 @@ function toSelection(result: DrugSearchResult, queryText?: string): DrugNetworkE
     queryText: queryText?.trim() || undefined,
     matchedField: result.matchedField,
     matchedValueMasked: result.matchedValueMasked,
+    caseCount: result.caseCount,
   };
 }
 

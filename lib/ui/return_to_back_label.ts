@@ -5,8 +5,18 @@
 
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
+function returnToPathname(returnTo: string): string {
+  return returnTo.split("?")[0].split("#")[0].toLowerCase();
+}
+
+export function isLinkCompareReturnTo(returnTo: string | null | undefined): boolean {
+  if (!returnTo) return false;
+  return returnToPathname(returnTo) === "/drug-intelligence/network/compare";
+}
+
 export function returnToBackLabelKey(returnTo: string | null | undefined): TranslationKey {
   if (!returnTo) return "di.map.actionBackToMap";
+  if (isLinkCompareReturnTo(returnTo)) return "di.linkCompare.backToCompare";
   const path = returnTo.toLowerCase();
   if (
     path.includes("/drug-intelligence/search") ||
@@ -43,6 +53,7 @@ export function isCommanderDashboardReturnTo(returnTo: string | null | undefined
 
 export function isNetworkReturnTo(returnTo: string | null | undefined): boolean {
   if (!returnTo) return false;
+  if (isLinkCompareReturnTo(returnTo)) return false;
   return returnTo.toLowerCase().startsWith("/drug-intelligence/network");
 }
 

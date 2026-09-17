@@ -4065,6 +4065,84 @@ export const DICTIONARY = {
   "di.map.coordinateErrorPair":    tr("กรุณากรอกละติจูดและลองจิจูดให้ครบทั้งคู่ หรือเว้นว่างทั้งสองช่อง", "Please enter both latitude and longitude, or leave both blank"),
   "di.map.coordinateErrorLatitudeRange": tr("ละติจูดต้องอยู่ระหว่าง -90 ถึง 90", "Latitude must be between -90 and 90"),
   "di.map.coordinateErrorLongitudeRange": tr("ลองจิจูดต้องอยู่ระหว่าง -180 ถึง 180", "Longitude must be between -180 and 180"),
+
+  "di.linkCompare.title": tr("เปรียบเทียบความเชื่อมโยง", "Compare connections"),
+  "di.linkCompare.description": tr(
+    "เลือกข้อมูล 2 รายการ เพื่อให้ระบบตรวจสอบว่ามีเส้นทางความเชื่อมโยงจากข้อมูลที่บันทึกไว้หรือไม่",
+    "Choose two records so the system can check whether a connection path exists in the recorded data"
+  ),
+  "di.linkCompare.queryHelper": tr(
+    "ผลลัพธ์เป็นการค้นหาจากข้อมูลในระบบ ไม่ได้สร้างความสัมพันธ์ใหม่",
+    "Results search recorded data and do not create a new relationship"
+  ),
+  "di.linkCompare.backToNetwork": tr("กลับผังความเชื่อมโยง", "Back to Network"),
+  "di.linkCompare.slotA": tr("จุด A", "Point A"),
+  "di.linkCompare.slotB": tr("จุด B", "Point B"),
+  "di.linkCompare.chooseEntity": tr("เลือกรายการ", "Choose a record"),
+  "di.linkCompare.pickerTitleA": tr("เลือกรายการสำหรับจุด A", "Choose a record for point A"),
+  "di.linkCompare.pickerTitleB": tr("เลือกรายการสำหรับจุด B", "Choose a record for point B"),
+  "di.linkCompare.searchPlaceholder": tr(
+    "ค้นหาชื่อ เลขคดี เบอร์โทร SIM IMEI หรือทะเบียนรถ",
+    "Search name, case number, phone, SIM, IMEI, or plate"
+  ),
+  "di.linkCompare.change": tr("เปลี่ยน", "Change"),
+  "di.linkCompare.remove": tr("นำออก", "Remove"),
+  "di.linkCompare.duplicate": tr("กรุณาเลือกรายการที่แตกต่างกัน", "Please choose two different records"),
+  "di.linkCompare.analyze": tr("วิเคราะห์ความเชื่อมโยง", "Analyze connection"),
+  "di.linkCompare.analyzing": tr("กำลังตรวจสอบความเชื่อมโยง...", "Checking the connection..."),
+  "di.linkCompare.summary": tr("สรุปความเชื่อมโยง", "Connection summary"),
+  "di.linkCompare.resultTitle": tr("ผลการเปรียบเทียบ", "Comparison result"),
+  "di.linkCompare.backToCompare": tr("← กลับไปเปรียบเทียบความเชื่อมโยง", "← Back to connection compare"),
+  "di.linkCompare.direct": tr("พบความเชื่อมโยงโดยตรง", "Direct connection found"),
+  "di.linkCompare.indirect": tr("พบความเชื่อมโยงผ่านตัวกลาง", "Indirect connection found"),
+  "di.linkCompare.pathTitle": tr("เส้นทางที่ระบบพบ", "Path found"),
+  "di.linkCompare.sharedCases": tr("คดีที่พบร่วมกัน", "Shared cases"),
+  "di.linkCompare.junctionPoints": tr("จุดเชื่อมที่พบ", "Connecting points found"),
+  "di.linkCompare.junctionPointsCount": tr("จุดเชื่อมที่พบ {count} คดี", "{count} connecting cases found"),
+  "di.linkCompare.caseItem": tr("คดี {case}", "Case {case}"),
+  "di.linkCompare.openCase": tr("เปิดดูคดี", "Open case"),
+  "di.linkCompare.sharedEntities": tr("ข้อมูลที่พบร่วมกัน", "Shared identifiers"),
+  "di.linkCompare.otherSharedData": tr("ข้อมูลร่วมอื่น ๆ", "Other shared data"),
+  "di.linkCompare.showMoreCases": tr("แสดงคดีทั้งหมด ({count})", "Show all cases ({count})"),
+  "di.linkCompare.changeSelection": tr("เปลี่ยนรายการ", "Change records"),
+  "di.linkCompare.viewInNetwork": tr("ดูในผังความเชื่อมโยง", "View in Network"),
+  "di.linkCompare.openAInNetwork": tr("เปิด A ในผัง", "Open A in Network"),
+  "di.linkCompare.openBInNetwork": tr("เปิด B ในผัง", "Open B in Network"),
+  "di.linkCompare.selectedWithoutLabel": tr("เลือกไว้แล้ว", "Selected"),
+  "di.linkCompare.foundInCases": tr("พบใน {count} คดี", "Found in {count} cases"),
+  "di.linkCompare.explainDirect": tr(
+    "ระบบพบความเชื่อมโยงโดยตรงระหว่าง {a} และ {b}",
+    "The system found a direct connection between {a} and {b}"
+  ),
+  "di.linkCompare.explainIndirect": tr(
+    "ระบบพบความเชื่อมโยงผ่าน {count} ตัวกลาง",
+    "The system found a connection through {count} intermediate record(s)"
+  ),
+  "di.linkCompare.explainIndirectViaCase": tr(
+    "ระบบพบความเชื่อมโยงผ่าน {count} ตัวกลาง โดยเชื่อมผ่านคดี {cases}",
+    "The system found a connection through {count} intermediate record(s), via case {cases}"
+  ),
+  "di.linkCompare.explainSharedCases": tr(
+    "นอกจากนี้พบข้อมูลทั้งสองรายการร่วมกันใน {count} คดี",
+    "Both records also appear together in {count} cases"
+  ),
+  "di.linkCompare.noneKnownHintLong": tr(
+    "หมายความว่าระบบยังไม่พบเส้นทางเชื่อมโยงภายในขอบเขตการค้นหาปัจจุบัน ไม่ได้หมายความว่าสองรายการนี้ไม่มีความเกี่ยวข้องกัน",
+    "This means no connection path was found within the current search bounds. It does not prove the two records are unrelated."
+  ),
+  "di.linkCompare.errorInvalid": tr("รายการที่เลือกไม่สามารถเปรียบเทียบได้", "The selected records cannot be compared"),
+  "di.linkCompare.errorUnauthenticated": tr("กรุณาเข้าสู่ระบบอีกครั้ง", "Please sign in again"),
+  "di.linkCompare.errorForbidden": tr("คุณไม่มีสิทธิ์เปรียบเทียบความเชื่อมโยง", "You do not have permission to compare connections"),
+  "di.linkCompare.errorNotFound": tr("ไม่พบรายการที่เลือกในระบบ", "A selected record no longer exists"),
+  "di.linkCompare.errorRetry": tr("ไม่สามารถตรวจสอบความเชื่อมโยงได้ กรุณาลองใหม่อีกครั้ง", "Could not check the connection — please try again"),
+  "di.linkCompare.noneKnown": tr(
+    "ยังไม่พบความเชื่อมโยงจากข้อมูลที่มีในระบบ",
+    "No connection found in the recorded data"
+  ),
+  "di.linkCompare.noneKnownHint": tr(
+    "การไม่พบความเชื่อมโยงไม่ได้พิสูจน์ว่าไม่มีความเกี่ยวข้อง",
+    "Not finding a connection does not prove there is no relationship"
+  ),
 } as const satisfies Record<string, Translation>;
 
 export type TranslationKey = keyof typeof DICTIONARY;
