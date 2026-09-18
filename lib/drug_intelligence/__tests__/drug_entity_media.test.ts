@@ -556,10 +556,16 @@ test("UI surfaces keep visual identity hooks without replacing graph semantics",
   const graphHandler = readFileSync(join(ROOT, "lib/drug_intelligence/drug_network_graph_api_handlers.ts"), "utf8");
 
   assert.match(searchCard, /DrugEntityVisualThumb/);
+  assert.match(searchCard, /size=\{result\.entityType === "PERSON"/);
   assert.match(relationship, /item\.to\.visual/);
   assert.match(graphNode, /graphNode\.visual\?\.thumbnailUrl/);
+  assert.match(graphNode, /size=\{isCompact \? "search" : isFocus \? "graphFocus" : "graph"\}/);
   assert.match(inspector, /di\.media\.openGallery/);
+  assert.match(inspector, /di\.media\.allPhotos/);
   assert.match(gallery, /capture="environment"/);
+  assert.match(gallery, /di\.media\.chooseFile/);
+  assert.match(readFileSync(join(ROOT, "components/drug_intelligence/drug_person_identity_header.tsx"), "utf8"), /size="portrait"/);
+  assert.match(readFileSync(join(ROOT, "app/drug-intelligence/persons/[id]/page.tsx"), "utf8"), /DrugPersonIdentityHeader/);
   assert.match(graphHandler, /attachGraphNodeVisuals/);
   assert.match(graphHandler, /depth/);
 });

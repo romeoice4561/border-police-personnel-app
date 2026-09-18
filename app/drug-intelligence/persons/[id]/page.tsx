@@ -67,6 +67,7 @@ import {
   DrugPersonProvenanceSections,
 } from "@/components/drug_intelligence/drug_person_provenance";
 import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
+import { DrugPersonIdentityHeader } from "@/components/drug_intelligence/drug_person_identity_header";
 import type {
   DrugPersonProfileResponse,
   DrugCaseLinkSummary,
@@ -196,11 +197,18 @@ function DrugPersonProfileContent() {
 
   return (
     <div className="space-y-5 min-w-0 overflow-x-hidden">
-      <PageHeader
-        title={data.person.primaryFullName}
-        description={t("di.profile.personId") + ": " + data.person.id}
+      <DrugPersonIdentityHeader
+        personId={data.person.id}
+        name={data.person.primaryFullName}
+        status={data.person.status}
+        firstSeenAt={data.firstSeenAt}
+        lastSeenAt={data.lastSeenAt}
+        aliases={data.aliases}
+        identifiers={data.identifiers}
+        canViewFull={canViewFull}
+        duplicateHref={data.dataQuality.some((flag) => flag.code === "POTENTIAL_DUPLICATE") ? "/drug-intelligence/review/duplicates" : null}
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             {returnTo ? (
               <Button asChild variant="outline" size="sm" className="min-h-10">
                 <Link href={returnTo} data-testid="back-via-return-to">
@@ -234,13 +242,18 @@ function DrugPersonProfileContent() {
                 {t("di.export.personReportAction")}
               </Button>
             ) : null}
+            {data.counts.cases >= 2 ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab("cases")}>
+                {t("di.profile.multiCaseHistory")} ({data.counts.cases})
+              </Button>
+            ) : null}
             <Button asChild variant="ghost" size="sm">
               <Link href="/drug-intelligence/persons">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 {t("di.matchReview.backToQueue")}
               </Link>
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -249,42 +262,6 @@ function DrugPersonProfileContent() {
           <CardBody className="text-sm text-foreground">{t("di.merge.mergeSuccess")}</CardBody>
         </Card>
       ) : null}
-
-      <DrugEntityMediaGallery entityType="PERSON" entityId={data.person.id} compactHero />
-
-      <Card>
-        <CardBody className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-          <span className="text-muted">
-            {t("di.profile.firstSeen")}: <span className="text-foreground">{formatDate(data.firstSeenAt, language)}</span>
-          </span>
-          <span className="text-muted">
-            {t("di.profile.lastSeen")}: <span className="text-foreground">{formatDate(data.lastSeenAt, language)}</span>
-          </span>
-          <span className="text-muted">
-            {t("di.profile.updatedAt")}: <span className="text-foreground">{formatDate(data.person.updatedAt, language)}</span>
-          </span>
-          {data.aliases.length > 0 ? (
-            <span className="text-muted">
-              {t("di.person.aliases")}: <span className="text-foreground">{data.aliases.map((a) => a.fullName).join(", ")}</span>
-            </span>
-          ) : null}
-          {data.dataQuality.some((f) => f.code === "POTENTIAL_DUPLICATE") ? (
-            <Link href="/drug-intelligence/review/duplicates" className="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/5 px-2.5 py-1 text-xs font-medium text-warning hover:bg-warning/10 transition-colors">
-              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-              {t("di.profile.duplicateBadge")}
-            </Link>
-          ) : null}
-          {data.counts.cases >= 2 ? (
-            <button
-              type="button"
-              onClick={() => setActiveTab("cases")}
-              className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:border-accent/50 hover:text-accent transition-colors"
-            >
-              {t("di.profile.multiCaseHistory")} ({data.counts.cases})
-            </button>
-          ) : null}
-        </CardBody>
-      </Card>
 
       <DrugPersonContextBanner
         currentCaseId={currentCaseId}
@@ -301,6 +278,8 @@ function DrugPersonProfileContent() {
         <DrugKpiTile label={t("di.profile.kpiVehicles")} value={data.counts.vehicles} icon={Car} onClick={() => setActiveTab("vehicles")} />
         <DrugKpiTile label={t("di.profile.kpiLocations")} value={data.counts.locations} icon={MapPin} onClick={() => setActiveTab("locations")} />
       </div>
+
+      <DrugEntityMediaGallery entityType="PERSON" entityId={data.person.id} />
 
       <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5">
         {TABS.map((tab) => (

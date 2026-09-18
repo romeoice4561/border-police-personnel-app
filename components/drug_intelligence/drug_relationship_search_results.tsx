@@ -266,7 +266,7 @@ export function DrugRelationshipSearchResults({
                       entityType={item.to.entityType}
                       label={item.to.label}
                       thumbnailUrl={item.to.visual?.thumbnailUrl}
-                      size="md"
+                      size={item.to.entityType === "PERSON" || item.to.entityType === "VEHICLE" ? "search" : "sm"}
                     />
                     <div className="min-w-0 space-y-1">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -289,7 +289,7 @@ export function DrugRelationshipSearchResults({
                       entityType={item.from.entityType || resolvedType}
                       label={relatedFromLabel}
                       thumbnailUrl={item.from.visual?.thumbnailUrl}
-                      size="sm"
+                      size={item.from.entityType === "PERSON" || item.from.entityType === "VEHICLE" ? "search" : "xs"}
                     />
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-muted">{t("di.rel.relatedToSource")}</p>

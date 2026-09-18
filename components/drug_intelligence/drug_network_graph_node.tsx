@@ -10,6 +10,7 @@ import { AlertTriangle, Pin } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_ENTITY_ICON } from "@/components/drug_intelligence/drug_entity_visual";
+import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { formatGraphNodeCard } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
@@ -99,23 +100,33 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
           <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />
         </span>
       ) : null}
-      <div className="flex items-center gap-1.5">
-        {graphNode.visual?.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={graphNode.visual.thumbnailUrl}
-            alt=""
-            className={cn(
-              "shrink-0 object-cover",
-              graphNode.type === "PERSON" ? "rounded-full" : "rounded-md",
-              isFocus ? "h-8 w-8" : "h-6 w-6"
-            )}
+      {graphNode.type === "PERSON" ? (
+        <div className="flex flex-col items-center gap-1">
+          <DrugEntityVisualThumb
+            entityType="PERSON"
+            label={card.title}
+            thumbnailUrl={graphNode.visual?.thumbnailUrl}
+            size={isCompact ? "search" : isFocus ? "graphFocus" : "graph"}
           />
-        ) : (
+          {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
+        </div>
+      ) : graphNode.type === "VEHICLE" && graphNode.visual?.thumbnailUrl ? (
+        <div className="flex items-center gap-1.5">
+          <DrugEntityVisualThumb
+            entityType="VEHICLE"
+            label={card.title}
+            thumbnailUrl={graphNode.visual.thumbnailUrl}
+            size="search"
+            rounded="md"
+          />
+          {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
           <Icon className={cn("shrink-0", isFocus ? "h-5 w-5" : "h-4 w-4")} aria-hidden="true" />
-        )}
-        {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
-      </div>
+          {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
+        </div>
+      )}
       <p className={cn("line-clamp-2 font-semibold leading-tight text-foreground", isFocus ? "text-sm" : "text-xs")}>{card.title}</p>
       {!isCompact && card.subtitle ? <p className="line-clamp-1 text-[10px] leading-tight text-muted">{card.subtitle}</p> : null}
       {!isCompact ? (

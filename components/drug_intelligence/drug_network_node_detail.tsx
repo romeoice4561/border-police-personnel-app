@@ -75,14 +75,19 @@ export function DrugNetworkNodeDetail({
           entityType={node.type}
           label={node.label}
           thumbnailUrl={node.visual?.thumbnailUrl}
-          size="md"
+          size={node.type === "PERSON" ? "lg" : node.type === "VEHICLE" ? "md" : "sm"}
         />
         <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[node.type] as TranslationKey)}</p>
         <p className="text-lg font-semibold text-foreground">{node.label}</p>
         {node.secondaryLabel ? <p className="text-sm text-muted">{node.secondaryLabel}</p> : null}
-        {typeof node.photoCount === "number" ? (
-          <p className="mt-1 text-xs text-muted">{t("di.media.count").replace("{count}", String(node.photoCount))}</p>
+        {node.metadata.type === "PERSON" ? (
+          <p className="mt-1 text-xs text-muted">
+            {t("di.profile.status")}: {node.metadata.status === "MERGED" ? t("di.profile.statusMerged") : t("di.profile.statusActive")}
+          </p>
+        ) : null}
+        {typeof node.photoCount === "number" && (node.type === "PERSON" || node.type === "VEHICLE" || node.type === "CASE") ? (
+          <p className="mt-1 text-xs font-medium text-foreground">{t("di.media.allPhotos").replace("{count}", String(node.photoCount))}</p>
         ) : null}
         </div>
       </div>

@@ -46,7 +46,7 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
               entityType={result.entityType}
               label={result.primaryLabel}
               thumbnailUrl={result.visual?.thumbnailUrl}
-              size="sm"
+              size={result.entityType === "PERSON" || result.entityType === "VEHICLE" ? "search" : "sm"}
             />
             <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{result.primaryLabel}</p>

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, ChevronLeft, ChevronRight, ImagePlus, Star, Trash2, X } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, ImagePlus, Plus, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
-import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
 import {
   useDeleteDrugEntityMedia,
   useDrugEntityMedia,
@@ -21,7 +20,7 @@ import {
 import type { DrugEntityMediaRecord } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { cn } from "@/lib/ui/cn";
 
-const CATEGORY_KEY: Record<string, `di.media.cat.${string}`> = {
+export const ENTITY_MEDIA_CATEGORY_KEY: Record<string, `di.media.cat.${string}`> = {
   PROFILE: "di.media.cat.PROFILE",
   ARREST: "di.media.cat.ARREST",
   DOCUMENT: "di.media.cat.DOCUMENT",
@@ -54,12 +53,10 @@ export function DrugEntityMediaGallery({
   entityType,
   entityId,
   sourceCaseId,
-  compactHero = false,
 }: {
   entityType: DrugEntityMediaEntityType;
   entityId: string;
   sourceCaseId?: string;
-  compactHero?: boolean;
 }) {
   const { user, can } = useAuth();
   const { t, language } = useT();
@@ -73,7 +70,6 @@ export function DrugEntityMediaGallery({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [category, setCategory] = useState(defaultMediaCategory(entityType));
   const items = media.data?.items ?? [];
-  const primary = items.find((item) => item.isPrimary) ?? null;
   const categories = DRUG_ENTITY_MEDIA_CATEGORIES[entityType];
 
   async function onFiles(files: FileList | null) {
@@ -98,71 +94,65 @@ export function DrugEntityMediaGallery({
   const viewer = viewerIndex != null ? items[viewerIndex] ?? null : null;
 
   return (
-    <section id="media" className="space-y-3" data-testid="drug-entity-media">
-      {compactHero ? (
-        <button
-          type="button"
-          className="block"
-          onClick={() => setViewerIndex(primary ? items.findIndex((item) => item.id === primary.id) : 0)}
-          aria-label={t("di.media.openGallery")}
-        >
-          <DrugEntityVisualThumb
-            entityType={entityType}
-            label={t("di.media.primary")}
-            thumbnailUrl={primary?.thumbnailUrl ?? primary?.url}
-            size="lg"
-          />
-        </button>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+    <section id="media" className="space-y-2" data-testid="drug-entity-media">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-foreground">{t("di.media.title")}</h2>
           <p className="text-xs text-muted">{t("di.media.count").replace("{count}", String(items.length))}</p>
         </div>
         {canEdit ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              className="h-9 rounded-lg border border-border bg-surface px-2 text-xs"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              aria-label={t("di.media.category")}
-            >
-              {categories.map((value) => (
-                <option key={value} value={value}>
-                  {t((CATEGORY_KEY[value] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-foreground">
-              <ImagePlus className="h-4 w-4" aria-hidden="true" />
+          <details className="relative">
+            <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-foreground shadow-sm marker:content-none [&::-webkit-details-marker]:hidden">
+              <Plus className="h-4 w-4" aria-hidden="true" />
               {t("di.media.add")}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                multiple
-                className="sr-only"
-                onChange={(event) => {
-                  void onFiles(event.target.files);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-foreground">
-              <Camera className="h-4 w-4" aria-hidden="true" />
-              {t("di.media.camera")}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
-                onChange={(event) => {
-                  void onFiles(event.target.files);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-          </div>
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-56 space-y-2 rounded-lg border border-border bg-surface p-2 shadow-lg">
+              <label className="block text-[11px] font-medium text-muted" htmlFor={`media-category-${entityId}`}>
+                {t("di.media.category")}
+              </label>
+              <select
+                id={`media-category-${entityId}`}
+                className="h-9 w-full rounded-lg border border-border bg-neutral-bg px-2 text-xs text-foreground"
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                aria-label={t("di.media.category")}
+              >
+                {categories.map((value) => (
+                  <option key={value} value={value}>
+                    {t((ENTITY_MEDIA_CATEGORY_KEY[value] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
+                  </option>
+                ))}
+              </select>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm text-foreground hover:bg-neutral-bg">
+                <ImagePlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {t("di.media.chooseFile")}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    void onFiles(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm text-foreground hover:bg-neutral-bg">
+                <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {t("di.media.camera")}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(event) => {
+                    void onFiles(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </details>
         ) : null}
       </div>
 
@@ -170,13 +160,14 @@ export function DrugEntityMediaGallery({
       {error ? <p className="text-xs text-critical">{error}</p> : null}
 
       {items.length === 0 ? (
-        <Card>
-          <CardBody className="text-sm text-muted">{t("di.media.empty")}</CardBody>
-        </Card>
+        <p className="rounded-lg border border-dashed border-border bg-surface px-3 py-2 text-sm text-muted">{t("di.media.empty")}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+        <div className="flex flex-wrap gap-2">
           {items.map((item, index) => (
-            <article key={item.id} className="overflow-hidden rounded-xl border border-border bg-surface">
+            <article
+              key={item.id}
+              className="w-[9.5rem] overflow-hidden rounded-lg border border-border bg-surface shadow-sm"
+            >
               <button type="button" className="block w-full" onClick={() => setViewerIndex(index)}>
                 <div className="relative aspect-square bg-neutral-bg">
                   {item.thumbnailUrl || item.url ? (
@@ -184,30 +175,30 @@ export function DrugEntityMediaGallery({
                     <img src={item.thumbnailUrl ?? item.url ?? ""} alt="" className="h-full w-full object-cover" />
                   ) : null}
                   {item.isPrimary ? (
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-surface">
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-fg shadow-sm">
                       {t("di.media.primary")}
                     </span>
                   ) : null}
                 </div>
               </button>
-              <div className="space-y-1 p-2">
-                <p className="truncate text-xs font-medium text-foreground">
-                  {t((CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
+              <div className="space-y-0.5 p-1.5">
+                <p className="truncate text-[11px] font-medium text-foreground">
+                  {t((ENTITY_MEDIA_CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
                 </p>
-                {item.caption ? <p className="truncate text-[11px] text-muted">{item.caption}</p> : null}
                 <p className="text-[10px] text-muted">
                   {new Date(item.createdAt).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}
                 </p>
                 {canEdit ? (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-0.5">
                     {!item.isPrimary ? (
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
+                        className="h-7 px-1.5 text-[11px]"
                         onClick={() => update.mutate({ mediaId: item.id, entityType, entityId, isPrimary: true })}
                       >
-                        <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Star className="h-3 w-3" aria-hidden="true" />
                         {t("di.media.setPrimary")}
                       </Button>
                     ) : null}
@@ -215,13 +206,14 @@ export function DrugEntityMediaGallery({
                       type="button"
                       size="sm"
                       variant="ghost"
+                      className="h-7 px-1.5 text-[11px]"
                       onClick={() => {
                         if (window.confirm(t("di.media.deleteConfirm"))) {
                           remove.mutate({ mediaId: item.id, entityType, entityId });
                         }
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      <Trash2 className="h-3 w-3" aria-hidden="true" />
                       {t("common.delete")}
                     </Button>
                   </div>
@@ -259,7 +251,7 @@ function MediaLightbox({
   const item = items[index];
   const prev = () => onIndex((index - 1 + items.length) % items.length);
   const next = () => onIndex((index + 1) % items.length);
-  const categoryLabel = t((CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER");
+  const categoryLabel = t((ENTITY_MEDIA_CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER");
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/80 p-3 text-white" role="dialog" aria-modal="true">
