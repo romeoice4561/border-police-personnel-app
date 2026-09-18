@@ -58,11 +58,11 @@ export function DrugPersonIdentityHeader({
 
   return (
     <header
-      className="rounded-xl border border-border bg-surface p-3 sm:p-4"
+      className="w-full rounded-xl border border-border bg-surface p-3 sm:p-4"
       data-testid="person-visual-identity"
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start">
+      <div className="flex w-full flex-col gap-3 md:flex-row md:items-start md:gap-4">
+        <div className="flex min-w-0 w-full flex-1 basis-0 flex-col gap-3 sm:flex-row sm:items-start">
           <a href="#media" className="mx-auto shrink-0 sm:mx-0" aria-label={t("di.media.openGallery")}>
             <DrugEntityVisualThumb
               entityType="PERSON"
@@ -71,10 +71,10 @@ export function DrugPersonIdentityHeader({
               size="portrait"
             />
           </a>
-          <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
+          <div className="min-w-0 flex-1 space-y-1.5 text-center sm:text-left">
             <div>
-              <h1 className="text-2xl font-semibold leading-tight text-foreground">{name}</h1>
-              <p className="mt-0.5 break-all text-xs text-muted">
+              <h1 className="text-2xl font-semibold leading-tight break-words text-foreground">{name}</h1>
+              <p className="mt-0.5 truncate text-xs text-muted" title={`${t("di.profile.personId")}: ${personId}`}>
                 {t("di.profile.personId")}: {personId}
               </p>
             </div>
@@ -90,16 +90,16 @@ export function DrugPersonIdentityHeader({
               </span>
             </p>
             {aliasText ? (
-              <p className="text-sm text-muted">
+              <p className="text-sm text-muted break-words">
                 {t("di.person.aliases")}: <span className="text-foreground">{aliasText}</span>
               </p>
             ) : null}
             {identifierPreview.length > 0 ? (
               <ul className="flex flex-col gap-0.5 text-sm">
                 {identifierPreview.map((row) => (
-                  <li key={row.id} className="text-muted">
+                  <li key={row.id} className="min-w-0 text-muted">
                     {identifierTypeLabel(row.type, language)}:{" "}
-                    <span className="text-foreground">{presentIdentifierValue(row.value, canViewFull)}</span>
+                    <span className="break-words text-foreground">{presentIdentifierValue(row.value, canViewFull)}</span>
                   </li>
                 ))}
               </ul>
@@ -123,7 +123,11 @@ export function DrugPersonIdentityHeader({
             </div>
           </div>
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap justify-center gap-2 lg:justify-end">{actions}</div> : null}
+        {actions ? (
+          <div className="flex w-full flex-wrap content-start gap-2 md:w-auto md:max-w-56 md:shrink-0 md:justify-end">
+            {actions}
+          </div>
+        ) : null}
       </div>
     </header>
   );

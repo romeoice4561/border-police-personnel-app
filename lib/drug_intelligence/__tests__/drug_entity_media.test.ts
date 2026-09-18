@@ -564,7 +564,12 @@ test("UI surfaces keep visual identity hooks without replacing graph semantics",
   assert.match(inspector, /di\.media\.allPhotos/);
   assert.match(gallery, /capture="environment"/);
   assert.match(gallery, /di\.media\.chooseFile/);
-  assert.match(readFileSync(join(ROOT, "components/drug_intelligence/drug_person_identity_header.tsx"), "utf8"), /size="portrait"/);
+  const identityHeader = readFileSync(join(ROOT, "components/drug_intelligence/drug_person_identity_header.tsx"), "utf8");
+  assert.match(identityHeader, /size="portrait"/);
+  assert.match(identityHeader, /flex-1 basis-0/);
+  assert.match(identityHeader, /md:flex-row/);
+  assert.doesNotMatch(identityHeader, /lg:justify-between/);
+  assert.doesNotMatch(identityHeader, /break-all/);
   assert.match(readFileSync(join(ROOT, "app/drug-intelligence/persons/[id]/page.tsx"), "utf8"), /DrugPersonIdentityHeader/);
   assert.match(graphHandler, /attachGraphNodeVisuals/);
   assert.match(graphHandler, /depth/);
