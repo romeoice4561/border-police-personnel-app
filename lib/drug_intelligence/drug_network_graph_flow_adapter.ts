@@ -24,7 +24,22 @@ import {
   DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY,
 } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { createDefaultEdgeRoute, type DrugNetworkEdgeRouteState, type DrugNetworkEdgeRoutes } from "@/lib/drug_intelligence/drug_network_edge_routing";
-import { hopDistances, isSharedEntity, shortestUndirectedPath, shouldShowEdgeLabel } from "@/lib/drug_intelligence/drug_network_graph_readability";
+import {
+  CARD_GRAPH_FOCUS_DIRECT_OPACITY,
+  CARD_GRAPH_FOCUS_DIRECT_STROKE,
+  CARD_GRAPH_FOCUS_DIRECT_WHEN_OTHER_SELECTED_OPACITY,
+  CARD_GRAPH_SECONDARY_OPACITY,
+  CARD_GRAPH_SECONDARY_STROKE,
+  CARD_GRAPH_SELECTED_INCIDENT_STROKE,
+  CARD_GRAPH_UNRELATED_OPACITY,
+  hopDistances,
+  isFocusDirectEdge,
+  isSharedEntity,
+  neighborCountsForNode,
+  shortestUndirectedPath,
+  shouldShowEdgeLabel,
+  type GraphCardNeighborCounts,
+} from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNeighborhoodResponse, DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 import {
@@ -66,6 +81,11 @@ export interface DrugNetworkFlowNodeData extends Record<string, unknown> {
   compareJunction: boolean;
   /** LC-2C.3: this compared endpoint is the current inspection target. */
   compareInspect: boolean;
+  /** Adjacent counts from the loaded neighborhood — presentation only. */
+  neighborCounts: GraphCardNeighborCounts;
+  /** Show the card expand control using existing focus/depth behavior. */
+  canExpand: boolean;
+  onExpand?: () => void;
 }
 
 export interface FlowNode extends Node {
@@ -101,11 +121,12 @@ export interface FlowEdge extends Edge {
   label: string;
   style: { stroke: string; strokeDasharray?: string; opacity?: number; strokeWidth?: number };
   markerEnd: { type: MarkerType };
-  labelStyle: { fontSize: number };
-  labelBgStyle: { fillOpacity: number };
+  labelStyle: { fontSize: number; fontWeight?: number | string; fill?: string; color?: string };
+  labelBgStyle: { fill?: string; fillOpacity: number; stroke?: string; background?: string };
   labelBgPadding: [number, number];
   labelBgBorderRadius: number;
   zIndex?: number;
+  interactionWidth?: number;
   data: DrugNetworkFlowEdgeData;
 }
 
@@ -139,10 +160,57 @@ export interface BuildFlowGraphOptions {
   compareHighlightEmphasize?: boolean;
   /** LC-2C.3 presentation-only A/B/C inspection inside the stable Compare graph. */
   compareInspectSlot?: "A" | "B" | "C" | null;
+  /** Existing neighborhood depth. Used only to decide whether the focus card can still expand. */
+  connectionDepth?: 1 | 2;
+  onExpandNode?: (nodeId: string) => void;
 }
 
 function toLayoutNode(n: DrugGraphNode): LayoutNodeInput {
   return { id: n.id, type: n.type };
+}
+
+function cardGraphEdgeAppearance(args: {
+  compareHighlight: boolean;
+  compareEmphasize: boolean;
+  isolatePathVisuals: boolean;
+  isolateSelectedPath: boolean;
+  onPath: boolean | null;
+  edgeDimmed: boolean;
+  focusDirect: boolean;
+  hasCanvasSelection: boolean;
+  incidentEmphasis: boolean;
+}): { opacity: number; strokeWidth: number } {
+  if (args.compareEmphasize) {
+    return {
+      opacity: args.edgeDimmed ? COMPARE_HIGHLIGHT_CONTEXT_EDGE_OPACITY : 1,
+      strokeWidth: args.onPath ? COMPARE_HIGHLIGHT_PATH_STROKE_WIDTH : 1.25,
+    };
+  }
+  if (args.compareHighlight) {
+    return { opacity: 1, strokeWidth: 1.5 };
+  }
+  if (args.isolatePathVisuals) {
+    return {
+      opacity: args.edgeDimmed ? (args.isolateSelectedPath ? 0.28 : 0.42) : 1,
+      strokeWidth: args.onPath ? COMPARE_HIGHLIGHT_PATH_STROKE_WIDTH : 1.25,
+    };
+  }
+  if (args.hasCanvasSelection) {
+    if (args.incidentEmphasis) {
+      return { opacity: 1, strokeWidth: CARD_GRAPH_SELECTED_INCIDENT_STROKE };
+    }
+    if (args.focusDirect) {
+      return {
+        opacity: CARD_GRAPH_FOCUS_DIRECT_WHEN_OTHER_SELECTED_OPACITY,
+        strokeWidth: CARD_GRAPH_FOCUS_DIRECT_STROKE,
+      };
+    }
+    return { opacity: CARD_GRAPH_UNRELATED_OPACITY, strokeWidth: CARD_GRAPH_SECONDARY_STROKE };
+  }
+  if (args.focusDirect) {
+    return { opacity: CARD_GRAPH_FOCUS_DIRECT_OPACITY, strokeWidth: CARD_GRAPH_FOCUS_DIRECT_STROKE };
+  }
+  return { opacity: CARD_GRAPH_SECONDARY_OPACITY, strokeWidth: CARD_GRAPH_SECONDARY_STROKE };
 }
 
 /**
@@ -153,11 +221,10 @@ function toLayoutNode(n: DrugGraphNode): LayoutNodeInput {
  * is the fix for the DI-5.1-discovered bug where clicking a node never
  * actually set xyflow's own `selected` state.
  *
- * When a secondary node is selected, the shortest undirected path from the
- * focus to that node is highlighted and everything else is dimmed (never
- * removed). Selecting the focus itself, or selecting nothing, leaves the
- * full graph readable. Hover only reveals labels — it never changes
- * dimming or graph data.
+ * Default card-graph selection emphasizes edges that touch the selected
+ * node (never removes records). Compare Highlight, selected-path isolation,
+ * and VERTICAL_PATH keep shortest-path isolation. Hover only reveals
+ * labels — it never changes dimming or graph data.
  */
 export function buildDrugNetworkFlowGraph(
   neighborhood: DrugGraphNeighborhoodResponse,
@@ -189,6 +256,8 @@ export function buildDrugNetworkFlowGraph(
   const compareHighlight = options.compareHighlight ?? null;
   const compareEmphasize = Boolean(compareHighlight && options.compareHighlightEmphasize !== false);
   const compareInspectSlot = options.compareInspectSlot ?? null;
+  const arrangementIsolatesPath = arrangement === "VERTICAL_PATH" || Boolean(options.isolateSelectedPath);
+  const isolatePathVisuals = Boolean(compareEmphasize || arrangementIsolatesPath || selectedGraphEdge);
   const selectedPath =
     !compareHighlight && selectedIsSecondary && selectedNodeId
       ? shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
@@ -200,7 +269,7 @@ export function buildDrugNetworkFlowGraph(
     ? comparePathIds
     : selectedGraphEdge
       ? new Set([selectedGraphEdge.source, selectedGraphEdge.target])
-      : selectedPath
+      : isolatePathVisuals && selectedPath
         ? new Set(selectedPath.nodeIds)
         : null;
   const pathEdgeIds = comparePathIds
@@ -209,26 +278,26 @@ export function buildDrugNetworkFlowGraph(
       )
     : selectedGraphEdge
       ? new Set([selectedGraphEdge.id])
-      : selectedPath
+      : isolatePathVisuals && selectedPath
         ? new Set(selectedPath.edgeIds)
         : null;
   const neighborIds =
-    !compareHighlight && !comparePathIds && selectedIsSecondary && selectedNodeId && !selectedPath && !selectedGraphEdge
+    !compareHighlight && !isolatePathVisuals && !selectedGraphEdge && selectedIsSecondary && selectedNodeId
       ? connectedNodeIds(selectedNodeId, neighborhood.edges)
       : null;
+  const hasCanvasSelection = Boolean(selectedNodeId || selectedEdgeId);
 
   const flowNodes: FlowNode[] = neighborhood.nodes.map((n) => {
     const isFocus = n.id === focusId;
     const hopDistance = hops.get(n.id) ?? (isFocus ? 0 : 1);
     const inspectClass = compareHighlight ? classifyCompareHighlightNode(n, compareHighlight) : null;
     const compareClass = compareEmphasize ? inspectClass : null;
-    const onSelectedPath = pathNodeIds ? pathNodeIds.has(n.id) : false;
     const dimmed = compareClass
       ? compareClass.role === "context"
       : pathNodeIds
         ? !pathNodeIds.has(n.id)
         : neighborIds
-          ? !neighborIds.has(n.id)
+          ? !neighborIds.has(n.id) && n.id !== focusId
           : false;
     return {
       id: n.id,
@@ -245,13 +314,16 @@ export function buildDrugNetworkFlowGraph(
         pinned: options.pinnedNodeIds?.has(n.id) ?? false,
         hopDistance,
         isShared: isSharedEntity(n, isFocus),
-        onSelectedPath,
+        onSelectedPath: pathNodeIds ? pathNodeIds.has(n.id) : Boolean(selectedPath?.nodeIds.includes(n.id)),
         showHopBadge: Boolean(options.showHopBadges) && !isFocus && hopDistance >= 1,
         stronglyDimmed: compareClass ? compareClass.role === "context" : Boolean(options.isolateSelectedPath) && dimmed,
         compareRole: compareClass?.role ?? null,
         compareSlot: compareClass?.slot ?? null,
         compareJunction: compareClass?.junction ?? false,
         compareInspect: Boolean(inspectClass?.slot && inspectClass.slot === compareInspectSlot),
+        neighborCounts: neighborCountsForNode(n.id, neighborhood.nodes, neighborhood.edges),
+        canExpand: !isFocus || (options.connectionDepth ?? 2) === 1,
+        onExpand: options.onExpandNode ? () => options.onExpandNode?.(n.id) : undefined,
       },
     };
   });
@@ -269,6 +341,8 @@ export function buildDrugNetworkFlowGraph(
     const isHovered = e.id === hoveredEdgeId;
     const touchesHoveredNode = hoveredNodeId ? e.source === hoveredNodeId || e.target === hoveredNodeId : false;
     const onPath = pathEdgeIds ? pathEdgeIds.has(e.id) : null;
+    const focusDirect = isFocusDirectEdge(focusId, e);
+    const cardEdgeHierarchy = !compareHighlight;
     const showLabel = shouldShowEdgeLabel({
       labelMode: options.labelMode,
       edgeKind: e.edgeKind,
@@ -276,12 +350,26 @@ export function buildDrugNetworkFlowGraph(
       touchesSelectedNode,
       isHovered,
       touchesHoveredNode,
-      onSelectedPath: onPath === true,
+      onSelectedPath: cardEdgeHierarchy ? isolatePathVisuals && onPath === true : onPath === true,
+      isFocusDirect: cardEdgeHierarchy ? focusDirect : true,
+      hasCanvasSelection: cardEdgeHierarchy ? hasCanvasSelection : false,
     });
     const edgeDimmed = onPath === null ? false : !onPath;
     const comparePathEdge = Boolean(comparePathIds && onPath === true);
     const showPathReason = comparePathEdge && isFactualComparePathEdge(e, comparePathIds ?? new Set());
     const baseColor = e.edgeKind === "INFERRED" ? "var(--color-warning, #b45309)" : "var(--color-accent, #2563eb)";
+    const incidentEmphasis = isSelected || touchesSelectedNode || isHovered || touchesHoveredNode;
+    const { opacity, strokeWidth } = cardGraphEdgeAppearance({
+      compareHighlight: Boolean(compareHighlight),
+      compareEmphasize,
+      isolatePathVisuals,
+      isolateSelectedPath: Boolean(options.isolateSelectedPath),
+      onPath,
+      edgeDimmed,
+      focusDirect,
+      hasCanvasSelection,
+      incidentEmphasis,
+    });
     // DI-9.3 Section 6/13: an edge only ever switches to the custom routed
     // renderer once it has a non-AUTO route WITH at least one waypoint —
     // AUTO (the default for every edge, always) or a route with zero
@@ -313,20 +401,25 @@ export function buildDrugNetworkFlowGraph(
       style: {
         stroke: baseColor,
         ...(e.edgeKind === "INFERRED" ? { strokeDasharray: "5 5" } : {}),
-        opacity: edgeDimmed
-          ? comparePathIds
-            ? COMPARE_HIGHLIGHT_CONTEXT_EDGE_OPACITY
-            : options.isolateSelectedPath
-              ? 0.28
-              : 0.42
-          : 1,
-        strokeWidth: onPath ? COMPARE_HIGHLIGHT_PATH_STROKE_WIDTH : 1.5,
+        opacity,
+        strokeWidth,
       },
       markerEnd: { type: MarkerType.ArrowClosed },
-      labelStyle: { fontSize: 10 },
-      labelBgStyle: { fillOpacity: 0.85 },
-      labelBgPadding: [4, 2] as [number, number],
-      labelBgBorderRadius: 3,
+      interactionWidth: 24,
+      labelStyle: {
+        fontSize: 11,
+        fontWeight: showLabel && focusDirect ? 600 : 500,
+        fill: "var(--color-foreground)",
+        color: "var(--color-foreground)",
+      },
+      labelBgStyle: {
+        fill: "var(--color-neutral-bg)",
+        fillOpacity: 1,
+        stroke: "var(--color-border)",
+        background: "var(--color-neutral-bg)",
+      },
+      labelBgPadding: [6, 4] as [number, number],
+      labelBgBorderRadius: 4,
       // Only ever elevate an edge when a node IS selected and this edge
       // touches it — with no selection, every edge must stay at the
       // default stacking level so nodes remain on top and clickable/
@@ -365,7 +458,8 @@ export function applyFlowEdgeHoverLabels(
   labelMode: DrugNetworkLabelMode,
   hoveredNodeId: string | null,
   hoveredEdgeId: string | null,
-  comparePathEdgeIds?: ReadonlySet<string> | null
+  comparePathEdgeIds?: ReadonlySet<string> | null,
+  cardEdgeHierarchy = true
 ): FlowEdge[] {
   const graphEdgeById = new Map(neighborhood.edges.map((edge) => [edge.id, edge]));
   const selectedPath =
@@ -389,6 +483,8 @@ export function applyFlowEdgeHoverLabels(
       isHovered: edge.id === hoveredEdgeId,
       touchesHoveredNode: hoveredNodeId ? edge.source === hoveredNodeId || edge.target === hoveredNodeId : false,
       onSelectedPath: pathEdgeIds?.has(edge.id) ?? false,
+      isFocusDirect: cardEdgeHierarchy ? isFocusDirectEdge(neighborhood.focus.entityId, graphEdge) : true,
+      hasCanvasSelection: cardEdgeHierarchy ? Boolean(selectedNodeId || selectedEdgeId) : false,
     });
     const comparePathEdge = Boolean(comparePathEdgeIds?.has(edge.id));
     const showPathReason = comparePathEdge && isFactualComparePathEdge(graphEdge, new Set([graphEdge.source, graphEdge.target]));

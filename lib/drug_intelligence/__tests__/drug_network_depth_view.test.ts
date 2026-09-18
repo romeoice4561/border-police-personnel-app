@@ -157,7 +157,10 @@ test("by-depth layout separates hop bands and keeps type as a secondary column",
   assert.notEqual(positions.get("veh")!.x, positions.get("c1")!.x);
   assert.ok(plan.bands.some((band) => band.hop === 1));
   assert.ok(plan.bands.some((band) => band.hop === 2));
-  assert.ok(Math.max(...["veh", "sim", "c1"].map((id) => positions.get(id)!.y)) < Math.min(...["c5", "c6"].map((id) => positions.get(id)!.y)));
+  const hop1MaxY = Math.max(...["veh", "sim", "c1"].map((id) => positions.get(id)!.y + 148));
+  const hop2MinY = Math.min(...["c5", "c6"].map((id) => positions.get(id)!.y));
+  assert.ok(hop2MinY >= hop1MaxY + 80, "hop-2 cards must clear hop-1 card bottoms");
+  assert.ok(plan.bands.find((band) => band.hop === 2)!.y > hop1MaxY);
 });
 
 test("selected-path view isolates the existing shortest walk without mutating the payload", () => {

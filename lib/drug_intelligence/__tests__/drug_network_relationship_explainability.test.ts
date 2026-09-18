@@ -576,7 +576,8 @@ test("initial Network load stays one neighborhood request; explanation uses load
   const detail = read("components/drug_intelligence/drug_network_edge_detail.tsx");
   assert.doesNotMatch(detail, /fetch\(|useQuery|listCase/);
   assert.match(detail, /buildRelationshipExplanation/);
-  assert.match(page, /connectingEdgeForExplanationClick/);
+  assert.match(page, /onNodeClick=\{handleNodeClick\}/);
+  assert.match(page, /onEdgeClick=\{handleEdgeClick\}/);
   assert.match(page, /di\.network\.explainHoverHint/);
 });
 

@@ -201,7 +201,8 @@ test("normal Network has no compare-highlight mode", () => {
   assert.equal(parsed, null);
   const { flowNodes, flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (key) => key, null, null, DEFAULT_OPTIONS);
   assert.ok(flowNodes.every((node) => node.data.compareRole == null && node.data.compareJunction === false && node.data.dimmed === false));
-  assert.ok(flowEdges.every((edge) => (edge.style.opacity ?? 1) === 1));
+  assert.ok(flowEdges.every((edge) => (edge.style.opacity ?? 1) > 0));
+  assert.ok(flowEdges.some((edge) => (edge.style.opacity ?? 1) < 1));
   const page = read("app/drug-intelligence/network/page.tsx");
   assert.match(page, /parseCompareHighlightSearchParams/);
   assert.match(page, /boardId \? null/);
@@ -594,7 +595,7 @@ test("LC-2C.2 H-I: SHARED_* and INFERRED are not factual path edges or path reas
     compareHighlight: context,
     compareHighlightEmphasize: false,
   });
-  assert.equal(shownAll.flowEdges.find((edge) => edge.id === "e-cv")!.label, "di.network.relShortVehicle");
+  assert.equal(shownAll.flowEdges.find((edge) => edge.id === "e-cv")!.label, "di.network.relOpFoundInCase");
 });
 
 test("LC-2C.2 J: NONE_KNOWN wording is safe", () => {

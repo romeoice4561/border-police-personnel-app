@@ -25,7 +25,7 @@ export type LayoutNodeType = "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" |
 
 export type DrugNetworkLayoutMode = "AUTO" | "PERSON_CENTERED" | "CASE_CENTERED" | "HIERARCHICAL" | "GROUP_BY_TYPE" | "COMPACT" | "PATH";
 
-const RING_SPACING = 220;
+const RING_SPACING = 280;
 const CENTER = { x: 0, y: 0 };
 
 /** BFS hop-distance from `focusId` over an undirected view of `edges`. Unreachable nodes (shouldn't happen given how the service builds a connected neighborhood, but handled safely) get `undefined`. */
@@ -102,7 +102,7 @@ export function computeRadialLayout(focusId: string, nodes: { id: string }[], ed
  * starting from the top, so the sector a type lands in is deterministic and
  * stable across renders/rings.
  */
-const TYPE_SECTOR_ORDER: LayoutNodeType[] = ["CASE", "PHONE", "SIM", "DEVICE", "VEHICLE", "PERSON", "LOCATION"];
+const TYPE_SECTOR_ORDER: LayoutNodeType[] = ["VEHICLE", "CASE", "PHONE", "SIM", "DEVICE", "PERSON", "LOCATION"];
 function sectorIndex(type: LayoutNodeType): number {
   const i = TYPE_SECTOR_ORDER.indexOf(type);
   return i === -1 ? TYPE_SECTOR_ORDER.length : i;
@@ -235,8 +235,8 @@ function computeSectoredRadialLayout(focusId: string, nodes: LayoutNodeInput[], 
  * used by the radial layouts so the same node lands in a visually
  * consistent relative position across layout modes.
  */
-const LAYER_HEIGHT = 160;
-const LAYER_NODE_SPACING = 200;
+const LAYER_HEIGHT = 220;
+const LAYER_NODE_SPACING = 280;
 
 export function computeHierarchicalLayout(focusId: string, nodes: LayoutNodeInput[], edges: LayoutEdgeInput[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
@@ -279,13 +279,13 @@ export function computeHierarchicalLayout(focusId: string, nodes: LayoutNodeInpu
  * in the same column, further down. Presentation only — never adds graph
  * entities. Lane order follows TYPE_SECTOR_ORDER.
  */
-const LANE_WIDTH = 280;
-const LANE_NODE_SPACING = 150;
+const LANE_WIDTH = 380;
+const LANE_NODE_SPACING = 172;
 const GROUP_FOCUS_Y = 0;
-const GROUP_HOP1_Y = 300;
-const GROUP_HOP2_GAP = 180;
-const GROUP_LANE_HEADER_OFFSET = 100;
-const GROUP_LANE_HEADER_CENTER_X = 90;
+const GROUP_HOP1_Y = 360;
+const GROUP_HOP2_GAP = 200;
+const GROUP_LANE_HEADER_OFFSET = 112;
+const GROUP_LANE_HEADER_CENTER_X = 110;
 
 export interface GroupByTypeLaneHeader {
   type: LayoutNodeType;
@@ -365,16 +365,55 @@ export function computeGroupByTypeLaneHeaders(
  * Depth-2 readability: hop band is the primary hierarchy; entity type is a
  * secondary column inside each band. Presentation only — hop distances come
  * from the loaded undirected neighborhood, never from labels.
+ *
+ * Band Y is derived from the previous band's occupied bottom edge using the
+ * known card bounding boxes (the same CSS widths/heights the intelligence
+ * cards render at). Hop 2 must never start from a fixed constant that
+ * ignores the tallest hop-1 stack. Depth-1 GROUP_BY_TYPE constants above
+ * stay unchanged.
  */
-const HOP_LANE_WIDTH = 240;
-const HOP_NODE_SPACING = 140;
+const HOP_LANE_WIDTH = 300;
 const HOP_FOCUS_Y = 0;
-const HOP1_HEADER_Y = 150;
-const HOP1_TYPE_HEADER_Y = 198;
-const HOP1_START_Y = 250;
-const HOP_BAND_GAP = 150;
-const HOP2_TYPE_HEADER_OFFSET = 48;
-const HOP2_START_OFFSET = 100;
+const HOP_FOCUS_CARD_HEIGHT = 168;
+const HOP_NEIGHBOR_CARD_HEIGHT = 148;
+const HOP_LOCATION_CARD_HEIGHT = 120;
+const HOP_CARD_ROW_GAP = 24;
+const HOP_SAFE_BAND_GAP = 100;
+const HOP_BAND_HEADER_HEIGHT = 28;
+const HOP_TYPE_HEADER_HEIGHT = 22;
+const HOP_FOCUS_TO_BAND_GAP = 32;
+const HOP_BAND_TO_TYPE_GAP = 16;
+const HOP_TYPE_TO_CARDS_GAP = 20;
+const HOP_BAND_HEADER_WIDTH = 320;
+const HOP_TYPE_HEADER_WIDTH = 148;
+
+/** Layout-only bounding box matching the approved intelligence-card CSS. Never shrinks rendered cards. */
+export function graphLayoutCardSize(type: LayoutNodeType, isFocus = false): { width: number; height: number } {
+  if (isFocus) return { width: 276, height: HOP_FOCUS_CARD_HEIGHT };
+  if (type === "LOCATION") return { width: 176, height: HOP_LOCATION_CARD_HEIGHT };
+  if (type === "PERSON" || type === "VEHICLE") return { width: 236, height: HOP_NEIGHBOR_CARD_HEIGHT };
+  return { width: 220, height: HOP_NEIGHBOR_CARD_HEIGHT };
+}
+
+export interface LayoutRect {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function layoutRectsOverlap(a: LayoutRect, b: LayoutRect, gap = 0): boolean {
+  return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y;
+}
+
+function hopNeighborStep(type: LayoutNodeType): number {
+  return graphLayoutCardSize(type).height + HOP_CARD_ROW_GAP;
+}
+
+function headerCenterY(start: number, height: number): number {
+  return start + height / 2;
+}
 
 export interface GroupByHopBandHeader {
   hop: 1 | 2;
@@ -416,30 +455,41 @@ export function planGroupByHopLayout(
     const index = occupied.indexOf(type);
     return (index - (occupied.length - 1) / 2) * HOP_LANE_WIDTH;
   };
+  const typeHeaderX = (type: LayoutNodeType): number => columnX(type) + graphLayoutCardSize(type).width / 2;
 
-  let hop1Rows = 0;
+  const hop1BandTop = HOP_FOCUS_Y + HOP_FOCUS_CARD_HEIGHT + HOP_FOCUS_TO_BAND_GAP;
+  const hop1HeaderY = headerCenterY(hop1BandTop, HOP_BAND_HEADER_HEIGHT);
+  const hop1TypeHeaderY = hop1HeaderY + HOP_BAND_HEADER_HEIGHT / 2 + HOP_BAND_TO_TYPE_GAP + HOP_TYPE_HEADER_HEIGHT / 2;
+  const hop1StartY = hop1TypeHeaderY + HOP_TYPE_HEADER_HEIGHT / 2 + HOP_TYPE_TO_CARDS_GAP;
+
+  let hop1Bottom = hop1StartY;
   occupied.forEach((type) => {
     const ids = hop1.filter((node) => node.type === type).map((node) => node.id).sort();
-    hop1Rows = Math.max(hop1Rows, ids.length);
+    const step = hopNeighborStep(type);
     ids.forEach((id, index) => {
-      positions.set(id, { x: columnX(type), y: HOP1_START_Y + index * HOP_NODE_SPACING });
+      positions.set(id, { x: columnX(type), y: hop1StartY + index * step });
     });
     if (ids.length > 0) {
-      typeHeaders.push({ hop: 1, type, x: columnX(type), y: HOP1_TYPE_HEADER_Y, count: ids.length });
+      typeHeaders.push({ hop: 1, type, x: typeHeaderX(type), y: hop1TypeHeaderY, count: ids.length });
+      hop1Bottom = Math.max(hop1Bottom, hop1StartY + (ids.length - 1) * step + graphLayoutCardSize(type).height);
     }
   });
   if (hop1.length > 0) {
-    bands.push({ hop: 1, x: 0, y: HOP1_HEADER_Y });
+    bands.push({ hop: 1, x: 0, y: hop1HeaderY });
   }
 
-  const hop2HeaderY = HOP1_START_Y + Math.max(hop1Rows, 1) * HOP_NODE_SPACING + HOP_BAND_GAP;
+  const hop2BandTop = hop1Bottom + HOP_SAFE_BAND_GAP;
+  const hop2HeaderY = headerCenterY(hop2BandTop, HOP_BAND_HEADER_HEIGHT);
+  const hop2TypeHeaderY = hop2HeaderY + HOP_BAND_HEADER_HEIGHT / 2 + HOP_BAND_TO_TYPE_GAP + HOP_TYPE_HEADER_HEIGHT / 2;
+  const hop2StartY = hop2TypeHeaderY + HOP_TYPE_HEADER_HEIGHT / 2 + HOP_TYPE_TO_CARDS_GAP;
   occupied.forEach((type) => {
     const ids = hop2.filter((node) => node.type === type).map((node) => node.id).sort();
+    const step = hopNeighborStep(type);
     ids.forEach((id, index) => {
-      positions.set(id, { x: columnX(type), y: hop2HeaderY + HOP2_START_OFFSET + index * HOP_NODE_SPACING });
+      positions.set(id, { x: columnX(type), y: hop2StartY + index * step });
     });
     if (ids.length > 0) {
-      typeHeaders.push({ hop: 2, type, x: columnX(type), y: hop2HeaderY + HOP2_TYPE_HEADER_OFFSET, count: ids.length });
+      typeHeaders.push({ hop: 2, type, x: typeHeaderX(type), y: hop2TypeHeaderY, count: ids.length });
     }
   });
   if (hop2.length > 0) {
@@ -447,7 +497,7 @@ export function planGroupByHopLayout(
   }
 
   for (const node of nodes) {
-    if (!positions.has(node.id)) positions.set(node.id, { x: 0, y: HOP1_START_Y });
+    if (!positions.has(node.id)) positions.set(node.id, { x: 0, y: hop1StartY });
   }
 
   return { positions, bands, typeHeaders };
@@ -461,9 +511,73 @@ export function computeGroupByHopLayout(
   return planGroupByHopLayout(focusId, nodes, edges).positions;
 }
 
-const VERTICAL_PATH_SPACING = 200;
-const VERTICAL_OFF_PATH_X = 420;
-const VERTICAL_OFF_PATH_SPACING = 150;
+/**
+ * Deterministic bounding boxes for Depth-2 collision tests and band audits.
+ * Presentation-only — mirrors card CSS + hop-band/type-header overlay sizes.
+ */
+export function collectGroupByHopLayoutRects(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): {
+  cardRects: LayoutRect[];
+  bandHeaderRects: LayoutRect[];
+  typeHeaderRects: LayoutRect[];
+  hop1Bottom: number;
+  hop2BandTop: number;
+} {
+  const plan = planGroupByHopLayout(focusId, nodes, edges);
+  const distance = bfsDistances(focusId, nodes, edges);
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const cardRects: LayoutRect[] = [];
+  for (const [id, position] of plan.positions) {
+    const node = byId.get(id);
+    if (!node) continue;
+    const size = graphLayoutCardSize(node.type, id === focusId);
+    cardRects.push({ id, x: position.x, y: position.y, width: size.width, height: size.height });
+  }
+
+  const bandHeaderRects: LayoutRect[] = plan.bands.map((band) => ({
+    id: `band-${band.hop}`,
+    x: band.x - HOP_BAND_HEADER_WIDTH / 2,
+    y: band.y - HOP_BAND_HEADER_HEIGHT / 2,
+    width: HOP_BAND_HEADER_WIDTH,
+    height: HOP_BAND_HEADER_HEIGHT,
+  }));
+
+  const typeHeaderRects: LayoutRect[] = plan.typeHeaders.map((header) => ({
+    id: `type-${header.hop}-${header.type}`,
+    x: header.x - HOP_TYPE_HEADER_WIDTH / 2,
+    y: header.y - HOP_TYPE_HEADER_HEIGHT / 2,
+    width: HOP_TYPE_HEADER_WIDTH,
+    height: HOP_TYPE_HEADER_HEIGHT,
+  }));
+
+  const hop1Cards = cardRects.filter((rect) => {
+    const hop = distance.get(rect.id);
+    return rect.id !== focusId && hop === 1;
+  });
+  const hop1Bottom =
+    hop1Cards.length > 0 ? Math.max(...hop1Cards.map((rect) => rect.y + rect.height)) : HOP_FOCUS_Y + HOP_FOCUS_CARD_HEIGHT;
+  const hop2Band = bandHeaderRects.find((rect) => rect.id === "band-2");
+  const hop2BandTop = hop2Band ? hop2Band.y : hop1Bottom + HOP_SAFE_BAND_GAP;
+
+  return { cardRects, bandHeaderRects, typeHeaderRects, hop1Bottom, hop2BandTop };
+}
+
+/** True when any pair of rectangles intersects (optional positive gap = required clearance). */
+export function anyLayoutRectsCollide(rects: LayoutRect[], gap = 0): boolean {
+  for (let i = 0; i < rects.length; i++) {
+    for (let j = i + 1; j < rects.length; j++) {
+      if (layoutRectsOverlap(rects[i]!, rects[j]!, gap)) return true;
+    }
+  }
+  return false;
+}
+
+const VERTICAL_PATH_SPACING = 240;
+const VERTICAL_OFF_PATH_X = 460;
+const VERTICAL_OFF_PATH_SPACING = 180;
 
 /** Selected-path investigation column: focus → intermediates → destination, top to bottom. */
 export function computeVerticalPathLayout(
@@ -496,7 +610,7 @@ export function groupByTypeLaneOrder(): LayoutNodeType[] {
  * no randomness — same input always converges to the same output, and the
  * pass count is fixed so runtime stays bounded.
  */
-const MIN_SPACING = 130;
+const MIN_SPACING = 180;
 const RELAXATION_PASSES = 24;
 
 export function computeCompactLayout(focusId: string, nodes: LayoutNodeInput[], edges: LayoutEdgeInput[]): Map<string, { x: number; y: number }> {
@@ -555,9 +669,9 @@ export function computeCompactLayout(focusId: string, nodes: LayoutNodeInput[], 
  * Section 10) is placed on a secondary row below so it doesn't collide with
  * the path itself.
  */
-const PATH_STEP_SPACING = 260;
-const OFF_PATH_ROW_Y = 220;
-const OFF_PATH_NODE_SPACING = 180;
+const PATH_STEP_SPACING = 300;
+const OFF_PATH_ROW_Y = 260;
+const OFF_PATH_NODE_SPACING = 240;
 
 export function computePathLayout(pathNodeIdsInOrder: string[], allNodes: LayoutNodeInput[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();

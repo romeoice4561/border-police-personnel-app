@@ -13,6 +13,7 @@ import {
   formatReadableSimLabel,
   hopDistances,
   isSharedEntity,
+  neighborCountsForNode,
   selectedPathSteps,
   shouldShowEdgeLabel,
   shortestUndirectedPath,
@@ -190,6 +191,46 @@ test("edge-label decluttering hides DIRECT labels until hover or selection", () 
   );
 });
 
+test("ALL mode keeps focus-direct labels and hides secondary labels until hover or selection", () => {
+  assert.equal(
+    shouldShowEdgeLabel({
+      labelMode: "ALL",
+      edgeKind: "DIRECT",
+      isSelected: false,
+      touchesSelectedNode: false,
+      isHovered: false,
+      touchesHoveredNode: false,
+      isFocusDirect: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowEdgeLabel({
+      labelMode: "ALL",
+      edgeKind: "DIRECT",
+      isSelected: false,
+      touchesSelectedNode: false,
+      isHovered: false,
+      touchesHoveredNode: false,
+      isFocusDirect: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowEdgeLabel({
+      labelMode: "ALL",
+      edgeKind: "DIRECT",
+      isSelected: false,
+      touchesSelectedNode: true,
+      isHovered: false,
+      touchesHoveredNode: false,
+      isFocusDirect: false,
+      hasCanvasSelection: true,
+    }),
+    true,
+  );
+});
+
 test("summary counts come from the existing neighborhood payload", () => {
   const data = neighborhood();
   const snapshot = structuredClone(data);
@@ -222,10 +263,10 @@ test("existing layout modes remain independently resolvable", () => {
 });
 
 test("phone and SIM card text prefer human-readable forms", () => {
-  assert.equal(formatReadablePhoneLabel("66900001001"), "0900001001");
+  assert.equal(formatReadablePhoneLabel("66900001001"), "090-000-1001");
   assert.equal(formatReadableSimLabel("89000000000000000001"), "8900…0001");
   const phoneCard = formatGraphNodeCard(node("ph", "PHONE", "66900001005", { metadata: { type: "PHONE", carrier: null } }));
-  assert.equal(phoneCard.title, "0900001005");
+  assert.equal(phoneCard.title, "090-000-1005");
   assert.equal(phoneCard.titleTitle, "66900001005");
 });
 
@@ -290,4 +331,22 @@ test("hop distances treat the graph as undirected without changing edge records"
   assert.equal(hops.get("p1"), 0);
   assert.equal(hops.get("c1"), 1);
   assert.equal(hops.get("c5"), 2);
+});
+
+test("neighbor counts come only from loaded edges and never invent entity types", () => {
+  const data = neighborhood();
+  const counts = neighborCountsForNode("p1", data.nodes, data.edges);
+  assert.equal(counts.CASE, 2);
+  assert.equal(counts.PHONE, 1);
+  assert.equal(counts.SIM, 1);
+  assert.equal(counts.VEHICLE, 0);
+  assert.equal(counts.PERSON, 0);
+});
+
+test("person graph cards never use a UUID as the visible title", () => {
+  const opaque = formatGraphNodeCard(
+    node("p-uuid", "PERSON", "16b1274d-8553-4833-9ebe-24c236c95d54", { secondaryLabel: "นามแฝง" }),
+  );
+  assert.equal(opaque.title, "นามแฝง");
+  assert.notEqual(opaque.title, "16b1274d-8553-4833-9ebe-24c236c95d54");
 });

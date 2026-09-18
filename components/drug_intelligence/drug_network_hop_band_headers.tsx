@@ -26,7 +26,7 @@ export function DrugNetworkHopBandHeaders({
       {bands.map((band) => (
         <div
           key={`band-${band.hop}`}
-          className="absolute whitespace-nowrap rounded-md border border-border bg-surface/95 px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground shadow-sm"
+          className="absolute whitespace-nowrap rounded-md border border-border bg-neutral-bg px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground shadow-sm"
           style={{
             transform: `translate(${x + band.x * zoom}px, ${y + band.y * zoom}px) translate(-50%, -50%)`,
           }}
@@ -37,7 +37,7 @@ export function DrugNetworkHopBandHeaders({
       {typeHeaders.map((header) => (
         <div
           key={`${header.hop}-${header.type}`}
-          className="absolute whitespace-nowrap rounded-md border border-border/70 bg-surface/85 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted shadow-sm"
+          className="absolute whitespace-nowrap rounded-md border border-border bg-neutral-bg px-2 py-0.5 text-[10px] font-semibold tracking-wide text-foreground shadow-sm"
           style={{
             transform: `translate(${x + header.x * zoom}px, ${y + header.y * zoom}px) translate(-50%, -50%)`,
           }}

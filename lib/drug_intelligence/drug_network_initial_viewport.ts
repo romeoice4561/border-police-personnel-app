@@ -20,8 +20,8 @@ export const READABLE_INITIAL_MAX_ZOOM = 1.12;
 export const READABLE_INITIAL_PADDING = 0.18;
 export const HOP2_HEADING_HALF_WIDTH = 160;
 export const HOP2_HEADING_HALF_HEIGHT = 16;
-export const HOP2_CONTINUATION_PEEK_PX = 56;
-const FIRST_HOP2_ROW_TOLERANCE_PX = 24;
+export const HOP2_CONTINUATION_PEEK_PX = 72;
+const FIRST_HOP2_ROW_TOLERANCE_PX = 40;
 
 export type InitialViewportKind =
   | "PRESERVE"

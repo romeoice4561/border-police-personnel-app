@@ -316,6 +316,15 @@ body {
   opacity: 0.45;
 }
 
+.react-flow.di-network-board .react-flow__edge-text {
+  fill: var(--foreground);
+}
+
+.react-flow.di-network-board .react-flow__edge-textbg {
+  fill: var(--neutral-bg);
+  stroke: var(--border);
+}
+
 /* DI-9.4.4: print only the Investigation Board canvas content. */
 @media print {
   @page {

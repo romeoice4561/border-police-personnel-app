@@ -22,7 +22,7 @@ export function DrugNetworkTypeLaneHeaders({ headers }: { headers: GroupByTypeLa
       {headers.map((lane) => (
         <div
           key={lane.type}
-          className="absolute whitespace-nowrap rounded-md border border-border bg-surface/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted shadow-sm"
+          className="absolute whitespace-nowrap rounded-md border border-border bg-neutral-bg px-2 py-0.5 text-[10px] font-semibold tracking-wide text-foreground shadow-sm"
           style={{
             transform: `translate(${x + lane.x * zoom}px, ${y + lane.y * zoom}px) translate(-50%, -50%)`,
           }}

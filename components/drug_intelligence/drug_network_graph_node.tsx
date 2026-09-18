@@ -1,7 +1,6 @@
 /**
- * Custom @xyflow/react node renderer for the DI-5 Network canvas (Section
- * 8). Visual distinction by entity type uses icon + shape + text together
- * — never color alone (Section 8's explicit requirement).
+ * Intelligence-card renderer for the C-INTEL Network canvas.
+ * Presentation only — does not change graph semantics or query results.
  */
 "use client";
 
@@ -11,6 +10,7 @@ import { cn } from "@/lib/ui/cn";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_ENTITY_ICON } from "@/components/drug_intelligence/drug_entity_visual";
 import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
+import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { formatGraphNodeCard } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
@@ -19,34 +19,37 @@ import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 const NODE_ICON = DRUG_ENTITY_ICON;
 
-const NODE_SHAPE: Record<DrugGraphNodeType, string> = {
-  PERSON: "rounded-full",
-  CASE: "rounded-md",
-  PHONE: "rounded-xl",
-  SIM: "rounded-xl",
-  DEVICE: "rounded-xl",
-  VEHICLE: "rounded-xl",
-  LOCATION: "rounded-xl",
+const CARD_ACCENT: Record<DrugGraphNodeType, string> = {
+  PERSON: "border-l-accent",
+  CASE: "border-l-critical",
+  PHONE: "border-l-good",
+  SIM: "border-l-good",
+  DEVICE: "border-l-warning",
+  VEHICLE: "border-l-serious",
+  LOCATION: "border-l-neutral",
 };
 
-const NODE_TONE: Record<DrugGraphNodeType, string> = {
-  PERSON: "border-accent bg-accent/10 text-accent",
-  CASE: "border-critical bg-critical-bg text-critical",
-  PHONE: "border-good bg-good-bg text-good",
-  SIM: "border-good bg-good-bg text-good",
-  DEVICE: "border-warning bg-warning-bg text-warning",
-  VEHICLE: "border-serious bg-serious-bg text-serious",
-  LOCATION: "border-neutral bg-neutral-bg text-neutral",
+const ICON_TONE: Record<DrugGraphNodeType, string> = {
+  PERSON: "text-accent",
+  CASE: "text-critical",
+  PHONE: "text-good",
+  SIM: "text-good",
+  DEVICE: "text-warning",
+  VEHICLE: "text-serious",
+  LOCATION: "text-muted",
 };
+
+function countLabel(template: string, count: number): string {
+  return template.replace("{count}", String(count));
+}
 
 export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: DrugNetworkFlowNodeData }) {
-  const { graphNode, isFocus, density, dimmed, pinned, hopDistance, isShared, onSelectedPath, showHopBadge, stronglyDimmed, compareRole, compareSlot, compareJunction, compareInspect } = data;
+  const { graphNode, isFocus, density, dimmed, pinned, hopDistance, isShared, onSelectedPath, showHopBadge, stronglyDimmed, compareRole, compareSlot, compareJunction, compareInspect, neighborCounts, canExpand, onExpand } = data;
   const { t } = useT();
   const Icon = NODE_ICON[graphNode.type];
   const hasRisk = graphNode.riskIndicators.length > 0;
   const isCompact = density === "COMPACT";
   const card = formatGraphNodeCard(graphNode);
-  const isIndirect = hopDistance >= 2;
   const focusCaption = graphNode.type === "PERSON" && isFocus ? t("di.network.focusPerson") : t("di.network.focusNode");
   const sharedCaption = graphNode.caseCount > 2
     ? `${t("di.network.sharedLinkPrefix")} ${graphNode.caseCount} ${t("di.network.summaryCases")}`
@@ -54,32 +57,81 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
   const compareEndpoint = compareRole === "endpoint";
   const comparePath = compareRole === "path";
   const compareJunctionNode = Boolean(compareJunction && comparePath);
+  const typeKey = graphNode.type === "DEVICE" ? "di.network.groupDeviceImei" : DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type];
+  const title = card.title || t(typeKey as TranslationKey);
+  const photoSize = isCompact ? "search" : isFocus && graphNode.type === "PERSON" ? "graphCardFocus" : "graphCard";
+  const summary = cardSummary();
+  const stats = cardStats();
+
+  function cardSummary(): string | null {
+    if (graphNode.type === "PERSON") {
+      if (graphNode.caseCount > 0) return countLabel(t("di.network.cardRelatedCases"), graphNode.caseCount);
+      return null;
+    }
+    if (graphNode.type === "PHONE") {
+      const parts = [
+        graphNode.caseCount > 0 ? countLabel(t("di.network.cardFoundInCases"), graphNode.caseCount) : null,
+        neighborCounts.PERSON > 0 ? countLabel(t("di.network.cardLinkedPeople"), neighborCounts.PERSON) : null,
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : null;
+    }
+    if (graphNode.type === "VEHICLE") {
+      if (graphNode.caseCount > 0) return countLabel(t("di.network.cardFoundInCases"), graphNode.caseCount);
+      return card.subtitle;
+    }
+    if (graphNode.type === "CASE" && graphNode.metadata.type === "CASE") {
+      const date = graphNode.metadata.arrestDate ? formatDiDate(graphNode.metadata.arrestDate) : null;
+      const placeDate = [graphNode.metadata.province, date && date !== "ไม่มีข้อมูล" ? date : null].filter(Boolean).join(" • ");
+      const people = neighborCounts.PERSON > 0 ? countLabel(t("di.network.cardCasePeople"), neighborCounts.PERSON) : null;
+      return [placeDate || card.subtitle, people].filter(Boolean).join(" · ") || null;
+    }
+    if (graphNode.type === "LOCATION") return card.subtitle;
+    if (graphNode.type === "DEVICE" || graphNode.type === "SIM") return card.subtitle;
+    return card.subtitle;
+  }
+
+  function cardStats(): string | null {
+    if (graphNode.type !== "PERSON" || isCompact) return null;
+    const parts = [
+      neighborCounts.PHONE > 0 ? countLabel(t("di.network.cardPhoneStat"), neighborCounts.PHONE) : null,
+      neighborCounts.VEHICLE > 0 ? countLabel(t("di.network.cardVehicleStat"), neighborCounts.VEHICLE) : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join("   ") : null;
+  }
+
+  const widthClass =
+    graphNode.type === "LOCATION"
+      ? isFocus ? "w-[196px]" : "w-[176px]"
+      : graphNode.type === "PERSON"
+        ? isFocus ? "w-[276px]" : "w-[236px]"
+        : graphNode.type === "VEHICLE"
+          ? "w-[236px]"
+          : "w-[220px]";
 
   return (
     <div
       role="button"
       tabIndex={0}
       title={card.titleTitle}
-      aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${card.title}${isFocus ? ` (${focusCaption})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}${pinned ? ` (${t("di.network.pinnedNode")})` : ""}${isShared ? ` (${sharedCaption})` : ""}${compareSlot ? ` (${compareSlot})` : ""}${compareJunctionNode ? ` (${t("di.network.compareJunctionBadge")})` : ""}`}
+      aria-label={`${t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}: ${title}${isFocus ? ` (${focusCaption})` : ""}${selected ? ` (${t("di.network.selectedNode")})` : ""}${pinned ? ` (${t("di.network.pinnedNode")})` : ""}${isShared ? ` (${sharedCaption})` : ""}${compareSlot ? ` (${compareSlot})` : ""}${compareJunctionNode ? ` (${t("di.network.compareJunctionBadge")})` : ""}`}
       data-compare-role={compareRole ?? undefined}
       data-compare-slot={compareSlot ?? undefined}
       data-compare-junction={compareJunctionNode ? "true" : undefined}
       data-compare-inspect={compareInspect ? "true" : undefined}
+      data-testid="network-intelligence-card"
+      data-entity-type={graphNode.type}
       className={cn(
-        "relative flex min-w-[120px] max-w-[180px] flex-col items-center gap-1 border-2 bg-surface px-3 py-2 text-center shadow-sm transition-[box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isCompact ? "min-w-20 max-w-30 px-2 py-1.5" : "",
-        isFocus ? "min-w-[168px] max-w-[240px] px-4 py-3 shadow-lg outline-2 outline-offset-2 outline-critical" : "",
-        isFocus && graphNode.type === "PERSON" ? "rounded-2xl" : NODE_SHAPE[graphNode.type],
-        NODE_TONE[graphNode.type],
-        selected && !isFocus ? "ring-2 ring-accent ring-offset-2 shadow-md" : "",
-        compareEndpoint && !selected ? "ring-2 ring-accent ring-offset-2 shadow-md" : "",
-        compareInspect && !isFocus ? "ring-2 ring-accent ring-offset-4 shadow-md" : "",
-        compareJunctionNode && !selected && !compareEndpoint ? "ring-2 ring-warning ring-offset-1 shadow-md" : "",
+        "relative rounded-xl border border-border border-l-4 bg-surface text-left text-foreground shadow-md transition-[box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        CARD_ACCENT[graphNode.type],
+        isCompact ? "w-[168px] px-2 py-1.5" : cn(widthClass, isFocus ? "px-3 py-2.5" : "px-2.5 py-2"),
+        isFocus ? "shadow-lg ring-2 ring-critical ring-offset-2 ring-offset-background" : "",
+        selected && !isFocus ? "ring-2 ring-accent ring-offset-2 ring-offset-background shadow-md" : "",
+        compareEndpoint && !selected ? "ring-2 ring-accent ring-offset-2 ring-offset-background shadow-md" : "",
+        compareInspect && !isFocus ? "ring-2 ring-accent ring-offset-4 ring-offset-background shadow-md" : "",
+        compareJunctionNode && !selected && !compareEndpoint ? "ring-2 ring-warning ring-offset-1 ring-offset-background shadow-md" : "",
         comparePath && !selected && !compareEndpoint && !compareJunctionNode ? "ring-1 ring-accent" : "",
         onSelectedPath && !selected && !isFocus && !compareEndpoint && !comparePath ? "ring-1 ring-accent/40" : "",
-        isIndirect && !isFocus && !selected && !onSelectedPath && !compareEndpoint && !comparePath ? "opacity-80" : "",
-        isIndirect && !isFocus && !selected && !compareEndpoint && !comparePath ? "scale-[0.92] border-dashed" : "",
-        stronglyDimmed ? "opacity-30" : dimmed ? "opacity-50" : ""
+        stronglyDimmed ? "opacity-[0.55]" : dimmed ? "opacity-[0.62]" : ""
       )}
     >
       {compareSlot ? (
@@ -100,63 +152,75 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
           <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />
         </span>
       ) : null}
-      {graphNode.type === "PERSON" ? (
-        <div className="flex flex-col items-center gap-1">
+
+      <div className={cn("flex items-start gap-2", isCompact ? "gap-1.5" : "gap-2.5")}>
+        {graphNode.type === "PERSON" || (graphNode.type === "VEHICLE" && graphNode.visual?.thumbnailUrl) ? (
           <DrugEntityVisualThumb
-            entityType="PERSON"
-            label={card.title}
+            entityType={graphNode.type}
+            label={title}
             thumbnailUrl={graphNode.visual?.thumbnailUrl}
-            size={isCompact ? "search" : isFocus ? "graphFocus" : "graph"}
+            size={graphNode.type === "VEHICLE" ? "graphCard" : photoSize}
+            rounded={graphNode.type === "PERSON" ? "full" : "md"}
           />
-          {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
+        ) : (
+          <span className={cn("mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-bg", ICON_TONE[graphNode.type])}>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </span>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-1">
+            <p className={cn("min-w-0 flex-1 truncate leading-tight text-foreground", isFocus ? "text-base font-bold" : "text-sm font-semibold")}>{title}</p>
+            {hasRisk ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
+          </div>
+          <p className="mt-0.5 truncate text-[11px] leading-tight text-muted">{t(typeKey as TranslationKey)}</p>
+          {isFocus ? <p className="mt-0.5 truncate text-[11px] font-semibold text-critical">{focusCaption}</p> : null}
+          {!isCompact && summary ? <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-foreground">{summary}</p> : null}
+          {!isCompact && graphNode.type === "VEHICLE" && card.subtitle && summary !== card.subtitle ? (
+            <p className="mt-0.5 truncate text-[12px] text-muted">{card.subtitle}</p>
+          ) : null}
+          {stats ? <p className="mt-1 truncate text-[11px] text-muted">{stats}</p> : null}
+          {pinned ? <span className="mt-1 block text-[10px] font-semibold text-accent">{t("di.network.pinnedNode")}</span> : null}
+          {showHopBadge && hopDistance === 1 ? (
+            <span className="mt-1 inline-flex rounded-full bg-neutral-bg px-1.5 py-px text-[10px] font-medium text-muted">{t("di.network.hopBadgeOne")}</span>
+          ) : null}
+          {showHopBadge && hopDistance >= 2 ? (
+            <span className="mt-1 inline-flex rounded-full bg-neutral-bg px-1.5 py-px text-[10px] font-medium text-muted">{t("di.network.hopBadgeTwo")}</span>
+          ) : null}
+          {compareJunctionNode ? (
+            <span
+              className="mt-1 inline-flex rounded-full bg-warning-bg px-1.5 py-px text-[10px] font-semibold text-warning"
+              data-testid="network-compare-junction-badge"
+            >
+              {t("di.network.compareJunctionBadge")}
+            </span>
+          ) : null}
+          {isShared ? (
+            <span
+              title={`${t("di.network.sharedLinkPrefix")} ${graphNode.caseCount} ${t("di.network.summaryCases")}`}
+              className="mt-1 inline-flex rounded-full bg-warning-bg px-1.5 py-px text-[10px] font-semibold text-warning"
+            >
+              {sharedCaption}
+            </span>
+          ) : null}
         </div>
-      ) : graphNode.type === "VEHICLE" && graphNode.visual?.thumbnailUrl ? (
-        <div className="flex items-center gap-1.5">
-          <DrugEntityVisualThumb
-            entityType="VEHICLE"
-            label={card.title}
-            thumbnailUrl={graphNode.visual.thumbnailUrl}
-            size="search"
-            rounded="md"
-          />
-          {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <Icon className={cn("shrink-0", isFocus ? "h-5 w-5" : "h-4 w-4")} aria-hidden="true" />
-          {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
-        </div>
-      )}
-      <p className={cn("line-clamp-2 font-semibold leading-tight text-foreground", isFocus ? "text-sm" : "text-xs")}>{card.title}</p>
-      {!isCompact && card.subtitle ? <p className="line-clamp-1 text-[10px] leading-tight text-muted">{card.subtitle}</p> : null}
-      {!isCompact ? (
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[graphNode.type] as TranslationKey)}</span>
-      ) : null}
-      {isFocus ? <span className="text-[9px] font-semibold uppercase tracking-wide text-critical">{focusCaption}</span> : null}
-      {showHopBadge && hopDistance === 1 ? (
-        <span className="rounded-full bg-neutral-bg px-1.5 py-px text-[9px] font-medium text-muted">{t("di.network.hopBadgeOne")}</span>
-      ) : null}
-      {showHopBadge && hopDistance >= 2 ? (
-        <span className="rounded-full bg-neutral-bg px-1.5 py-px text-[9px] font-medium text-muted">{t("di.network.hopBadgeTwo")}</span>
-      ) : null}
-      {selected && !isFocus ? <span className="text-[9px] font-semibold uppercase tracking-wide text-accent">{t("di.network.selectedNode")}</span> : null}
-      {compareJunctionNode ? (
-        <span
-          className="rounded-full bg-warning-bg px-1.5 py-px text-[9px] font-semibold text-warning"
-          data-testid="network-compare-junction-badge"
+      </div>
+
+      {canExpand && onExpand ? (
+        <button
+          type="button"
+          className="nodrag nopan absolute bottom-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-sm font-semibold leading-none text-foreground shadow-sm hover:bg-neutral-bg"
+          aria-label={t("di.network.expandNode")}
+          title={t("di.network.expandCard")}
+          onClick={(event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            onExpand();
+          }}
         >
-          {t("di.network.compareJunctionBadge")}
-        </span>
+          +
+        </button>
       ) : null}
-      {isShared ? (
-        <span
-          title={`${t("di.network.sharedLinkPrefix")} ${graphNode.caseCount} ${t("di.network.summaryCases")}`}
-          className="rounded-full bg-warning-bg px-1.5 py-px text-[9px] font-semibold text-warning"
-        >
-          {sharedCaption}
-        </span>
-      ) : null}
-      {pinned ? <span className="text-[9px] font-semibold uppercase tracking-wide text-accent">{t("di.network.pinnedNode")}</span> : null}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { getViewportForBounds } from "@xyflow/react";
-import { planGroupByHopLayout } from "@/lib/drug_intelligence/drug_network_graph_layout";
+import { planGroupByHopLayout, graphLayoutCardSize } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { hopDistances } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import {
   computeReadableHopContextBounds,
@@ -47,14 +47,17 @@ function toFitNodes(): { fitNodes: ReadableFitNode[]; headings: { hop: 1 | 2; x:
   const { nodes, edges } = wideDepth2Neighborhood();
   const hops = hopDistances("focus", nodes, edges);
   const plan = planGroupByHopLayout("focus", nodes, edges);
-  const fitNodes: ReadableFitNode[] = nodes.map((node) => ({
-    id: node.id,
-    position: plan.positions.get(node.id) ?? { x: 0, y: 0 },
-    width: node.id === "focus" ? 240 : 180,
-    height: node.id === "focus" ? 150 : 110,
-    hopDistance: hops.get(node.id) ?? 1,
-    isFocus: node.id === "focus",
-  }));
+  const fitNodes: ReadableFitNode[] = nodes.map((node) => {
+    const size = graphLayoutCardSize(node.type, node.id === "focus");
+    return {
+      id: node.id,
+      position: plan.positions.get(node.id) ?? { x: 0, y: 0 },
+      width: size.width,
+      height: size.height,
+      hopDistance: hops.get(node.id) ?? 1,
+      isFocus: node.id === "focus",
+    };
+  });
   return { fitNodes, headings: plan.bands, hops };
 }
 
@@ -134,11 +137,11 @@ test("readable initial bounds contain focus and every hop-1 node", () => {
       `${node.id} must stay in the initial readable viewport`
     );
   }
-  assert.ok(viewport.zoom >= 0.6 && viewport.zoom <= 0.9, `typical 1440-class zoom should be readable, got ${viewport.zoom.toFixed(3)}`);
+  assert.ok(viewport.zoom >= 0.55 && viewport.zoom <= 0.95, `typical 1440-class zoom should stay readable, got ${viewport.zoom.toFixed(3)}`);
   const fullBounds = pathNodesBounds(fitNodes)!;
   const fullViewport = getViewportForBounds(fullBounds, 1200, 640, 0.2, 1.12, 0.18);
-  assert.ok(fullViewport.zoom < 0.55, "fitting every hop-2 node would still produce the tiny overview zoom");
-  assert.ok(viewport.zoom > fullViewport.zoom + 0.12, "readable fit must be meaningfully larger than full-graph fit");
+  assert.ok(fullViewport.zoom < 0.5, "fitting every hop-2 node would still produce the tiny overview zoom");
+  assert.ok(viewport.zoom > fullViewport.zoom + 0.1, "readable fit must be meaningfully larger than full-graph fit");
 });
 
 test("toolbar ปรับให้พอดีหน้าจอ still fits the entire loaded graph", () => {

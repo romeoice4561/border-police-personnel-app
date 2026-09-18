@@ -144,7 +144,7 @@ test("edge labels use the SHORT label key, not the full relationship label key, 
     null,
     DEFAULT_OPTIONS
   );
-  assert.ok(calls.includes("di.network.relShortCase"), "must translate the SHORT label key for PERSON_CASE, not the long di.network.relPersonCase key");
+  assert.ok(calls.includes("di.network.relOpPersonCase"), "must translate the operational short label for PERSON_CASE, not the long di.network.relPersonCase key");
   assert.ok(!calls.includes("di.network.relPersonCase"), "must never use the long relationship label on the canvas edge itself");
 });
 
@@ -183,9 +183,14 @@ test("labelMode=HIDDEN produces empty labels for every edge, regardless of selec
   assert.ok(flowEdges.every((e) => e.label === ""));
 });
 
-test("labelMode=ALL shows a label on every edge", () => {
-  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, null, null, { ...DEFAULT_OPTIONS, labelMode: "ALL" });
-  assert.ok(flowEdges.every((e) => e.label !== ""));
+test("labelMode=ALL: hovering a secondary edge reveals that label without showing other cross-links", () => {
+  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, null, null, {
+    ...DEFAULT_OPTIONS,
+    labelMode: "ALL",
+    hoveredEdgeId: "cp:1",
+  });
+  assert.notEqual(flowEdges.find((e) => e.id === "pc:1")!.label, "");
+  assert.notEqual(flowEdges.find((e) => e.id === "cp:1")!.label, "");
 });
 
 test("labelMode=SELECTED_ONLY: with no selection and no hover, repetitive DIRECT labels stay hidden", () => {
@@ -302,8 +307,52 @@ test("selecting the focus node does not dim the rest of the graph", () => {
   assert.ok(flowNodes.every((n) => n.data.dimmed === false));
 });
 
-test("selecting a secondary node highlights the path from focus and dims off-path nodes", () => {
-  const { flowNodes } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "c1", null, DEFAULT_OPTIONS);
+test("selecting a secondary node emphasizes its incident neighborhood and dims unrelated nodes", () => {
+  const data = neighborhood();
+  data.nodes.push({
+    id: "v1",
+    type: "VEHICLE",
+    label: "1กก-0001",
+    secondaryLabel: null,
+    maskedLabel: null,
+    metadata: { type: "VEHICLE", registrationProvince: null, brand: null, model: null, color: null },
+    firstSeenAt: null,
+    lastSeenAt: null,
+    caseCount: 1,
+    riskIndicators: [],
+  });
+  data.edges.push({
+    id: "pv:1",
+    source: "p1",
+    target: "v1",
+    relationshipType: "PERSON_VEHICLE",
+    edgeKind: "DIRECT",
+    evidenceCount: 1,
+    firstSeenAt: null,
+    lastSeenAt: null,
+    sourceCaseIds: [],
+    explanation: { kind: "DIRECT_LINK" },
+  });
+  const { flowNodes, flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, "ph1", null, DEFAULT_OPTIONS);
+  assert.equal(flowNodes.find((n) => n.id === "p1")!.data.dimmed, false);
+  assert.equal(flowNodes.find((n) => n.id === "ph1")!.data.dimmed, false);
+  assert.equal(flowNodes.find((n) => n.id === "c1")!.data.dimmed, false);
+  assert.equal(flowNodes.find((n) => n.id === "v1")!.data.dimmed, true);
+  const phoneCase = flowEdges.find((e) => e.id === "cp:1")!;
+  const personCase = flowEdges.find((e) => e.id === "pc:1")!;
+  const personVehicle = flowEdges.find((e) => e.id === "pv:1")!;
+  assert.equal(phoneCase.style.opacity, 1);
+  assert.equal(phoneCase.style.strokeWidth, 2);
+  assert.notEqual(phoneCase.label, "");
+  assert.ok((personCase.style.opacity ?? 1) < 1);
+  assert.ok((personVehicle.style.opacity ?? 1) < (phoneCase.style.opacity ?? 1));
+});
+
+test("isolateSelectedPath still highlights the path from focus and dims off-path nodes", () => {
+  const { flowNodes } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "c1", null, {
+    ...DEFAULT_OPTIONS,
+    isolateSelectedPath: true,
+  });
   const p1 = flowNodes.find((n) => n.id === "p1")!;
   const c1 = flowNodes.find((n) => n.id === "c1")!;
   const ph1 = flowNodes.find((n) => n.id === "ph1")!;
@@ -341,7 +390,10 @@ test("selected-path edges are thicker and fully opaque; off-path edges stay dash
     sourceCaseIds: [],
     explanation: { kind: "SHARED_CASES", count: 1 },
   });
-  const { flowNodes, flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, "c1", null, DEFAULT_OPTIONS);
+  const { flowNodes, flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, "c1", null, {
+    ...DEFAULT_OPTIONS,
+    isolateSelectedPath: true,
+  });
   const pathEdge = flowEdges.find((e) => e.id === "pc:1")!;
   const inferred = flowEdges.find((e) => e.id === "inf:path")!;
   const offPath = flowEdges.find((e) => e.id === "cp:1")!;
@@ -350,13 +402,16 @@ test("selected-path edges are thicker and fully opaque; off-path edges stay dash
   assert.equal(pathEdge.style.strokeWidth, 3);
   assert.equal(pathEdge.style.opacity, 1);
   assert.equal(pathEdge.style.strokeDasharray, undefined);
-  assert.equal(offPath.style.opacity, 0.42);
+  assert.equal(offPath.style.opacity, 0.28);
   assert.ok((offPath.style.strokeWidth ?? 1) < 3);
   assert.equal(inferred.style.strokeDasharray, "5 5");
 });
 
 test("edges off the selected path get reduced opacity but are never removed", () => {
-  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "c1", null, DEFAULT_OPTIONS);
+  const { flowEdges } = buildDrugNetworkFlowGraph(neighborhood(), (k) => k, "c1", null, {
+    ...DEFAULT_OPTIONS,
+    isolateSelectedPath: true,
+  });
   const onPath = flowEdges.find((e) => e.id === "pc:1")!;
   const offPath = flowEdges.find((e) => e.id === "cp:1")!;
   assert.equal(onPath.style.opacity, 1);
@@ -391,6 +446,8 @@ function flowNode(id: string, position: { x: number; y: number }): FlowNode {
       compareSlot: null,
       compareJunction: false,
       compareInspect: false,
+      neighborCounts: { PERSON: 0, PHONE: 0, SIM: 0, DEVICE: 0, VEHICLE: 0, CASE: 0, LOCATION: 0 },
+      canExpand: true,
     },
   };
 }

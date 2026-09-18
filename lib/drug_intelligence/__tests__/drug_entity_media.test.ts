@@ -559,7 +559,8 @@ test("UI surfaces keep visual identity hooks without replacing graph semantics",
   assert.match(searchCard, /size=\{result\.entityType === "PERSON"/);
   assert.match(relationship, /item\.to\.visual/);
   assert.match(graphNode, /graphNode\.visual\?\.thumbnailUrl/);
-  assert.match(graphNode, /size=\{isCompact \? "search" : isFocus \? "graphFocus" : "graph"\}/);
+  assert.match(graphNode, /graphCardFocus/);
+  assert.match(graphNode, /size=\{graphNode\.type === "VEHICLE" \? "graphCard" : photoSize\}/);
   assert.match(inspector, /di\.media\.openGallery/);
   assert.match(inspector, /di\.media\.allPhotos/);
   assert.match(gallery, /capture="environment"/);

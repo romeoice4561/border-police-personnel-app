@@ -200,7 +200,7 @@ import {
 } from "@/lib/drug_intelligence/drug_link_compare_highlight";
 import { computeGroupByTypeLaneHeaders, planGroupByHopLayout, resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import { appearanceReasonKey, connectingRelationshipTypes, selectedPathSteps, shortestUndirectedPath, summarizeNeighborhood } from "@/lib/drug_intelligence/drug_network_graph_readability";
-import { connectingEdgeForExplanationClick } from "@/lib/drug_intelligence/drug_network_relationship_explainability";
+import { drugEntityDetailHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import {
   connectionDepthUrlPatch,
   nextSelectedEntityAfterNeighborhoodChange,
@@ -784,7 +784,7 @@ function DrugNetworkContent() {
   const lastPathFitSelectionRef = useRef<string | null>(null);
   const [edgeDrawerOpen, setEdgeDrawerOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<DrugNetworkLayoutMode>("AUTO");
-  const [labelMode, setLabelMode] = useState<DrugNetworkLabelMode>("SELECTED_ONLY");
+  const [labelMode, setLabelMode] = useState<DrugNetworkLabelMode>("ALL");
   const [nodeDensity, setNodeDensity] = useState<DrugNetworkNodeDensity>("STANDARD");
   const [showLabelMenu, setShowLabelMenu] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
@@ -1185,6 +1185,8 @@ function DrugNetworkContent() {
       canvasArrangement,
       isolateSelectedPath,
       showHopBadges: depth === 2,
+      connectionDepth: depth,
+      onExpandNode: handleExpandGraphCard,
       compareHighlight,
       compareHighlightEmphasize,
       compareInspectSlot,
@@ -1345,7 +1347,7 @@ function DrugNetworkContent() {
       lastPathFitSelectionRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot, depth]);
 
   // Hover labels are patched onto the already-built edges. Never put hover
   // into the topology rebuild above — drag moves the pointer in/out of the
@@ -1367,7 +1369,8 @@ function DrugNetworkContent() {
         labelMode,
         hoveredNodeId,
         hoveredEdgeId,
-        comparePathEdgeIds
+        comparePathEdgeIds,
+        !compareHighlight
       )
     );
   }, [neighborhood.data, selectedNode?.id, selectedEdge?.id, labelMode, hoveredNodeId, hoveredEdgeId, t, compareHighlight, compareHighlightEmphasize]);
@@ -1797,25 +1800,17 @@ function DrugNetworkContent() {
       return;
     }
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
-    if (!additive && neighborhood.data && graphNode.id !== focusId) {
-      const connecting = connectingEdgeForExplanationClick({
-        clickedId: graphNode.id,
-        focusId,
-        selectedNodeId: selectedNode?.id ?? null,
-        selectedEdge,
-        edges: neighborhood.data.edges,
-      });
-      if (connecting) {
-        setSelectedEdge(connecting);
-        setSelectedNode(null);
-        if (!additive) setSelectedAnnotationId(null);
-        setEdgeDrawerOpen(true);
-        return;
-      }
-    }
     setSelectedNode(graphNode);
     setSelectedEdge(null);
+    setEdgeDrawerOpen(false);
     if (!additive) setSelectedAnnotationId(null);
+  }
+
+  function handleNodeDoubleClick(_event: React.MouseEvent, node: Node) {
+    if (isAnnotationId(node.id)) return;
+    const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
+    if (graphNode.type === "LOCATION") return;
+    router.push(drugEntityDetailHref(graphNode.type, graphNode.id, currentNetworkHref));
   }
 
   function handleEdgeClick(_event: unknown, edge: Edge) {
@@ -1888,6 +1883,16 @@ function DrugNetworkContent() {
     });
     setSelectedNode(null);
     setPathViewNodeIds(null);
+  }
+
+  function handleExpandGraphCard(nodeId: string) {
+    const node = neighborhood.data?.nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+    if (node.id === focusId) {
+      if (depth === 1) updateParams(connectionDepthUrlPatch(2));
+      return;
+    }
+    expandFromNode(node);
   }
 
   function returnToTrailOrigin() {
@@ -3182,6 +3187,7 @@ function DrugNetworkContent() {
                   edgeTypes={EDGE_TYPES}
                   edgesReconnectable={false}
                   onNodeClick={handleNodeClick}
+                  onNodeDoubleClick={handleNodeDoubleClick}
                   onEdgeClick={handleEdgeClick}
                   onNodeDragStart={(_event, node) => {
                     isNodeDraggingRef.current = true;

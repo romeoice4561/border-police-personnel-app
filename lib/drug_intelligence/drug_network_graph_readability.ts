@@ -7,7 +7,45 @@ import type { DrugGraphNeighborhoodResponse, DrugGraphNode, DrugGraphNodeType, D
 import type { LayoutEdgeInput, LayoutNodeInput } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
-export const READABLE_TYPE_ORDER: DrugGraphNodeType[] = ["CASE", "PHONE", "SIM", "DEVICE", "VEHICLE", "PERSON", "LOCATION"];
+export const READABLE_TYPE_ORDER: DrugGraphNodeType[] = ["PERSON", "VEHICLE", "CASE", "PHONE", "SIM", "DEVICE", "LOCATION"];
+
+export interface GraphCardNeighborCounts {
+  PERSON: number;
+  PHONE: number;
+  SIM: number;
+  DEVICE: number;
+  VEHICLE: number;
+  CASE: number;
+  LOCATION: number;
+}
+
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function emptyNeighborCounts(): GraphCardNeighborCounts {
+  return { PERSON: 0, PHONE: 0, SIM: 0, DEVICE: 0, VEHICLE: 0, CASE: 0, LOCATION: 0 };
+}
+
+/** Adjacent entity counts from the already-loaded neighborhood. Never invents records. */
+export function neighborCountsForNode(
+  nodeId: string,
+  nodes: readonly { id: string; type: DrugGraphNodeType }[],
+  edges: readonly { source: string; target: string }[],
+): GraphCardNeighborCounts {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const counts = emptyNeighborCounts();
+  for (const edge of edges) {
+    const otherId = edge.source === nodeId ? edge.target : edge.target === nodeId ? edge.source : null;
+    if (!otherId) continue;
+    const other = byId.get(otherId);
+    if (!other) continue;
+    counts[other.type] += 1;
+  }
+  return counts;
+}
+
+export function graphCardHidesOpaqueId(value: string): boolean {
+  return UUID_LIKE.test(value.trim());
+}
 
 export interface GraphReadabilitySummary {
   focusId: string;
@@ -124,10 +162,16 @@ export function summarizeNeighborhood(neighborhood: DrugGraphNeighborhoodRespons
   };
 }
 
-/** Display-only: Thai mobile matching keys 66 + 9 digits become 0XXXXXXXXX. */
+function groupThaiMobile(national: string): string {
+  if (national.length === 10) return `${national.slice(0, 3)}-${national.slice(3, 6)}-${national.slice(6)}`;
+  return national;
+}
+
+/** Display-only: Thai mobile matching keys 66 + 9 digits become 0XX-XXX-XXXX. */
 export function formatReadablePhoneLabel(raw: string): string {
   const digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("66") && digits.length === 11) return `0${digits.slice(2)}`;
+  if (digits.startsWith("66") && digits.length === 11) return groupThaiMobile(`0${digits.slice(2)}`);
+  if (digits.length === 10 && digits.startsWith("0")) return groupThaiMobile(digits);
   return raw;
 }
 
@@ -147,13 +191,32 @@ export function formatGraphNodeCard(node: DrugGraphNode): { title: string; subti
     return { title: formatReadableSimLabel(node.label), subtitle: node.secondaryLabel, titleTitle: node.label };
   }
   if (node.type === "DEVICE") {
+    const meta = node.metadata.type === "DEVICE" ? node.metadata : null;
+    const model = [meta?.brand, meta?.model].filter(Boolean).join(" ");
     const digits = node.label.replace(/\D/g, "");
+    const imei = digits.length >= 14 ? `IMEI …${digits.slice(-4)}` : null;
+    if (model) return { title: model, subtitle: imei, titleTitle: node.label };
     if (digits.length >= 14 && node.secondaryLabel) {
-      return { title: node.secondaryLabel, subtitle: `IMEI …${digits.slice(-4)}`, titleTitle: node.label };
+      return { title: node.secondaryLabel, subtitle: imei, titleTitle: node.label };
     }
-    if (digits.length >= 14) {
-      return { title: `IMEI …${digits.slice(-4)}`, subtitle: node.secondaryLabel, titleTitle: node.label };
-    }
+    if (imei) return { title: imei, subtitle: node.secondaryLabel, titleTitle: node.label };
+  }
+  if (node.type === "VEHICLE") {
+    const meta = node.metadata.type === "VEHICLE" ? node.metadata : null;
+    const detail = [meta?.brand, meta?.model, meta?.color].filter(Boolean).join(" / ");
+    return { title: node.label, subtitle: detail || node.secondaryLabel, titleTitle: node.label };
+  }
+  if (node.type === "CASE") {
+    const meta = node.metadata.type === "CASE" ? node.metadata : null;
+    return { title: meta?.caseNumber || node.label, subtitle: meta?.province || node.secondaryLabel, titleTitle: node.label };
+  }
+  if (node.type === "LOCATION") {
+    const meta = node.metadata.type === "LOCATION" ? node.metadata : null;
+    const place = [meta?.district, meta?.province].filter(Boolean).join(" • ");
+    return { title: node.label, subtitle: place || node.secondaryLabel, titleTitle: node.label };
+  }
+  if (node.type === "PERSON" && graphCardHidesOpaqueId(node.label)) {
+    return { title: node.secondaryLabel || "", subtitle: null, titleTitle: node.label };
   }
   return { title: node.label, subtitle: node.secondaryLabel, titleTitle: node.label };
 }
@@ -161,6 +224,19 @@ export function formatGraphNodeCard(node: DrugGraphNode): { title: string; subti
 export function isSharedEntity(node: DrugGraphNode, isFocus: boolean): boolean {
   return !isFocus && node.caseCount >= 2;
 }
+
+/** True when the edge touches the current focus entity. Presentation only. */
+export function isFocusDirectEdge(focusId: string, edge: { source: string; target: string }): boolean {
+  return edge.source === focusId || edge.target === focusId;
+}
+
+export const CARD_GRAPH_FOCUS_DIRECT_STROKE = 1.7;
+export const CARD_GRAPH_FOCUS_DIRECT_OPACITY = 0.92;
+export const CARD_GRAPH_SECONDARY_STROKE = 1;
+export const CARD_GRAPH_SECONDARY_OPACITY = 0.28;
+export const CARD_GRAPH_SELECTED_INCIDENT_STROKE = 2;
+export const CARD_GRAPH_UNRELATED_OPACITY = 0.16;
+export const CARD_GRAPH_FOCUS_DIRECT_WHEN_OTHER_SELECTED_OPACITY = 0.34;
 
 export function shouldShowEdgeLabel(args: {
   labelMode: "ALL" | "SELECTED_ONLY" | "HIDDEN";
@@ -170,11 +246,21 @@ export function shouldShowEdgeLabel(args: {
   isHovered: boolean;
   touchesHoveredNode: boolean;
   onSelectedPath?: boolean;
+  /** When false, ALL mode hides the label until hover/selection. Omitted keeps legacy ALL=always. */
+  isFocusDirect?: boolean;
+  /** When true, ALL mode shows labels only for the active selection/hover, not every focus-direct edge. */
+  hasCanvasSelection?: boolean;
 }): boolean {
   if (args.labelMode === "HIDDEN") return false;
-  if (args.labelMode === "ALL") return true;
+  const contextual =
+    args.isSelected || args.touchesSelectedNode || args.isHovered || args.touchesHoveredNode || Boolean(args.onSelectedPath);
+  if (args.labelMode === "ALL") {
+    if (args.hasCanvasSelection) return contextual;
+    if (args.isFocusDirect === false) return contextual;
+    return true;
+  }
   if (args.edgeKind === "INFERRED") return true;
-  return args.isSelected || args.touchesSelectedNode || args.isHovered || args.touchesHoveredNode || Boolean(args.onSelectedPath);
+  return contextual;
 }
 
 export function appearanceReasonKey(args: {
