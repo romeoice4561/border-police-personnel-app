@@ -20,6 +20,8 @@ import { z } from "zod";
 import { badRequest, jsonOk } from "@/lib/api/api_response";
 import { assertDrugIntelligencePermission } from "@/lib/drug_intelligence/drug_case_api_handlers";
 import type { DrugIntelligenceSearchService } from "@/lib/drug_intelligence/drug_intelligence_search_service";
+import type { DrugEntityMediaService } from "@/lib/drug_intelligence/drug_entity_media_service";
+import { attachSearchGroupedVisuals, attachSearchRowVisuals } from "@/lib/drug_intelligence/drug_entity_media_present";
 import { drugSearchGroupedQuerySchema, drugSearchByTypeQuerySchema } from "@/lib/drug_intelligence/drug_search_api_schemas";
 import type { DrugSearchFilters } from "@/lib/drug_intelligence/drug_search_types";
 import { getAuthUserById } from "@/lib/auth/mock_auth_backend";
@@ -54,7 +56,12 @@ function extractFilters(data: {
 }
 
 /** GET /api/drug-intelligence/search — Section 3's grouped Global Search overview. Requires drug.read. */
-export async function handleDrugSearchGrouped(service: DrugIntelligenceSearchService, searchParams: URLSearchParams, request: Request): Promise<Response> {
+export async function handleDrugSearchGrouped(
+  service: DrugIntelligenceSearchService,
+  searchParams: URLSearchParams,
+  request: Request,
+  media?: DrugEntityMediaService | null
+): Promise<Response> {
   const parsed = drugSearchGroupedQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) return badRequest("Invalid search query", zodDetails(parsed.error));
 
@@ -69,11 +76,16 @@ export async function handleDrugSearchGrouped(service: DrugIntelligenceSearchSer
     { canViewFull: await resolveCanViewFull(actorId), actorId, actorName }
   );
 
-  return jsonOk(result);
+  return jsonOk(await attachSearchGroupedVisuals(media, result));
 }
 
 /** GET /api/drug-intelligence/search/by-type — Section 24's single-entity-type paginated drill-in. Requires drug.read. */
-export async function handleDrugSearchByType(service: DrugIntelligenceSearchService, searchParams: URLSearchParams, request: Request): Promise<Response> {
+export async function handleDrugSearchByType(
+  service: DrugIntelligenceSearchService,
+  searchParams: URLSearchParams,
+  request: Request,
+  media?: DrugEntityMediaService | null
+): Promise<Response> {
   const parsed = drugSearchByTypeQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) return badRequest("Invalid search query", zodDetails(parsed.error));
 
@@ -84,7 +96,12 @@ export async function handleDrugSearchByType(service: DrugIntelligenceSearchServ
   const filters = extractFilters({ ...filterFields, entityType });
 
   const result = await service.searchByType({ query: q, entityType, filters, page, pageSize }, { canViewFull: await resolveCanViewFull(actorId) });
-  return jsonOk(result.rows, { page, pageSize, total: result.total, totalPages: Math.max(1, Math.ceil(result.total / pageSize)) });
+  return jsonOk(await attachSearchRowVisuals(media, result.rows), {
+    page,
+    pageSize,
+    total: result.total,
+    totalPages: Math.max(1, Math.ceil(result.total / pageSize)),
+  });
 }
 
 /**

@@ -13,7 +13,11 @@ export interface BoardImageObjectStore {
   put(input: { storagePath: string; bytes: Uint8Array; mimeType: string }): Promise<void>;
   get(storagePath: string): Promise<Uint8Array>;
   remove(storagePath: string): Promise<void>;
-  sign(storagePath: string, expiresInSeconds?: number): Promise<{ url: string; expiresAt: Date }>;
+  sign(
+    storagePath: string,
+    expiresInSeconds?: number,
+    transform?: { width: number; height: number; resize?: "cover" | "contain" }
+  ): Promise<{ url: string; expiresAt: Date }>;
   publicObjectUrl(storagePath: string): string;
 }
 
@@ -53,10 +57,15 @@ export class InMemoryBoardImageObjectStore implements BoardImageObjectStore {
     this.objects.delete(storagePath);
   }
 
-  async sign(storagePath: string, expiresInSeconds = this.signedTtlSeconds): Promise<{ url: string; expiresAt: Date }> {
+  async sign(
+    storagePath: string,
+    expiresInSeconds = this.signedTtlSeconds,
+    transform?: { width: number; height: number; resize?: "cover" | "contain" }
+  ): Promise<{ url: string; expiresAt: Date }> {
     if (!this.objects.has(storagePath)) throw new BoardImageStorageConfigError("not found");
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
-    return { url: `memory://board-image/${encodeURIComponent(storagePath)}?exp=${expiresAt.getTime()}`, expiresAt };
+    const thumb = transform ? `&w=${transform.width}&h=${transform.height}` : "";
+    return { url: `memory://board-image/${encodeURIComponent(storagePath)}?exp=${expiresAt.getTime()}${thumb}`, expiresAt };
   }
 
   publicObjectUrl(storagePath: string): string {
@@ -137,7 +146,11 @@ export class SupabaseBoardImageObjectStore implements BoardImageObjectStore {
     }
   }
 
-  async sign(storagePath: string, expiresInSeconds = BOARD_IMAGE_SIGNED_TTL_SECONDS): Promise<{ url: string; expiresAt: Date }> {
+  async sign(
+    storagePath: string,
+    expiresInSeconds = BOARD_IMAGE_SIGNED_TTL_SECONDS,
+    transform?: { width: number; height: number; resize?: "cover" | "contain" }
+  ): Promise<{ url: string; expiresAt: Date }> {
     const encoded = storagePath.split("/").map(encodeURIComponent).join("/");
     const response = await fetch(`${this.config.supabaseUrl}/storage/v1/object/sign/${this.config.bucket}/${encoded}`, {
       method: "POST",
@@ -145,7 +158,12 @@ export class SupabaseBoardImageObjectStore implements BoardImageObjectStore {
         Authorization: `Bearer ${this.config.serviceRoleKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ expiresIn: expiresInSeconds }),
+      body: JSON.stringify({
+        expiresIn: expiresInSeconds,
+        ...(transform
+          ? { transform: { width: transform.width, height: transform.height, resize: transform.resize ?? "cover" } }
+          : {}),
+      }),
     });
     if (!response.ok) throw new BoardImageStorageConfigError(`Sign failed (${response.status})`);
     const body = (await response.json()) as { signedURL?: string; signedUrl?: string };

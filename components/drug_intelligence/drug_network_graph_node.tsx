@@ -100,7 +100,20 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         </span>
       ) : null}
       <div className="flex items-center gap-1.5">
-        <Icon className={cn("shrink-0", isFocus ? "h-5 w-5" : "h-4 w-4")} aria-hidden="true" />
+        {graphNode.visual?.thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={graphNode.visual.thumbnailUrl}
+            alt=""
+            className={cn(
+              "shrink-0 object-cover",
+              graphNode.type === "PERSON" ? "rounded-full" : "rounded-md",
+              isFocus ? "h-8 w-8" : "h-6 w-6"
+            )}
+          />
+        ) : (
+          <Icon className={cn("shrink-0", isFocus ? "h-5 w-5" : "h-4 w-4")} aria-hidden="true" />
+        )}
         {hasRisk ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" /> : null}
       </div>
       <p className={cn("line-clamp-2 font-semibold leading-tight text-foreground", isFocus ? "text-sm" : "text-xs")}>{card.title}</p>

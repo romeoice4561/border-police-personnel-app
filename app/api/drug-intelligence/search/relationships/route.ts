@@ -10,7 +10,7 @@ import { handleDrugRelationshipSearch } from "@/lib/drug_intelligence/drug_relat
 
 export async function GET(request: NextRequest): Promise<Response> {
   return guarded(async () => {
-    const { relationshipQueryService } = await getDrugIntelligenceContainer();
-    return handleDrugRelationshipSearch(relationshipQueryService, request.nextUrl.searchParams, request);
+    const { relationshipQueryService, entityMediaService } = await getDrugIntelligenceContainer();
+    return handleDrugRelationshipSearch(relationshipQueryService, request.nextUrl.searchParams, request, entityMediaService);
   });
 }

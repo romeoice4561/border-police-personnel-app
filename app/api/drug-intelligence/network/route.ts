@@ -11,7 +11,7 @@ import { handleDrugGraphNeighborhood } from "@/lib/drug_intelligence/drug_networ
 
 export async function GET(request: NextRequest): Promise<Response> {
   return guarded(async () => {
-    const { networkGraphService } = await getDrugIntelligenceContainer();
-    return handleDrugGraphNeighborhood(networkGraphService, request.nextUrl.searchParams, request);
+    const { networkGraphService, entityMediaService } = await getDrugIntelligenceContainer();
+    return handleDrugGraphNeighborhood(networkGraphService, request.nextUrl.searchParams, request, entityMediaService);
   });
 }

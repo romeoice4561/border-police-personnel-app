@@ -55,6 +55,7 @@ import {
   type DrugInvestigationBoardDetail,
   type DrugInvestigationBoardStateClient,
   type DrugExportHistoryResponse,
+  type DrugEntityMediaRecord,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { fetchDrugGeoResult, type DrugGeoQueryParams, type DrugMapResultView } from "@/lib/drug_intelligence/drug_geo_client";
 
@@ -105,6 +106,8 @@ export const drugQueryKeys = {
   // DI-8
   geo: (actorId: string | null, query: DrugGeoQueryParams) => ["drug-geo", actorId, query] as const,
   exportHistory: (actorId: string | null) => ["drug-export-history", actorId] as const,
+  entityMedia: (actorId: string | null, entityType: string, entityId: string) =>
+    ["drug-entity-media", actorId, entityType, entityId] as const,
 };
 
 export function useDrugStats(actorId: string | null): UseQueryResult<DrugIntelligenceStats> {
@@ -452,6 +455,69 @@ export function useDuplicateDrugInvestigationBoard(actorId: string | null, actor
     onSuccess: (data) => {
       invalidateInvestigationBoardQueries(queryClient, actorId, data.id);
       queryClient.setQueryData(drugQueryKeys.investigationBoard(actorId, data.id), data);
+    },
+  });
+}
+
+export function useDrugEntityMedia(
+  actorId: string | null,
+  entityType: string | null,
+  entityId: string | null
+): UseQueryResult<{ items: DrugEntityMediaRecord[]; photoCount: number; primaryId: string | null }> {
+  return useQuery({
+    queryKey: drugQueryKeys.entityMedia(actorId, entityType ?? "", entityId ?? ""),
+    queryFn: () => drugIntelligenceClient.listEntityMedia(actorId as string, entityType as string, entityId as string),
+    enabled: Boolean(actorId && entityType && entityId),
+  });
+}
+
+export function useUploadDrugEntityMedia(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      entityType: string;
+      entityId: string;
+      files: File[];
+      category?: string;
+      caption?: string;
+      sourceCaseId?: string;
+      setPrimary?: boolean;
+    }) =>
+      drugIntelligenceClient.uploadEntityMedia({
+        actorId: actorId as string,
+        actorName,
+        ...body,
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.entityMedia(actorId, variables.entityType, variables.entityId) });
+    },
+  });
+}
+
+export function useUpdateDrugEntityMedia(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { mediaId: string; entityType: string; entityId: string; isPrimary?: boolean; caption?: string | null; category?: string }) =>
+      drugIntelligenceClient.updateEntityMedia(body.mediaId, {
+        actorId: actorId as string,
+        actorName,
+        isPrimary: body.isPrimary,
+        caption: body.caption,
+        category: body.category,
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.entityMedia(actorId, variables.entityType, variables.entityId) });
+    },
+  });
+}
+
+export function useDeleteDrugEntityMedia(actorId: string | null, actorName: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { mediaId: string; entityType: string; entityId: string }) =>
+      drugIntelligenceClient.deleteEntityMedia(body.mediaId, { actorId: actorId as string, actorName }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: drugQueryKeys.entityMedia(actorId, variables.entityType, variables.entityId) });
     },
   });
 }

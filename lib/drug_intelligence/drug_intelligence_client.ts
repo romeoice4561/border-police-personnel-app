@@ -119,6 +119,25 @@ async function requestPatch<T>(path: string, body: unknown): Promise<{ data: T }
   return { data: parsed.data as T };
 }
 
+async function requestDelete<T>(path: string, body: unknown): Promise<{ data: T }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new ApiClientError("Network error — the server could not be reached.", 0, "NETWORK_ERROR", cause);
+  }
+  const parsed = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!response.ok || !parsed || parsed.error) {
+    const err = parsed?.error;
+    throw new ApiClientError(err?.message ?? `Request failed (${response.status})`, response.status, err?.code ?? "REQUEST_FAILED", err?.details);
+  }
+  return { data: parsed.data as T };
+}
+
 // ── Types (mirroring the Zod/service shapes server-side) ────────────────
 
 export interface DrugIntelligenceStats {
@@ -857,7 +876,7 @@ export interface DrugPersonMergePreview {
   survivorName: string;
   mergedPersonId: string;
   mergedName: string;
-  movedCounts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; identifiers: number; aliases: number; networkMemberships: number; networkRoles: number };
+  movedCounts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; identifiers: number; aliases: number; networkMemberships: number; networkRoles: number; media?: number };
   skippedDuplicateCaseLinks: number;
 }
 
@@ -893,6 +912,7 @@ export interface DrugSearchResult {
   caseCount: number;
   hasPotentialDuplicate: boolean | null;
   canonicalTarget: { entityId: string; primaryLabel: string } | null;
+  visual?: { mediaId: string; thumbnailUrl: string | null; expiresAt: string | null } | null;
 }
 
 export interface DrugSearchGroupedResults {
@@ -945,6 +965,7 @@ export interface DrugRelationshipSearchEntityRef {
   entityId: string;
   label: string;
   secondaryLabel: string | null;
+  visual?: { mediaId: string; thumbnailUrl: string | null; expiresAt: string | null } | null;
 }
 
 export interface DrugRelationshipSearchResultItem {
@@ -1087,6 +1108,8 @@ export interface DrugGraphNode {
   lastSeenAt: string | null;
   caseCount: number;
   riskIndicators: DrugGraphRiskIndicator[];
+  visual?: { mediaId: string; thumbnailUrl: string | null; expiresAt: string | null } | null;
+  photoCount?: number;
 }
 
 export type DrugGraphEdgeExplanation =
@@ -1766,6 +1789,77 @@ export const drugIntelligenceClient = {
     )).data.images;
   },
 
+  async listEntityMedia(
+    actorId: string,
+    entityType: string,
+    entityId: string
+  ): Promise<{ items: DrugEntityMediaRecord[]; photoCount: number; primaryId: string | null }> {
+    return (
+      await request<{ items: DrugEntityMediaRecord[]; photoCount: number; primaryId: string | null }>(
+        `/drug-intelligence/entity-media${toQueryString({ actorId, entityType, entityId })}`
+      )
+    ).data;
+  },
+
+  async uploadEntityMedia(body: {
+    actorId: string;
+    actorName: string;
+    entityType: string;
+    entityId: string;
+    files: File[];
+    category?: string;
+    caption?: string;
+    description?: string;
+    sourceCaseId?: string;
+    capturedAt?: string;
+    setPrimary?: boolean;
+  }): Promise<DrugEntityMediaRecord | { items: DrugEntityMediaRecord[] }> {
+    const form = new FormData();
+    form.append("actorId", body.actorId);
+    form.append("actorName", body.actorName);
+    form.append("entityType", body.entityType);
+    form.append("entityId", body.entityId);
+    if (body.category) form.append("category", body.category);
+    if (body.caption) form.append("caption", body.caption);
+    if (body.description) form.append("description", body.description);
+    if (body.sourceCaseId) form.append("sourceCaseId", body.sourceCaseId);
+    if (body.capturedAt) form.append("capturedAt", body.capturedAt);
+    if (body.setPrimary) form.append("setPrimary", "true");
+    for (const file of body.files) form.append("file", file);
+    const response = await fetch("/api/drug-intelligence/entity-media", { method: "POST", body: form });
+    const parsed = (await response.json().catch(() => null)) as {
+      data?: DrugEntityMediaRecord | { items: DrugEntityMediaRecord[] };
+      error?: { message?: string; code?: string };
+    } | null;
+    if (!response.ok || !parsed?.data) {
+      throw new ApiClientError(parsed?.error?.message ?? "Upload failed", response.status, parsed?.error?.code ?? "REQUEST_FAILED");
+    }
+    return parsed.data;
+  },
+
+  async updateEntityMedia(
+    mediaId: string,
+    body: {
+      actorId: string;
+      actorName: string;
+      category?: string;
+      caption?: string | null;
+      description?: string | null;
+      sourceCaseId?: string | null;
+      capturedAt?: string | null;
+      isPrimary?: boolean;
+    }
+  ): Promise<DrugEntityMediaRecord> {
+    return (await requestPatch<DrugEntityMediaRecord>(`/drug-intelligence/entity-media/${encodeURIComponent(mediaId)}`, body)).data;
+  },
+
+  async deleteEntityMedia(
+    mediaId: string,
+    body: { actorId: string; actorName: string }
+  ): Promise<void> {
+    await requestDelete(`/drug-intelligence/entity-media/${encodeURIComponent(mediaId)}`, body);
+  },
+
   async listExportHistory(actorId: string, take?: number): Promise<DrugExportHistoryResponse> {
     return (
       await request<DrugExportHistoryResponse>(`/drug-intelligence/exports/history${toQueryString({ actorId, take })}`)
@@ -1907,4 +2001,29 @@ export interface DrugInvestigationBoardImageAccess {
   imageId: string;
   url: string;
   expiresAt: string;
+}
+
+export interface DrugEntityMediaRecord {
+  id: string;
+  entityType: string;
+  entityId: string;
+  mediaType: "PHOTO";
+  category: string;
+  fileName: string | null;
+  mimeType: string;
+  fileSize: number;
+  width: number | null;
+  height: number | null;
+  caption: string | null;
+  description: string | null;
+  isPrimary: boolean;
+  sourceCaseId: string | null;
+  capturedAt: string | null;
+  uploadedBy: string;
+  uploadedByName: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string | null;
+  thumbnailUrl: string | null;
+  expiresAt: string | null;
 }

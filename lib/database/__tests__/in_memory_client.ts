@@ -382,6 +382,8 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   private readonly drugInvestigationBoards = new Table((r, w) => r.id === w.id);
   // Phase DI-9.5D: private investigation-board image metadata.
   private readonly drugInvestigationBoardImages = new Table((r, w) => r.id === w.id);
+  // Entity Media / Visual Identity.
+  private readonly drugEntityMediaRows = new Table((r, w) => r.id === w.id);
   // DI-11B: collaboration overlay — not factual intelligence.
   private readonly drugAnalystNotes = new Table((r, w) => r.id === w.id);
   private readonly drugInvestigationTasks = new Table((r, w) => r.id === w.id);
@@ -566,6 +568,9 @@ export class InMemoryDatabaseClient implements DatabaseClient {
   get drugInvestigationBoardImage() {
     return delegate(this.drugInvestigationBoardImages) as unknown as DatabaseClient["drugInvestigationBoardImage"];
   }
+  get drugEntityMedia() {
+    return delegate(this.drugEntityMediaRows) as unknown as DatabaseClient["drugEntityMedia"];
+  }
   get drugAnalystNote() {
     return delegate(this.drugAnalystNotes) as unknown as DatabaseClient["drugAnalystNote"];
   }
@@ -623,6 +628,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       drugCaseOfficers: this.drugCaseOfficers.snapshot(),
       drugInvestigationBoards: this.drugInvestigationBoards.snapshot(),
       drugInvestigationBoardImages: this.drugInvestigationBoardImages.snapshot(),
+      drugEntityMediaRows: this.drugEntityMediaRows.snapshot(),
       drugAnalystNotes: this.drugAnalystNotes.snapshot(),
       drugInvestigationTasks: this.drugInvestigationTasks.snapshot(),
     };
@@ -672,6 +678,7 @@ export class InMemoryDatabaseClient implements DatabaseClient {
       this.drugCaseOfficers.restore(snaps.drugCaseOfficers);
       this.drugInvestigationBoards.restore(snaps.drugInvestigationBoards);
       this.drugInvestigationBoardImages.restore(snaps.drugInvestigationBoardImages);
+      this.drugEntityMediaRows.restore(snaps.drugEntityMediaRows);
       this.drugAnalystNotes.restore(snaps.drugAnalystNotes);
       this.drugInvestigationTasks.restore(snaps.drugInvestigationTasks);
       throw error;

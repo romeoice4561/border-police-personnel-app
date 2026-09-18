@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import { drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes";
+import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
 import { withReturnTo } from "@/lib/ui/return_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { SelectedPathStep } from "@/lib/drug_intelligence/drug_network_graph_readability";
@@ -69,10 +70,21 @@ export function DrugNetworkNodeDetail({
 
   return (
     <div className="space-y-4">
-      <div>
+      <div className="flex items-start gap-3">
+        <DrugEntityVisualThumb
+          entityType={node.type}
+          label={node.label}
+          thumbnailUrl={node.visual?.thumbnailUrl}
+          size="md"
+        />
+        <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-wide text-muted">{t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[node.type] as TranslationKey)}</p>
         <p className="text-lg font-semibold text-foreground">{node.label}</p>
         {node.secondaryLabel ? <p className="text-sm text-muted">{node.secondaryLabel}</p> : null}
+        {typeof node.photoCount === "number" ? (
+          <p className="mt-1 text-xs text-muted">{t("di.media.count").replace("{count}", String(node.photoCount))}</p>
+        ) : null}
+        </div>
       </div>
 
       {node.riskIndicators.length > 0 ? (
@@ -205,6 +217,13 @@ export function DrugNetworkNodeDetail({
         {showOpenLink ? (
           <Button asChild size="sm">
             <Link href={withReturnTo(drugEntityDetailPath(node.type, node.id), openReturnPath)}>{actionLabel}</Link>
+          </Button>
+        ) : null}
+        {showOpenLink && (node.type === "PERSON" || node.type === "VEHICLE" || node.type === "CASE") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={withReturnTo(`${drugEntityDetailPath(node.type, node.id)}#media`, openReturnPath)}>
+              {t("di.media.openGallery")}
+            </Link>
           </Button>
         ) : null}
       </div>

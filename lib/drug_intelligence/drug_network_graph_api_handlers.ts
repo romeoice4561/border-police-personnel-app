@@ -12,6 +12,8 @@ import { z } from "zod";
 import { badRequest, jsonOk, notFound, internalError } from "@/lib/api/api_response";
 import { assertDrugIntelligencePermission } from "@/lib/drug_intelligence/drug_case_api_handlers";
 import { DrugPersonGraphNotFoundError, DrugGraphEntityNotFoundError, type DrugNetworkGraphService } from "@/lib/drug_intelligence/drug_network_graph_service";
+import type { DrugEntityMediaService } from "@/lib/drug_intelligence/drug_entity_media_service";
+import { attachGraphNodeVisuals } from "@/lib/drug_intelligence/drug_entity_media_present";
 import { drugGraphNeighborhoodQuerySchema, drugGraphPathQuerySchema } from "@/lib/drug_intelligence/drug_network_graph_api_schemas";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_network_graph_types";
 import { getAuthUserById } from "@/lib/auth/mock_auth_backend";
@@ -44,7 +46,12 @@ function serializeEdge(edge: DrugGraphEdge) {
 }
 
 /** GET /api/drug-intelligence/network — Section 4's bounded neighborhood expansion. Requires drug.read. */
-export async function handleDrugGraphNeighborhood(service: DrugNetworkGraphService, searchParams: URLSearchParams, request: Request): Promise<Response> {
+export async function handleDrugGraphNeighborhood(
+  service: DrugNetworkGraphService,
+  searchParams: URLSearchParams,
+  request: Request,
+  media?: DrugEntityMediaService | null
+): Promise<Response> {
   const parsed = drugGraphNeighborhoodQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) return badRequest("Invalid network query", zodDetails(parsed.error));
 
@@ -67,9 +74,10 @@ export async function handleDrugGraphNeighborhood(service: DrugNetworkGraphServi
       },
       { canViewFull: await resolveCanViewFull(actorId) }
     );
+    const nodes = await attachGraphNodeVisuals(media, result.nodes.map(serializeNode));
     return jsonOk({
       focus: result.focus,
-      nodes: result.nodes.map(serializeNode),
+      nodes,
       edges: result.edges.map(serializeEdge),
       truncated: result.truncated,
     });

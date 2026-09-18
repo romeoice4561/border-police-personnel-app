@@ -19,6 +19,7 @@ import { useT } from "@/components/i18n/language_provider";
 import { DRUG_SEARCH_MATCHED_FIELD_LABEL_KEY } from "@/lib/drug_intelligence/drug_search_match_explanation";
 import { drugEntityDetailPath, drugNetworkFocusPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import type { DrugSearchResult } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
 
 const STRENGTH_TONE = { EXACT: "critical", PARTIAL: "neutral" } as const;
 
@@ -40,9 +41,17 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
     <Card>
       <CardBody className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-start gap-2">
+            <DrugEntityVisualThumb
+              entityType={result.entityType}
+              label={result.primaryLabel}
+              thumbnailUrl={result.visual?.thumbnailUrl}
+              size="sm"
+            />
+            <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{result.primaryLabel}</p>
             {result.secondaryLabel ? <p className="truncate text-sm text-muted">{result.secondaryLabel}</p> : null}
+            </div>
           </div>
           <Badge tone={STRENGTH_TONE[result.strength]}>{matchLabel}</Badge>
         </div>

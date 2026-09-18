@@ -15,6 +15,7 @@ import {
   DrugEntityIconMark,
   searchedFromIcon,
 } from "@/components/drug_intelligence/drug_entity_visual";
+import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import {
@@ -261,7 +262,12 @@ export function DrugRelationshipSearchResults({
               <CardBody className="space-y-3" data-testid="relationship-result-card" data-entity-type={item.to.entityType}>
                 <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/70 pb-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <DrugEntityIconMark type={item.to.entityType} size="lg" />
+                    <DrugEntityVisualThumb
+                      entityType={item.to.entityType}
+                      label={item.to.label}
+                      thumbnailUrl={item.to.visual?.thumbnailUrl}
+                      size="md"
+                    />
                     <div className="min-w-0 space-y-1">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                         {resultTypeLabel}
@@ -279,7 +285,12 @@ export function DrugRelationshipSearchResults({
 
                 {relatedFromLabel ? (
                   <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-neutral-bg/30 px-3 py-2">
-                    <DrugEntityIconMark type={item.from.entityType || resolvedType} size="sm" />
+                    <DrugEntityVisualThumb
+                      entityType={item.from.entityType || resolvedType}
+                      label={relatedFromLabel}
+                      thumbnailUrl={item.from.visual?.thumbnailUrl}
+                      size="sm"
+                    />
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-muted">{t("di.rel.relatedToSource")}</p>
                       <p className="text-sm font-medium text-foreground break-words">{relatedFromLabel}</p>
@@ -307,9 +318,17 @@ export function DrugRelationshipSearchResults({
                   {item.pathSteps && item.pathSteps.length > 0 ? (
                     <ol className="list-decimal space-y-0.5 pl-4 text-xs">
                       {item.pathSteps.map((step, i) => (
-                        <li key={`${step.entity.entityId}-${i}`}>
-                          {step.entity.label}
-                          {step.viaRelationshipType ? ` (${step.viaRelationshipType})` : ""}
+                        <li key={`${step.entity.entityId}-${i}`} className="flex items-center gap-1.5">
+                          <DrugEntityVisualThumb
+                            entityType={step.entity.entityType}
+                            label={step.entity.label}
+                            thumbnailUrl={step.entity.visual?.thumbnailUrl}
+                            size="xs"
+                          />
+                          <span>
+                            {step.entity.label}
+                            {step.viaRelationshipType ? ` (${step.viaRelationshipType})` : ""}
+                          </span>
                         </li>
                       ))}
                     </ol>

@@ -27,6 +27,7 @@ import {
   orderPersonPair,
 } from "@/lib/database/repositories/drug_person_match_review_repository";
 import { generateDrugId } from "@/lib/drug_intelligence/drug_id";
+import { DrugEntityMediaRepository } from "@/lib/database/repositories/drug_entity_media_repository";
 
 export class DrugPersonAlreadyMergedError extends Error {
   constructor(personId: string) {
@@ -72,6 +73,7 @@ export interface DrugPersonMergePreview {
     aliases: number;
     networkMemberships: number;
     networkRoles: number;
+    media: number;
   };
   /** Cases both persons are already independently linked to — these are SKIPPED (not duplicated) during the actual merge, per Section 17. */
   skippedDuplicateCaseLinks: number;
@@ -101,7 +103,7 @@ export class DrugPersonMergeService {
     const mergedCaseIds = (mergedCaseLinks as Array<{ caseId: string }>).map((r) => r.caseId);
     const skippedDuplicateCaseLinks = mergedCaseIds.filter((id) => survivorCaseIds.has(id)).length;
 
-    const [phones, sims, devices, vehicles, identifiers, aliases, networkMemberships, networkRoles] = await Promise.all([
+    const [phones, sims, devices, vehicles, identifiers, aliases, networkMemberships, networkRoles, media] = await Promise.all([
       this.db.drugCasePhone.count({ where: { personId: mergedPersonId } }),
       this.db.drugCaseSim.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonDevice.count({ where: { personId: mergedPersonId } }),
@@ -110,6 +112,7 @@ export class DrugPersonMergeService {
       this.db.drugPersonAlias.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonNetworkMembership.count({ where: { personId: mergedPersonId } }),
       this.db.drugPersonNetworkRole.count({ where: { personId: mergedPersonId } }),
+      this.db.drugEntityMedia.count({ where: { entityType: "PERSON", entityId: mergedPersonId } }),
     ]);
 
     return {
@@ -117,7 +120,7 @@ export class DrugPersonMergeService {
       survivorName: survivor.primaryFullName,
       mergedPersonId,
       mergedName: merged.primaryFullName,
-      movedCounts: { cases: mergedCaseIds.length - skippedDuplicateCaseLinks, phones, sims, devices, vehicles, identifiers, aliases, networkMemberships, networkRoles },
+      movedCounts: { cases: mergedCaseIds.length - skippedDuplicateCaseLinks, phones, sims, devices, vehicles, identifiers, aliases, networkMemberships, networkRoles, media },
       skippedDuplicateCaseLinks,
     };
   }
@@ -278,6 +281,18 @@ export class DrugPersonMergeService {
         movedAliases += 1;
       }
 
+      // ── Entity media: remapped onto the survivor. Incoming primaries are
+      // unset when the survivor already has a primary so visual identity
+      // does not silently flip. Objects stay in storage; only entityId moves.
+      const mediaRepo = new DrugEntityMediaRepository(tx);
+      const incomingMedia = await mediaRepo.listByEntity("PERSON", merged.id);
+      const survivorHasPrimary = (await mediaRepo.listByEntity("PERSON", survivor.id)).some((row) => row.isPrimary);
+      await mediaRepo.reassignEntity("PERSON", merged.id, survivor.id);
+      if (!survivorHasPrimary && incomingMedia[0]) {
+        await mediaRepo.update(incomingMedia[0].id, { isPrimary: true });
+      }
+      const movedMedia = incomingMedia.length;
+
       // ── Mark merged person MERGED (never hard-deleted — Section 16) ──
       await personRepo.markMerged(merged.id, survivor.id);
 
@@ -290,7 +305,7 @@ export class DrugPersonMergeService {
         reason: request.reason,
         detail: {
           ...snapshot,
-          movedCounts: { cases: movedCases, phones: mergedPhoneLinks.length, sims: mergedSimLinks.length, devices: mergedPersonDeviceLinks.length, vehicles: mergedPersonVehicleLinks.length, identifiers: movedIdentifiers, aliases: movedAliases, networkMemberships: movedNetworkMemberships, networkRoles: movedNetworkRoles },
+          movedCounts: { cases: movedCases, phones: mergedPhoneLinks.length, sims: mergedSimLinks.length, devices: mergedPersonDeviceLinks.length, vehicles: mergedPersonVehicleLinks.length, identifiers: movedIdentifiers, aliases: movedAliases, networkMemberships: movedNetworkMemberships, networkRoles: movedNetworkRoles, media: movedMedia },
           skippedCaseDuplicates,
           caseDeviceLinksRepointed: mergedCaseDeviceLinks.length,
           caseVehicleLinksRepointed: mergedCaseVehicleLinks.length,

@@ -11,7 +11,7 @@ import { handleDrugSearchByType } from "@/lib/drug_intelligence/drug_search_api_
 
 export async function GET(request: NextRequest): Promise<Response> {
   return guarded(async () => {
-    const { searchService } = await getDrugIntelligenceContainer();
-    return handleDrugSearchByType(searchService, request.nextUrl.searchParams, request);
+    const { searchService, entityMediaService } = await getDrugIntelligenceContainer();
+    return handleDrugSearchByType(searchService, request.nextUrl.searchParams, request, entityMediaService);
   });
 }

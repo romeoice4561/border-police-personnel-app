@@ -52,6 +52,7 @@ import type {
   DrugCaseOfficer,
   DrugInvestigationBoard,
   DrugInvestigationBoardImage,
+  DrugEntityMedia,
   DrugAnalystNote,
   DrugInvestigationTask,
 } from "@/lib/generated/prisma/client";
@@ -89,6 +90,7 @@ export type {
   DrugCaseOfficer,
   DrugInvestigationBoard,
   DrugInvestigationBoardImage,
+  DrugEntityMedia,
   DrugAnalystNote,
   DrugInvestigationTask,
 };
@@ -184,6 +186,8 @@ export interface DatabaseClient {
   drugInvestigationBoard: ModelDelegate<DrugInvestigationBoard, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /** Phase DI-9.5D: private investigation-board image metadata. */
   drugInvestigationBoardImage: ModelDelegate<DrugInvestigationBoardImage, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  /** Entity Media / Visual Identity — polymorphic photo metadata. */
+  drugEntityMedia: ModelDelegate<DrugEntityMedia, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   /** DI-11B: collaboration overlay — analyst notes and investigation tasks. */
   drugAnalystNote: ModelDelegate<DrugAnalystNote, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
   drugInvestigationTask: ModelDelegate<DrugInvestigationTask, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;

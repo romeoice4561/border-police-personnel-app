@@ -8,7 +8,7 @@
  * Bucket layout:
  *   officer-portraits           — officer portrait photos    (PortraitUploadService)
  *   officer-documents           — officer official documents (DocumentUploadService)
- *   drug-intelligence-private   — investigation-board images (private, signed access)
+ *   drug-intelligence-private   — investigation-board images + entity media (private, signed access)
  *
  * If your Supabase project uses different names, override via:
  *   SUPABASE_PORTRAIT_BUCKET=<name>

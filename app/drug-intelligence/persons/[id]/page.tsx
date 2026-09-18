@@ -66,6 +66,7 @@ import {
   DrugPersonProvenanceList,
   DrugPersonProvenanceSections,
 } from "@/components/drug_intelligence/drug_person_provenance";
+import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import type {
   DrugPersonProfileResponse,
   DrugCaseLinkSummary,
@@ -248,6 +249,8 @@ function DrugPersonProfileContent() {
           <CardBody className="text-sm text-foreground">{t("di.merge.mergeSuccess")}</CardBody>
         </Card>
       ) : null}
+
+      <DrugEntityMediaGallery entityType="PERSON" entityId={data.person.id} compactHero />
 
       <Card>
         <CardBody className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">

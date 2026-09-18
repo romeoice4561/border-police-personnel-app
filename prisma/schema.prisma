@@ -2768,6 +2768,45 @@ model DrugInvestigationBoardImage {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Entity Media / Visual Identity — ONE ENTITY → MANY PHOTOS → ONE PRIMARY.
+// Polymorphic metadata only. Bytes live in the private DI bucket.
+// Not officer portraits, not gallery assets, not investigation-board images.
+// No hard FKs: entity rows may merge or be referenced after status change.
+// ─────────────────────────────────────────────────────────────────────────
+
+model DrugEntityMedia {
+  id             String   @id @default(cuid())
+  /// PERSON | VEHICLE | CASE | LOCATION | SEIZED_ITEM | DEVICE
+  entityType     String
+  entityId       String
+  /// PHOTO today; reserved for future media kinds without a redesign.
+  mediaType      String   @default("PHOTO")
+  /// Category is a controlled string (Zod), not a Postgres enum, so new
+  /// categories do not require a migration.
+  category       String
+  storagePath    String
+  fileName       String?
+  mimeType       String
+  fileSize       Int
+  width          Int?
+  height         Int?
+  caption        String?
+  description    String?
+  isPrimary      Boolean  @default(false)
+  /// Originating case when the photo is of a Person/Vehicle but came from a case.
+  sourceCaseId   String?
+  capturedAt     DateTime?
+  uploadedBy     String
+  uploadedByName String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([entityType, entityId, isPrimary])
+  @@index([sourceCaseId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // PHASE DI-11B — Collaboration data foundation (additive only).
 //
 // Analyst notes and investigation tasks are WORKFLOW / ANALYST WORK, never

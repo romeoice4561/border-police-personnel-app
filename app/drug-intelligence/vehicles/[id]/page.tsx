@@ -20,6 +20,7 @@ import {
   DrugEntityRelatedCaseList,
   DrugEntityRelatedPersonList,
 } from "@/components/drug_intelligence/drug_entity_detail_layout";
+import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import { presentIdentifierValue } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
@@ -81,6 +82,8 @@ export default function DrugVehicleDetailPage() {
         caseCount={data.caseCount}
         copyValue={registrationDisplay}
       />
+
+      <DrugEntityMediaGallery entityType="VEHICLE" entityId={vehicleId} />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <DrugEntityIdentityField emoji="🚗" label={t("di.entity.registrationNumber")} value={registrationDisplay ?? "—"} copyValue={registrationDisplay} />

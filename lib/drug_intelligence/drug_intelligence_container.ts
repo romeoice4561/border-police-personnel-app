@@ -32,6 +32,7 @@ import { DrugMapCaseDetailService } from "@/lib/drug_intelligence/drug_map_case_
 import { DrugCommanderDashboardService } from "@/lib/drug_intelligence/drug_commander_dashboard_service";
 import { DrugInvestigationBoardService } from "@/lib/drug_intelligence/drug_investigation_board_service";
 import { DrugInvestigationBoardImageService } from "@/lib/drug_intelligence/drug_investigation_board_image_service";
+import { DrugEntityMediaService } from "@/lib/drug_intelligence/drug_entity_media_service";
 import { DrugAnalystNoteService } from "@/lib/drug_intelligence/drug_analyst_note_service";
 import { DrugInvestigationTaskService } from "@/lib/drug_intelligence/drug_investigation_task_service";
 import {
@@ -78,6 +79,8 @@ export interface DrugIntelligenceContainer {
   investigationBoardService: DrugInvestigationBoardService;
   /** Phase DI-9.5D: private board images. Null when storage is not configured. */
   investigationBoardImageService: DrugInvestigationBoardImageService | null;
+  /** Entity Media / Visual Identity. Null when storage is not configured. */
+  entityMediaService: DrugEntityMediaService | null;
   /** DI-11B: collaboration foundation — no UI. */
   analystNoteService: DrugAnalystNoteService;
   investigationTaskService: DrugInvestigationTaskService;
@@ -91,6 +94,7 @@ export function createDrugIntelligenceContainer(
   const investigationBoardImageService = imageStore
     ? new DrugInvestigationBoardImageService(client, imageStore)
     : null;
+  const entityMediaService = imageStore ? new DrugEntityMediaService(client, imageStore) : null;
   const networkGraphService = new DrugNetworkGraphService(client);
   return {
     db: client,
@@ -115,6 +119,7 @@ export function createDrugIntelligenceContainer(
     commanderDashboardService: new DrugCommanderDashboardService(client),
     investigationBoardService: new DrugInvestigationBoardService(client, investigationBoardImageService ?? undefined),
     investigationBoardImageService,
+    entityMediaService,
     analystNoteService: new DrugAnalystNoteService(client),
     investigationTaskService: new DrugInvestigationTaskService(client),
   };

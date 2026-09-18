@@ -38,6 +38,7 @@ import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligen
 import { DRUG_CASE_UNIT_ROLE_LABELS, isValidDrugCaseUnitRole, DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
 import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { DrugCaseInvestigatorContactCard } from "@/components/drug_intelligence/drug_case_investigator_contact_card";
+import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type {
   DrugCaseDetailResponse,
@@ -53,6 +54,7 @@ import type {
 
 const TABS = [
   { key: "overview", labelKey: "di.workspace.tabOverview" },
+  { key: "media", labelKey: "di.media.title" },
   { key: "persons", labelKey: "di.workspace.tabPersons" },
   { key: "phones", labelKey: "di.workspace.tabPhones" },
   { key: "devices", labelKey: "di.workspace.tabDevices" },
@@ -89,7 +91,9 @@ export default function DrugCaseWorkspacePage() {
   const returnTo = getSafeReturnTo(searchParams);
   const { user, can } = useAuth();
   const { t, language } = useT();
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("overview");
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>(() =>
+    typeof window !== "undefined" && window.location.hash === "#media" ? "media" : "overview"
+  );
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [selectedPersonRole, setSelectedPersonRole] = useState<string | undefined>(undefined);
   const [reportOpen, setReportOpen] = useState(false);
@@ -201,6 +205,7 @@ export default function DrugCaseWorkspacePage() {
       </div>
 
       {activeTab === "overview" ? <OverviewTab data={data} /> : null}
+      {activeTab === "media" ? <DrugEntityMediaGallery entityType="CASE" entityId={caseId} sourceCaseId={caseId} /> : null}
       {activeTab === "persons" ? <PersonsTab persons={data.persons} onSelectPerson={openPersonDrawer} language={language} /> : null}
       {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "devices" ? <DevicesTab devices={data.devices} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}

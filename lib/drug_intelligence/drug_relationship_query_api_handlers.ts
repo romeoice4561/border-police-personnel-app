@@ -9,6 +9,8 @@ import { assertDrugIntelligencePermission } from "@/lib/drug_intelligence/drug_c
 import { getAuthUserById } from "@/lib/auth/mock_auth_backend";
 import { hasPermission } from "@/lib/auth/roles";
 import type { DrugIntelligenceRelationshipQueryService } from "@/lib/drug_intelligence/drug_intelligence_relationship_query_service";
+import type { DrugEntityMediaService } from "@/lib/drug_intelligence/drug_entity_media_service";
+import { visualLookupKey } from "@/lib/drug_intelligence/drug_entity_media_types";
 import { drugRelationshipQuerySchema } from "@/lib/drug_intelligence/drug_relationship_query_api_schemas";
 import {
   DrugRelationshipQueryEntityNotFoundError,
@@ -40,7 +42,8 @@ function serializeResponse(result: DrugRelationshipQueryResponse) {
 export async function handleDrugRelationshipSearch(
   service: DrugIntelligenceRelationshipQueryService,
   searchParams: URLSearchParams,
-  request: Request
+  request: Request,
+  media?: DrugEntityMediaService | null
 ): Promise<Response> {
   const parsed = drugRelationshipQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) return badRequest("Invalid relationship search query", zodDetails(parsed.error));
@@ -63,7 +66,34 @@ export async function handleDrugRelationshipSearch(
       },
       { canViewFull: await resolveCanViewFull(actorId), actorId, actorName }
     );
-    return jsonOk(serializeResponse(result));
+    const serialized = serializeResponse(result);
+    if (!media) return jsonOk(serialized);
+    try {
+      const refs = serialized.results.flatMap((row) => [
+        { entityType: row.from.entityType, entityId: row.from.entityId },
+        { entityType: row.to.entityType, entityId: row.to.entityId },
+        ...(row.pathSteps ?? []).map((step) => ({ entityType: step.entity.entityType, entityId: step.entity.entityId })),
+      ]);
+      const visuals = await media.visualsFor(refs);
+      return jsonOk({
+        ...serialized,
+        results: serialized.results.map((row) => ({
+          ...row,
+          from: { ...row.from, visual: visuals.get(visualLookupKey(row.from.entityType, row.from.entityId)) ?? null },
+          to: { ...row.to, visual: visuals.get(visualLookupKey(row.to.entityType, row.to.entityId)) ?? null },
+          pathSteps: row.pathSteps?.map((step) => ({
+            ...step,
+            entity: {
+              ...step.entity,
+              visual: visuals.get(visualLookupKey(step.entity.entityType, step.entity.entityId)) ?? null,
+            },
+          })),
+        })),
+      });
+    } catch (error) {
+      console.error("entity media relationship visual attach failed", error instanceof Error ? error.name : "unknown");
+      return jsonOk(serialized);
+    }
   } catch (error) {
     if (error instanceof DrugRelationshipQueryValidationError) {
       return badRequest(error.message);
