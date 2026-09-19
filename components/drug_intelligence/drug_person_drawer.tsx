@@ -17,9 +17,9 @@ import { useT } from "@/components/i18n/language_provider";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useDrugPerson } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
-import { drugPersonProfilePath } from "@/lib/drug_intelligence/drug_entity_routes";
+import { casePersonInvestigationHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import { presentDrawerPhones } from "@/lib/drug_intelligence/person_entity_provenance";
-import { withReturnTo } from "@/lib/ui/return_context";
+import { Button } from "@/components/ui/button";
 import { DRUG_PERSON_IDENTIFIER_TYPE_LABELS, isValidDrugPersonIdentifierType } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 
@@ -162,13 +162,12 @@ export function DrugPersonDrawer({
           </div>
 
           <div className="border-t border-border pt-4">
-            <Link
-              href={withReturnTo(drugPersonProfilePath(personId, { caseId }), returnTo)}
-              className="text-sm font-medium text-accent hover:underline"
-              data-testid="open-person-profile"
-            >
-              {t("di.person.viewProfile")}
-            </Link>
+            <Button asChild className="w-full" data-testid="open-person-profile">
+              <Link href={casePersonInvestigationHref(personId, caseId, returnTo)}>
+                {t("di.person.viewProfile")}
+              </Link>
+            </Button>
+            <p className="mt-1.5 text-[11px] text-muted">{t("di.person.drawer.opensWithOrigin")}</p>
           </div>
         </div>
       )}

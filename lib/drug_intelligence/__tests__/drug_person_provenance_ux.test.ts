@@ -34,13 +34,14 @@ const prismaSchemaSrc = read("prisma/schema.prisma");
 const caseServiceSrc = read("lib/drug_intelligence/drug_case_service.ts");
 
 test("Case → Person preserves validated caseId and existing returnTo; does not use returnTo as case identity", () => {
-  assert.match(drawerSrc, /drugPersonProfilePath\(personId,\s*\{\s*caseId\s*\}\)/);
-  assert.match(drawerSrc, /withReturnTo\(/);
+  assert.match(drawerSrc, /casePersonInvestigationHref\(personId,\s*caseId,\s*returnTo\)/);
+  assert.match(casePageSrc, /casePersonInvestigationHref/);
+  assert.match(casePageSrc, /case-person-profile-link/);
   assert.match(casePageSrc, /caseId=\{caseId\}/);
   assert.match(casePageSrc, /withReturnTo\(`\/drug-intelligence\/cases\/\$\{encodeURIComponent\(caseId\)\}`/);
   assert.match(personPageSrc, /getSafeReturnTo\(searchParams\)/);
   assert.match(personPageSrc, /resolvePersonProfileCaseContext\(/);
-  assert.match(personPageSrc, /searchParams\.get\("caseId"\)/);
+  assert.match(personPageSrc, /readPersonCaseContextParam\(searchParams\)/);
   assert.doesNotMatch(personPageSrc, /resolvePersonProfileCaseContext\(returnTo/);
 });
 
@@ -65,6 +66,7 @@ test("browser Back and returnTo stay URL-state only — no replace-on-mount, no 
   );
   const params = new URLSearchParams(withBoth.split("?")[1]);
   assert.equal(params.get("caseId"), "11111111-1111-4111-8111-111111111111");
+  assert.equal(params.get("sourceCaseId"), "11111111-1111-4111-8111-111111111111");
   assert.equal(getSafeReturnTo(params), "/drug-intelligence/cases/11111111-1111-4111-8111-111111111111");
 });
 
@@ -94,16 +96,29 @@ test("getProfile batches entity loads — no per-phone findById / no caseLocatio
   assert.doesNotMatch(getProfile, /findLocationById/);
 });
 
-test("overview uses current-case vs other-case sections, not a database-style comparison table", () => {
-  assert.match(provenanceUiSrc, /DrugPersonCaseSplitOverview/);
+test("overview uses investigation story chips, not a database-style comparison table", () => {
+  assert.match(provenanceUiSrc, /DrugPersonInvestigationStory/);
+  assert.match(provenanceUiSrc, /person-investigation-story/);
+  assert.match(provenanceUiSrc, /person-source-entity-chips/);
+  assert.match(provenanceUiSrc, /person-discovery-list/);
   assert.match(provenanceUiSrc, /person-current-case-section/);
   assert.match(provenanceUiSrc, /person-other-cases-section/);
   assert.match(provenanceUiSrc, /person-aggregate-banner/);
   assert.match(provenanceUiSrc, /person-intelligence-summary/);
+  assert.match(provenanceUiSrc, /di\.profile\.foundInThisCase/);
+  assert.match(provenanceUiSrc, /di\.profile\.additionalLinksFoundHeading|di\.profile\.systemDiscoveredLinks/);
+  assert.match(provenanceUiSrc, /di\.profile\.scanTransitionLine1/);
+  assert.match(provenanceUiSrc, /person-origin-scan-bridge/);
+  assert.match(provenanceUiSrc, /person-no-repeat-compact/);
+  assert.match(provenanceUiSrc, /di\.profile\.aggregateNoOriginNotice/);
+  assert.match(provenanceUiSrc, /di\.profile\.startedFromCase/);
+  assert.match(provenanceUiSrc, /di\.profile\.noRepeatCompact/);
   assert.match(provenanceUiSrc, /di\.profile\.fromCurrentCase/);
   assert.match(provenanceUiSrc, /di\.profile\.fromOtherCasesAdditional/);
-  assert.match(provenanceUiSrc, /di\.profile\.noneInThisCase/);
-  assert.match(personPageSrc, /DrugPersonCaseSplitOverview/);
+  assert.match(personPageSrc, /DrugPersonInvestigationStory/);
+  assert.match(personPageSrc, /person-post-scan-overview/);
+  assert.match(personPageSrc, /di\.profile\.postScanOverview/);
+  assert.match(personPageSrc, /phones: currentCaseId\s*\?\s*\[\]/);
   assert.match(personPageSrc, /currentCaseId \? \(/);
   assert.match(personPageSrc, /person-phones-current-section/);
   assert.doesNotMatch(provenanceUiSrc, /person-provenance-current-col/);

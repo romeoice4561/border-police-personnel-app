@@ -39,6 +39,7 @@ import { DRUG_CASE_UNIT_ROLE_LABELS, isValidDrugCaseUnitRole, DRUG_CASE_OFFICER_
 import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { DrugCaseInvestigatorContactCard } from "@/components/drug_intelligence/drug_case_investigator_contact_card";
 import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
+import { casePersonInvestigationHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import type {
   DrugCaseDetailResponse,
@@ -206,7 +207,15 @@ export default function DrugCaseWorkspacePage() {
 
       {activeTab === "overview" ? <OverviewTab data={data} /> : null}
       {activeTab === "media" ? <DrugEntityMediaGallery entityType="CASE" entityId={caseId} sourceCaseId={caseId} /> : null}
-      {activeTab === "persons" ? <PersonsTab persons={data.persons} onSelectPerson={openPersonDrawer} language={language} /> : null}
+      {activeTab === "persons" ? (
+        <PersonsTab
+          persons={data.persons}
+          caseId={caseId}
+          returnTo={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(caseId)}`, returnTo)}
+          onSelectPerson={openPersonDrawer}
+          language={language}
+        />
+      ) : null}
       {activeTab === "phones" ? <PhonesTab phones={data.phones} sims={data.sims} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "devices" ? <DevicesTab devices={data.devices} onSelectPerson={openPersonDrawer} canViewFull={canViewFull} /> : null}
       {activeTab === "vehicles" ? <VehiclesTab vehicles={data.vehicles} onSelectPerson={openPersonDrawer} /> : null}
@@ -374,10 +383,14 @@ function DrugCaseUnitsAndTeamCard({ data, language }: { data: DrugCaseDetailResp
 
 function PersonsTab({
   persons,
+  caseId,
+  returnTo,
   onSelectPerson,
   language,
 }: {
   persons: DrugCasePersonRow[];
+  caseId: string;
+  returnTo: string | null;
   onSelectPerson: (personId: string, role?: string) => void;
   language: "th" | "en";
 }) {
@@ -385,18 +398,32 @@ function PersonsTab({
   if (persons.length === 0) return <EmptyState title={t("di.workspace.emptyPersons")} icon={<Users className="h-8 w-8" />} />;
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {persons.map((p) => (
-        <button
-          key={p.personId}
-          type="button"
-          onClick={() => onSelectPerson(p.personId, p.role)}
-          className="rounded-xl border border-border bg-surface p-4 text-left hover:border-accent/50"
-        >
-          <p className="font-medium text-foreground">{p.person?.primaryFullName || "—"}</p>
-          <p className="mt-1 text-sm text-muted">{personRoleLabel(p.role, language)}</p>
-          {p.person?.nationality ? <p className="mt-1 text-xs text-muted">{p.person.nationality}</p> : null}
-        </button>
-      ))}
+      {persons.map((p) => {
+        const profileHref = casePersonInvestigationHref(p.personId, caseId, returnTo);
+        return (
+          <div key={p.personId} className="rounded-xl border border-border bg-surface p-4" data-testid="case-person-card">
+            <Link
+              href={profileHref}
+              className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              data-testid="case-person-profile-link"
+              data-source-case-id={caseId}
+            >
+              <p className="font-medium text-foreground hover:text-accent">{p.person?.primaryFullName || "—"}</p>
+              <p className="mt-1 text-sm text-muted">{personRoleLabel(p.role, language)}</p>
+              {p.person?.nationality ? <p className="mt-1 text-xs text-muted">{p.person.nationality}</p> : null}
+              <p className="mt-2 text-xs font-medium text-accent">{t("di.person.viewProfile")} →</p>
+            </Link>
+            <button
+              type="button"
+              onClick={() => onSelectPerson(p.personId, p.role)}
+              className="mt-2 text-xs text-muted underline-offset-2 hover:text-foreground hover:underline"
+              data-testid="case-person-drawer-trigger"
+            >
+              {t("di.person.drawer.quickSummary")}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

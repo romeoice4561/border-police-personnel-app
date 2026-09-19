@@ -1,5 +1,5 @@
 /**
- * Reusable Person Intelligence provenance presentation.
+ * Reusable Person Intelligence provenance + investigation-story presentation.
  *
  * Case lists come from factual DrugCase* associations already loaded on the
  * profile — this module does not fetch or infer new links.
@@ -15,12 +15,26 @@ import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { drugNetworkFocusPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import { withReturnTo } from "@/lib/ui/return_context";
 import {
+  buildInvestigationConclusionModel,
+  partitionEntityCasesByOrigin,
+  type StoryEntityForConclusion,
+  type StoryEntityKind,
+} from "@/lib/drug_intelligence/drug_person_investigation_origin";
+import { preferHumanCaseLabel } from "@/lib/drug_intelligence/drug_person_relationship_explain";
+import {
   buildPersonIntelligenceFacts,
   entityAppearsInMultipleCases,
   otherCaseLabel,
   splitRelatedByCurrentCase,
 } from "@/lib/drug_intelligence/person_entity_provenance";
-import type { DrugPersonProvenanceCaseRef, DrugPersonRelatedDevice, DrugPersonRelatedLocation, DrugPersonRelatedPhone, DrugPersonRelatedSim, DrugPersonRelatedVehicle } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type {
+  DrugPersonProvenanceCaseRef,
+  DrugPersonRelatedDevice,
+  DrugPersonRelatedLocation,
+  DrugPersonRelatedPhone,
+  DrugPersonRelatedSim,
+  DrugPersonRelatedVehicle,
+} from "@/lib/drug_intelligence/drug_intelligence_client";
 import { presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 
 export interface ProvenanceListItem {
@@ -33,51 +47,268 @@ export interface ProvenanceListItem {
   cases: DrugPersonProvenanceCaseRef[];
 }
 
+/** Compact investigation-origin strip — case / person / role / date only (no entity dump). */
 export function DrugPersonContextBanner({
   currentCaseId,
   currentCaseNumber,
   arrestDate,
   province,
+  personName,
+  personRoleLabel,
 }: {
   currentCaseId: string | null;
   currentCaseNumber: string | null;
   arrestDate?: string | Date | null;
   province?: string | null;
+  personName?: string | null;
+  personRoleLabel?: string | null;
+  /** @deprecated entity counts belong in the Overview investigation story */
+  sourceCounts?: {
+    phones: number;
+    sims: number;
+    devices: number;
+    vehicles: number;
+    locations: number;
+  } | null;
 }) {
   const { t } = useT();
   if (currentCaseId) {
+    const meta = [arrestDate ? formatDiDate(String(arrestDate)) : null, province].filter(Boolean).join(" · ");
     return (
-      <Card className="border-accent/40 bg-accent/5" data-testid="person-context-banner">
-        <CardBody className="space-y-1">
-          <p className="text-sm font-semibold text-foreground">
-            {t("di.profile.viewingFromCase").replace("{caseNumber}", currentCaseNumber || currentCaseId)}
-          </p>
-          {arrestDate || province ? (
-            <p className="text-xs text-muted">
-              {[arrestDate ? `${t("di.profile.caseArrestDate")} ${formatDiDate(String(arrestDate))}` : null, province].filter(Boolean).join(" · ")}
-            </p>
-          ) : null}
-          <p className="text-xs text-muted">{t("di.profile.kpiAreAggregate")}</p>
-        </CardBody>
-      </Card>
+      <div
+        className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
+        data-testid="person-investigation-origin"
+      >
+        <span className="inline-flex items-center gap-1 text-sm font-semibold text-accent">
+          <span aria-hidden="true">📁</span>
+          {t("di.profile.startedFromCase").replace("{case}", currentCaseNumber || currentCaseId)}
+        </span>
+        {personName ? (
+          <span className="inline-flex items-center gap-1 text-sm text-foreground">
+            <span aria-hidden="true">👤</span>
+            <span className="font-medium">{personName}</span>
+          </span>
+        ) : null}
+        {personRoleLabel ? (
+          <span className="inline-flex rounded-full border border-critical/30 bg-critical/10 px-2 py-0.5 text-[11px] font-medium text-critical">
+            {personRoleLabel}
+          </span>
+        ) : null}
+        {meta ? <span className="text-xs text-muted">{meta}</span> : null}
+      </div>
     );
   }
   return (
-    <Card className="border-border bg-surface" data-testid="person-aggregate-banner">
-      <CardBody className="space-y-1">
-        <p className="text-sm font-semibold text-foreground">{t("di.profile.aggregateBanner")}</p>
-        <p className="text-xs text-muted">{t("di.profile.aggregateDisclaimer")}</p>
-        <p className="text-xs text-muted">{t("di.profile.kpiSystemWide")}</p>
-      </CardBody>
-    </Card>
+    <div
+      className="rounded-xl border border-border bg-neutral-bg/40 px-3 py-2"
+      data-testid="person-aggregate-banner"
+    >
+      <p className="text-sm font-semibold text-foreground">{t("di.profile.aggregateNoOriginNotice")}</p>
+    </div>
   );
 }
 
-export function DrugPersonCaseSplitOverview({
+type StoryEntity = StoryEntityForConclusion & { icon: string };
+
+const KIND_ICON: Record<StoryEntityKind, string> = {
+  PHONE: "📞",
+  SIM: "💳",
+  DEVICE: "📱",
+  VEHICLE: "🚗",
+  LOCATION: "📍",
+};
+
+/** Source-case entities for investigation story + post-scan conclusion (same provenance). */
+export function buildSourceCaseStoryEntities(args: {
+  currentCaseId: string;
+  phones: DrugPersonRelatedPhone[];
+  sims: DrugPersonRelatedSim[];
+  devices: DrugPersonRelatedDevice[];
+  vehicles: DrugPersonRelatedVehicle[];
+  locations: DrugPersonRelatedLocation[];
+  canViewFull: boolean;
+}): StoryEntity[] {
+  const phoneSplit = splitRelatedByCurrentCase(args.phones, args.currentCaseId);
+  const simSplit = splitRelatedByCurrentCase(args.sims, args.currentCaseId);
+  const deviceSplit = splitRelatedByCurrentCase(args.devices, args.currentCaseId);
+  const vehicleSplit = splitRelatedByCurrentCase(args.vehicles, args.currentCaseId);
+  const locationSplit = splitRelatedByCurrentCase(args.locations, args.currentCaseId);
+
+  return [
+    ...phoneSplit.inCurrentCase.map((phone) => ({
+      id: phone.phoneNumberId,
+      kind: "PHONE" as const,
+      icon: KIND_ICON.PHONE,
+      label: phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, args.canViewFull) : "—",
+      href: `/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`,
+      cases: phone.cases,
+    })),
+    ...simSplit.inCurrentCase.map((row) => ({
+      id: row.simId,
+      kind: "SIM" as const,
+      icon: KIND_ICON.SIM,
+      label: row.sim?.iccid ? `SIM ${presentIdentifierValue(row.sim.iccid, args.canViewFull)}` : "SIM",
+      href: row.sim ? `/drug-intelligence/sims/${encodeURIComponent(row.sim.id)}` : null,
+      cases: row.cases,
+    })),
+    ...deviceSplit.inCurrentCase.map((row) => ({
+      id: row.deviceId,
+      kind: "DEVICE" as const,
+      icon: KIND_ICON.DEVICE,
+      label:
+        [row.device?.brand, row.device?.model].filter(Boolean).join(" ") ||
+        (row.device?.imei1 ? presentIdentifierValue(row.device.imei1, args.canViewFull) : "—"),
+      href: `/drug-intelligence/devices/${encodeURIComponent(row.deviceId)}`,
+      cases: row.cases,
+    })),
+    ...vehicleSplit.inCurrentCase.map((row) => ({
+      id: row.vehicleId,
+      kind: "VEHICLE" as const,
+      icon: KIND_ICON.VEHICLE,
+      label: row.vehicle?.registrationNumber || "—",
+      href: `/drug-intelligence/vehicles/${encodeURIComponent(row.vehicleId)}`,
+      cases: row.cases,
+    })),
+    ...locationSplit.inCurrentCase.map((row) => ({
+      id: row.locationId,
+      kind: "LOCATION" as const,
+      icon: KIND_ICON.LOCATION,
+      label: row.location?.name || row.location?.addressText || "—",
+      href: null,
+      cases: row.cases,
+    })),
+  ];
+}
+
+function entityNounKey(kind: StoryEntityKind): "di.profile.conclusionNounPhone" | "di.profile.conclusionNounSim" | "di.profile.conclusionNounDevice" | "di.profile.conclusionNounVehicle" | "di.profile.conclusionNounLocation" {
+  switch (kind) {
+    case "PHONE":
+      return "di.profile.conclusionNounPhone";
+    case "SIM":
+      return "di.profile.conclusionNounSim";
+    case "DEVICE":
+      return "di.profile.conclusionNounDevice";
+    case "VEHICLE":
+      return "di.profile.conclusionNounVehicle";
+    case "LOCATION":
+      return "di.profile.conclusionNounLocation";
+  }
+}
+
+/**
+ * One-line human conclusion under post-scan KPIs — derived from provenance,
+ * never hardcoded. Does not duplicate discovery cards.
+ */
+export function DrugPersonInvestigationConclusion({
+  currentCaseId,
+  currentCaseNumber,
+  phones,
+  sims,
+  devices,
+  vehicles,
+  locations,
+  canViewFull,
+}: {
+  currentCaseId: string;
+  currentCaseNumber: string | null;
+  phones: DrugPersonRelatedPhone[];
+  sims: DrugPersonRelatedSim[];
+  devices: DrugPersonRelatedDevice[];
+  vehicles: DrugPersonRelatedVehicle[];
+  locations: DrugPersonRelatedLocation[];
+  canViewFull: boolean;
+}) {
+  const { t } = useT();
+  const sourceLabel = currentCaseNumber || preferHumanCaseLabel(null, currentCaseId);
+  const sourceEntities = buildSourceCaseStoryEntities({
+    currentCaseId,
+    phones,
+    sims,
+    devices,
+    vehicles,
+    locations,
+    canViewFull,
+  });
+  const model = buildInvestigationConclusionModel(sourceEntities, currentCaseId);
+  if (!model) return null;
+
+  if (model.status === "no_discoveries") {
+    return (
+      <p
+        className="text-sm leading-snug text-foreground"
+        data-testid="person-investigation-conclusion"
+        data-conclusion="none"
+      >
+        <span className="font-semibold">{t("di.profile.conclusionLabel")}</span>{" "}
+        {t("di.profile.conclusionNoRepeat")}
+      </p>
+    );
+  }
+
+  const { primary, discoveryEntityCount } = model;
+  const entityNode = primary.href ? (
+    <Link href={primary.href} className="font-semibold text-accent hover:underline">
+      {primary.label}
+    </Link>
+  ) : (
+    <span className="font-semibold text-foreground">{primary.label}</span>
+  );
+
+  return (
+    <div className="space-y-1.5" data-testid="person-investigation-conclusion" data-conclusion="has">
+      <p className="text-sm leading-snug text-foreground">
+        <span className="font-semibold">{t("di.profile.conclusionLabel")}</span>{" "}
+        {t("di.profile.conclusionStartedFrom")}{" "}
+        <span className="font-semibold text-accent" data-testid="conclusion-source-case">
+          {sourceLabel}
+        </span>{" "}
+        {t("di.profile.conclusionFoundThat")}
+        {t(entityNounKey(primary.kind))}{" "}
+        <span data-testid="conclusion-entity">{entityNode}</span>{" "}
+        {t("di.profile.conclusionLinkedMore")}{" "}
+        <span className="font-semibold text-accent" data-testid="conclusion-count">
+          {primary.discoveredCount}
+        </span>{" "}
+        {t("di.profile.conclusionCasesIncluding")}{" "}
+        <span className="inline-flex flex-wrap items-center gap-1 align-middle" data-testid="conclusion-case-chips">
+          {primary.discoveredCases.map((c) => (
+            <Link
+              key={c.caseId}
+              href={`/drug-intelligence/cases/${encodeURIComponent(c.caseId)}`}
+              className="inline-flex rounded-lg border border-border bg-surface px-1.5 py-0.5 text-xs font-medium text-accent hover:underline"
+            >
+              📁 {c.label}
+            </Link>
+          ))}
+        </span>
+      </p>
+      {discoveryEntityCount > 1 ? (
+        <button
+          type="button"
+          className="text-xs font-medium text-accent hover:underline"
+          data-testid="conclusion-view-all-discoveries"
+          onClick={() => {
+            document.getElementById("person-other-cases-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        >
+          {t("di.profile.conclusionViewAllLinks")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Overview investigation story:
+ * source-case entity chips → database-check transition → per-entity discoveries.
+ */
+export function DrugPersonInvestigationStory({
   currentCaseId,
   currentCaseNumber,
   arrestDate,
   province,
+  personName,
+  personRoleLabel,
   phones,
   sims,
   devices,
@@ -89,6 +320,8 @@ export function DrugPersonCaseSplitOverview({
   currentCaseNumber: string | null;
   arrestDate?: string | Date | null;
   province?: string | null;
+  personName: string;
+  personRoleLabel: string | null;
   phones: DrugPersonRelatedPhone[];
   sims: DrugPersonRelatedSim[];
   devices: DrugPersonRelatedDevice[];
@@ -97,180 +330,159 @@ export function DrugPersonCaseSplitOverview({
   canViewFull: boolean;
 }) {
   const { t } = useT();
-  const phoneSplit = splitRelatedByCurrentCase(phones, currentCaseId);
-  const simSplit = splitRelatedByCurrentCase(sims, currentCaseId);
-  const deviceSplit = splitRelatedByCurrentCase(devices, currentCaseId);
-  const vehicleSplit = splitRelatedByCurrentCase(vehicles, currentCaseId);
+  const sourceLabel = currentCaseNumber || preferHumanCaseLabel(null, currentCaseId);
+
   const locationSplit = splitRelatedByCurrentCase(locations, currentCaseId);
-  const hasOther =
-    phoneSplit.inOtherCases.length +
-      simSplit.inOtherCases.length +
-      deviceSplit.inOtherCases.length +
-      vehicleSplit.inOtherCases.length +
-      locationSplit.inOtherCases.length >
-    0;
-  const hasUnscoped = deviceSplit.withoutCaseProvenance.length + vehicleSplit.withoutCaseProvenance.length > 0;
+  const sourceEntities = buildSourceCaseStoryEntities({
+    currentCaseId,
+    phones,
+    sims,
+    devices,
+    vehicles,
+    locations,
+    canViewFull,
+  });
 
   return (
-    <div className="space-y-4">
-      <Card className="border-accent/30" data-testid="person-current-case-section">
+    <div className="space-y-4" data-testid="person-investigation-story">
+      <Card className="border-accent/40 bg-accent/5" data-testid="person-current-case-section">
         <CardBody className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">{t("di.profile.fromCurrentCase")}</h2>
-            <p className="mt-1 text-sm font-medium text-accent break-words">{currentCaseNumber || currentCaseId}</p>
-            {arrestDate || province ? (
-              <p className="mt-0.5 text-xs text-muted">
-                {[arrestDate ? `${t("di.profile.caseArrestDate")} ${formatDiDate(String(arrestDate))}` : null, province].filter(Boolean).join(" · ")}
-              </p>
-            ) : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">📁 {t("di.profile.sourceCaseLabel")}</p>
+              <p className="text-lg font-semibold text-accent">{sourceLabel}</p>
+              {arrestDate || province ? (
+                <p className="mt-0.5 text-xs text-muted">
+                  {[arrestDate ? formatDiDate(String(arrestDate)) : null, province].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">👤 {t("di.profile.personInThisCase")}</p>
+              <p className="text-sm font-semibold text-foreground">{personName}</p>
+              {personRoleLabel ? (
+                <p className="mt-1 inline-flex rounded-full border border-critical/30 bg-critical/10 px-2 py-0.5 text-[11px] font-medium text-critical">
+                  {personRoleLabel}
+                </p>
+              ) : null}
+            </div>
           </div>
-          <OverviewCategory
-            label={t("di.profile.kpiPhones")}
-            countLabel={phoneSplit.inCurrentCase.length > 0 ? t("di.profile.phonesCount").replace("{count}", String(phoneSplit.inCurrentCase.length)) : null}
-            emptyLabel={t("di.profile.noneInThisCase")}
-            items={phoneSplit.inCurrentCase.map((phone) => ({
-              id: phone.phoneNumberId,
-              href: `/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`,
-              title: phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—",
-              cases: phone.cases,
-            }))}
-            currentCaseId={currentCaseId}
-          />
-          <OverviewCategory
-            label={t("di.profile.kpiSims")}
-            countLabel={simSplit.inCurrentCase.length > 0 ? t("di.profile.simsCount").replace("{count}", String(simSplit.inCurrentCase.length)) : null}
-            emptyLabel={t("di.profile.noneInThisCase")}
-            items={simSplit.inCurrentCase.map((row) => ({
-              id: row.simId,
-              href: row.sim ? `/drug-intelligence/sims/${encodeURIComponent(row.sim.id)}` : null,
-              title: row.sim?.iccid ? presentIdentifierValue(row.sim.iccid, canViewFull) : "—",
-              cases: row.cases,
-            }))}
-            currentCaseId={currentCaseId}
-          />
-          <OverviewCategory
-            label={t("di.profile.kpiDevices")}
-            countLabel={deviceSplit.inCurrentCase.length > 0 ? t("di.profile.devicesCount").replace("{count}", String(deviceSplit.inCurrentCase.length)) : null}
-            emptyLabel={t("di.profile.noneInThisCase")}
-            items={deviceSplit.inCurrentCase.map((row) => ({
-              id: row.deviceId,
-              href: `/drug-intelligence/devices/${encodeURIComponent(row.deviceId)}`,
-              title: [row.device?.brand, row.device?.model].filter(Boolean).join(" ") || (row.device?.imei1 ? presentIdentifierValue(row.device.imei1, canViewFull) : "—"),
-              cases: row.cases,
-            }))}
-            currentCaseId={currentCaseId}
-          />
-          <OverviewCategory
-            label={t("di.profile.kpiVehicles")}
-            countLabel={vehicleSplit.inCurrentCase.length > 0 ? t("di.profile.vehiclesCount").replace("{count}", String(vehicleSplit.inCurrentCase.length)) : null}
-            emptyLabel={t("di.profile.noneInThisCase")}
-            items={vehicleSplit.inCurrentCase.map((row) => ({
-              id: row.vehicleId,
-              href: `/drug-intelligence/vehicles/${encodeURIComponent(row.vehicleId)}`,
-              title: row.vehicle?.registrationNumber || "—",
-              cases: row.cases,
-            }))}
-            currentCaseId={currentCaseId}
-          />
-          <OverviewCategory
-            label={t("di.profile.caseLocationsLabel")}
-            countLabel={locationSplit.inCurrentCase.length > 0 ? t("di.profile.locationsCount").replace("{count}", String(locationSplit.inCurrentCase.length)) : null}
-            emptyLabel={t("di.profile.noneInThisCase")}
-            hint={t("di.profile.locationNotPersonFact")}
-            items={locationSplit.inCurrentCase.map((row) => ({
-              id: row.locationId,
-              title: row.location?.name || row.location?.addressText || "—",
-              cases: row.cases,
-            }))}
-            currentCaseId={currentCaseId}
-          />
+
+          <div>
+            <p className="mb-2 text-sm font-semibold text-foreground">{t("di.profile.foundInThisCase")}</p>
+            {sourceEntities.length === 0 ? (
+              <div className="flex flex-wrap gap-2">
+                <EntityChip icon="📍" label={t("di.profile.noLocationInSource")} muted />
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2" data-testid="person-source-entity-chips">
+                {sourceEntities.map((entity) => (
+                  <EntityChip key={`${entity.kind}-${entity.id}`} icon={entity.icon} label={entity.label} href={entity.href} />
+                ))}
+                {locationSplit.inCurrentCase.length === 0 ? (
+                  <EntityChip icon="📍" label={t("di.profile.noLocationInSource")} muted />
+                ) : null}
+              </div>
+            )}
+          </div>
         </CardBody>
       </Card>
 
-      <Card data-testid="person-other-cases-section">
-        <CardBody className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">{t("di.profile.fromOtherCasesAdditional")}</h2>
-            <p className="mt-1 text-xs text-muted">
-              {t("di.profile.otherCasesExplain").replace("{caseNumber}", currentCaseNumber || currentCaseId)}
-            </p>
-          </div>
-          {!hasOther && !hasUnscoped ? (
+      <div
+        className="rounded-xl border border-dashed border-accent/40 bg-neutral-bg/50 px-3 py-2 text-center"
+        data-testid="person-origin-scan-bridge"
+      >
+        <p className="text-base leading-none text-accent">↓</p>
+        <p className="mt-1 text-xs font-semibold text-foreground sm:text-sm">
+          {t("di.profile.scanTransitionLine1")} {t("di.profile.scanTransitionLine2")}
+        </p>
+      </div>
+
+      <Card data-testid="person-other-cases-section" id="person-other-cases-section">
+        <CardBody className="space-y-3">
+          <h2 className="text-base font-semibold text-foreground">{t("di.profile.additionalLinksFoundHeading")}</h2>
+          {sourceEntities.length === 0 ? (
             <p className="text-sm text-muted">{t("di.profile.noneFromOtherCases")}</p>
           ) : (
-            <>
-              <OverviewCategory
-                label={t("di.profile.additionalPhones")}
-                emptyLabel={null}
-                items={phoneSplit.inOtherCases.map((phone) => ({
-                  id: phone.phoneNumberId,
-                  href: `/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`,
-                  title: phone.phoneNumber ? presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull) : "—",
-                  cases: phone.cases,
-                }))}
-                currentCaseId={currentCaseId}
-              />
-              <OverviewCategory
-                label={t("di.profile.additionalSims")}
-                emptyLabel={null}
-                items={simSplit.inOtherCases.map((row) => ({
-                  id: row.simId,
-                  href: row.sim ? `/drug-intelligence/sims/${encodeURIComponent(row.sim.id)}` : null,
-                  title: row.sim?.iccid ? presentIdentifierValue(row.sim.iccid, canViewFull) : "—",
-                  cases: row.cases,
-                }))}
-                currentCaseId={currentCaseId}
-              />
-              <OverviewCategory
-                label={t("di.profile.additionalDevices")}
-                emptyLabel={null}
-                items={deviceSplit.inOtherCases.map((row) => ({
-                  id: row.deviceId,
-                  href: `/drug-intelligence/devices/${encodeURIComponent(row.deviceId)}`,
-                  title: [row.device?.brand, row.device?.model].filter(Boolean).join(" ") || (row.device?.imei1 ? presentIdentifierValue(row.device.imei1, canViewFull) : "—"),
-                  cases: row.cases,
-                }))}
-                currentCaseId={currentCaseId}
-              />
-              <OverviewCategory
-                label={t("di.profile.additionalVehicles")}
-                emptyLabel={null}
-                items={vehicleSplit.inOtherCases.map((row) => ({
-                  id: row.vehicleId,
-                  href: `/drug-intelligence/vehicles/${encodeURIComponent(row.vehicleId)}`,
-                  title: row.vehicle?.registrationNumber || "—",
-                  cases: row.cases,
-                }))}
-                currentCaseId={currentCaseId}
-              />
-              <OverviewCategory
-                label={t("di.profile.caseLocationsLabel")}
-                emptyLabel={null}
-                hint={t("di.profile.locationNotPersonFact")}
-                items={locationSplit.inOtherCases.map((row) => ({
-                  id: row.locationId,
-                  title: row.location?.name || row.location?.addressText || "—",
-                  cases: row.cases,
-                }))}
-                currentCaseId={currentCaseId}
-              />
-              {hasUnscoped ? (
-                <div className="space-y-1" data-testid="person-provenance-unscoped-section">
-                  <p className="text-xs font-semibold text-muted">{t("di.profile.relatedWithoutCase")}</p>
-                  <p className="text-xs text-muted">{t("di.profile.relatedWithoutCaseHint")}</p>
-                  {deviceSplit.withoutCaseProvenance.map((row) => (
-                    <p key={row.deviceId} className="break-all text-sm text-foreground">
-                      {[row.device?.brand, row.device?.model].filter(Boolean).join(" ") || row.device?.imei1 || "—"}
-                    </p>
-                  ))}
-                  {vehicleSplit.withoutCaseProvenance.map((row) => (
-                    <p key={row.vehicleId} className="break-all text-sm text-foreground">
-                      {row.vehicle?.registrationNumber || "—"}
-                    </p>
-                  ))}
+            (() => {
+              const withMatches: Array<{ entity: StoryEntity; discoveredLabels: string[]; discoveredCount: number }> = [];
+              const noMatches: StoryEntity[] = [];
+              for (const entity of sourceEntities) {
+                const part = partitionEntityCasesByOrigin(entity.cases, currentCaseId);
+                if (part.discoveredCount > 0) {
+                  withMatches.push({
+                    entity,
+                    discoveredLabels: part.discoveredLabels,
+                    discoveredCount: part.discoveredCount,
+                  });
+                } else {
+                  noMatches.push(entity);
+                }
+              }
+              return (
+                <div className="space-y-3" data-testid="person-discovery-list">
+                  {withMatches.length === 0 ? (
+                    <p className="text-sm text-muted">{t("di.profile.noneFromOtherCases")}</p>
+                  ) : (
+                    <ul className="space-y-2.5">
+                      {withMatches.map(({ entity, discoveredLabels, discoveredCount }) => (
+                        <li
+                          key={`disc-${entity.kind}-${entity.id}`}
+                          className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-2"
+                          data-testid="person-discovery-item"
+                          data-has-match="true"
+                        >
+                          <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-foreground">
+                            <span aria-hidden="true">{entity.icon}</span>
+                            {entity.href ? (
+                              <Link href={entity.href} className="text-accent hover:underline">
+                                {entity.label}
+                              </Link>
+                            ) : (
+                              <span>{entity.label}</span>
+                            )}
+                          </p>
+                          <p className="mt-1 text-xs text-foreground" data-testid="person-discovery-sentence">
+                            {discoveryRepeatSentence(entity.kind, discoveredCount, t)}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {discoveredLabels.map((label) => (
+                              <span
+                                key={label}
+                                className="inline-flex rounded-lg border border-border bg-surface px-2 py-0.5 text-xs font-medium text-foreground"
+                              >
+                                📁 {label}
+                              </span>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {noMatches.length > 0 ? (
+                    <div
+                      className="rounded-xl border border-border bg-neutral-bg/30 px-3 py-2"
+                      data-testid="person-no-repeat-compact"
+                    >
+                      <p className="text-xs font-medium text-good">
+                        {t("di.profile.noRepeatCompact").replace("{count}", String(noMatches.length))}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {noMatches.map((entity) => (
+                          <EntityChip
+                            key={`nr-${entity.kind}-${entity.id}`}
+                            icon={entity.icon}
+                            label={entity.label}
+                            href={entity.href}
+                            muted
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </>
+              );
+            })()
           )}
         </CardBody>
       </Card>
@@ -278,59 +490,64 @@ export function DrugPersonCaseSplitOverview({
   );
 }
 
-function OverviewCategory({
+/** @deprecated Prefer DrugPersonInvestigationStory — kept for any residual callers. */
+export function DrugPersonCaseSplitOverview(
+  props: Parameters<typeof DrugPersonInvestigationStory>[0],
+) {
+  return <DrugPersonInvestigationStory {...props} />;
+}
+
+function discoveryRepeatSentence(
+  kind: StoryEntity["kind"],
+  count: number,
+  t: (key: import("@/lib/i18n/dictionary").TranslationKey) => string,
+): string {
+  const n = String(count);
+  switch (kind) {
+    case "PHONE":
+      return t("di.profile.discoveryPhoneRepeat").replace("{count}", n);
+    case "SIM":
+      return t("di.profile.discoverySimRepeat").replace("{count}", n);
+    case "DEVICE":
+      return t("di.profile.discoveryDeviceRepeat").replace("{count}", n);
+    case "VEHICLE":
+      return t("di.profile.discoveryVehicleRepeat").replace("{count}", n);
+    case "LOCATION":
+      return t("di.profile.discoveryLocationRepeat").replace("{count}", n);
+  }
+}
+
+function EntityChip({
+  icon,
   label,
-  countLabel,
-  emptyLabel,
-  hint,
-  items,
-  currentCaseId,
+  href,
+  muted,
 }: {
+  icon: string;
   label: string;
-  countLabel?: string | null;
-  emptyLabel: string | null;
-  hint?: string;
-  items: Array<{ id: string; href?: string | null; title: string; cases: DrugPersonProvenanceCaseRef[] }>;
-  currentCaseId: string;
+  href?: string | null;
+  muted?: boolean;
 }) {
-  const { t } = useT();
-  if (items.length === 0) {
-    if (!emptyLabel) return null;
+  const className = muted
+    ? "inline-flex max-w-full items-center gap-1.5 rounded-xl border border-dashed border-border bg-neutral-bg/50 px-2.5 py-1.5 text-xs text-muted"
+    : "inline-flex max-w-full items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-sm";
+  const content = (
+    <>
+      <span aria-hidden="true">{icon}</span>
+      <span className="truncate">{label}</span>
+    </>
+  );
+  if (href) {
     return (
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-        <p className="mt-1 text-sm text-muted">{emptyLabel}</p>
-      </div>
+      <Link href={href} className={`${className} hover:border-accent/50 hover:text-accent`} data-testid="source-entity-chip">
+        {content}
+      </Link>
     );
   }
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      {countLabel ? <p className="mt-0.5 text-sm text-foreground">{countLabel}</p> : null}
-      {hint ? <p className="mt-0.5 text-xs text-muted">{hint}</p> : null}
-      <ul className="mt-1 space-y-1">
-        {items.map((item) => {
-          const multi = entityAppearsInMultipleCases(item);
-          const otherLabel = otherCaseLabel(item.cases, currentCaseId);
-          const inCurrent = item.cases.some((row) => row.caseId === currentCaseId);
-          return (
-            <li key={item.id} className="min-w-0">
-              {item.href ? (
-                <Link href={item.href} className="break-all font-mono text-sm text-accent hover:underline">
-                  {item.title}
-                </Link>
-              ) : (
-                <span className="break-all font-mono text-sm text-foreground">{item.title}</span>
-              )}
-              <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
-                {inCurrent ? <Badge tone="accent">{t("di.profile.seenInCurrentCase")}</Badge> : otherLabel ? <Badge tone="neutral">{t("di.profile.seenFromNamedCase").replace("{caseNumber}", otherLabel)}</Badge> : <Badge tone="neutral">{t("di.profile.seenInOtherCase")}</Badge>}
-                {multi ? <Badge tone="neutral">{t("di.profile.seenInMultipleCases").replace("{count}", String(item.cases.length))}</Badge> : null}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <span className={className} data-testid="source-entity-chip">
+      {content}
+    </span>
   );
 }
 

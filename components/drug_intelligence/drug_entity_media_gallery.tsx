@@ -162,65 +162,71 @@ export function DrugEntityMediaGallery({
       {items.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border bg-surface px-3 py-2 text-sm text-muted">{t("di.media.empty")}</p>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {items.map((item, index) => (
-            <article
-              key={item.id}
-              className="w-[9.5rem] overflow-hidden rounded-lg border border-border bg-surface shadow-sm"
-            >
-              <button type="button" className="block w-full" onClick={() => setViewerIndex(index)}>
-                <div className="relative aspect-square bg-neutral-bg">
-                  {item.thumbnailUrl || item.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.thumbnailUrl ?? item.url ?? ""} alt="" className="h-full w-full object-cover" />
-                  ) : null}
-                  {item.isPrimary ? (
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-fg shadow-sm">
-                      {t("di.media.primary")}
-                    </span>
-                  ) : null}
-                </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1" data-testid="drug-entity-media-strip">
+          {items.slice(0, 8).map((item, index) => (
+            <div key={item.id} className="relative shrink-0">
+              <button
+                type="button"
+                className="relative block h-[84px] w-[84px] overflow-hidden rounded-lg border border-border bg-neutral-bg shadow-sm"
+                onClick={() => setViewerIndex(index)}
+                aria-label={t((ENTITY_MEDIA_CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
+              >
+                {item.thumbnailUrl || item.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.thumbnailUrl ?? item.url ?? ""} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-muted">
+                    <Camera className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                )}
+                {item.isPrimary ? (
+                  <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-fg shadow-sm">
+                    <Star className="h-2.5 w-2.5" aria-hidden="true" />
+                    {t("di.media.primary")}
+                  </span>
+                ) : null}
               </button>
-              <div className="space-y-0.5 p-1.5">
-                <p className="truncate text-[11px] font-medium text-foreground">
-                  {t((ENTITY_MEDIA_CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
-                </p>
-                <p className="text-[10px] text-muted">
-                  {new Date(item.createdAt).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}
-                </p>
-                {canEdit ? (
-                  <div className="flex flex-wrap gap-0.5">
-                    {!item.isPrimary ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-1.5 text-[11px]"
-                        onClick={() => update.mutate({ mediaId: item.id, entityType, entityId, isPrimary: true })}
-                      >
-                        <Star className="h-3 w-3" aria-hidden="true" />
-                        {t("di.media.setPrimary")}
-                      </Button>
-                    ) : null}
+              {canEdit ? (
+                <div className="mt-1 flex justify-center gap-0.5">
+                  {!item.isPrimary ? (
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-7 px-1.5 text-[11px]"
-                      onClick={() => {
-                        if (window.confirm(t("di.media.deleteConfirm"))) {
-                          remove.mutate({ mediaId: item.id, entityType, entityId });
-                        }
-                      }}
+                      className="h-6 px-1 text-[10px]"
+                      onClick={() => update.mutate({ mediaId: item.id, entityType, entityId, isPrimary: true })}
+                      aria-label={t("di.media.setPrimary")}
                     >
-                      <Trash2 className="h-3 w-3" aria-hidden="true" />
-                      {t("common.delete")}
+                      <Star className="h-3 w-3" aria-hidden="true" />
                     </Button>
-                  </div>
-                ) : null}
-              </div>
-            </article>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-1 text-[10px]"
+                    onClick={() => {
+                      if (window.confirm(t("di.media.deleteConfirm"))) {
+                        remove.mutate({ mediaId: item.id, entityType, entityId });
+                      }
+                    }}
+                    aria-label={t("common.delete")}
+                  >
+                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           ))}
+          {items.length > 8 ? (
+            <button
+              type="button"
+              className="flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-neutral-bg text-sm font-semibold text-muted"
+              onClick={() => setViewerIndex(8)}
+            >
+              {t("di.media.stripOverflow").replace("{count}", String(items.length - 8))}
+            </button>
+          ) : null}
         </div>
       )}
 

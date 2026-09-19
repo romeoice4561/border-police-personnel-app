@@ -34,10 +34,11 @@ import { Drawer } from "@/components/ui/drawer";
 import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
-import { useDrugTimeline, useDrugTimelineGeographic } from "@/lib/drug_intelligence/drug_intelligence_hooks";
+import { useDrugTimeline, useDrugTimelineGeographic, useDrugPersonProfile, useDrugCase } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { normalizeThaiPersonnelDateForSave, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
+import { readPersonCaseContextParam } from "@/lib/drug_intelligence/person_case_context";
 import type { DrugTimelineEvent, DrugTimelineSortDirection, DrugTimelineGroupMode } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 type ViewMode = "TIMELINE" | "GEOGRAPHIC";
@@ -78,10 +79,22 @@ function DrugTimelineContent() {
   const sort = (searchParams.get("sort") as DrugTimelineSortDirection | null) ?? "NEWEST_FIRST";
   const groupMode = (searchParams.get("groupMode") as DrugTimelineGroupMode | null) ?? "DAY";
   const returnTo = getSafeReturnTo(searchParams);
+  const sourceCaseId = readPersonCaseContextParam(searchParams);
 
   const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<ViewMode>("TIMELINE");
   const [selectedEvent, setSelectedEvent] = useState<DrugTimelineEvent | null>(null);
+
+  const personProfile = useDrugPersonProfile(user?.id ?? null, personId ?? "");
+  const sourceCase = useDrugCase(user?.id ?? null, sourceCaseId ?? "");
+  const personDisplayName =
+    personId && personProfile.data?.person?.primaryFullName
+      ? personProfile.data.person.primaryFullName
+      : null;
+  const sourceCaseNumber =
+    sourceCaseId && sourceCase.data?.case?.caseNumber ? sourceCase.data.case.caseNumber : sourceCaseId;
+  const personFallbackHref = personId ? `/drug-intelligence/persons/${encodeURIComponent(personId)}` : null;
+  const backHref = returnTo ?? personFallbackHref;
 
   function updateParams(patch: Record<string, string | undefined>) {
     const next = new URLSearchParams(searchParams.toString());
@@ -127,16 +140,34 @@ function DrugTimelineContent() {
         title={t("di.timeline.title")}
         description={t("di.timeline.description")}
         actions={
-          returnTo ? (
+          backHref ? (
             <Button asChild variant="outline" size="sm" className="min-h-10">
-              <Link href={returnTo} data-testid="back-via-return-to">
-                {t(returnToBackLabelKey(returnTo))}
+              <Link href={backHref} data-testid="back-via-return-to">
+                {returnTo
+                  ? t(returnToBackLabelKey(returnTo))
+                  : personId
+                    ? t("di.profile.backToPersonProfile")
+                    : t("di.rel.backGeneric")}
               </Link>
             </Button>
           ) : null
         }
       />
 
+      {personId ? (
+        <Card className="border-accent/30 bg-accent/5" data-testid="timeline-person-context">
+          <CardBody className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">
+              {t("di.profile.timelinePersonContext").replace("{name}", personDisplayName || personId)}
+            </p>
+            {sourceCaseId ? (
+              <p className="text-xs text-muted">
+                {t("di.profile.timelineSourceCase").replace("{case}", sourceCaseNumber || sourceCaseId)}
+              </p>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
       {!canView ? (
         <ErrorState title={t("di.alert.permissionDenied")} />
       ) : (

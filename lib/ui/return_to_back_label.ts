@@ -25,6 +25,12 @@ export function returnToBackLabelKey(returnTo: string | null | undefined): Trans
   ) {
     return "di.rel.backToSearchResults";
   }
+  if (path.includes("/drug-intelligence/persons/")) {
+    return "di.profile.backToPerson";
+  }
+  if (path.includes("/drug-intelligence/cases/")) {
+    return "di.rel.backToCase";
+  }
   if (path.includes("/drug-intelligence/map")) {
     return "di.map.actionBackToMap";
   }

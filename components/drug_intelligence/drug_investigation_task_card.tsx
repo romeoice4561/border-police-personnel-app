@@ -68,16 +68,19 @@ export function DrugInvestigationTaskCard({
 
   return (
     <article
-      className="rounded-xl border border-border bg-surface p-4"
+      className="rounded-xl border border-border bg-surface p-3 shadow-sm"
       data-testid="investigation-task-card"
       data-task-id={task.id}
     >
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-semibold text-muted">
           <ListChecks className="h-3 w-3" aria-hidden="true" />
           {t("di.tasks.noteTag")}
         </span>
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted">{t("di.tasks.noteTagEn")}</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <DrugInvestigationTaskStatusBadge status={task.status} />
+          {overdue ? <Badge tone="serious">{t("di.tasks.overdue")}</Badge> : null}
+        </div>
       </div>
       <h3 className="break-words text-sm font-semibold text-foreground">{task.title}</h3>
       {task.sourceNoteId ? (
@@ -94,9 +97,7 @@ export function DrugInvestigationTaskCard({
         </p>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <DrugInvestigationTaskStatusBadge status={task.status} />
         <DrugInvestigationTaskPriorityBadge priority={task.priority} />
-        {overdue ? <Badge tone="serious">{t("di.tasks.overdue")}</Badge> : null}
       </div>
       <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
         <div>

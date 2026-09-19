@@ -7,7 +7,11 @@
  */
 
 import type { DrugGraphNodeType } from "@/lib/drug_intelligence/drug_intelligence_client";
-import { PERSON_CASE_CONTEXT_PARAM, sanitizePersonCaseContextId } from "@/lib/drug_intelligence/person_case_context";
+import {
+  PERSON_CASE_CONTEXT_PARAM,
+  PERSON_SOURCE_CASE_PARAM,
+  sanitizePersonCaseContextId,
+} from "@/lib/drug_intelligence/person_case_context";
 import { withReturnTo } from "@/lib/ui/return_context";
 
 export function drugEntityDetailPath(entityType: DrugGraphNodeType, entityId: string): string {
@@ -45,13 +49,34 @@ export function drugEntityDetailHref(
 }
 
 /**
- * Person Intelligence Profile path. Optional `caseId` is URL case-context only
- * (validated id shape). Search / Network / directory must keep using
- * `drugEntityDetailPath` so they do not invent a current case.
+ * Person Intelligence Profile path. Investigation origin is URL state only
+ * (validated id shape). Canonical writer is `sourceCaseId`; legacy `caseId`
+ * may be supplied as input fallback and is still emitted for compatibility.
+ * Search / Network / directory must keep using `drugEntityDetailPath` so they
+ * do not invent a current case.
  */
-export function drugPersonProfilePath(personId: string, opts?: { caseId?: string | null }): string {
+export function drugPersonProfilePath(
+  personId: string,
+  opts?: { caseId?: string | null; sourceCaseId?: string | null },
+): string {
   const base = `/drug-intelligence/persons/${encodeURIComponent(personId)}`;
-  const caseId = sanitizePersonCaseContextId(opts?.caseId);
-  if (!caseId) return base;
-  return `${base}?${PERSON_CASE_CONTEXT_PARAM}=${encodeURIComponent(caseId)}`;
+  const origin = sanitizePersonCaseContextId(opts?.sourceCaseId ?? opts?.caseId);
+  if (!origin) return base;
+  const params = new URLSearchParams();
+  params.set(PERSON_SOURCE_CASE_PARAM, origin);
+  params.set(PERSON_CASE_CONTEXT_PARAM, origin);
+  return `${base}?${params.toString()}`;
+}
+
+/**
+ * Case Workspace → Person Profile investigation entry.
+ * Always writes canonical `sourceCaseId` (+ legacy `caseId`) when caseId is valid,
+ * and preserves a safe returnTo back to the case (or caller-supplied path).
+ */
+export function casePersonInvestigationHref(
+  personId: string,
+  caseId: string | null | undefined,
+  returnTo?: string | null,
+): string {
+  return withReturnTo(drugPersonProfilePath(personId, { sourceCaseId: caseId }), returnTo);
 }
