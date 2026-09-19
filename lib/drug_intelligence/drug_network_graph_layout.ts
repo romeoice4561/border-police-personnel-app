@@ -378,7 +378,15 @@ const HOP_FOCUS_CARD_HEIGHT = 168;
 const HOP_NEIGHBOR_CARD_HEIGHT = 148;
 const HOP_LOCATION_CARD_HEIGHT = 120;
 const HOP_CARD_ROW_GAP = 24;
-const HOP_SAFE_BAND_GAP = 100;
+/**
+ * Clearance from the tallest Hop-1 card bottom to the Hop-2 band-header top.
+ * Kept deliberately tight for vertical density while still guaranteeing no
+ * card/header collision. Never use a fixed row-count substitute for Hop 2 Y.
+ */
+export const HOP_SAFE_BAND_GAP = 40;
+/** Regression bounds for inter-band whitespace (presentation only). */
+export const HOP_SAFE_BAND_GAP_MIN = 32;
+export const HOP_SAFE_BAND_GAP_MAX = 56;
 const HOP_BAND_HEADER_HEIGHT = 28;
 const HOP_TYPE_HEADER_HEIGHT = 22;
 const HOP_FOCUS_TO_BAND_GAP = 32;

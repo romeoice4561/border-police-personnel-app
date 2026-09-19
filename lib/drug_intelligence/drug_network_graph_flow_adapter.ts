@@ -32,6 +32,11 @@ import {
   CARD_GRAPH_SECONDARY_STROKE,
   CARD_GRAPH_SELECTED_INCIDENT_STROKE,
   CARD_GRAPH_UNRELATED_OPACITY,
+  EDGE_LABEL_BG_PADDING,
+  EDGE_SMOOTHSTEP_BASE_OFFSET,
+  edgeLabelCorridorKey,
+  edgeLabelOffsetPx,
+  edgeSmoothStepPathOffset,
   hopDistances,
   isFocusDirectEdge,
   isSharedEntity,
@@ -121,12 +126,14 @@ export interface FlowEdge extends Edge {
   label: string;
   style: { stroke: string; strokeDasharray?: string; opacity?: number; strokeWidth?: number };
   markerEnd: { type: MarkerType };
-  labelStyle: { fontSize: number; fontWeight?: number | string; fill?: string; color?: string };
-  labelBgStyle: { fill?: string; fillOpacity: number; stroke?: string; background?: string };
+  labelStyle: { fontSize: number; fontWeight?: number | string; fill?: string; color?: string; transform?: string };
+  labelBgStyle: { fill?: string; fillOpacity: number; stroke?: string; background?: string; transform?: string };
   labelBgPadding: [number, number];
   labelBgBorderRadius: number;
   zIndex?: number;
   interactionWidth?: number;
+  /** xyflow SmoothStepEdge pathOptions — presentation-only route stub clearance. */
+  pathOptions?: { offset?: number; borderRadius?: number };
   data: DrugNetworkFlowEdgeData;
 }
 
@@ -335,6 +342,81 @@ export function buildDrugNetworkFlowGraph(
   const hoveredNodeId = options.hoveredNodeId ?? null;
   const hoveredEdgeId = options.hoveredEdgeId ?? null;
 
+  // Pre-assign stagger indices for chips that will render.
+  // Focus-direct labels share the vertical mid-band under the focus card, so
+  // they use a global midX-ordered index. Secondary chips (e.g. Case↔Phone)
+  // stagger within midpoint corridors only.
+  const labelPlacementByEdgeId = new Map<string, { offset: { x: number; y: number }; pathOffset: number }>();
+  const labeledCandidates = neighborhood.edges
+    .map((e) => {
+      const isSelected = e.id === selectedEdgeId;
+      const touchesSelectedNode = selectedNodeId ? e.source === selectedNodeId || e.target === selectedNodeId : false;
+      const isHovered = e.id === hoveredEdgeId;
+      const touchesHoveredNode = hoveredNodeId ? e.source === hoveredNodeId || e.target === hoveredNodeId : false;
+      const onPath = pathEdgeIds ? pathEdgeIds.has(e.id) : null;
+      const focusDirect = isFocusDirectEdge(focusId, e);
+      const cardEdgeHierarchy = !compareHighlight;
+      const showLabel = shouldShowEdgeLabel({
+        labelMode: options.labelMode,
+        edgeKind: e.edgeKind,
+        isSelected,
+        touchesSelectedNode,
+        isHovered,
+        touchesHoveredNode,
+        onSelectedPath: cardEdgeHierarchy ? isolatePathVisuals && onPath === true : onPath === true,
+        isFocusDirect: cardEdgeHierarchy ? focusDirect : true,
+        hasCanvasSelection: cardEdgeHierarchy ? hasCanvasSelection : false,
+      });
+      const comparePathEdge = Boolean(comparePathIds && onPath === true);
+      const showPathReason = comparePathEdge && isFactualComparePathEdge(e, comparePathIds ?? new Set());
+      if (!showPathReason && !showLabel) return null;
+      const sourcePos = positions.get(e.source) ?? { x: 0, y: 0 };
+      const targetPos = positions.get(e.target) ?? { x: 0, y: 0 };
+      return {
+        id: e.id,
+        focusDirect,
+        sourcePos,
+        targetPos,
+        corridor: edgeLabelCorridorKey(sourcePos, targetPos),
+        midX: (sourcePos.x + targetPos.x) / 2,
+        midY: (sourcePos.y + targetPos.y) / 2,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item != null);
+
+  const focusDirectLabeled = labeledCandidates
+    .filter((item) => item.focusDirect)
+    .sort((a, b) => a.midX - b.midX || a.midY - b.midY || a.id.localeCompare(b.id));
+  focusDirectLabeled.forEach((item, indexInCorridor) => {
+    labelPlacementByEdgeId.set(item.id, {
+      offset: edgeLabelOffsetPx({
+        sourcePos: item.sourcePos,
+        targetPos: item.targetPos,
+        indexInCorridor,
+        focusDirect: true,
+      }),
+      pathOffset: edgeSmoothStepPathOffset(indexInCorridor),
+    });
+  });
+
+  const secondaryCorridorCounts = new Map<string, number>();
+  const secondaryLabeled = labeledCandidates
+    .filter((item) => !item.focusDirect)
+    .sort((a, b) => a.midX - b.midX || a.midY - b.midY || a.id.localeCompare(b.id));
+  for (const item of secondaryLabeled) {
+    const indexInCorridor = secondaryCorridorCounts.get(item.corridor) ?? 0;
+    secondaryCorridorCounts.set(item.corridor, indexInCorridor + 1);
+    labelPlacementByEdgeId.set(item.id, {
+      offset: edgeLabelOffsetPx({
+        sourcePos: item.sourcePos,
+        targetPos: item.targetPos,
+        indexInCorridor,
+        focusDirect: false,
+      }),
+      pathOffset: edgeSmoothStepPathOffset(indexInCorridor),
+    });
+  }
+
   const flowEdges: FlowEdge[] = neighborhood.edges.map((e) => {
     const isSelected = e.id === selectedEdgeId;
     const touchesSelectedNode = selectedNodeId ? e.source === selectedNodeId || e.target === selectedNodeId : false;
@@ -378,6 +460,14 @@ export function buildDrugNetworkFlowGraph(
     // added a waypoint to THIS specific edge.
     const route = options.edgeRoutes?.[e.id] ?? createDefaultEdgeRoute();
     const isRouted = route.mode !== "AUTO" && route.waypoints.length > 0;
+    const willShowChip = Boolean(showPathReason || showLabel);
+    const placement = willShowChip ? labelPlacementByEdgeId.get(e.id) : undefined;
+    const labelOffset = placement?.offset ?? { x: 0, y: 0 };
+    const labelTransform =
+      labelOffset.x !== 0 || labelOffset.y !== 0
+        ? `translate(${labelOffset.x}px, ${labelOffset.y}px)`
+        : undefined;
+    const pathOffset = !isRouted && edgeType === "smoothstep" ? (placement?.pathOffset ?? EDGE_SMOOTHSTEP_BASE_OFFSET) : undefined;
     return {
       id: e.id,
       source: e.source,
@@ -385,7 +475,7 @@ export function buildDrugNetworkFlowGraph(
       selected: isSelected,
       type: isRouted ? "drugRoutedEdge" : edgeType,
       label:
-        showPathReason || showLabel
+        willShowChip
           ? translateShortLabel(
               showPathReason
                 ? DRUG_GRAPH_RELATIONSHIP_LABEL_KEY[e.relationshipType]
@@ -406,20 +496,23 @@ export function buildDrugNetworkFlowGraph(
       },
       markerEnd: { type: MarkerType.ArrowClosed },
       interactionWidth: 24,
+      ...(pathOffset != null ? { pathOptions: { offset: pathOffset, borderRadius: 8 } } : {}),
       labelStyle: {
         fontSize: 11,
         fontWeight: showLabel && focusDirect ? 600 : 500,
         fill: "var(--color-foreground)",
         color: "var(--color-foreground)",
+        ...(labelTransform ? { transform: labelTransform } : {}),
       },
       labelBgStyle: {
         fill: "var(--color-neutral-bg)",
         fillOpacity: 1,
         stroke: "var(--color-border)",
         background: "var(--color-neutral-bg)",
+        ...(labelTransform ? { transform: labelTransform } : {}),
       },
-      labelBgPadding: [6, 4] as [number, number],
-      labelBgBorderRadius: 4,
+      labelBgPadding: EDGE_LABEL_BG_PADDING,
+      labelBgBorderRadius: 6,
       // Only ever elevate an edge when a node IS selected and this edge
       // touches it — with no selection, every edge must stay at the
       // default stacking level so nodes remain on top and clickable/

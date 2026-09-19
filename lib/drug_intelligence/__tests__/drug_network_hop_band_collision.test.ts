@@ -11,6 +11,9 @@ import {
   collectGroupByHopLayoutRects,
   computeGroupByTypeLayout,
   graphLayoutCardSize,
+  HOP_SAFE_BAND_GAP,
+  HOP_SAFE_BAND_GAP_MAX,
+  HOP_SAFE_BAND_GAP_MIN,
   layoutRectsOverlap,
   planGroupByHopLayout,
   type LayoutNodeInput,
@@ -103,11 +106,14 @@ function depth2ReviewNeighborhood(): {
   return { focusId, nodes, edges };
 }
 
-test("Depth-2 hop-2 band starts below the tallest hop-1 card bottom plus safe gap", () => {
+test("Depth-2 hop-2 band starts below the tallest hop-1 card bottom plus dense safe gap", () => {
   const { focusId, nodes, edges } = depth2ReviewNeighborhood();
   const audit = collectGroupByHopLayoutRects(focusId, nodes, edges);
-  assert.ok(audit.hop2BandTop >= audit.hop1Bottom + 80, "safe band gap must be at least ~80px");
-  assert.ok(audit.hop2BandTop <= audit.hop1Bottom + 140, "safe band gap must stay deliberate, not enormous");
+  const gap = audit.hop2BandTop - audit.hop1Bottom;
+  assert.equal(HOP_SAFE_BAND_GAP, 40, "density polish uses a tight 40px inter-band clearance");
+  assert.ok(gap >= HOP_SAFE_BAND_GAP_MIN, `inter-band gap ${gap} must stay collision-safe (>= ${HOP_SAFE_BAND_GAP_MIN})`);
+  assert.ok(gap <= HOP_SAFE_BAND_GAP_MAX, `inter-band gap ${gap} must not reintroduce excess whitespace (<= ${HOP_SAFE_BAND_GAP_MAX})`);
+  assert.equal(gap, HOP_SAFE_BAND_GAP);
   const plan = planGroupByHopLayout(focusId, nodes, edges);
   const hop2Cards = nodes
     .filter((node) => node.id !== focusId)
@@ -117,8 +123,18 @@ test("Depth-2 hop-2 band starts below the tallest hop-1 card bottom plus safe ga
     });
   assert.ok(hop2Cards.length >= 8);
   for (const node of hop2Cards) {
-    assert.ok(plan.positions.get(node.id)!.y >= audit.hop1Bottom + 80, `${node.id} must not enter hop-1 vertical range`);
+    assert.ok(
+      plan.positions.get(node.id)!.y >= audit.hop1Bottom + HOP_SAFE_BAND_GAP_MIN,
+      `${node.id} must not enter hop-1 vertical range`,
+    );
   }
+});
+
+test("Depth-2 layout still derives Hop-2 Y from hop1Bottom, never fixed hop1 row-count spacing", () => {
+  const layoutSrc = readFileSync(join(ROOT, "lib/drug_intelligence/drug_network_graph_layout.ts"), "utf8");
+  assert.match(layoutSrc, /hop1Bottom \+ HOP_SAFE_BAND_GAP/);
+  assert.doesNotMatch(layoutSrc, /HOP1_START_Y \+ hop1Rows/);
+  assert.doesNotMatch(layoutSrc, /const HOP_NODE_SPACING = 190/);
 });
 
 test("Depth-2 card rectangles never overlap (hop1/hop1, hop2/hop2, hop1/hop2)", () => {

@@ -8,6 +8,11 @@ import type { DrugGraphNeighborhoodResponse } from "@/lib/drug_intelligence/drug
 import { buildDrugNetworkFlowGraph } from "@/lib/drug_intelligence/drug_network_graph_flow_adapter";
 import {
   appearanceReasonKey,
+  EDGE_LABEL_MIN_CLEARANCE_PX,
+  edgeLabelCorridorKey,
+  edgeLabelOffsetPx,
+  edgeLabelStaggerSigned,
+  edgeSmoothStepPathOffset,
   formatGraphNodeCard,
   formatReadablePhoneLabel,
   formatReadableSimLabel,
@@ -349,4 +354,49 @@ test("person graph cards never use a UUID as the visible title", () => {
   );
   assert.equal(opaque.title, "นามแฝง");
   assert.notEqual(opaque.title, "16b1274d-8553-4833-9ebe-24c236c95d54");
+});
+
+test("edge label stagger is deterministic and grows clearance within a corridor", () => {
+  assert.equal(edgeLabelStaggerSigned(0, 16), 0);
+  assert.equal(edgeLabelStaggerSigned(1, 16), -16);
+  assert.equal(edgeLabelStaggerSigned(2, 16), 16);
+  assert.equal(edgeLabelStaggerSigned(3, 16), -32);
+  assert.equal(edgeLabelCorridorKey({ x: 100, y: 200 }, { x: 180, y: 260 }), edgeLabelCorridorKey({ x: 110, y: 210 }, { x: 170, y: 250 }));
+  assert.notEqual(edgeLabelCorridorKey({ x: 0, y: 0 }, { x: 20, y: 20 }), edgeLabelCorridorKey({ x: 400, y: 0 }, { x: 420, y: 20 }));
+  const vertical = edgeLabelOffsetPx({
+    sourcePos: { x: 200, y: 0 },
+    targetPos: { x: 210, y: 240 },
+    indexInCorridor: 1,
+  });
+  assert.ok(Math.abs(vertical.y) >= EDGE_LABEL_MIN_CLEARANCE_PX * 2);
+  const horizontal = edgeLabelOffsetPx({
+    sourcePos: { x: 0, y: 200 },
+    targetPos: { x: 300, y: 210 },
+    indexInCorridor: 1,
+  });
+  assert.ok(Math.abs(horizontal.y) >= EDGE_LABEL_MIN_CLEARANCE_PX * 2);
+  assert.ok(edgeSmoothStepPathOffset(0) >= 24);
+  assert.ok(edgeSmoothStepPathOffset(1) > edgeSmoothStepPathOffset(0));
+});
+
+test("flow adapter applies corridor label transforms and smoothstep path offsets without changing topology", () => {
+  const data = neighborhood();
+  const { flowEdges } = buildDrugNetworkFlowGraph(data, (k) => k, null, null, {
+    layoutMode: "GROUP_BY_TYPE",
+    labelMode: "ALL",
+    nodeDensity: "STANDARD",
+    canvasArrangement: "GROUP_BY_HOP",
+  });
+  const labeled = flowEdges.filter((edge) => edge.label);
+  assert.ok(labeled.length >= 3);
+  const transforms = labeled.map((edge) => edge.labelStyle.transform ?? "none");
+  assert.ok(transforms.some((value) => value !== "none"), "at least one labeled edge should receive a clearance transform");
+  assert.ok(new Set(transforms).size >= 2, "focus-direct labels must not all share one identical transform");
+  const pathOffsets = flowEdges.filter((edge) => edge.type === "smoothstep").map((edge) => edge.pathOptions?.offset ?? 0);
+  assert.ok(pathOffsets.every((offset) => offset >= 24));
+  assert.ok(new Set(pathOffsets).size >= 2, "smoothstep stub lengths should vary slightly in a congested fan");
+  assert.deepEqual(
+    flowEdges.map((edge) => edge.id).sort(),
+    data.edges.map((edge) => edge.id).sort(),
+  );
 });

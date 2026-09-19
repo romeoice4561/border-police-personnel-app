@@ -20,7 +20,8 @@ export const READABLE_INITIAL_MAX_ZOOM = 1.12;
 export const READABLE_INITIAL_PADDING = 0.18;
 export const HOP2_HEADING_HALF_WIDTH = 160;
 export const HOP2_HEADING_HALF_HEIGHT = 16;
-export const HOP2_CONTINUATION_PEEK_PX = 72;
+/** Extra bottom pad past the first Hop-2 row so card bottoms are not clipped. */
+export const HOP2_CONTINUATION_PEEK_PX = 24;
 const FIRST_HOP2_ROW_TOLERANCE_PX = 40;
 
 export type InitialViewportKind =
@@ -81,8 +82,9 @@ export function computeReadableHopContextBounds(args: {
   nodes: ReadableFitNode[];
   hopBandHeadings?: HopBandHeadingPoint[];
 }): { x: number; y: number; width: number; height: number } | null {
-  const primary = args.nodes.filter((node) => node.hopDistance <= 1);
-  const bounds = pathNodesBounds(primary);
+  // Fit Focus + Hop 1 + first Hop-2 row (not the entire Depth-2 graph).
+  const contextNodes = selectReadableHopContextNodes(args.nodes);
+  const bounds = pathNodesBounds(contextNodes);
   if (!bounds) return null;
 
   let minX = bounds.x;
@@ -99,10 +101,13 @@ export function computeReadableHopContextBounds(args: {
     }
   }
 
-  const hop2 = args.nodes.filter((node) => node.hopDistance >= 2);
+  // Small pad so the first Hop-2 card bottoms are not flush-clipped.
+  const hop2 = contextNodes.filter((node) => node.hopDistance >= 2);
   if (hop2.length > 0) {
-    const minHop2Y = Math.min(...hop2.map((node) => node.position.y));
-    maxY = Math.max(maxY, minHop2Y + HOP2_CONTINUATION_PEEK_PX);
+    const hop2Bottom = Math.max(
+      ...hop2.map((node) => node.position.y + (node.height ?? (node.isFocus ? 150 : 110))),
+    );
+    maxY = Math.max(maxY, hop2Bottom + HOP2_CONTINUATION_PEEK_PX);
   }
 
   return {

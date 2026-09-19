@@ -238,6 +238,86 @@ export const CARD_GRAPH_SELECTED_INCIDENT_STROKE = 2;
 export const CARD_GRAPH_UNRELATED_OPACITY = 0.16;
 export const CARD_GRAPH_FOCUS_DIRECT_WHEN_OTHER_SELECTED_OPACITY = 0.34;
 
+/** Horizontal / vertical padding around relationship label text (xyflow labelBgPadding). */
+export const EDGE_LABEL_BG_PADDING: [number, number] = [10, 5];
+/** Minimum visual clearance between a relationship label and nearby cards/headers (presentation only). */
+export const EDGE_LABEL_MIN_CLEARANCE_PX = 8;
+/** Bucket size for grouping labels that share the same mid-edge corridor. */
+export const EDGE_LABEL_CORRIDOR_BUCKET_PX = 88;
+/** Base smoothstep stub length before the first bend (xyflow pathOptions.offset). */
+export const EDGE_SMOOTHSTEP_BASE_OFFSET = 26;
+/** Extra stub length stepped within a congested corridor (presentation only). */
+export const EDGE_SMOOTHSTEP_OFFSET_STEP = 5;
+
+export type EdgeLabelPoint = { x: number; y: number };
+
+/**
+ * Signed stagger: 0, −step, +step, −2·step, +2·step, …
+ * Deterministic and independent of fixture identity.
+ */
+export function edgeLabelStaggerSigned(indexInCorridor: number, stepPx: number): number {
+  if (indexInCorridor <= 0) return 0;
+  const magnitude = Math.ceil(indexInCorridor / 2) * stepPx;
+  return indexInCorridor % 2 === 1 ? -magnitude : magnitude;
+}
+
+/** Corridor key from approximate edge midpoint — groups competing label chips. */
+export function edgeLabelCorridorKey(source: EdgeLabelPoint, target: EdgeLabelPoint, bucketPx = EDGE_LABEL_CORRIDOR_BUCKET_PX): string {
+  const midX = (source.x + target.x) / 2;
+  const midY = (source.y + target.y) / 2;
+  return `${Math.round(midX / bucketPx)}_${Math.round(midY / bucketPx)}`;
+}
+
+/**
+ * Presentation-only label chip offset so adjacent relationship labels do not
+ * stack on the same midpoint. Horizontal routes prefer Y stagger; vertical
+ * routes prefer Y with a light X nudge. Does not change topology or layout.
+ */
+export function edgeLabelOffsetPx(args: {
+  sourcePos: EdgeLabelPoint | null | undefined;
+  targetPos: EdgeLabelPoint | null | undefined;
+  indexInCorridor: number;
+  focusDirect?: boolean;
+}): EdgeLabelPoint {
+  const step = Math.max(EDGE_LABEL_MIN_CLEARANCE_PX * 2, 16);
+  const signed = edgeLabelStaggerSigned(args.indexInCorridor, step);
+  if (!args.sourcePos || !args.targetPos) {
+    return { x: 0, y: signed };
+  }
+  const dx = Math.abs(args.targetPos.x - args.sourcePos.x);
+  const dy = Math.abs(args.targetPos.y - args.sourcePos.y);
+  const primarilyHorizontal = dx >= dy;
+  if (primarilyHorizontal) {
+    // Case ↔ Phone and similar cross-links: keep label on the route but lift/drop chips.
+    return { x: edgeLabelStaggerSigned(args.indexInCorridor, Math.round(step * 0.45)), y: signed };
+  }
+  // Focus → hop-1 vertical routes: mostly Y stagger, slight X to clear junctions.
+  return { x: Math.round(signed * 0.4), y: signed };
+}
+
+/** Smoothstep path stub offset — slightly longer stubs clear label midpoints from junctions. */
+export function edgeSmoothStepPathOffset(indexInCorridor: number): number {
+  return EDGE_SMOOTHSTEP_BASE_OFFSET + (Math.abs(indexInCorridor) % 3) * EDGE_SMOOTHSTEP_OFFSET_STEP;
+}
+
+/**
+ * @deprecated Prefer edgeLabelOffsetPx — kept for call-site compatibility during polish.
+ * Deterministic vertical stagger for labeled focus-direct edges.
+ */
+export function edgeLabelYOffset(args: {
+  edgeId: string;
+  focusDirect: boolean;
+  labeledFocusDirectIndex: number;
+}): number {
+  if (!args.focusDirect) return 0;
+  return edgeLabelOffsetPx({
+    sourcePos: null,
+    targetPos: null,
+    indexInCorridor: args.labeledFocusDirectIndex,
+    focusDirect: true,
+  }).y;
+}
+
 export function shouldShowEdgeLabel(args: {
   labelMode: "ALL" | "SELECTED_ONLY" | "HIDDEN";
   edgeKind: "DIRECT" | "INFERRED";

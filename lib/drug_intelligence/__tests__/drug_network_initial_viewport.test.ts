@@ -137,11 +137,20 @@ test("readable initial bounds contain focus and every hop-1 node", () => {
       `${node.id} must stay in the initial readable viewport`
     );
   }
-  assert.ok(viewport.zoom >= 0.55 && viewport.zoom <= 0.95, `typical 1440-class zoom should stay readable, got ${viewport.zoom.toFixed(3)}`);
+  const firstHop2 = selectReadableHopContextNodes(fitNodes).filter((node) => node.hopDistance >= 2);
+  assert.ok(firstHop2.length > 0, "readable context must include the first Hop-2 row");
+  for (const node of firstHop2) {
+    assert.equal(
+      isNodeVisibleInViewport({ node, viewport, canvasWidth: 1200, canvasHeight: 640 }),
+      true,
+      `${node.id} (first Hop-2 row) must be visible without fitting the entire Depth-2 stack`
+    );
+  }
+  assert.ok(viewport.zoom >= 0.5 && viewport.zoom <= 0.95, `typical 1440-class zoom should stay readable, got ${viewport.zoom.toFixed(3)}`);
   const fullBounds = pathNodesBounds(fitNodes)!;
   const fullViewport = getViewportForBounds(fullBounds, 1200, 640, 0.2, 1.12, 0.18);
   assert.ok(fullViewport.zoom < 0.5, "fitting every hop-2 node would still produce the tiny overview zoom");
-  assert.ok(viewport.zoom > fullViewport.zoom + 0.1, "readable fit must be meaningfully larger than full-graph fit");
+  assert.ok(viewport.zoom > fullViewport.zoom + 0.08, "readable fit must be meaningfully larger than full-graph fit");
 });
 
 test("toolbar ปรับให้พอดีหน้าจอ still fits the entire loaded graph", () => {
