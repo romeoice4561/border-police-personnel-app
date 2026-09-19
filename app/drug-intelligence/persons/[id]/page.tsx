@@ -77,6 +77,12 @@ import {
   IntelligenceSection,
   MiniTimeline,
   VerificationToneBadge,
+  VisualIntelligenceCard,
+  DiscoveryStatusBadge,
+  CaseContextChip,
+  CaseChipRow,
+  ReviewStatusRow,
+  IntelligenceCardGrid,
   compactEntityId,
 } from "@/components/drug_intelligence/drug_person_workspace_cards";
 import {
@@ -86,7 +92,6 @@ import {
 import {
   buildImportantConnections,
   explainNetworkRole,
-  explainPersonCase,
   explainPersonDevice,
   explainPersonLocation,
   explainPersonPhone,
@@ -330,7 +335,7 @@ function DrugPersonProfileContent() {
 
       <div
         role="tablist"
-        className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface p-1.5 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:scrollbar-thin"
+        className="flex flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-testid="person-profile-tabs"
       >
         {TABS.map((tab) => (
@@ -340,7 +345,7 @@ function DrugPersonProfileContent() {
             type="button"
             aria-selected={activeTab === tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors max-sm:shrink-0 ${
+            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
             }`}
           >
@@ -843,29 +848,43 @@ function NetworkRolesTab({
         {networkRoles.length === 0 ? (
           <p className="text-sm text-muted">{t("di.networkRole.empty")}</p>
         ) : (
-          <div className="space-y-3">
+          <IntelligenceCardGrid count={networkRoles.length}>
             {networkRoles.map((nr) => {
+              const roleLabel = isValidDrugNetworkRole(nr.role)
+                ? language === "th"
+                  ? DRUG_NETWORK_ROLE_LABELS[nr.role].labelTh
+                  : DRUG_NETWORK_ROLE_LABELS[nr.role].labelEn
+                : nr.role;
+              const sourceLabel =
+                nr.source && isValidDrugNetworkRoleSource(nr.source)
+                  ? language === "th"
+                    ? DRUG_NETWORK_ROLE_SOURCE_LABELS[nr.source].labelTh
+                    : DRUG_NETWORK_ROLE_SOURCE_LABELS[nr.source].labelEn
+                  : null;
+              const caseLabel = nr.sourceCaseId
+                ? caseLabelById.get(nr.sourceCaseId) ?? preferHumanCaseLabel(null, nr.sourceCaseId)
+                : null;
+              const confirmed = nr.verificationStatus === "CONFIRMED" || nr.verificationStatus === "SUPPORTED";
               const model = explainNetworkRole({
                 role: nr.role,
                 source: nr.source,
                 verificationStatus: nr.verificationStatus,
-                sourceCaseLabel: nr.sourceCaseId ? caseLabelById.get(nr.sourceCaseId) ?? preferHumanCaseLabel(null, nr.sourceCaseId) : null,
+                sourceCaseLabel: caseLabel,
                 recordedByName: nr.createdByName,
                 recordedAtLabel: formatDate(String(nr.createdAt), language),
                 note: nr.note,
                 language,
               });
               return (
-                <div key={nr.id} className="rounded-xl border border-border bg-surface p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">
-                      {isValidDrugNetworkRole(nr.role)
-                        ? language === "th"
-                          ? DRUG_NETWORK_ROLE_LABELS[nr.role].labelTh
-                          : DRUG_NETWORK_ROLE_LABELS[nr.role].labelEn
-                        : nr.role}
-                    </span>
-                    {isValidDrugNetworkRoleVerificationStatus(nr.verificationStatus) ? (
+                <VisualIntelligenceCard
+                  key={nr.id}
+                  testId="person-network-role-card"
+                  dataAttrs={{ "verification-status": nr.verificationStatus }}
+                  emphasized={confirmed}
+                  icon={<span aria-hidden="true">🔗</span>}
+                  title={roleLabel}
+                  badges={
+                    isValidDrugNetworkRoleVerificationStatus(nr.verificationStatus) ? (
                       <VerificationToneBadge
                         status={nr.verificationStatus}
                         label={
@@ -874,19 +893,49 @@ function NetworkRolesTab({
                             : DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[nr.verificationStatus].labelEn
                         }
                       />
-                    ) : null}
-                  </div>
-                  <RelationshipExplanation model={model} />
-                  {nr.note ? (
-                    <details className="mt-2 rounded-lg border border-border bg-neutral-bg/30 px-2.5 py-1.5">
+                    ) : null
+                  }
+                  summary={
+                    <div className="space-y-1.5 text-sm">
+                      {caseLabel ? (
+                        <div>
+                          <p className="text-[11px] font-medium text-muted">
+                            {confirmed ? t("di.profile.roleFoundFrom") : t("di.profile.roleReferencedFrom")}
+                          </p>
+                          <CaseChipRow className="mt-1">
+                            <CaseContextChip
+                              label={caseLabel}
+                              href={`/drug-intelligence/cases/${encodeURIComponent(nr.sourceCaseId!)}`}
+                              emphasized={confirmed}
+                            />
+                          </CaseChipRow>
+                        </div>
+                      ) : null}
+                      {sourceLabel ? (
+                        <p className="text-xs text-muted">
+                          <span className="font-medium text-foreground">{t("di.profile.roleEvidence")}: </span>
+                          {sourceLabel}
+                        </p>
+                      ) : null}
+                      {!confirmed ? <p className="text-xs text-warning">{t("di.profile.roleUnconfirmedWarn")}</p> : null}
+                      <p className="text-[11px] text-muted">
+                        {t("di.profile.recordedByLine")
+                          .replace("{name}", nr.createdByName)
+                          .replace("{date}", formatDate(String(nr.createdAt), language))}
+                      </p>
+                    </div>
+                  }
+                  action={
+                    <details className="rounded-lg border border-border bg-neutral-bg/30 px-2.5 py-1.5">
                       <summary className="cursor-pointer text-[11px] font-medium text-muted">{t("di.profile.evidenceDetails")}</summary>
-                      <p className="mt-1 whitespace-pre-wrap text-xs text-muted">{nr.note}</p>
+                      <RelationshipExplanation model={model} className="mt-2 border-0 bg-transparent p-0" />
+                      {nr.note ? <p className="mt-2 whitespace-pre-wrap text-xs text-muted">{nr.note}</p> : null}
                     </details>
-                  ) : null}
-                </div>
+                  }
+                />
               );
             })}
-          </div>
+          </IntelligenceCardGrid>
         )}
       </section>
 
@@ -895,20 +944,34 @@ function NetworkRolesTab({
         {networkMemberships.length === 0 ? (
           <p className="text-sm text-muted">{t("di.networkGroup.empty")}</p>
         ) : (
-          <div className="space-y-2">
+          <IntelligenceCardGrid count={networkMemberships.length}>
             {networkMemberships.map((m) => (
-              <div key={m.id} className="rounded-xl border border-border bg-surface p-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <p className="font-semibold text-foreground">
-                      <HumanIdLabel
-                        primary={m.networkGroupName}
-                        technicalId={m.networkGroupId}
-                        fallbackPrimary={t("di.networkGroup.unnamed")}
-                      />
-                    </p>
+              <VisualIntelligenceCard
+                key={m.id}
+                icon={<span aria-hidden="true">🕸</span>}
+                title={
+                  <HumanIdLabel
+                    primary={m.networkGroupName}
+                    technicalId={m.networkGroupId}
+                    fallbackPrimary={t("di.networkGroup.unnamed")}
+                  />
+                }
+                badges={
+                  m.status && isValidDrugNetworkRoleVerificationStatus(m.status) ? (
+                    <VerificationToneBadge
+                      status={m.status}
+                      label={
+                        language === "th"
+                          ? DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[m.status].labelTh
+                          : DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[m.status].labelEn
+                      }
+                    />
+                  ) : null
+                }
+                meta={
+                  <div className="space-y-0.5">
                     {m.source ? (
-                      <p className="text-sm text-muted">
+                      <p>
                         {t("di.networkRole.source")}:{" "}
                         {isValidDrugNetworkRoleSource(m.source)
                           ? language === "th"
@@ -917,25 +980,13 @@ function NetworkRolesTab({
                           : m.source}
                       </p>
                     ) : null}
-                    {m.status && isValidDrugNetworkRoleVerificationStatus(m.status) ? (
-                      <VerificationToneBadge
-                        status={m.status}
-                        label={
-                          language === "th"
-                            ? DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[m.status].labelTh
-                            : DRUG_NETWORK_ROLE_VERIFICATION_STATUS_LABELS[m.status].labelEn
-                        }
-                      />
-                    ) : null}
-                  </div>
-                  <div className="text-right text-xs text-muted">
                     {m.firstObservedAt ? <p>พบครั้งแรก: {formatDiDate(String(m.firstObservedAt))}</p> : null}
                     {m.lastObservedAt ? <p>พบล่าสุด: {formatDiDate(String(m.lastObservedAt))}</p> : null}
                   </div>
-                </div>
-              </div>
+                }
+              />
             ))}
-          </div>
+          </IntelligenceCardGrid>
         )}
       </section>
     </div>
@@ -991,15 +1042,10 @@ function CasesTab({
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <IntelligenceCardGrid count={sorted.length}>
       {sorted.map((link, index) => {
         const caseLabel = preferHumanCaseLabel(link.case?.caseNumber, link.caseId);
-        const model = explainPersonCase({
-          personName,
-          caseLabel,
-          role: link.role,
-          language,
-        });
+        const roleLabel = personRoleLabel(link.role, language);
         const linkedPhones = phones.filter((p) => p.cases.some((c) => c.caseId === link.caseId));
         const linkedSims = sims.filter((s) => s.cases.some((c) => c.caseId === link.caseId));
         const linkedDevices = devices.filter((d) => d.cases.some((c) => c.caseId === link.caseId));
@@ -1010,73 +1056,71 @@ function CasesTab({
           sourceCaseId,
           personIsOnCase: true,
         });
+        const summaryLine =
+          originBadge === "SOURCE"
+            ? t("di.profile.caseRoleInThisCase").replace("{role}", roleLabel)
+            : t("di.profile.caseLinkedShort");
         return (
-          <div
+          <VisualIntelligenceCard
             key={link.caseId}
-            className={`rounded-xl border bg-surface p-3 shadow-sm ${
-              originBadge === "SOURCE" ? "border-accent/50 ring-1 ring-accent/20" : "border-border"
-            }`}
-            data-testid="person-case-card"
-            data-origin-badge={originBadge ?? "none"}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                  <FolderOpen className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-                  {caseLabel}
-                </p>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  <p className="inline-flex rounded-full border border-critical/30 bg-critical/10 px-2 py-0.5 text-[11px] font-medium text-critical">
-                    {personRoleLabel(link.role, language)}
-                  </p>
-                  {originBadge === "SOURCE" ? (
-                    <p
-                      className="inline-flex rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
-                      data-testid="case-badge-source"
-                    >
-                      {t("di.profile.caseBadgeSource")}
-                    </p>
-                  ) : null}
-                  {originBadge === "LINKED" ? (
-                    <p
-                      className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-muted"
-                      data-testid="case-badge-linked"
-                    >
-                      {t("di.profile.caseBadgeLinked")}
-                    </p>
-                  ) : null}
-                  {!sourceCaseId && index === 0 ? (
-                    <p className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-accent">
-                      {t("di.profile.latestCaseBadge")}
-                    </p>
-                  ) : null}
-                </div>
+            testId="person-case-card"
+            dataAttrs={{ "origin-badge": originBadge ?? "none" }}
+            emphasized={originBadge === "SOURCE"}
+            icon={<FolderOpen className="h-4 w-4" aria-hidden="true" />}
+            title={caseLabel}
+            badges={
+              <>
+                <span className="inline-flex rounded-full border border-critical/30 bg-critical/10 px-2 py-0.5 text-[11px] font-medium text-critical">
+                  {roleLabel}
+                </span>
+                {originBadge === "SOURCE" ? (
+                  <span data-testid="case-badge-source">
+                    <DiscoveryStatusBadge kind="SOURCE" label={t("di.profile.caseBadgeSource")} />
+                  </span>
+                ) : null}
+                {originBadge === "LINKED" ? (
+                  <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-muted" data-testid="case-badge-linked">
+                    {t("di.profile.caseBadgeLinked")}
+                  </span>
+                ) : null}
+                {!sourceCaseId && index === 0 ? (
+                  <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-accent">
+                    {t("di.profile.latestCaseBadge")}
+                  </span>
+                ) : null}
+              </>
+            }
+            summary={
+              <div className="space-y-1">
+                {originBadge === "SOURCE" ? <p className="text-xs text-muted">{personName}</p> : null}
+                <p className="text-sm text-foreground">{summaryLine}</p>
               </div>
-              <DrugEntityMediaAction entityType="CASE" entityId={link.caseId} sourceCaseId={link.caseId} compact />
-            </div>
-            <RelationshipExplanation model={model} />
-            <p className="mt-2 text-xs text-muted">
-              {link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : "—"}
-              {link.case?.province ? ` · ${link.case.province}` : ""}
-            </p>
-            {linkedTotal > 0 ? (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground" data-testid="case-linked-counts">
-                <span className="text-[11px] font-semibold text-muted">{t("di.profile.linkedEntities")}</span>
-                {linkedPhones.length > 0 ? <span>📞 {linkedPhones.length}</span> : null}
-                {linkedSims.length > 0 ? <span>💳 {linkedSims.length}</span> : null}
-                {linkedDevices.length > 0 ? <span>📱 {linkedDevices.length}</span> : null}
-                {linkedVehicles.length > 0 ? <span>🚗 {linkedVehicles.length}</span> : null}
-              </div>
-            ) : null}
-            <div className="mt-3">
+            }
+            meta={
+              <>
+                {[link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : null, link.case?.province]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+                {linkedTotal > 0 ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground" data-testid="case-linked-counts">
+                    {linkedPhones.length > 0 ? <span>📞 {linkedPhones.length}</span> : null}
+                    {linkedSims.length > 0 ? <span>💳 {linkedSims.length}</span> : null}
+                    {linkedDevices.length > 0 ? <span>📱 {linkedDevices.length}</span> : null}
+                    {linkedVehicles.length > 0 ? <span>🚗 {linkedVehicles.length}</span> : null}
+                  </div>
+                ) : null}
+              </>
+            }
+            media={<DrugEntityMediaAction entityType="CASE" entityId={link.caseId} sourceCaseId={link.caseId} compact />}
+            action={
               <Link href={`/drug-intelligence/cases/${encodeURIComponent(link.caseId)}`} className="text-xs font-medium text-accent hover:underline">
                 {t("di.profile.openCase")} →
               </Link>
-            </div>
-          </div>
+            }
+          />
         );
       })}
-    </div>
+    </IntelligenceCardGrid>
   );
 }
 
@@ -1113,31 +1157,92 @@ function PhonesTab({
       discoveredCaseLabels: currentCaseId ? origin.discoveredLabels : [],
     });
     const detailHref = withReturnTo(`/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`, returnHref);
+    const repeated = origin.discoveredCount > 0;
+    const sourceOnly = Boolean(currentCaseId && origin.inSource && !repeated);
     return (
-      <div className="rounded-xl border border-border bg-surface p-3 shadow-sm" data-in-source={origin.inSource ? "true" : "false"}>
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <Phone className="h-4 w-4 text-accent" aria-hidden="true" />
-          {number}
-        </p>
-        {origin.inSource ? (
-          <p className="mt-1 text-[11px] font-medium text-accent">{t("di.profile.foundInSourceCase")}</p>
-        ) : null}
-        <RelationshipExplanation model={model} />
-        <Link href={detailHref} className="mt-2 inline-block text-xs font-medium text-accent hover:underline">
-          {t("di.profile.openDetail")} →
-        </Link>
-      </div>
+      <VisualIntelligenceCard
+        testId="person-phone-card"
+        dataAttrs={{
+          "in-source": origin.inSource ? "true" : "false",
+          repeated: repeated ? "true" : "false",
+        }}
+        emphasized={repeated}
+        icon={<Phone className="h-4 w-4" aria-hidden="true" />}
+        title={number}
+        badges={
+          <>
+            {repeated ? <DiscoveryStatusBadge kind="REPEATED" label={t("di.profile.badgeRepeated")} /> : null}
+            {sourceOnly ? <DiscoveryStatusBadge kind="SOURCE_ONLY" label={t("di.profile.badgeSourceOnly")} /> : null}
+          </>
+        }
+        summary={
+          <div className="space-y-2 text-sm">
+            {currentCaseId && origin.sourceLabels.length > 0 ? (
+              <div>
+                <p className="text-[11px] font-medium text-muted">{t("di.profile.foundInSourceCaseHeading")}</p>
+                <CaseChipRow className="mt-1">
+                  {origin.sourceLabels.map((label) => (
+                    <CaseContextChip key={`src-${label}`} label={label} emphasized />
+                  ))}
+                </CaseChipRow>
+              </div>
+            ) : null}
+            {repeated ? (
+              <div>
+                <p className="text-[11px] font-medium text-muted">
+                  {t("di.profile.foundRepeatedHeading").replace("{count}", String(origin.discoveredCount))}
+                </p>
+                <CaseChipRow className="mt-1">
+                  {phone.cases
+                    .filter((c) => c.caseId !== currentCaseId)
+                    .map((c) => (
+                      <CaseContextChip
+                        key={c.caseId}
+                        label={preferHumanCaseLabel(c.caseNumber, c.caseId)}
+                        href={`/drug-intelligence/cases/${encodeURIComponent(c.caseId)}`}
+                      />
+                    ))}
+                </CaseChipRow>
+                <p className="mt-1.5 text-xs text-accent">{t("di.profile.crossCaseInsight")}</p>
+              </div>
+            ) : null}
+            {sourceOnly ? <p className="text-xs text-muted">{t("di.profile.phoneNotRepeatedYet")}</p> : null}
+            {!currentCaseId && caseLabels.length > 0 ? (
+              <CaseChipRow>
+                {phone.cases.slice(0, 6).map((c) => (
+                  <CaseContextChip
+                    key={c.caseId}
+                    label={preferHumanCaseLabel(c.caseNumber, c.caseId)}
+                    href={`/drug-intelligence/cases/${encodeURIComponent(c.caseId)}`}
+                  />
+                ))}
+              </CaseChipRow>
+            ) : null}
+          </div>
+        }
+        action={
+          <>
+            <Link href={detailHref} className="text-xs font-medium text-accent hover:underline">
+              {t("di.profile.openDetail")} →
+            </Link>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-muted">{t("di.profile.howRelated")}</summary>
+              <RelationshipExplanation model={model} className="mt-1" />
+            </details>
+          </>
+        }
+      />
     );
   }
 
   function SimIntelligenceCard({ row }: { row: DrugPersonRelatedSim }) {
-    const simLabel = row.sim?.iccid ? presentIdentifierValue(row.sim.iccid, canViewFull) : "—";
+    const simLabel = row.sim?.iccid ? `SIM ${presentIdentifierValue(row.sim.iccid, canViewFull)}` : "SIM";
     const caseLabels = row.cases.map((c) => preferHumanCaseLabel(c.caseNumber, c.caseId));
     const origin = partitionEntityCasesByOrigin(row.cases, currentCaseId);
     const caseIdSet = new Set(row.cases.map((c) => c.caseId));
     const coAppearingPhoneLabels = phones
       .filter((p) => p.cases.some((c) => caseIdSet.has(c.caseId)))
-      .slice(0, 2)
+      .slice(0, 4)
       .map((p) => (p.phoneNumber ? presentPhoneNumber(p.phoneNumber.normalizedNumber, canViewFull) : preferHumanCaseLabel(null, p.phoneNumberId)));
     const model = explainPersonSim({
       personName,
@@ -1151,23 +1256,54 @@ function PhonesTab({
     const detailHref = row.sim
       ? withReturnTo(`/drug-intelligence/sims/${encodeURIComponent(row.sim.id)}`, returnHref)
       : null;
+    const primaryCase = origin.sourceLabels[0] ?? caseLabels[0] ?? null;
     return (
-      <div className="rounded-xl border border-border bg-surface p-3 shadow-sm" data-in-source={origin.inSource ? "true" : "false"}>
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <Smartphone className="h-4 w-4 text-accent" aria-hidden="true" />
-          {simLabel}
-        </p>
-        {row.sim?.carrier ? <p className="mt-1 text-xs text-muted">{row.sim.carrier}</p> : null}
-        {origin.inSource ? (
-          <p className="mt-1 text-[11px] font-medium text-accent">{t("di.profile.foundInSourceCase")}</p>
-        ) : null}
-        <RelationshipExplanation model={model} />
-        {detailHref ? (
-          <Link href={detailHref} className="mt-2 inline-block text-xs font-medium text-accent hover:underline">
-            {t("di.profile.openDetail")} →
-          </Link>
-        ) : null}
-      </div>
+      <VisualIntelligenceCard
+        testId="person-sim-card"
+        dataAttrs={{ "in-source": origin.inSource ? "true" : "false" }}
+        icon={<span aria-hidden="true">💳</span>}
+        title={simLabel}
+        badges={
+          origin.discoveredCount > 0 ? <DiscoveryStatusBadge kind="REPEATED" label={t("di.profile.badgeRepeated")} /> : null
+        }
+        summary={
+          <div className="space-y-2 text-sm">
+            <p className="text-xs text-muted">{t("di.profile.relatedToThisPerson")}</p>
+            {primaryCase ? (
+              <CaseChipRow>
+                <CaseContextChip
+                  label={t("di.profile.foundInCaseChip").replace("{case}", primaryCase)}
+                  emphasized={origin.inSource}
+                />
+              </CaseChipRow>
+            ) : null}
+            {coAppearingPhoneLabels.length > 0 ? (
+              <div>
+                <p className="text-[11px] font-medium text-muted">{t("di.profile.coAppearingNumbers")}</p>
+                <ul className="mt-1 space-y-0.5 text-xs text-foreground">
+                  {coAppearingPhoneLabels.map((phone) => (
+                    <li key={phone}>📞 {phone}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {row.sim?.carrier ? <p className="text-xs text-muted">{row.sim.carrier}</p> : null}
+          </div>
+        }
+        action={
+          <>
+            {detailHref ? (
+              <Link href={detailHref} className="text-xs font-medium text-accent hover:underline">
+                {t("di.profile.openDetail")} →
+              </Link>
+            ) : null}
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-muted">{t("di.profile.howRelated")}</summary>
+              <RelationshipExplanation model={model} className="mt-1" />
+            </details>
+          </>
+        }
+      />
     );
   }
 
@@ -1177,13 +1313,13 @@ function PhonesTab({
         {phones.length > 0 ? (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-foreground">{t("di.profile.relatedPhones")}</h2>
-            <div className="grid gap-3 sm:grid-cols-2">{phones.map((phone) => <PhoneIntelligenceCard key={phone.phoneNumberId} phone={phone} />)}</div>
+            <IntelligenceCardGrid count={phones.length}>{phones.map((phone) => <PhoneIntelligenceCard key={phone.phoneNumberId} phone={phone} />)}</IntelligenceCardGrid>
           </div>
         ) : null}
         {sims.length > 0 ? (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-foreground">{t("di.profile.relatedSims")}</h2>
-            <div className="grid gap-3 sm:grid-cols-2">{sims.map((row) => <SimIntelligenceCard key={row.simId} row={row} />)}</div>
+            <IntelligenceCardGrid count={sims.length}>{sims.map((row) => <SimIntelligenceCard key={row.simId} row={row} />)}</IntelligenceCardGrid>
           </div>
         ) : null}
       </div>
@@ -1209,11 +1345,11 @@ function PhonesTab({
           {phoneSplit.inCurrentCase.length === 0 ? (
             <p className="text-sm text-muted">{t("di.profile.noneInThisCase")}</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <IntelligenceCardGrid count={phoneSplit.inCurrentCase.length}>
               {phoneSplit.inCurrentCase.map((item) => (
                 <PhoneIntelligenceCard key={item.id} phone={item.phone} />
               ))}
-            </div>
+            </IntelligenceCardGrid>
           )}
         </div>
         <div className="space-y-2">
@@ -1221,11 +1357,11 @@ function PhonesTab({
           {simSplit.inCurrentCase.length === 0 ? (
             <p className="text-sm text-muted">{t("di.profile.noneInThisCase")}</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <IntelligenceCardGrid count={simSplit.inCurrentCase.length}>
               {simSplit.inCurrentCase.map((item) => (
                 <SimIntelligenceCard key={item.id} row={item.row} />
               ))}
-            </div>
+            </IntelligenceCardGrid>
           )}
         </div>
       </section>
@@ -1237,11 +1373,11 @@ function PhonesTab({
           {phoneSplit.inOtherCases.length === 0 ? (
             <p className="text-sm text-muted">{t("di.profile.noneFromOtherCases")}</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <IntelligenceCardGrid count={phoneSplit.inOtherCases.length}>
               {phoneSplit.inOtherCases.map((item) => (
                 <PhoneIntelligenceCard key={item.id} phone={item.phone} />
               ))}
-            </div>
+            </IntelligenceCardGrid>
           )}
         </div>
         <div className="space-y-2">
@@ -1249,11 +1385,11 @@ function PhonesTab({
           {simSplit.inOtherCases.length === 0 ? (
             <p className="text-sm text-muted">{t("di.profile.noneFromOtherCases")}</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <IntelligenceCardGrid count={simSplit.inOtherCases.length}>
               {simSplit.inOtherCases.map((item) => (
                 <SimIntelligenceCard key={item.id} row={item.row} />
               ))}
-            </div>
+            </IntelligenceCardGrid>
           )}
         </div>
       </section>
@@ -1285,7 +1421,7 @@ function DevicesTab({
           {t("di.profile.sourceCaseLabel")}: <span className="font-medium text-accent">{currentCaseNumber || compactEntityId(currentCaseId)}</span>
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <IntelligenceCardGrid count={devices.length}>
         {devices.map((d) => {
           const deviceLabel = [d.device?.brand, d.device?.model].filter(Boolean).join(" ") || t("di.profile.kpiDevices");
           const caseLabels = d.cases.map((c) => preferHumanCaseLabel(c.caseNumber, c.caseId));
@@ -1298,34 +1434,56 @@ function DevicesTab({
             sourceCaseLabels: currentCaseId ? origin.sourceLabels : [],
             discoveredCaseLabels: currentCaseId ? origin.discoveredLabels : [],
           });
+          const primaryCase = origin.sourceLabels[0] ?? caseLabels[0] ?? null;
           return (
-            <div key={d.deviceId} className="rounded-xl border border-border bg-surface p-3" data-in-source={origin.inSource ? "true" : "false"}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                    <Smartphone className="h-4 w-4 text-accent" aria-hidden="true" />
-                    {deviceLabel}
+            <VisualIntelligenceCard
+              key={d.deviceId}
+              testId="person-device-card"
+              dataAttrs={{ "in-source": origin.inSource ? "true" : "false" }}
+              icon={<Smartphone className="h-4 w-4" aria-hidden="true" />}
+              title={deviceLabel}
+              badges={
+                origin.discoveredCount > 0 ? <DiscoveryStatusBadge kind="REPEATED" label={t("di.profile.badgeRepeated")} /> : null
+              }
+              summary={
+                <div className="space-y-1.5 text-sm">
+                  {d.device?.imei1 ? (
+                    <p className="font-mono text-xs text-muted">
+                      IMEI {presentIdentifierValue(d.device.imei1, canViewFull)}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted">
+                    {t("di.profile.deviceRelatedShort")}: 👤 {personName}
                   </p>
-                  <p className="mt-1 font-mono text-xs text-muted">
-                    {d.device?.imei1 ? presentIdentifierValue(d.device.imei1, canViewFull) : t("di.profile.relationAssociated")}
-                  </p>
-                  {origin.inSource ? (
-                    <p className="mt-1 text-[11px] font-medium text-accent">{t("di.profile.foundInSourceCase")}</p>
+                  {primaryCase ? (
+                    <CaseChipRow>
+                      <CaseContextChip
+                        label={t("di.profile.foundInCaseChip").replace("{case}", primaryCase)}
+                        emphasized={origin.inSource}
+                      />
+                    </CaseChipRow>
                   ) : null}
                 </div>
-                <DrugEntityMediaAction entityType="DEVICE" entityId={d.deviceId} compact />
-              </div>
-              <RelationshipExplanation model={model} />
-              <Link
-                href={withReturnTo(`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`, returnHref)}
-                className="mt-2 inline-block text-xs font-medium text-accent hover:underline"
-              >
-                {t("di.profile.openDetail")} →
-              </Link>
-            </div>
+              }
+              media={<DrugEntityMediaAction entityType="DEVICE" entityId={d.deviceId} compact />}
+              action={
+                <>
+                  <Link
+                    href={withReturnTo(`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`, returnHref)}
+                    className="text-xs font-medium text-accent hover:underline"
+                  >
+                    {t("di.profile.openDetail")} →
+                  </Link>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] text-muted">{t("di.profile.howRelated")}</summary>
+                    <RelationshipExplanation model={model} className="mt-1" />
+                  </details>
+                </>
+              }
+            />
           );
         })}
-      </div>
+      </IntelligenceCardGrid>
     </div>
   );
 }
@@ -1352,7 +1510,7 @@ function VehiclesTab({
           {t("di.profile.sourceCaseLabel")}: <span className="font-medium text-accent">{currentCaseNumber || compactEntityId(currentCaseId)}</span>
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <IntelligenceCardGrid count={vehicles.length}>
         {vehicles.map((v) => {
           const vehicleLabel = v.vehicle?.registrationNumber || t("di.profile.kpiVehicles");
           const caseLabels = v.cases.map((c) => preferHumanCaseLabel(c.caseNumber, c.caseId));
@@ -1365,34 +1523,51 @@ function VehiclesTab({
             sourceCaseLabels: currentCaseId ? origin.sourceLabels : [],
             discoveredCaseLabels: currentCaseId ? origin.discoveredLabels : [],
           });
+          const attrs = [v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color, v.vehicle?.registrationProvince].filter(Boolean).join(" · ");
+          const primaryCase = origin.sourceLabels[0] ?? caseLabels[0] ?? null;
           return (
-            <div key={v.vehicleId} className="rounded-xl border border-border bg-surface p-3" data-in-source={origin.inSource ? "true" : "false"}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                    <Car className="h-4 w-4 text-accent" aria-hidden="true" />
-                    {vehicleLabel}
-                  </p>
-                  <p className="mt-1 text-sm text-muted">
-                    {[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || t("di.profile.relationAssociated")}
-                  </p>
-                  {origin.inSource ? (
-                    <p className="mt-1 text-[11px] font-medium text-accent">{t("di.profile.foundInSourceCase")}</p>
+            <VisualIntelligenceCard
+              key={v.vehicleId}
+              testId="person-vehicle-card"
+              dataAttrs={{ "in-source": origin.inSource ? "true" : "false" }}
+              icon={<Car className="h-4 w-4" aria-hidden="true" />}
+              title={vehicleLabel}
+              badges={
+                origin.discoveredCount > 0 ? <DiscoveryStatusBadge kind="REPEATED" label={t("di.profile.badgeRepeated")} /> : null
+              }
+              summary={
+                <div className="space-y-1.5 text-sm">
+                  <p className="text-xs text-muted">{t("di.profile.vehicleRelatedShort")}</p>
+                  {primaryCase ? (
+                    <CaseChipRow>
+                      <CaseContextChip
+                        label={t("di.profile.foundInCaseChip").replace("{case}", primaryCase)}
+                        emphasized={origin.inSource}
+                      />
+                    </CaseChipRow>
                   ) : null}
+                  {attrs ? <p className="text-xs text-muted">{attrs}</p> : null}
                 </div>
-                <DrugEntityMediaAction entityType="VEHICLE" entityId={v.vehicleId} compact />
-              </div>
-              <RelationshipExplanation model={model} />
-              <Link
-                href={withReturnTo(`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`, returnHref)}
-                className="mt-2 inline-block text-xs font-medium text-accent hover:underline"
-              >
-                {t("di.profile.openDetail")} →
-              </Link>
-            </div>
+              }
+              media={<DrugEntityMediaAction entityType="VEHICLE" entityId={v.vehicleId} compact />}
+              action={
+                <>
+                  <Link
+                    href={withReturnTo(`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`, returnHref)}
+                    className="text-xs font-medium text-accent hover:underline"
+                  >
+                    {t("di.profile.openDetail")} →
+                  </Link>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] text-muted">{t("di.profile.howRelated")}</summary>
+                    <RelationshipExplanation model={model} className="mt-1" />
+                  </details>
+                </>
+              }
+            />
           );
         })}
-      </div>
+      </IntelligenceCardGrid>
     </div>
   );
 }
@@ -1420,7 +1595,7 @@ function LocationsTab({
           {t("di.profile.sourceCaseLabel")}: <span className="font-medium text-accent">{currentCaseNumber || compactEntityId(currentCaseId)}</span>
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <IntelligenceCardGrid count={locations.length}>
         {locations.map((loc) => {
           const locationLabel = loc.location?.name || loc.location?.addressText || t("di.profile.relatedEntityFallback");
           const caseLabels = loc.cases.map((c) => preferHumanCaseLabel(c.caseNumber, c.caseId));
@@ -1434,34 +1609,59 @@ function LocationsTab({
             sourceCaseLabels: currentCaseId ? origin.sourceLabels : [],
             discoveredCaseLabels: currentCaseId ? origin.discoveredLabels : [],
           });
+          const placeLine = [loc.location?.district, loc.location?.province].filter(Boolean).join(" · ");
+          const primaryCase = origin.sourceLabels[0] ?? caseLabels[0] ?? null;
+          const caseCountLabel =
+            origin.discoveredCount > 0 || (!currentCaseId && caseLabels.length > 1)
+              ? t("di.profile.foundInCases").replace("{count}", String(caseLabels.length))
+              : t("di.profile.locationOnlyInSource");
           return (
-            <div key={loc.locationId} className="rounded-xl border border-border bg-surface p-3" data-in-source={origin.inSource ? "true" : "false"}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                    <MapPin className="h-4 w-4 text-accent" aria-hidden="true" />
-                    {locationLabel}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {[loc.role ? locationRoleLabel(loc.role, language) : null, loc.location?.province].filter(Boolean).join(" · ")}
-                  </p>
-                  {origin.inSource ? (
-                    <p className="mt-1 text-[11px] font-medium text-accent">{t("di.profile.foundInSourceCase")}</p>
+            <VisualIntelligenceCard
+              key={loc.locationId}
+              testId="person-location-card"
+              dataAttrs={{ "in-source": origin.inSource ? "true" : "false" }}
+              icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
+              title={locationLabel}
+              badges={
+                loc.role ? (
+                  <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] text-muted">
+                    {locationRoleLabel(loc.role, language)}
+                  </span>
+                ) : null
+              }
+              summary={
+                <div className="space-y-1.5 text-sm">
+                  {placeLine ? <p className="text-xs text-muted">{placeLine}</p> : null}
+                  {primaryCase ? (
+                    <div>
+                      <p className="text-[11px] font-medium text-muted">{t("di.profile.relatedViaCase")}</p>
+                      <CaseChipRow className="mt-1">
+                        <CaseContextChip label={primaryCase} emphasized={origin.inSource} />
+                      </CaseChipRow>
+                    </div>
                   ) : null}
+                  <p className="text-xs text-muted">{caseCountLabel}</p>
                 </div>
-                <DrugEntityMediaAction entityType="LOCATION" entityId={loc.locationId} compact />
-              </div>
-              <RelationshipExplanation model={model} />
-              <Link
-                href={`/drug-intelligence/map?locationId=${encodeURIComponent(loc.locationId)}`}
-                className="mt-2 inline-block text-xs font-medium text-accent hover:underline"
-              >
-                {t("di.profile.viewOnMap")}
-              </Link>
-            </div>
+              }
+              media={<DrugEntityMediaAction entityType="LOCATION" entityId={loc.locationId} compact />}
+              action={
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href={`/drug-intelligence/map?locationId=${encodeURIComponent(loc.locationId)}`}
+                    className="text-xs font-medium text-accent hover:underline"
+                  >
+                    {t("di.profile.viewOnMap")} →
+                  </Link>
+                  <details>
+                    <summary className="cursor-pointer text-[11px] text-muted">{t("di.profile.openDetail")}</summary>
+                    <RelationshipExplanation model={model} className="mt-1" />
+                  </details>
+                </div>
+              }
+            />
           );
         })}
-      </div>
+      </IntelligenceCardGrid>
     </div>
   );
 }
@@ -1511,7 +1711,43 @@ function IdentityTab({
   const identifierTypeOptions = DRUG_PERSON_IDENTIFIER_TYPES.map((tType) => ({ value: tType, label: identifierTypeLabel(tType, language) }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
+      <IntelligenceSection
+        title={t("di.profile.identityVerifiedHeading")}
+        icon={<IdCard className="h-4 w-4 text-accent" aria-hidden="true" />}
+      >
+        <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 text-sm">
+          <dt className="text-muted">{t("di.person.fullName")}</dt>
+          <dd className="font-medium text-foreground">{data.person.primaryFullName}</dd>
+          {(data.person as { nickname?: string | null }).nickname ? (
+            <>
+              <dt className="text-muted">{t("di.profile.overviewNickname")}</dt>
+              <dd className="text-foreground">{(data.person as { nickname?: string | null }).nickname}</dd>
+            </>
+          ) : null}
+          {data.person.dateOfBirth ? (
+            <>
+              <dt className="text-muted">{t("di.person.dateOfBirth")}</dt>
+              <dd className="flex flex-wrap items-center gap-2 text-foreground">
+                {formatDate(data.person.dateOfBirth as string, language)}
+                {conflictingDob ? (
+                  <VerificationToneBadge status="SUPPORTED" label={t("di.profile.verificationConflict")} />
+                ) : (
+                  <VerificationToneBadge status="CONFIRMED" label={t("di.profile.verificationConfirmed")} />
+                )}
+              </dd>
+            </>
+          ) : null}
+          {data.person.nationality ? (
+            <>
+              <dt className="text-muted">{t("di.person.nationality")}</dt>
+              <dd className="text-foreground">{data.person.nationality}</dd>
+            </>
+          ) : null}
+        </dl>
+      </IntelligenceSection>
+
+      <div className="grid gap-4 lg:grid-cols-2">
       <IntelligenceSection
         title={t("di.person.aliases")}
         icon={<IdCard className="h-4 w-4 text-accent" aria-hidden="true" />}
@@ -1558,7 +1794,7 @@ function IdentityTab({
       </IntelligenceSection>
 
       <IntelligenceSection
-        title={t("di.person.drawer.identifiers")}
+        title={t("di.profile.identityDocumentsHeading")}
         icon={<IdCard className="h-4 w-4 text-accent" aria-hidden="true" />}
         action={
           canEdit ? (
@@ -1588,19 +1824,6 @@ function IdentityTab({
             ))}
           </ul>
         )}
-        {data.person.dateOfBirth || conflictingDob ? (
-          <div className="mt-2 rounded-lg border border-border bg-neutral-bg/40 px-2.5 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted">{t("di.person.dateOfBirth")}</p>
-              {conflictingDob ? (
-                <VerificationToneBadge status="SUPPORTED" label={t("di.profile.verificationConflict")} />
-              ) : data.person.dateOfBirth ? (
-                <VerificationToneBadge status="CONFIRMED" label={t("di.profile.verificationConfirmed")} />
-              ) : null}
-            </div>
-            <p className="mt-1 text-sm text-foreground">{data.person.dateOfBirth ? formatDate(data.person.dateOfBirth as string, language) : "—"}</p>
-          </div>
-        ) : null}
         {addingIdentifier ? (
           <div className="space-y-2 border-t border-border pt-3">
             <Field label={t("di.person.identifierType")}>
@@ -1639,6 +1862,7 @@ function IdentityTab({
           </div>
         ) : null}
       </IntelligenceSection>
+      </div>
     </div>
   );
 }
@@ -1672,7 +1896,36 @@ function ReviewTab({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <IntelligenceSection title={t("di.profile.dataQualityTitle")} icon={<ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />}>
-        <ul className="space-y-2">
+        <ul className="space-y-2" data-testid="person-review-status-list">
+          <ReviewStatusRow
+            tone={hasName && hasPortrait ? "good" : "question"}
+            label={t("di.profile.reviewBasicsOk")}
+            detail={[hasName ? t("di.person.fullName") : null, hasPortrait ? t("di.media.title") : null].filter(Boolean).join(" · ") || t("di.profile.verificationPending")}
+          />
+          <ReviewStatusRow
+            tone={hasIdentifier ? "good" : "question"}
+            label={t("di.profile.reviewCaseLinksOk")}
+            detail={hasIdentifier ? t("di.person.drawer.identifiers") : t("di.profile.dqNoIdentifier")}
+          />
+          {dataQuality.length > 0 ? (
+            <ReviewStatusRow
+              tone="warn"
+              label={t("di.profile.reviewNeedsAttention")}
+              detail={t("di.profile.dataQualityTitle")}
+            />
+          ) : null}
+          {checklist.some((item) => !item.ok || item.warn) ? (
+            <ReviewStatusRow
+              tone="question"
+              label={t("di.profile.reviewUnverified")}
+              detail={checklist
+                .filter((item) => !item.ok || item.warn)
+                .map((item) => item.label)
+                .join(" · ")}
+            />
+          ) : null}
+        </ul>
+        <ul className="mt-3 space-y-2 border-t border-border pt-3">
           {checklist.map((item) => (
             <li key={item.label} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-neutral-bg/40 px-2.5 py-2 text-sm">
               <span className="text-foreground">{item.label}</span>

@@ -198,13 +198,14 @@ test("human-readable IDs preferred over raw UUID narrative", () => {
   assert.match(preferHumanCaseLabel(null, "04d2ac30-976a-460d-b77d-31e74153e59f"), /04d2ac30…e59f/);
 });
 
-test("Person page wires relationship explanation + wrap tabs + case counts", () => {
+test("Person page wires relationship explanation + scroll tabs + case counts", () => {
   const page = readFileSync(join(ROOT, "app/drug-intelligence/persons/[id]/page.tsx"), "utf8");
   assert.match(page, /RelationshipExplanation/);
   assert.match(page, /ImportantConnections/);
-  assert.match(page, /flex-wrap/);
+  assert.match(page, /flex-nowrap/);
+  assert.match(page, /overflow-x-auto rounded-xl border border-border bg-surface p-1\.5/);
   assert.match(page, /case-linked-counts/);
-  assert.doesNotMatch(page, /overflow-x-auto rounded-xl border border-border bg-surface p-1\.5/);
+  assert.doesNotMatch(page, /role="tablist"[\s\S]*?flex-wrap gap-1 overflow-x-auto/);
 });
 
 test("visual chain UI avoids duplicate headline when path exists", () => {

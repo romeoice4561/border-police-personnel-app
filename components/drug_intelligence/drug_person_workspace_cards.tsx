@@ -6,7 +6,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CheckCircle2, CircleHelp, AlertTriangle, Copy } from "lucide-react";
+import { CheckCircle2, CircleHelp, AlertTriangle, Copy, Repeat2, Crosshair } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/ui/cn";
 
@@ -89,6 +89,77 @@ export function VerificationToneBadge({
   );
 }
 
+/** Discovery / origin status chip for entity cards (presentation only). */
+export function DiscoveryStatusBadge({
+  kind,
+  label,
+}: {
+  kind: "REPEATED" | "SOURCE_ONLY" | "SOURCE" | "LINKED" | "NEUTRAL";
+  label: string;
+}) {
+  const tone =
+    kind === "REPEATED"
+      ? "border-accent/40 bg-accent/10 text-accent"
+      : kind === "SOURCE" || kind === "SOURCE_ONLY"
+        ? "border-accent/40 bg-accent/10 text-accent"
+        : kind === "LINKED"
+          ? "border-border bg-neutral-bg text-muted"
+          : "border-border bg-neutral-bg text-muted";
+  const Icon = kind === "REPEATED" ? Repeat2 : kind === "SOURCE" || kind === "SOURCE_ONLY" ? Crosshair : null;
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", tone)}
+      data-testid="discovery-status-badge"
+      data-kind={kind}
+    >
+      {Icon ? <Icon className="h-3 w-3" aria-hidden="true" /> : null}
+      {label}
+    </span>
+  );
+}
+
+/** Compact case chip — human case number preferred; never promotes raw UUID. */
+export function CaseContextChip({
+  label,
+  href,
+  emphasized,
+}: {
+  label: string;
+  href?: string | null;
+  emphasized?: boolean;
+}) {
+  const className = cn(
+    "inline-flex max-w-full items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium",
+    emphasized ? "border-accent/40 bg-accent/10 text-accent" : "border-border bg-surface text-foreground",
+  );
+  const content = (
+    <>
+      <span aria-hidden="true">📁</span>
+      <span className="truncate">{label}</span>
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className={cn(className, "hover:underline")} data-testid="case-context-chip">
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <span className={className} data-testid="case-context-chip">
+      {content}
+    </span>
+  );
+}
+
+export function CaseChipRow({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex flex-wrap gap-1.5", className)} data-testid="case-chip-row">
+      {children}
+    </div>
+  );
+}
+
 export function HumanIdLabel({
   primary,
   technicalId,
@@ -158,6 +229,70 @@ export function MiniTimeline({
   );
 }
 
+/**
+ * Compact Visual Intelligence card shell.
+ * Meaning-first layout: identity → badges → summary → chips → action.
+ */
+export function VisualIntelligenceCard({
+  icon,
+  title,
+  badges,
+  summary,
+  chips,
+  meta,
+  media,
+  action,
+  emphasized,
+  className,
+  testId,
+  dataAttrs,
+}: {
+  icon?: ReactNode;
+  title: ReactNode;
+  badges?: ReactNode;
+  summary?: ReactNode;
+  chips?: ReactNode;
+  meta?: ReactNode;
+  media?: ReactNode;
+  action?: ReactNode;
+  emphasized?: boolean;
+  className?: string;
+  testId?: string;
+  dataAttrs?: Record<string, string | undefined>;
+}) {
+  return (
+    <article
+      className={cn(
+        "rounded-xl border bg-surface p-3 shadow-sm",
+        emphasized ? "border-accent/50 ring-1 ring-accent/20" : "border-border",
+        className,
+      )}
+      data-testid={testId ?? "visual-intelligence-card"}
+      {...Object.fromEntries(
+        Object.entries(dataAttrs ?? {})
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k.startsWith("data-") ? k : `data-${k}`, v]),
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {icon ? <span className="shrink-0 text-accent">{icon}</span> : null}
+            <div className="min-w-0 text-sm font-semibold text-foreground">{title}</div>
+          </div>
+          {badges ? <div className="flex flex-wrap gap-1">{badges}</div> : null}
+          {summary ? <div className="text-sm text-foreground">{summary}</div> : null}
+          {chips}
+          {meta ? <div className="text-xs text-muted">{meta}</div> : null}
+          {action ? <div className="pt-1">{action}</div> : null}
+        </div>
+        {media ? <div className="shrink-0">{media}</div> : null}
+      </div>
+    </article>
+  );
+}
+
+/** @deprecated Prefer VisualIntelligenceCard — kept for residual callers. */
 export function EntityIntelligenceCard({
   href,
   title,
@@ -176,23 +311,74 @@ export function EntityIntelligenceCard({
   media?: ReactNode;
 }) {
   const body = (
-    <article className="flex gap-3 rounded-xl border border-border bg-surface p-3 shadow-sm transition-colors hover:border-accent/40">
-      {media}
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">{title}</div>
-          {badge}
-        </div>
-        {subtitle ? <div className="text-sm text-muted">{subtitle}</div> : null}
-        {meta ? <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">{meta}</div> : null}
-        {footer}
-      </div>
-    </article>
+    <VisualIntelligenceCard title={title} badges={badge} summary={subtitle} meta={meta} media={media} action={footer} />
   );
   if (!href) return body;
   return (
     <Link href={href} className="block">
       {body}
     </Link>
+  );
+}
+
+export function ReviewStatusRow({
+  tone,
+  label,
+  detail,
+  action,
+}: {
+  tone: "good" | "warn" | "neutral" | "question";
+  label: string;
+  detail?: string;
+  action?: ReactNode;
+}) {
+  const mark = tone === "good" ? "✓" : tone === "warn" ? "⚠" : tone === "question" ? "?" : "·";
+  const color =
+    tone === "good" ? "text-good" : tone === "warn" ? "text-warning" : tone === "question" ? "text-muted" : "text-foreground";
+  return (
+    <li
+      className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2"
+      data-testid="review-status-row"
+      data-tone={tone}
+    >
+      <div className="min-w-0">
+        <p className={cn("text-sm font-medium", color)}>
+          <span className="mr-1.5" aria-hidden="true">
+            {mark}
+          </span>
+          {label}
+        </p>
+        {detail ? <p className="mt-0.5 text-xs text-muted">{detail}</p> : null}
+      </div>
+      {action}
+    </li>
+  );
+}
+
+/**
+ * Responsive card grid: one card stays ~60–70% width; 2+ use multi-column.
+ * Avoids huge empty half-pages for single-entity tabs.
+ */
+export function IntelligenceCardGrid({
+  count,
+  children,
+  className,
+}: {
+  count: number;
+  children: ReactNode;
+  className?: string;
+}) {
+  if (count <= 0) return null;
+  if (count === 1) {
+    return (
+      <div className={cn("w-full max-w-[min(100%,42rem)] sm:max-w-[70%]", className)} data-testid="intelligence-card-grid" data-count="1">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className={cn("grid gap-3 sm:grid-cols-2", className)} data-testid="intelligence-card-grid" data-count={String(count)}>
+      {children}
+    </div>
   );
 }

@@ -13,8 +13,11 @@ const ROOT = process.cwd();
 test("Person Media gallery renders a compact thumbnail strip", () => {
   const src = readFileSync(join(ROOT, "components/drug_intelligence/drug_entity_media_gallery.tsx"), "utf8");
   assert.match(src, /data-testid="drug-entity-media-strip"/);
-  assert.match(src, /h-\[84px\] w-\[84px\]/);
+  assert.match(src, /h-\[76px\] w-\[76px\]/);
+  assert.match(src, /overflow-x-auto/);
+  assert.match(src, /\[scrollbar-width:none\]/);
   assert.doesNotMatch(src, /w-\[9\.5rem\]/);
+  assert.doesNotMatch(src, /h-\[84px\]/);
 });
 
 test("contextual Entity Media action supports CASE/DEVICE/VEHICLE/LOCATION/PERSON only", () => {
@@ -49,7 +52,10 @@ test("Person workspace page wires investigation story and media actions", () => 
   assert.match(page, /VerificationToneBadge/);
   assert.match(page, /RelationshipExplanation/);
   assert.match(page, /ImportantConnections/);
-  assert.match(page, /flex-wrap/);
+  assert.match(page, /VisualIntelligenceCard/);
+  assert.match(page, /DiscoveryStatusBadge/);
+  assert.match(page, /IntelligenceCardGrid/);
+  assert.match(page, /flex-nowrap/);
   assert.doesNotMatch(page, /labelYOffset/);
   assert.doesNotMatch(page, /di\.profile\.knowAtGlance/);
 });
@@ -58,4 +64,29 @@ test("analyst notes stay visually distinct from verified evidence", () => {
   const src = readFileSync(join(ROOT, "components/drug_intelligence/drug_analyst_note_card.tsx"), "utf8");
   assert.match(src, /data-note-kind="analyst-observation"/);
   assert.match(src, /border-dashed/);
+});
+
+test("tab bar stays single-line with horizontal scroll", () => {
+  const page = readFileSync(join(ROOT, "app/drug-intelligence/persons/[id]/page.tsx"), "utf8");
+  assert.match(page, /data-testid="person-profile-tabs"/);
+  assert.match(page, /flex flex-nowrap gap-1 overflow-x-auto/);
+  assert.match(page, /shrink-0 whitespace-nowrap/);
+  assert.match(page, /\[scrollbar-width:none\]/);
+});
+
+test("low-count IntelligenceCardGrid uses capped single-card width", () => {
+  const cards = readFileSync(join(ROOT, "components/drug_intelligence/drug_person_workspace_cards.tsx"), "utf8");
+  assert.match(cards, /export function IntelligenceCardGrid/);
+  assert.match(cards, /max-w-\[min\(100%,42rem\)\] sm:max-w-\[70%\]/);
+  assert.match(cards, /data-testid="intelligence-card-grid"/);
+  assert.match(cards, /count === 1/);
+  assert.match(cards, /sm:grid-cols-2/);
+});
+
+test("Overview roles section is content-driven for low counts", () => {
+  const src = readFileSync(join(ROOT, "components/drug_intelligence/drug_person_relationship_explanation.tsx"), "utf8");
+  assert.match(src, /data-testid="important-connections-grid"/);
+  assert.match(src, /w-fit max-w-full/);
+  assert.match(src, /items\.length === 1/);
+  assert.match(src, /rolesFoundHeading/);
 });

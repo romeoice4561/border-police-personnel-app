@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, ImagePlus, Plus, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import {
@@ -94,80 +93,25 @@ export function DrugEntityMediaGallery({
   const viewer = viewerIndex != null ? items[viewerIndex] ?? null : null;
 
   return (
-    <section id="media" className="space-y-2" data-testid="drug-entity-media">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
+    <section id="media" className="space-y-1.5" data-testid="drug-entity-media">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0 flex items-baseline gap-2">
           <h2 className="text-sm font-semibold text-foreground">{t("di.media.title")}</h2>
           <p className="text-xs text-muted">{t("di.media.count").replace("{count}", String(items.length))}</p>
         </div>
-        {canEdit ? (
-          <details className="relative">
-            <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-foreground shadow-sm marker:content-none [&::-webkit-details-marker]:hidden">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {t("di.media.add")}
-            </summary>
-            <div className="absolute right-0 z-20 mt-1 w-56 space-y-2 rounded-lg border border-border bg-surface p-2 shadow-lg">
-              <label className="block text-[11px] font-medium text-muted" htmlFor={`media-category-${entityId}`}>
-                {t("di.media.category")}
-              </label>
-              <select
-                id={`media-category-${entityId}`}
-                className="h-9 w-full rounded-lg border border-border bg-neutral-bg px-2 text-xs text-foreground"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                aria-label={t("di.media.category")}
-              >
-                {categories.map((value) => (
-                  <option key={value} value={value}>
-                    {t((ENTITY_MEDIA_CATEGORY_KEY[value] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
-                  </option>
-                ))}
-              </select>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm text-foreground hover:bg-neutral-bg">
-                <ImagePlus className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {t("di.media.chooseFile")}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  multiple
-                  className="sr-only"
-                  onChange={(event) => {
-                    void onFiles(event.target.files);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm text-foreground hover:bg-neutral-bg">
-                <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {t("di.media.camera")}
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  onChange={(event) => {
-                    void onFiles(event.target.files);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
-            </div>
-          </details>
-        ) : null}
+        {progress ? <p className="text-xs text-muted">{progress}</p> : null}
+        {error ? <p className="text-xs text-critical">{error}</p> : null}
       </div>
 
-      {progress ? <p className="text-xs text-muted">{progress}</p> : null}
-      {error ? <p className="text-xs text-critical">{error}</p> : null}
-
-      {items.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border bg-surface px-3 py-2 text-sm text-muted">{t("di.media.empty")}</p>
+      {items.length === 0 && !canEdit ? (
+        <p className="rounded-lg border border-dashed border-border bg-surface px-2.5 py-1.5 text-xs text-muted">{t("di.media.empty")}</p>
       ) : (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1" data-testid="drug-entity-media-strip">
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="drug-entity-media-strip">
           {items.slice(0, 8).map((item, index) => (
-            <div key={item.id} className="relative shrink-0">
+            <div key={item.id} className="group relative shrink-0">
               <button
                 type="button"
-                className="relative block h-[84px] w-[84px] overflow-hidden rounded-lg border border-border bg-neutral-bg shadow-sm"
+                className="relative block h-[76px] w-[76px] overflow-hidden rounded-lg border border-border bg-neutral-bg shadow-sm"
                 onClick={() => setViewerIndex(index)}
                 aria-label={t((ENTITY_MEDIA_CATEGORY_KEY[item.category] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
               >
@@ -187,13 +131,13 @@ export function DrugEntityMediaGallery({
                 ) : null}
               </button>
               {canEdit ? (
-                <div className="mt-1 flex justify-center gap-0.5">
+                <div className="absolute bottom-1 right-1 flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                   {!item.isPrimary ? (
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-1 text-[10px]"
+                      className="h-6 w-6 rounded-md bg-surface/90 p-0 text-[10px] shadow-sm"
                       onClick={() => update.mutate({ mediaId: item.id, entityType, entityId, isPrimary: true })}
                       aria-label={t("di.media.setPrimary")}
                     >
@@ -204,7 +148,7 @@ export function DrugEntityMediaGallery({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-1 text-[10px]"
+                    className="h-6 w-6 rounded-md bg-surface/90 p-0 text-[10px] shadow-sm"
                     onClick={() => {
                       if (window.confirm(t("di.media.deleteConfirm"))) {
                         remove.mutate({ mediaId: item.id, entityType, entityId });
@@ -221,11 +165,68 @@ export function DrugEntityMediaGallery({
           {items.length > 8 ? (
             <button
               type="button"
-              className="flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-neutral-bg text-sm font-semibold text-muted"
+              className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-neutral-bg text-sm font-semibold text-muted"
               onClick={() => setViewerIndex(8)}
             >
               {t("di.media.stripOverflow").replace("{count}", String(items.length - 8))}
             </button>
+          ) : null}
+          {canEdit ? (
+            <details className="relative shrink-0">
+              <summary className="flex h-[76px] w-[76px] cursor-pointer list-none flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-border bg-neutral-bg/60 text-[11px] font-medium text-muted marker:content-none hover:border-accent/40 hover:text-accent [&::-webkit-details-marker]:hidden">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t("di.media.add")}
+              </summary>
+              <div className="absolute left-0 z-20 mt-1 w-56 space-y-2 rounded-lg border border-border bg-surface p-2 shadow-lg">
+                <label className="block text-[11px] font-medium text-muted" htmlFor={`media-category-${entityId}`}>
+                  {t("di.media.category")}
+                </label>
+                <select
+                  id={`media-category-${entityId}`}
+                  className="h-9 w-full rounded-lg border border-border bg-neutral-bg px-2 text-xs text-foreground"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  aria-label={t("di.media.category")}
+                >
+                  {categories.map((value) => (
+                    <option key={value} value={value}>
+                      {t((ENTITY_MEDIA_CATEGORY_KEY[value] ?? "di.media.cat.OTHER") as "di.media.cat.OTHER")}
+                    </option>
+                  ))}
+                </select>
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm text-foreground hover:bg-neutral-bg">
+                  <ImagePlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {t("di.media.chooseFile")}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    className="sr-only"
+                    onChange={(event) => {
+                      void onFiles(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm text-foreground hover:bg-neutral-bg">
+                  <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {t("di.media.camera")}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(event) => {
+                      void onFiles(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </details>
+          ) : null}
+          {items.length === 0 && canEdit ? (
+            <p className="shrink-0 self-center text-xs text-muted">{t("di.media.empty")}</p>
           ) : null}
         </div>
       )}

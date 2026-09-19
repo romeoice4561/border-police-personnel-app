@@ -204,17 +204,35 @@ export function ImportantConnections({
 }) {
   const { t } = useT();
   if (items.length === 0) return null;
+  const compactRoles = titleKey === "di.profile.rolesFoundHeading";
   return (
     <section
-      className={cn("space-y-2 rounded-xl border border-border bg-surface p-3 sm:p-4", className)}
+      className={cn(
+        "space-y-2 rounded-xl border border-border bg-surface",
+        compactRoles ? "p-3" : "p-3 sm:p-4",
+        compactRoles && items.length === 1 && "w-fit max-w-full",
+        compactRoles && items.length === 2 && "w-full max-w-3xl",
+        className,
+      )}
       data-testid="important-connections"
       data-title-key={titleKey}
+      data-item-count={String(items.length)}
     >
       <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <Link2 className="h-4 w-4 text-accent" aria-hidden="true" />
         {t(titleKey)}
       </h2>
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4" data-testid="important-connections-grid">
+      <ul
+        className={cn(
+          "grid gap-2",
+          items.length === 1
+            ? "grid-cols-1"
+            : items.length === 2
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+        )}
+        data-testid="important-connections-grid"
+      >
         {items.map((item) => (
           <li
             key={item.id}
