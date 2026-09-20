@@ -20,7 +20,7 @@ import {
   IntelligenceStat,
 } from "@/components/drug_intelligence/drug_person_workspace_cards";
 import { useT } from "@/components/i18n/language_provider";
-import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiOperationalDateWithClock } from "@/lib/drug_intelligence/di_date_helpers";
 import type { DrugCaseDetailResponse } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { cn } from "@/lib/ui/cn";
 
@@ -48,7 +48,7 @@ export function DrugCaseIntelligenceSummary({
 }) {
   const { t } = useT();
   const c = data.case;
-  const arrest = c.arrestDate ? toGregorianDateInputValue(c.arrestDate) ?? "—" : "—";
+  const arrest = c.arrestDate ? formatThaiOperationalDateWithClock(c.arrestDate, c.arrestTime) : "—";
   const place = [c.province, c.district, c.subdistrict].filter(Boolean).join(" · ") || "—";
   const personPreview = data.persons
     .slice(0, 3)

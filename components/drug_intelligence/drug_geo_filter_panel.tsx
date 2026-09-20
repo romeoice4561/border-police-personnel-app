@@ -10,11 +10,15 @@
  * OrgHierarchyPicker (Section 13) for both the reporting unit and the lead
  * arrest unit, independently. Drug category and status use Thai labels
  * only — no raw enum value is ever rendered (Section 14).
+ *
+ * Arrest date range uses the shared ThaiDatePicker (ISO wire YYYY-MM-DD,
+ * Thai Buddhist calendar UI) — never the browser-native date input.
  */
 "use client";
 
 import { Combobox } from "@/components/ui/combobox";
 import { Select } from "@/components/ui/select";
+import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MAX, THAI_EXPIRY_YEAR_BE_MIN } from "@/components/ui/thai_date_picker";
 import { OrgHierarchyPicker, type OrgHierarchyValue } from "@/components/officer/org_hierarchy_picker";
 import { Field, HelperText } from "@/components/drug_intelligence/create_case_field";
 import { useT } from "@/components/i18n/language_provider";
@@ -24,6 +28,8 @@ import { DRUG_CATEGORIES, DRUG_CATEGORY_LABELS } from "@/lib/drug_intelligence/d
 import { DRUG_GEO_TIME_PERIODS, resolveDrugGeoTimePeriodRange, drugGeoTimePeriodLabel, type DrugGeoTimePeriod } from "@/lib/drug_intelligence/drug_geo_time_period";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import type { DrugGeoFilterState } from "@/lib/drug_intelligence/drug_geo_filter_state";
+
+const MAP_YEAR_RANGE = { min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX };
 
 export function DrugGeoFilterPanel({
   filters,
@@ -43,6 +49,13 @@ export function DrugGeoFilterPanel({
   // presets get a button; "กำหนดช่วงเอง" is communicated by the date inputs
   // themselves being directly editable, not by a 5th no-op button.
   const timePeriodOptions = DRUG_GEO_TIME_PERIODS.filter((p): p is Exclude<DrugGeoTimePeriod, "CUSTOM"> => p !== "CUSTOM").map((p) => ({ value: p, label: drugGeoTimePeriodLabel(p, language) }));
+
+  const rangeInvalid =
+    Boolean(filters.dateFrom) &&
+    Boolean(filters.dateTo) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(filters.dateFrom) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo) &&
+    filters.dateFrom > filters.dateTo;
 
   function handleTimePeriodChange(period: Exclude<DrugGeoTimePeriod, "CUSTOM">) {
     const range = resolveDrugGeoTimePeriodRange(period);
@@ -71,28 +84,71 @@ export function DrugGeoFilterPanel({
   };
 
   return (
-    <div className="space-y-4">
-      <Field label={t("di.map.filterTimePeriod")}>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("di.map.filterTimePeriod")}>
-          {timePeriodOptions.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleTimePeriodChange(opt.value)}
-              className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              {opt.label}
-            </button>
-          ))}
+    <div className="space-y-4 overflow-visible">
+      {/*
+        Temporal block — date presets + range today.
+        Layout keeps vertical room for a future Temporal Intelligence row:
+        weekday chips + time-of-day buckets (overnight-capable custom range).
+        Do not add those controls here yet.
+      */}
+      <section className="space-y-3 overflow-visible" data-testid="map-temporal-filters" aria-label={t("di.map.filterTimePeriod")}>
+        <Field label={t("di.map.filterTimePeriod")}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("di.map.filterTimePeriod")}>
+            {timePeriodOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleTimePeriodChange(opt.value)}
+                className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <div className="grid grid-cols-1 gap-4 overflow-visible sm:grid-cols-2" data-testid="map-date-range-filters">
+          <Field label={t("di.map.filterDateFrom")} htmlFor="geo-dateFrom">
+            <ThaiDatePicker
+              id="geo-dateFrom"
+              value={filters.dateFrom}
+              onChange={(iso) => onChange({ dateFrom: iso })}
+              placeholder={t("di.map.filterDatePlaceholder")}
+              aria-label={t("di.map.filterDateFrom")}
+              aria-invalid={rangeInvalid}
+              outputFormat="iso"
+              displayFormat="short"
+              commitOnBrowse={false}
+              showTodayButton
+              yearRangeBE={MAP_YEAR_RANGE}
+              data-testid="map-filter-date-from"
+            />
+          </Field>
+          <Field label={t("di.map.filterDateTo")} htmlFor="geo-dateTo">
+            <ThaiDatePicker
+              id="geo-dateTo"
+              value={filters.dateTo}
+              onChange={(iso) => onChange({ dateTo: iso })}
+              placeholder={t("di.map.filterDatePlaceholder")}
+              aria-label={t("di.map.filterDateTo")}
+              aria-invalid={rangeInvalid}
+              outputFormat="iso"
+              displayFormat="short"
+              commitOnBrowse={false}
+              showTodayButton
+              yearRangeBE={MAP_YEAR_RANGE}
+              data-testid="map-filter-date-to"
+            />
+          </Field>
         </div>
-      </Field>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label={t("di.map.filterDateFrom")} htmlFor="geo-dateFrom">
-          <input id="geo-dateFrom" type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={filters.dateFrom} onChange={(e) => onChange({ dateFrom: e.target.value })} />
-        </Field>
-        <Field label={t("di.map.filterDateTo")} htmlFor="geo-dateTo">
-          <input id="geo-dateTo" type="date" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={filters.dateTo} onChange={(e) => onChange({ dateTo: e.target.value })} />
-        </Field>
+        {rangeInvalid ? (
+          <p className="text-xs text-warning" role="alert" data-testid="map-date-range-invalid">
+            {t("di.map.filterDateRangeInvalid")}
+          </p>
+        ) : null}
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t("di.map.filterProvince")}>
           <Combobox value={filters.province} onChange={(v) => onChange({ province: v })} suggestions={THAI_PROVINCE_OPTIONS} placeholder={t("di.map.filterAny")} />
         </Field>

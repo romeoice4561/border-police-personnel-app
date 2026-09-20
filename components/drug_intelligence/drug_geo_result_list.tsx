@@ -10,17 +10,7 @@ import { MapPin, MapPinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/components/i18n/language_provider";
 import type { DrugMapListItemView } from "@/lib/drug_intelligence/drug_geo_client";
-
-function formatIsoDateTh(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const day = d.getUTCDate();
-  const months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  const month = months[d.getUTCMonth() + 1] ?? "";
-  const yearBe = d.getUTCFullYear() + 543;
-  return `${day} ${month} ${yearBe}`;
-}
+import { formatThaiCompactDate } from "@/lib/drug_intelligence/di_date_helpers";
 
 export function DrugGeoResultList({
   items,
@@ -76,7 +66,7 @@ export function DrugGeoResultList({
                       {row.caseNumber}
                     </Link>
                   </td>
-                  <td className="px-3 py-2 text-muted">{formatIsoDateTh(row.arrestDate)}</td>
+                  <td className="px-3 py-2 text-muted">{row.arrestDate ? formatThaiCompactDate(row.arrestDate) : "—"}</td>
                   <td className="px-3 py-2 text-muted">{row.province || "—"}</td>
                   <td className="px-3 py-2 text-muted">{row.locationName || row.district || "—"}</td>
                   <td className="px-3 py-2 text-muted">{row.reportingUnitText || "—"}</td>

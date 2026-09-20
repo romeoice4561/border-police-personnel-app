@@ -11,17 +11,7 @@ import { DRUG_CASE_STATUS_META, isValidDrugCaseStatus } from "@/lib/drug_intelli
 import { DRUG_CASE_PERSON_ROLE_LABELS, isValidDrugCasePersonRole } from "@/lib/drug_intelligence/drug_person_options";
 import type { DrugMapMarkerView } from "@/lib/drug_intelligence/drug_geo_client";
 import type { DrugMapCaseDetailState } from "@/lib/drug_intelligence/use_drug_map_case_detail";
-
-function formatIsoDateTh(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const day = d.getUTCDate();
-  const months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  const month = months[d.getUTCMonth() + 1] ?? "";
-  const yearBe = d.getUTCFullYear() + 543;
-  return `${day} ${month} ${yearBe}`;
-}
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 
 function statusLabelTh(status: string): string {
   return isValidDrugCaseStatus(status) ? DRUG_CASE_STATUS_META[status].labelTh : status;
@@ -49,7 +39,7 @@ export function DrugGeoMarkerPopup({
       <dl className="space-y-1">
         <div className="flex justify-between gap-2">
           <dt className="text-xs text-slate-600">{t("di.map.popupArrestDate")}</dt>
-          <dd className="text-xs font-medium text-slate-900">{formatIsoDateTh(marker.arrestDate)}</dd>
+          <dd className="text-xs font-medium text-slate-900">{marker.arrestDate ? formatThaiOperationalDate(marker.arrestDate) : "—"}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-xs text-slate-600">{t("di.map.popupProvinceDistrict")}</dt>

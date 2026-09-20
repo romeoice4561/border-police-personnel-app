@@ -35,6 +35,8 @@ export interface DrugTimelineEvent {
   title: string;
   status: string;
   arrestDate: Date | null;
+  /** Separate HH:MM field from DrugCase.arrestTime — never invent midnight when null. */
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   subdistrict: string | null;

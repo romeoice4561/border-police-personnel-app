@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugEntityMedia } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { presentIdentifierValue } from "@/lib/drug_intelligence/drug_sensitive_presentation";
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 import {
   DRUG_PERSON_IDENTIFIER_TYPE_LABELS,
   isValidDrugPersonIdentifierType,
@@ -52,10 +53,6 @@ export function DrugPersonIdentityHeader({
   const aliasText = aliases.map((alias) => alias.fullName).filter(Boolean).join(", ");
   const identifierPreview = identifiers.slice(0, 3);
 
-  function formatDate(value: string): string {
-    return new Date(value).toLocaleDateString(language === "th" ? "th-TH" : "en-US");
-  }
-
   return (
     <header
       className="w-full rounded-xl border border-border bg-surface p-3 sm:p-4"
@@ -83,10 +80,10 @@ export function DrugPersonIdentityHeader({
             </p>
             <p className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted sm:justify-start">
               <span>
-                {t("di.profile.firstSeen")}: <span className="text-foreground">{formatDate(firstSeenAt)}</span>
+                {t("di.profile.firstSeen")}: <span className="text-foreground">{formatThaiOperationalDate(firstSeenAt)}</span>
               </span>
               <span>
-                {t("di.profile.lastSeen")}: <span className="text-foreground">{formatDate(lastSeenAt)}</span>
+                {t("di.profile.lastSeen")}: <span className="text-foreground">{formatThaiOperationalDate(lastSeenAt)}</span>
               </span>
             </p>
             {aliasText ? (

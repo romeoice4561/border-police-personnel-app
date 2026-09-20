@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 import type { DrugAlertQuickCheckResult } from "@/lib/drug_intelligence/drug_intelligence_client";
 
 export function DrugAlertInlineCard({ signal }: { signal: DrugAlertQuickCheckResult }) {
@@ -32,7 +33,7 @@ export function DrugAlertInlineCard({ signal }: { signal: DrugAlertQuickCheckRes
       ) : null}
       {signal.lastSeenAt ? (
         <p className="text-muted">
-          {t("di.alert.inlineLastSeen")} {new Date(signal.lastSeenAt).toLocaleDateString("th-TH")}
+          {t("di.alert.inlineLastSeen")} {formatThaiOperationalDate(signal.lastSeenAt)}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2 pt-1">

@@ -88,6 +88,7 @@ import {
 import { deriveDrugGeoFilterChips } from "@/lib/drug_intelligence/drug_geo_filter_chips";
 import { isDrugMapHardLimit, isDrugMapSoftLimit, isDrugMapTrueEmpty } from "@/lib/drug_intelligence/drug_map_view";
 import { MAP_LIST_DEFAULT_PAGE_SIZE } from "@/lib/drug_intelligence/drug_map_query";
+import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { DrugGeoQueryParams } from "@/lib/drug_intelligence/drug_geo_client";
 
 const VIEW_MODES = ["MAP", "LIST", "PROVINCE"] as const;
@@ -300,7 +301,9 @@ function DrugIntelligenceMapContent({
   const trueEmpty = isDrugMapTrueEmpty(summary.totalCases);
 
   const periodLabel =
-    filters.dateFrom || filters.dateTo ? `${filters.dateFrom || "…"} – ${filters.dateTo || "…"}` : t("di.map.kpiPeriodAll");
+    filters.dateFrom || filters.dateTo
+      ? `${filters.dateFrom ? formatShortThaiDateTh(new Date(`${filters.dateFrom}T00:00:00.000Z`)) : "…"} – ${filters.dateTo ? formatShortThaiDateTh(new Date(`${filters.dateTo}T00:00:00.000Z`)) : "…"}`
+      : t("di.map.kpiPeriodAll");
 
   const content = (
     <div className={expanded ? "flex h-full flex-col gap-3 p-3" : "space-y-5"}>

@@ -20,6 +20,7 @@ import { DRUG_SEARCH_MATCHED_FIELD_LABEL_KEY } from "@/lib/drug_intelligence/dru
 import { drugEntityDetailPath, drugNetworkFocusPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import type { DrugSearchResult } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 
 const STRENGTH_TONE = { EXACT: "critical", PARTIAL: "neutral" } as const;
 
@@ -34,7 +35,7 @@ function actionLabelKey(entityType: DrugSearchResult["entityType"]): "di.search.
 }
 
 export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
-  const { t, language } = useT();
+  const { t } = useT();
   const matchLabel = t(DRUG_SEARCH_MATCHED_FIELD_LABEL_KEY[result.matchedField]);
 
   return (
@@ -59,7 +60,7 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
         {result.entityType === "CASE" ? null : (
           <p className="text-xs text-muted">
             {result.caseCount > 0 ? `${result.caseCount} ${t("di.person.casesInvolved")}` : null}
-            {result.lastSeen ? ` · ${t("di.profile.lastSeen")}: ${new Date(result.lastSeen).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}` : null}
+            {result.lastSeen ? ` · ${t("di.profile.lastSeen")}: ${formatThaiOperationalDate(result.lastSeen)}` : null}
           </p>
         )}
 

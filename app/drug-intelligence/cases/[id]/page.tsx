@@ -43,6 +43,7 @@ import { DrugCaseInvestigatorContactCard } from "@/components/drug_intelligence/
 import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import { casePersonInvestigationHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import { DrugWorkspaceTabBar } from "@/components/drug_intelligence/drug_workspace_tab_bar";
+import { formatThaiCompactDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import type {
   DrugCaseDetailResponse,
   DrugCasePersonRow,
@@ -190,6 +191,7 @@ export default function DrugCaseWorkspacePage() {
         title={data.case.title}
         status={data.case.status}
         arrestDate={data.case.arrestDate}
+        arrestTime={data.case.arrestTime}
         province={data.case.province}
         reportingUnitText={data.case.reportingUnitText}
         actions={headerActions}
@@ -259,6 +261,7 @@ function OverviewTab({ data, onOpenTab }: { data: DrugCaseDetailResponse; onOpen
       <DrugCaseTimelineSummary
         caseId={data.case.id}
         arrestDate={data.case.arrestDate}
+        arrestTime={data.case.arrestTime}
         province={data.case.province}
         district={data.case.district}
         subdistrict={data.case.subdistrict}
@@ -643,7 +646,7 @@ function NotesTab({ data }: { data: DrugCaseDetailResponse }) {
         </p>
         <p>
           <span className="text-muted">{t("di.workspace.createdAt")}:</span>{" "}
-          <span className="text-foreground">{new Date(data.case.createdAt).toLocaleString()}</span>
+          <span className="text-foreground">{formatThaiCompactDateTime(data.case.createdAt)}</span>
         </p>
         {data.case.updatedByName ? (
           <p>

@@ -15,6 +15,7 @@ function event(overrides: Partial<DrugTimelineEvent> = {}): DrugTimelineEvent {
     title: "ทดสอบ",
     status: "OPEN",
     arrestDate: new Date("2026-08-01"),
+    arrestTime: null,
     province: "ชุมพร",
     district: null,
     subdistrict: null,

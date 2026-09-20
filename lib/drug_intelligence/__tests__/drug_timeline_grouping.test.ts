@@ -16,6 +16,7 @@ function event(overrides: Partial<DrugTimelineEvent> = {}): DrugTimelineEvent {
     title: "ทดสอบ",
     status: "OPEN",
     arrestDate: new Date("2026-08-01"),
+    arrestTime: null,
     province: "ชุมพร",
     district: null,
     subdistrict: null,
@@ -97,6 +98,7 @@ test("DAY grouping: two events on different days fall into DIFFERENT groups", ()
   const events = [event({ caseId: "c1", arrestDate: new Date("2026-08-01") }), event({ caseId: "c2", arrestDate: new Date("2026-08-02") })];
   const groups = groupDrugTimelineEvents(events, "DAY", "ไม่ระบุวันที่", "ไม่ระบุจังหวัด");
   assert.equal(groups.length, 2);
+  assert.equal(groups[0].groupLabel, "วันเสาร์ที่ 1 ส.ค. 69");
 });
 
 test("MONTH grouping: two events in the same month fall into ONE group even on different days", () => {

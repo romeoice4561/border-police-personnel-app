@@ -20,6 +20,7 @@
 import type { DrugGeoFilterState } from "@/lib/drug_intelligence/drug_geo_filter_state";
 import { DRUG_CASE_STATUS_META, isValidDrugCaseStatus } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
+import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 export interface DrugGeoFilterChip {
@@ -56,6 +57,12 @@ function statusLabelTh(status: string): string {
 
 function drugCategoryLabelTh(category: string): string {
   return isValidDrugCategory(category) ? DRUG_CATEGORY_LABELS[category].labelTh : category;
+}
+
+/** Chip/KPI display only — wire values remain YYYY-MM-DD. */
+function formatChipDate(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  return formatShortThaiDateTh(new Date(`${iso}T00:00:00.000Z`));
 }
 
 /**
@@ -105,7 +112,10 @@ export function deriveDrugGeoFilterChips(filters: DrugGeoFilterState, organizati
   const chips: DrugGeoFilterChip[] = [];
 
   if (filters.dateFrom || filters.dateTo) {
-    const label = filters.dateFrom && filters.dateTo ? `ช่วงเวลา: ${filters.dateFrom} – ${filters.dateTo}` : filters.dateFrom ? `ตั้งแต่: ${filters.dateFrom}` : `ถึง: ${filters.dateTo}`;
+    const fromLabel = filters.dateFrom ? formatChipDate(filters.dateFrom) : null;
+    const toLabel = filters.dateTo ? formatChipDate(filters.dateTo) : null;
+    const label =
+      fromLabel && toLabel ? `ช่วงเวลา: ${fromLabel} – ${toLabel}` : fromLabel ? `ตั้งแต่: ${fromLabel}` : `ถึง: ${toLabel}`;
     chips.push({ key: "date", label, clearPatch: { dateFrom: "", dateTo: "" } });
   }
   if (filters.province) {

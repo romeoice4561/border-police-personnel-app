@@ -8,14 +8,15 @@ import Link from "next/link";
 import { FolderOpen, Users, Package, ChevronRight } from "lucide-react";
 import { DrugCaseStatusBadge } from "@/components/drug_intelligence/drug_case_status_badge";
 import { useT } from "@/components/i18n/language_provider";
-import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiCompactDate, formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 import type { DrugCaseListRow } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { cn } from "@/lib/ui/cn";
 
 export function DrugCaseListCard({ row, className }: { row: DrugCaseListRow; className?: string }) {
   const { t } = useT();
   const href = `/drug-intelligence/cases/${encodeURIComponent(row.id)}`;
-  const arrest = row.arrestDate ? toGregorianDateInputValue(row.arrestDate) : "—";
+  const arrest = row.arrestDate ? formatThaiOperationalDate(row.arrestDate) : "—";
+  const arrestCompact = row.arrestDate ? formatThaiCompactDate(row.arrestDate) : "—";
   const unit = row.reportingUnitText || row.leadUnitText || "—";
 
   return (
@@ -43,7 +44,10 @@ export function DrugCaseListCard({ row, className }: { row: DrugCaseListRow; cla
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="rounded-md border border-border bg-neutral-bg/60 px-1.5 py-0.5 text-foreground">{arrest}</span>
+            <span className="rounded-md border border-border bg-neutral-bg/60 px-1.5 py-0.5 text-foreground" title={arrest}>
+              <span className="sm:hidden">{arrestCompact}</span>
+              <span className="hidden sm:inline">{arrest}</span>
+            </span>
             {row.province ? (
               <span className="rounded-md border border-border bg-neutral-bg/60 px-1.5 py-0.5 text-foreground">{row.province}</span>
             ) : null}

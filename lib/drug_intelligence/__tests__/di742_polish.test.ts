@@ -178,15 +178,15 @@ describe("isValidDrugRelationshipStatus", () => {
 // ── Date formatting ───────────────────────────────────────────────────────────
 
 describe("formatDiDate", () => {
-  test("formats ISO date string to short Thai Buddhist Era date", () => {
+  test("formats ISO date string to Thai operational date with weekday", () => {
     const result = formatDiDate("2026-08-14T00:00:00.000Z");
-    assert.equal(result, "14 ส.ค. 2569");
+    assert.equal(result, "วันศุกร์ที่ 14 ส.ค. 69");
   });
 
   test("formats Date object correctly", () => {
     const d = new Date("2026-01-01T00:00:00.000Z");
     const result = formatDiDate(d);
-    assert.equal(result, "1 ม.ค. 2569");
+    assert.equal(result, "วันพฤหัสบดีที่ 1 ม.ค. 69");
   });
 
   test("returns ไม่มีข้อมูล for null", () => {
@@ -205,10 +205,11 @@ describe("formatDiDate", () => {
     assert.equal(formatDiDate("not-a-date"), "ไม่มีข้อมูล");
   });
 
-  test("output contains Buddhist Era year (2026 → 2569), not Gregorian year", () => {
+  test("output contains short Buddhist Era year, not Gregorian year", () => {
     const result = formatDiDate("2026-08-14T00:00:00.000Z");
     assert.ok(!result.includes("2026"), `result should not contain Gregorian year: ${result}`);
-    assert.ok(result.includes("2569"), `result should contain Buddhist Era year: ${result}`);
+    assert.ok(result.includes("69"), `result should contain short Buddhist Era year: ${result}`);
+    assert.match(result, /^วัน/);
   });
 });
 

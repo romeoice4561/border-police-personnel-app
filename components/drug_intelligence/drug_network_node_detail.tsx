@@ -34,11 +34,7 @@ import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_net
 import type { SelectedPathStep } from "@/lib/drug_intelligence/drug_network_graph_readability";
 import type { DrugGraphNode } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
-
-function formatDate(value: string | null, language: "th" | "en"): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString(language === "th" ? "th-TH" : "en-US");
-}
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 
 export function DrugNetworkNodeDetail({
   node,
@@ -64,7 +60,7 @@ export function DrugNetworkNodeDetail({
   /** Navigation-only Network (or other internal) path to restore after opening this entity. */
   openReturnPath?: string | null;
 }) {
-  const { t, language } = useT();
+  const { t } = useT();
 
   const actionLabel = node.type === "PERSON" ? t("di.network.openProfile") : node.type === "CASE" ? t("di.network.openCase") : t("di.network.openDetail");
   const showOpenLink = node.type !== "LOCATION";
@@ -140,11 +136,11 @@ export function DrugNetworkNodeDetail({
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
           <dt className="text-xs text-muted">{t("di.network.firstSeen")}</dt>
-          <dd className="text-foreground">{formatDate(node.firstSeenAt, language)}</dd>
+          <dd className="text-foreground">{node.firstSeenAt ? formatThaiOperationalDate(node.firstSeenAt) : "—"}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted">{t("di.network.lastSeen")}</dt>
-          <dd className="text-foreground">{formatDate(node.lastSeenAt, language)}</dd>
+          <dd className="text-foreground">{node.lastSeenAt ? formatThaiOperationalDate(node.lastSeenAt) : "—"}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted">{t("di.entity.sourceCases")}</dt>
@@ -188,7 +184,7 @@ export function DrugNetworkNodeDetail({
           <>
             <div>
               <dt className="text-xs text-muted">{t("di.field.arrestDate")}</dt>
-              <dd className="text-foreground">{formatDate(node.metadata.arrestDate, language)}</dd>
+              <dd className="text-foreground">{node.metadata.arrestDate ? formatThaiOperationalDate(node.metadata.arrestDate) : "—"}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted">{t("di.field.province")}</dt>

@@ -1321,6 +1321,8 @@ export interface DrugTimelineEvent {
   title: string;
   status: string;
   arrestDate: string | null;
+  /** Separate HH:MM from DrugCase.arrestTime when present. */
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   subdistrict: string | null;

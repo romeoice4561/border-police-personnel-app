@@ -27,6 +27,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugAlertList, useReviewDrugAlert, useDismissDrugAlert, useReopenDrugAlert } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { normalizeThaiPersonnelDateForSave } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 import type { DrugIntelligenceAlert, DrugAlertType, DrugAlertSeverity, DrugAlertStatus, DrugAlertEntityType } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -295,7 +296,7 @@ function DrugAlertCenterContent() {
                         </td>
                         <td className="px-4 py-3 text-xs text-muted">{alert.currentCaseId ?? "—"}</td>
                         <td className="px-4 py-3 text-xs text-muted">{alert.priorCaseIds.length}</td>
-                        <td className="px-4 py-3 text-xs text-muted">{alert.lastSeenAt ? new Date(alert.lastSeenAt).toLocaleDateString("th-TH") : "—"}</td>
+                        <td className="px-4 py-3 text-xs text-muted">{alert.lastSeenAt ? formatThaiOperationalDate(alert.lastSeenAt) : "—"}</td>
                         <td className="px-4 py-3">
                           <Badge tone={STATUS_TONE[alert.status]}>{t(STATUS_LABEL_KEY[alert.status])}</Badge>
                         </td>
@@ -363,7 +364,7 @@ function DrugAlertCenterContent() {
             {selectedAlert.lastSeenAt ? (
               <div>
                 <p className="text-xs font-medium text-muted">{t("di.alert.lastSeenLabel")}</p>
-                <p className="text-sm text-foreground">{new Date(selectedAlert.lastSeenAt).toLocaleDateString("th-TH")}</p>
+                <p className="text-sm text-foreground">{formatThaiOperationalDate(selectedAlert.lastSeenAt)}</p>
               </div>
             ) : null}
             {selectedAlert.reviewedBy ? (

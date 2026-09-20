@@ -4210,6 +4210,8 @@ export const DICTIONARY = {
   "di.map.filterTimePeriod":       tr("ช่วงเวลา", "Time Period"),
   "di.map.filterDateFrom":         tr("วันที่จับกุม (ตั้งแต่)", "Arrest Date (From)"),
   "di.map.filterDateTo":           tr("วันที่จับกุม (ถึง)", "Arrest Date (To)"),
+  "di.map.filterDatePlaceholder":  tr("เลือกวันที่", "Select date"),
+  "di.map.filterDateRangeInvalid": tr("วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด", "Start date must not be after end date"),
   "di.map.filterFiscalYear":       tr("ปีงบประมาณ", "Fiscal Year"),
   "di.map.filterFiscalYearAny":    tr("ทุกปีงบประมาณ", "Any Fiscal Year"),
   "di.map.filterProvince":         tr("จังหวัด", "Province"),

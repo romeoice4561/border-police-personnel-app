@@ -36,6 +36,7 @@ import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugTimeline, useDrugTimelineGeographic, useDrugPersonProfile, useDrugCase } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { normalizeThaiPersonnelDateForSave, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiClockLabel, formatThaiOperationalDate, formatThaiOperationalDateWithPlace } from "@/lib/drug_intelligence/di_date_helpers";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import { readPersonCaseContextParam } from "@/lib/drug_intelligence/person_case_context";
@@ -181,9 +182,9 @@ function DrugTimelineContent() {
             <div className="col-span-2 rounded-xl border border-border bg-surface p-3 sm:col-span-1">
               <p className="text-xs text-muted">{t("di.timeline.kpiDateRange")}</p>
               <p className="text-xs font-medium text-foreground">
-                {timeline.data?.kpi.dateRangeFrom ? new Date(timeline.data.kpi.dateRangeFrom).toLocaleDateString("th-TH") : "—"}
+                {timeline.data?.kpi.dateRangeFrom ? formatThaiOperationalDate(timeline.data.kpi.dateRangeFrom) : "—"}
                 {" – "}
-                {timeline.data?.kpi.dateRangeTo ? new Date(timeline.data.kpi.dateRangeTo).toLocaleDateString("th-TH") : "—"}
+                {timeline.data?.kpi.dateRangeTo ? formatThaiOperationalDate(timeline.data.kpi.dateRangeTo) : "—"}
               </p>
             </div>
           </div>
@@ -365,7 +366,7 @@ function TimelineEventCard({ event, onSelect }: { event: DrugTimelineEvent; onSe
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
           <span className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-            {event.arrestDate ? new Date(event.arrestDate).toLocaleDateString("th-TH") : "—"}
+            {event.arrestDate ? formatThaiOperationalDateWithPlace(event.arrestDate, event.province) : "—"}
           </span>
           <span className="flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
@@ -415,7 +416,10 @@ function TimelineEventDetail({ event, returnTo }: { event: DrugTimelineEvent; re
       </div>
       <div>
         <p className="text-xs font-medium text-muted">{t("di.field.arrestDate")}</p>
-        <p className="text-sm text-foreground">{event.arrestDate ? toGregorianDateInputValue(event.arrestDate) : "—"}</p>
+        <p className="text-sm text-foreground">{event.arrestDate ? formatThaiOperationalDate(event.arrestDate) : "—"}</p>
+        {formatThaiClockLabel(event.arrestTime) ? (
+          <p className="text-sm text-foreground">{formatThaiClockLabel(event.arrestTime)}</p>
+        ) : null}
       </div>
       <div>
         <p className="text-xs font-medium text-muted">{t("di.field.province")}</p>

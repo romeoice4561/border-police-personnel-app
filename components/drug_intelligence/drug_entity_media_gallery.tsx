@@ -17,6 +17,7 @@ import {
   type DrugEntityMediaEntityType,
 } from "@/lib/drug_intelligence/drug_entity_media_types";
 import type { DrugEntityMediaRecord } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { formatThaiCompactDateTime, formatThaiOperationalDateTime } from "@/lib/drug_intelligence/di_date_helpers";
 import { cn } from "@/lib/ui/cn";
 
 export const ENTITY_MEDIA_CATEGORY_KEY: Record<string, `di.media.cat.${string}`> = {
@@ -58,7 +59,7 @@ export function DrugEntityMediaGallery({
   sourceCaseId?: string;
 }) {
   const { user, can } = useAuth();
-  const { t, language } = useT();
+  const { t } = useT();
   const canEdit = can("drug.edit");
   const media = useDrugEntityMedia(user?.id ?? null, entityType, entityId);
   const upload = useUploadDrugEntityMedia(user?.id ?? null, user?.displayName ?? "Analyst");
@@ -254,7 +255,7 @@ function MediaLightbox({
   onClose: () => void;
   onIndex: (index: number) => void;
 }) {
-  const { t, language } = useT();
+  const { t } = useT();
   const item = items[index];
   const prev = () => onIndex((index - 1 + items.length) % items.length);
   const next = () => onIndex((index + 1) % items.length);
@@ -290,7 +291,7 @@ function MediaLightbox({
         </div>
         <div>
           <dt>{t("di.media.uploadedAt")}</dt>
-          <dd>{new Date(item.createdAt).toLocaleString(language === "th" ? "th-TH" : "en-US")}</dd>
+          <dd>{formatThaiCompactDateTime(item.createdAt)}</dd>
         </div>
         {item.sourceCaseId ? (
           <div>
@@ -301,7 +302,7 @@ function MediaLightbox({
         {item.capturedAt ? (
           <div>
             <dt>{t("di.media.capturedAt")}</dt>
-            <dd>{new Date(item.capturedAt).toLocaleDateString(language === "th" ? "th-TH" : "en-US")}</dd>
+            <dd>{formatThaiOperationalDateTime(item.capturedAt)}</dd>
           </div>
         ) : null}
       </dl>

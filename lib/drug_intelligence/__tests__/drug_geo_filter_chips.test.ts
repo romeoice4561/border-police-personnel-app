@@ -32,10 +32,15 @@ test("province filter produces a removable chip with a clear patch", () => {
   assert.deepEqual(chips[0].clearPatch, { province: "" });
 });
 
-test("date range produces one combined chip, not two", () => {
-  const chips = deriveDrugGeoFilterChips(state({ dateFrom: "2026-01-01", dateTo: "2026-01-31" }));
+test("date range produces one combined chip with Thai display, not raw ISO", () => {
+  const chips = deriveDrugGeoFilterChips(state({ dateFrom: "2026-08-01", dateTo: "2026-08-10" }));
   assert.equal(chips.length, 1);
   assert.equal(chips[0].key, "date");
+  assert.match(chips[0].label, /1 ส\.ค\. 2569/);
+  assert.match(chips[0].label, /10 ส\.ค\. 2569/);
+  assert.doesNotMatch(chips[0].label, /2026-08/);
+  assert.doesNotMatch(chips[0].label, /mm\/dd\/yyyy/i);
+  assert.deepEqual(chips[0].clearPatch, { dateFrom: "", dateTo: "" });
 });
 
 test("drug category chip shows the Thai label, never the raw enum", () => {

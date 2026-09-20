@@ -165,6 +165,7 @@ export class DrugTimelineService {
       title: c.title,
       status: c.status,
       arrestDate: c.arrestDate,
+      arrestTime: c.arrestTime ?? null,
       province: c.province,
       district: c.district,
       subdistrict: c.subdistrict,

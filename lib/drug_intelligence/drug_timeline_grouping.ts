@@ -7,6 +7,7 @@
  */
 
 import type { DrugTimelineEvent, DrugTimelineGroup, DrugTimelineGroupMode, DrugTimelineSortDirection } from "@/lib/drug_intelligence/drug_timeline_types";
+import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 
 const THAI_MONTH_NAMES = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
@@ -34,13 +35,6 @@ function dayKey(date: Date): string {
 
 function monthKey(date: Date): string {
   return date.toISOString().slice(0, 7); // YYYY-MM
-}
-
-function formatThaiBuddhistDate(date: Date): string {
-  const day = date.getUTCDate();
-  const month = THAI_MONTH_NAMES[date.getUTCMonth()];
-  const buddhistYear = date.getUTCFullYear() + 543;
-  return `${day} ${month} ${buddhistYear}`;
 }
 
 function formatThaiBuddhistMonth(date: Date): string {
@@ -76,7 +70,7 @@ export function groupDrugTimelineEvents(events: DrugTimelineEvent[], mode: DrugT
         pushEvent(NO_DATE_GROUP_KEY, noDateLabel, event);
         continue;
       }
-      pushEvent(dayKey(event.arrestDate), formatThaiBuddhistDate(event.arrestDate), event);
+      pushEvent(dayKey(event.arrestDate), formatThaiOperationalDate(event.arrestDate), event);
     } else if (mode === "MONTH") {
       if (!event.arrestDate) {
         pushEvent(NO_DATE_GROUP_KEY, noDateLabel, event);

@@ -124,8 +124,8 @@ test("HTML-looking note body renders as text, without delete, and without actor 
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /บันทึกนักวิเคราะห์/);
   assert.match(html, /ANALYST NOTE/);
-  assert.match(html, /ผู้บันทึก/);
   assert.match(html, /Administrator/);
+  assert.match(html, /ศ\.\s*11\s*ก\.ย\.\s*69/);
   assert.match(html, /แก้ไขล่าสุด/);
   assert.doesNotMatch(html, /mock:admin/);
   assert.doesNotMatch(html, /Delete|ลบ|trash/i);
@@ -188,11 +188,12 @@ test("409 mismatch error copy is shown in the editor without discarding the draf
   assert.match(html, /ไม่ตรงกับเซสชันปัจจุบัน/);
 });
 
-test("formatDiDateTime uses Thai B.E. vocabulary and includes local time", () => {
+test("formatDiDateTime uses compact Thai weekday and includes Bangkok time", () => {
   const rendered = formatDiDateTime("2026-08-14T10:05:00+07:00");
   assert.match(rendered, /ส\.ค\./);
-  assert.match(rendered, /2569/);
-  assert.match(rendered, /\d{2}:\d{2}/);
+  assert.match(rendered, /69/);
+  assert.match(rendered, /10:05/);
+  assert.doesNotMatch(rendered, /2026/);
   assert.equal(formatDiDateTime(null), "ไม่มีข้อมูล");
   assert.equal(formatDiDateTime("not-a-date"), "ไม่มีข้อมูล");
 });

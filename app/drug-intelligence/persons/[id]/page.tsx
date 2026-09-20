@@ -53,7 +53,7 @@ import {
 } from "@/lib/drug_intelligence/drug_person_options";
 import { DRUG_CASE_STATUS_META } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
-import { formatDiDate } from "@/lib/drug_intelligence/di_date_helpers";
+import { formatDiDate, formatThaiCompactDateTime, formatThaiOperationalDate, formatThaiOperationalDateWithPlace } from "@/lib/drug_intelligence/di_date_helpers";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { getSafeReturnTo, withReturnTo, currentInternalHref } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
@@ -144,8 +144,8 @@ function identifierTypeLabel(type: string, language: "th" | "en"): string {
   return language === "th" ? meta.labelTh : meta.labelEn;
 }
 
-function formatDate(value: string, language: "th" | "en"): string {
-  return new Date(value).toLocaleDateString(language === "th" ? "th-TH" : "en-US");
+function formatAuditTimestamp(value: string): string {
+  return formatThaiCompactDateTime(value);
 }
 
 export default function DrugPersonProfilePage() {
@@ -622,7 +622,7 @@ function OverviewTab({
             <>
               <dt className="text-muted">{t("di.person.dateOfBirth")}</dt>
               <dd className="text-foreground">
-                {formatDate(data.person.dateOfBirth as string, language)} ({t("di.profile.overviewDobAge").replace("{age}", String(calculatedAge))})
+                {formatThaiOperationalDate(data.person.dateOfBirth as string)} ({t("di.profile.overviewDobAge").replace("{age}", String(calculatedAge))})
               </dd>
             </>
           ) : (data.person as { approximateAge?: number | null }).approximateAge ? (
@@ -698,16 +698,16 @@ function OverviewTab({
       >
         <MiniTimeline
           items={[
-            { id: "first", label: t("di.profile.firstSeen"), dateLabel: formatDate(data.firstSeenAt, language) },
+            { id: "first", label: t("di.profile.firstSeen"), dateLabel: formatThaiOperationalDate(data.firstSeenAt) },
             ...[...data.cases]
               .sort((a, b) => new Date(b.case?.arrestDate || b.createdAt).getTime() - new Date(a.case?.arrestDate || a.createdAt).getTime())
               .slice(0, 2)
               .map((link) => ({
                 id: link.caseId,
                 label: link.case?.caseNumber || compactEntityId(link.caseId),
-                dateLabel: link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : formatDate(String(link.createdAt), language),
+                dateLabel: link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : formatAuditTimestamp(String(link.createdAt)),
               })),
-            { id: "last", label: t("di.profile.lastSeen"), dateLabel: formatDate(data.lastSeenAt, language) },
+            { id: "last", label: t("di.profile.lastSeen"), dateLabel: formatThaiOperationalDate(data.lastSeenAt) },
           ]}
         />
       </IntelligenceSection>
@@ -858,7 +858,7 @@ function NetworkRolesTab({
                 verificationStatus: nr.verificationStatus,
                 sourceCaseLabel: caseLabel,
                 recordedByName: nr.createdByName,
-                recordedAtLabel: formatDate(String(nr.createdAt), language),
+                recordedAtLabel: formatAuditTimestamp(String(nr.createdAt)),
                 note: nr.note,
                 language,
               });
@@ -908,7 +908,7 @@ function NetworkRolesTab({
                       <p className="text-[11px] text-muted">
                         {t("di.profile.recordedByLine")
                           .replace("{name}", nr.createdByName)
-                          .replace("{date}", formatDate(String(nr.createdAt), language))}
+                          .replace("{date}", formatAuditTimestamp(String(nr.createdAt)))}
                       </p>
                     </div>
                   }
@@ -1085,9 +1085,9 @@ function CasesTab({
             }
             meta={
               <>
-                {[link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : null, link.case?.province]
-                  .filter(Boolean)
-                  .join(" · ") || "—"}
+                {link.case?.arrestDate
+                  ? formatThaiOperationalDateWithPlace(link.case.arrestDate, link.case.province)
+                  : link.case?.province || "—"}
                 {linkedTotal > 0 ? (
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground" data-testid="case-linked-counts">
                     {linkedPhones.length > 0 ? <span>📞 {linkedPhones.length}</span> : null}
@@ -1716,7 +1716,7 @@ function IdentityTab({
             <>
               <dt className="text-muted">{t("di.person.dateOfBirth")}</dt>
               <dd className="flex flex-wrap items-center gap-2 text-foreground">
-                {formatDate(data.person.dateOfBirth as string, language)}
+                {formatThaiOperationalDate(data.person.dateOfBirth as string)}
                 {conflictingDob ? (
                   <VerificationToneBadge status="SUPPORTED" label={t("di.profile.verificationConflict")} />
                 ) : (
@@ -1949,7 +1949,7 @@ function ReviewTab({
               <li key={entry.id} className="rounded-lg border border-border bg-neutral-bg/40 p-3">
                 <p className="text-foreground">{t("di.profile.mergeHistoryEntry").replace("{personId}", compactEntityId(entry.mergedPersonId))}</p>
                 <p className="mt-1 text-xs text-muted">
-                  {t("di.profile.mergedBy")}: {entry.mergedByName} · {formatDate(String(entry.mergedAt), language)}
+                  {t("di.profile.mergedBy")}: {entry.mergedByName} · {formatAuditTimestamp(String(entry.mergedAt))}
                 </p>
               </li>
             ))}

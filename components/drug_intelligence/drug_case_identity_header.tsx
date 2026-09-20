@@ -11,7 +11,7 @@ import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entit
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugEntityMedia } from "@/lib/drug_intelligence/drug_intelligence_hooks";
-import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiOperationalDateWithClock } from "@/lib/drug_intelligence/di_date_helpers";
 import { compactEntityId } from "@/components/drug_intelligence/drug_person_workspace_cards";
 
 export function DrugCaseIdentityHeader({
@@ -20,6 +20,7 @@ export function DrugCaseIdentityHeader({
   title,
   status,
   arrestDate,
+  arrestTime,
   province,
   reportingUnitText,
   actions,
@@ -29,6 +30,7 @@ export function DrugCaseIdentityHeader({
   title: string;
   status: string;
   arrestDate: string | null;
+  arrestTime?: string | null;
   province: string | null;
   reportingUnitText: string | null;
   actions?: ReactNode;
@@ -38,7 +40,9 @@ export function DrugCaseIdentityHeader({
   const media = useDrugEntityMedia(user?.id ?? null, "CASE", caseId);
   const items = media.data?.items ?? [];
   const primary = items.find((item) => item.isPrimary) ?? items[0] ?? null;
-  const arrest = arrestDate ? toGregorianDateInputValue(arrestDate) : "—";
+  const arrest = arrestDate
+    ? formatThaiOperationalDateWithClock(arrestDate, arrestTime)
+    : "—";
 
   return (
     <header

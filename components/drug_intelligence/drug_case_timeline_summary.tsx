@@ -11,11 +11,12 @@ import Link from "next/link";
 import { Calendar, MapPin } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { useT } from "@/components/i18n/language_provider";
-import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { formatThaiClockLabel, formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpers";
 
 export function DrugCaseTimelineSummary({
   caseId,
   arrestDate,
+  arrestTime,
   province,
   district,
   subdistrict,
@@ -24,6 +25,7 @@ export function DrugCaseTimelineSummary({
 }: {
   caseId: string;
   arrestDate: string | null;
+  arrestTime?: string | null;
   province: string | null;
   district: string | null;
   subdistrict: string | null;
@@ -32,6 +34,7 @@ export function DrugCaseTimelineSummary({
 }) {
   const { t } = useT();
   const hasCoordinates = latitude !== null && longitude !== null;
+  const clock = formatThaiClockLabel(arrestTime);
 
   return (
     <Card>
@@ -45,10 +48,13 @@ export function DrugCaseTimelineSummary({
             {t("di.timeline.viewFullTimeline")}
           </Link>
         </div>
-        <p className="flex items-center gap-1.5 text-sm text-foreground">
-          <Calendar className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
-          {arrestDate ? toGregorianDateInputValue(arrestDate) : "—"}
-        </p>
+        <div className="space-y-0.5">
+          <p className="flex items-center gap-1.5 text-sm text-foreground">
+            <Calendar className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
+            {arrestDate ? formatThaiOperationalDate(arrestDate) : "—"}
+          </p>
+          {clock ? <p className="pl-5 text-sm text-foreground">{clock}</p> : null}
+        </div>
         <p className="flex items-center gap-1.5 text-sm text-foreground">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true" />
           {[province, district, subdistrict].filter(Boolean).join(" / ") || "—"}

@@ -25,6 +25,7 @@ import { LoadingState, ErrorState, EmptyState } from "@/components/common/states
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MAX, THAI_EXPIRY_YEAR_BE_MIN } from "@/components/ui/thai_date_picker";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugPersonAdvancedSearch, useDrugNetworkGroups } from "@/lib/drug_intelligence/drug_intelligence_hooks";
@@ -487,12 +488,18 @@ function DrugPersonAdvancedSearchContent() {
                 <label htmlFor="filter-date-from" className="mb-1.5 block text-xs font-medium text-muted">
                   {t("di.advSearch.filterDateFrom")}
                 </label>
-                <input
+                <ThaiDatePicker
                   id="filter-date-from"
-                  type="date"
                   value={dateFrom}
-                  onChange={(e) => updateParams({ dateFrom: e.target.value || undefined })}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  onChange={(iso) => updateParams({ dateFrom: iso || undefined })}
+                  placeholder={t("di.map.filterDatePlaceholder")}
+                  aria-label={t("di.advSearch.filterDateFrom")}
+                  outputFormat="iso"
+                  displayFormat="short"
+                  commitOnBrowse={false}
+                  showTodayButton
+                  yearRangeBE={{ min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX }}
+                  data-testid="adv-search-date-from"
                 />
               </div>
 
@@ -501,12 +508,18 @@ function DrugPersonAdvancedSearchContent() {
                 <label htmlFor="filter-date-to" className="mb-1.5 block text-xs font-medium text-muted">
                   {t("di.advSearch.filterDateTo")}
                 </label>
-                <input
+                <ThaiDatePicker
                   id="filter-date-to"
-                  type="date"
                   value={dateTo}
-                  onChange={(e) => updateParams({ dateTo: e.target.value || undefined })}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  onChange={(iso) => updateParams({ dateTo: iso || undefined })}
+                  placeholder={t("di.map.filterDatePlaceholder")}
+                  aria-label={t("di.advSearch.filterDateTo")}
+                  outputFormat="iso"
+                  displayFormat="short"
+                  commitOnBrowse={false}
+                  showTodayButton
+                  yearRangeBE={{ min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX }}
+                  data-testid="adv-search-date-to"
                 />
               </div>
 
