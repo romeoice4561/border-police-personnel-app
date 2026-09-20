@@ -79,6 +79,31 @@ test("org chip is omitted (never blank, never a raw id) when text is unresolved 
   assert.equal(chips.find((c) => c.key === "reportingOrg"), undefined);
 });
 
+test("weekday chips use Thai short labels and clear one day at a time", () => {
+  const chips = deriveDrugGeoFilterChips(state({ weekdays: [5, 6] }));
+  const fri = chips.find((c) => c.key === "weekday-5");
+  const sat = chips.find((c) => c.key === "weekday-6");
+  assert.ok(fri);
+  assert.ok(sat);
+  assert.equal(fri!.label, "ศ.");
+  assert.equal(sat!.label, "ส.");
+  assert.deepEqual(fri!.clearPatch, { weekdays: [6] });
+});
+
+test("time preset chip clears back to ALL_DAY", () => {
+  const chips = deriveDrugGeoFilterChips(state({ timePreset: "H21_24" }));
+  const time = chips.find((c) => c.key === "time");
+  assert.ok(time);
+  assert.equal(time!.label, "21:00–24:00");
+  assert.deepEqual(time!.clearPatch, { timePreset: "ALL_DAY", timeFrom: "", timeTo: "" });
+});
+
+test("overnight custom time chip shows start–end", () => {
+  const chips = deriveDrugGeoFilterChips(state({ timePreset: "CUSTOM", timeFrom: "20:00", timeTo: "02:00" }));
+  const time = chips.find((c) => c.key === "time");
+  assert.equal(time?.label, "20:00–02:00");
+});
+
 test("reporting-unit and lead-unit org chips are independent", () => {
   const chips = deriveDrugGeoFilterChips(state({ companyId: 1000, companyText: "ร้อย ตชด.414", leadCompanyId: 2000, leadCompanyText: "ร้อย ตชด.415" }));
   assert.equal(chips.filter((c) => c.key === "reportingOrg" || c.key === "leadOrg").length, 2);

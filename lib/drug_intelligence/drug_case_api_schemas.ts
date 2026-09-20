@@ -429,6 +429,11 @@ export const drugMapQuerySchema = z.object({
   dateTo: z.string().trim().optional(),
   arrestDateFrom: z.string().trim().optional(),
   arrestDateTo: z.string().trim().optional(),
+  /** ISO weekdays CSV Mon=1…Sun=7, e.g. "5,6". */
+  weekdays: z.string().trim().optional(),
+  timePreset: z.enum(["ALL_DAY", "H00_03", "H03_06", "H06_09", "H09_12", "H12_15", "H15_18", "H18_21", "H21_24", "CUSTOM"]).optional(),
+  timeFrom: z.string().trim().optional(),
+  timeTo: z.string().trim().optional(),
   status: z.enum(DRUG_CASE_STATUSES).optional(),
   province: z.string().trim().optional(),
   district: z.string().trim().optional(),

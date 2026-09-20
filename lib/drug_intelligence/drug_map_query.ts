@@ -21,6 +21,21 @@ import { parseExportIsoEnd, parseExportIsoStart } from "@/lib/drug_intelligence/
 import { isValidDrugCaseStatus, type DrugCaseStatus } from "@/lib/drug_intelligence/drug_case_options";
 import { resolveDrugGeoCoordinate } from "@/lib/drug_intelligence/drug_geo_marker";
 import { isValidDrugCategory, type DrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
+import {
+  computeTemporalCoverage,
+  computeTimeBucketFrequency,
+  computeWeekdayFrequency,
+  filterCasesByTime,
+  filterCasesByWeekdays,
+  parseWeekdaysParam,
+  resolveTimeFilterBounds,
+  MAP_TIME_PRESET_VALUES,
+  type IsoWeekday,
+  type MapTimeBucketId,
+  type MapTimePreset,
+  type TemporalCoverage,
+} from "@/lib/drug_intelligence/drug_map_temporal";
+import { parseThaiClockHhMm } from "@/lib/drug_intelligence/di_date_helpers";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ARREST_LOCATION_ROLE = "ARREST_LOCATION";
@@ -38,6 +53,11 @@ export type DrugMapWarningCode = "MARKER_SOFT_LIMIT" | "MARKER_LIMIT";
 export interface DrugMapQueryInput {
   dateFrom?: string;
   dateTo?: string;
+  /** ISO weekdays Mon=1…Sun=7. Empty/undefined = no weekday restriction. */
+  weekdays?: IsoWeekday[];
+  timePreset?: MapTimePreset;
+  timeFrom?: string;
+  timeTo?: string;
   status?: DrugCaseStatus;
   drugCategory?: DrugCategory;
   province?: string;
@@ -62,6 +82,8 @@ export interface DrugMapMarkerRow {
   coordinateSource: "CASE" | "ARREST_LOCATION";
   caseNumber: string;
   arrestDate: string | null;
+  /** Real HH:MM when recorded; null when unknown — never invented 00:00. */
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   status: string;
@@ -74,6 +96,7 @@ export interface DrugMapListRow {
   caseId: string;
   caseNumber: string;
   arrestDate: string | null;
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   locationName: string | null;
@@ -99,6 +122,16 @@ export interface DrugMapQueryResult {
     markerLimitReached: boolean;
     /** Named provinces only — unknown/blank is visible in `provinces[]` but does not increment this KPI. */
     provinceCount: number;
+  };
+  /** Temporal coverage over the date/geo/weekday-matched universe (before time filter). */
+  temporal: {
+    coverage: TemporalCoverage;
+    /** Facet: weekday counts ignoring the active weekday filter. */
+    weekdayFrequency: Record<IsoWeekday, number>;
+    /** Facet: time-bucket counts among timed cases only, ignoring active time filter. */
+    timeBucketFrequency: Record<MapTimeBucketId, number>;
+    /** True when a time filter is active (unknown-time cases excluded from result). */
+    timeFilterActive: boolean;
   };
   markers: DrugMapMarkerRow[];
   list: {
@@ -128,6 +161,7 @@ const CASE_SELECT = {
   id: true,
   caseNumber: true,
   arrestDate: true,
+  arrestTime: true,
   province: true,
   district: true,
   locationName: true,
@@ -142,6 +176,7 @@ interface CaseSelectRow {
   id: unknown;
   caseNumber: string;
   arrestDate: Date | string | null;
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   locationName: string | null;
@@ -199,9 +234,26 @@ export function normalizeDrugMapQueryInput(input: DrugMapQueryInput): DrugMapQue
   const personId = optionalText(input.personId);
   if (personId && (/[\\/]/.test(personId) || personId.length > 64)) throw new DrugMapQueryInvalidFilterError();
 
+  const weekdays = Array.isArray(input.weekdays)
+    ? parseWeekdaysParam(input.weekdays.join(","))
+    : [];
+
+  let timePreset: MapTimePreset | undefined = input.timePreset;
+  if (timePreset != null && !(MAP_TIME_PRESET_VALUES as readonly string[]).includes(timePreset)) {
+    throw new DrugMapQueryInvalidFilterError();
+  }
+  const timeFrom = optionalText(input.timeFrom);
+  const timeTo = optionalText(input.timeTo);
+  if (timeFrom && !parseThaiClockHhMm(timeFrom) && timeFrom !== "24:00") throw new DrugMapQueryInvalidFilterError();
+  if (timeTo && !parseThaiClockHhMm(timeTo) && timeTo !== "24:00") throw new DrugMapQueryInvalidFilterError();
+
   const normalized: DrugMapQueryInput = {};
   if (dateFrom) normalized.dateFrom = dateFrom;
   if (dateTo) normalized.dateTo = dateTo;
+  if (weekdays.length) normalized.weekdays = weekdays;
+  if (timePreset && timePreset !== "ALL_DAY") normalized.timePreset = timePreset;
+  if (timeFrom) normalized.timeFrom = timeFrom;
+  if (timeTo) normalized.timeTo = timeTo;
   if (status) normalized.status = status;
   if (drugCategory) normalized.drugCategory = drugCategory;
   const headquartersId = optionalPositiveInt(input.headquartersId);
@@ -325,15 +377,50 @@ export class DrugMapQueryService {
   async load(input: DrugMapQueryInput = {}): Promise<DrugMapQueryResult> {
     const filters = normalizeDrugMapQueryInput(input);
     const { page, pageSize } = normalizeDrugMapListPage(input);
-    const where = buildDrugMapCaseWhere(filters);
+    const baseWhere = buildDrugMapCaseWhere(filters);
+
+    // Lightweight temporal index for weekday/time facets + filtering (DI-8.2.1).
+    // Scalability: one findMany of id/date/time for the date/geo/org match set.
+    const temporalRows = (await this.db.drugCase.findMany({
+      where: baseWhere,
+      select: { id: true, arrestDate: true, arrestTime: true },
+    })) as Array<{ id: unknown; arrestDate: Date | string | null; arrestTime: string | null }>;
+
+    const lite = temporalRows.map((row) => ({
+      id: String(row.id),
+      arrestDate: row.arrestDate,
+      arrestTime: row.arrestTime,
+    }));
+
+    const weekdays = filters.weekdays ?? [];
+    const timePreset = filters.timePreset ?? "ALL_DAY";
+    const timeBounds = resolveTimeFilterBounds(timePreset, filters.timeFrom, filters.timeTo);
+    const timeFilterActive = timeBounds != null;
+
+    // Facets ignore their own dimension; coverage is post-weekday / pre-time.
+    const afterWeekday = filterCasesByWeekdays(lite, weekdays);
+    const afterTimeOnly = filterCasesByTime(lite, timeBounds);
+    const weekdayFrequency = computeWeekdayFrequency(afterTimeOnly);
+    const coverage = computeTemporalCoverage(afterWeekday);
+    const timeBucketFrequency = computeTimeBucketFrequency(afterWeekday);
+    const finalLite = filterCasesByTime(afterWeekday, timeBounds);
+    const filteredIds = finalLite.map((c) => c.id);
+
+    const where =
+      filteredIds.length === temporalRows.length && weekdays.length === 0 && !timeFilterActive
+        ? baseWhere
+        : filteredIds.length === 0
+          ? { id: { in: ["__map_temporal_empty__"] } }
+          : { id: { in: filteredIds } };
+
     const directWhere = andWhere(where, buildDrugMapDirectCoordinateWhere());
     const incompleteWhere = andWhere(where, buildDrugMapIncompleteCoordinateWhere());
 
     const [totalCases, directCount, provinceGroups, provinceDirectGroups] = await Promise.all([
-      this.db.drugCase.count({ where }),
-      this.db.drugCase.count({ where: directWhere }),
-      this.groupByProvince(where),
-      this.groupByProvince(directWhere),
+      filteredIds.length === 0 ? Promise.resolve(0) : this.db.drugCase.count({ where }),
+      filteredIds.length === 0 ? Promise.resolve(0) : this.db.drugCase.count({ where: directWhere }),
+      filteredIds.length === 0 ? Promise.resolve([] as Array<Record<string, unknown>>) : this.groupByProvince(where),
+      filteredIds.length === 0 ? Promise.resolve([] as Array<Record<string, unknown>>) : this.groupByProvince(directWhere),
     ]);
 
     const firstArrestByCase =
@@ -368,13 +455,16 @@ export class DrugMapQueryService {
           })
         : Promise.resolve([]);
 
-    const listPromise = this.db.drugCase.findMany({
-      where,
-      orderBy: MAP_CASE_ORDER_BY,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: CASE_SELECT,
-    });
+    const listPromise =
+      totalCases === 0
+        ? Promise.resolve([])
+        : this.db.drugCase.findMany({
+            where,
+            orderBy: MAP_CASE_ORDER_BY,
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            select: CASE_SELECT,
+          });
 
     const fallbackProvincePromise =
       fallbackCompleteIds.length > 0
@@ -404,6 +494,12 @@ export class DrugMapQueryService {
         markerCount: markers.length,
         markerLimitReached,
         provinceCount: provinces.filter((row) => !row.unspecified).length,
+      },
+      temporal: {
+        coverage,
+        weekdayFrequency,
+        timeBucketFrequency,
+        timeFilterActive,
       },
       markers,
       list: {
@@ -486,6 +582,7 @@ export class DrugMapQueryService {
       coordinateSource: coord.source,
       caseNumber: row.caseNumber,
       arrestDate: isoArrestDate(row.arrestDate),
+      arrestTime: parseThaiClockHhMm(row.arrestTime),
       province: row.province,
       district: row.district,
       status: row.status,
@@ -500,6 +597,7 @@ export class DrugMapQueryService {
       caseId: String(row.id),
       caseNumber: row.caseNumber,
       arrestDate: isoArrestDate(row.arrestDate),
+      arrestTime: parseThaiClockHhMm(row.arrestTime),
       province: row.province,
       district: row.district,
       locationName: row.locationName,

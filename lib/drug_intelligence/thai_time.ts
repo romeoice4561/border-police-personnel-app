@@ -74,3 +74,43 @@ export function commitThaiTimeParts(hourText: string, minuteText: string): strin
   if (!Number.isInteger(minuteNum) || minuteNum < 0 || minuteNum > 59) return "";
   return fromParts(hourNum, minuteNum);
 }
+
+/** Draft hour/minute for popover pickers — never commits until confirmed. */
+export interface ThaiTimeDraft {
+  hour: string;
+  minute: string;
+}
+
+export function createThaiTimeDraftFromValue(value: string): ThaiTimeDraft {
+  const parsed = parseThaiTime(value);
+  return { hour: parsed.hour, minute: parsed.minute };
+}
+
+/** Complete HH:mm only; otherwise null (no partial commit). Empty draft → "" when clearing. */
+export function resolveThaiTimeDraftCommit(draft: ThaiTimeDraft, mode: "confirm" | "clear"): string | null {
+  if (mode === "clear") return "";
+  if (!draft.hour || !draft.minute) return null;
+  const committed = formatThaiTime(draft.hour, draft.minute);
+  return committed || null;
+}
+
+export function formatThaiTimeDraftPreview(draft: ThaiTimeDraft): string | null {
+  if (!draft.hour || !draft.minute) return null;
+  const hhmm = formatThaiTime(draft.hour, draft.minute);
+  return hhmm ? `${hhmm} น.` : null;
+}
+
+/** Quick-minute list plus any off-step committed/draft minute (e.g. 37). */
+export function thaiTimeMinuteOptionsFor(minute: string): readonly string[] {
+  if (minute && !THAI_TIME_QUICK_MINUTES.includes(minute) && /^\d{2}$/.test(minute) && Number(minute) >= 0 && Number(minute) <= 59) {
+    return [...THAI_TIME_QUICK_MINUTES, minute].sort((a, b) => Number(a) - Number(b));
+  }
+  return THAI_TIME_QUICK_MINUTES;
+}
+
+export function stepThaiTimeDraftOption(options: readonly string[], selected: string, delta: 1 | -1): string {
+  if (!options.length) return selected;
+  const idx = selected ? options.indexOf(selected) : -1;
+  if (idx < 0) return delta > 0 ? options[0]! : options[options.length - 1]!;
+  return options[(idx + delta + options.length) % options.length]!;
+}

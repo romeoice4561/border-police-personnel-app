@@ -1,18 +1,36 @@
 /**
- * Drug Geo filter state <-> URL search params (Phase DI-8, Section 29).
+ * Drug Geo filter state <-> URL search params (Phase DI-8 / DI-8.2.1).
  *
  * ONE shape shared by the filter panel and the map page — every filter
  * persists in the URL, so refresh/back/forward restore the exact same
  * view. Text labels (headquartersText etc.) are UI-only convenience for
- * the OrgHierarchyPicker's display — never written to the URL themselves
- * (only their resolved *Id survives a refresh; the picker re-resolves the
- * label from the id via the org tree, same as Create Case's own draft
- * pattern for a page load that already has an id).
+ * the OrgHierarchyPicker's display — never written to the URL themselves.
+ *
+ * Temporal (DI-8.2.1):
+ * - weekdays: ISO Mon=1…Sun=7 CSV, e.g. "5,6"
+ * - timePreset: ALL_DAY | H00_03…H21_24 | CUSTOM
+ * - timeFrom / timeTo: HH:MM (CUSTOM only; overnight allowed)
  */
+
+import {
+  parseWeekdaysParam,
+  serializeWeekdaysParam,
+  MAP_TIME_PRESET_VALUES,
+  type IsoWeekday,
+  type MapTimePreset,
+} from "@/lib/drug_intelligence/drug_map_temporal";
 
 export interface DrugGeoFilterState {
   dateFrom: string;
   dateTo: string;
+  /** ISO weekdays Mon=1…Sun=7. Empty = ทุกวัน (no restriction). */
+  weekdays: IsoWeekday[];
+  /** Default ALL_DAY — no time filter. */
+  timePreset: MapTimePreset;
+  /** CUSTOM range start HH:MM. */
+  timeFrom: string;
+  /** CUSTOM range end HH:MM (overnight allowed when timeFrom > timeTo). */
+  timeTo: string;
   province: string;
   district: string;
   status: string;
@@ -41,6 +59,10 @@ export function createEmptyDrugGeoFilterState(): DrugGeoFilterState {
   return {
     dateFrom: "",
     dateTo: "",
+    weekdays: [],
+    timePreset: "ALL_DAY",
+    timeFrom: "",
+    timeTo: "",
     province: "",
     district: "",
     status: "",
@@ -66,12 +88,36 @@ export function createEmptyDrugGeoFilterState(): DrugGeoFilterState {
   };
 }
 
-/** Org-hierarchy ids — the only fields that round-trip as numbers. Listed explicitly rather than inferred from an "Id" name suffix, since personId/caseId also end in "Id" but are string business keys, not numeric org ids. */
-const NUMERIC_KEYS: Array<keyof DrugGeoFilterState> = ["headquartersId", "regionId", "battalionId", "companyId", "leadHeadquartersId", "leadRegionId", "leadBattalionId", "leadCompanyId"];
-const STRING_KEYS: Array<keyof DrugGeoFilterState> = ["dateFrom", "dateTo", "province", "district", "status", "drugCategory", "personId", "caseId"];
-const URL_KEYS: Array<keyof DrugGeoFilterState> = [...STRING_KEYS, ...NUMERIC_KEYS];
+const NUMERIC_KEYS: Array<keyof DrugGeoFilterState> = [
+  "headquartersId",
+  "regionId",
+  "battalionId",
+  "companyId",
+  "leadHeadquartersId",
+  "leadRegionId",
+  "leadBattalionId",
+  "leadCompanyId",
+];
+const STRING_KEYS: Array<keyof DrugGeoFilterState> = [
+  "dateFrom",
+  "dateTo",
+  "timeFrom",
+  "timeTo",
+  "province",
+  "district",
+  "status",
+  "drugCategory",
+  "personId",
+  "caseId",
+];
 
-/** Reads filter state from URLSearchParams — numeric org-id fields are parsed; text-label fields are NOT persisted (see module doc comment) and are left blank for the caller to re-resolve. */
+const TIME_PRESETS: readonly MapTimePreset[] = MAP_TIME_PRESET_VALUES;
+
+function isMapTimePreset(value: string): value is MapTimePreset {
+  return (TIME_PRESETS as readonly string[]).includes(value);
+}
+
+/** Reads filter state from URLSearchParams. */
 export function drugGeoFilterStateFromSearchParams(params: URLSearchParams): DrugGeoFilterState {
   const state = createEmptyDrugGeoFilterState();
   for (const key of STRING_KEYS) {
@@ -85,22 +131,39 @@ export function drugGeoFilterStateFromSearchParams(params: URLSearchParams): Dru
     const n = Number(raw);
     if (Number.isFinite(n)) (state as unknown as Record<string, number>)[key] = n;
   }
+  state.weekdays = parseWeekdaysParam(params.get("weekdays"));
+  const timePreset = params.get("timePreset");
+  if (timePreset && isMapTimePreset(timePreset)) state.timePreset = timePreset;
   return state;
 }
 
-/** Serializes filter state to URLSearchParams — omits empty/null values so the URL stays clean (Section 29: "avoid noisy URL if not necessary"). */
+/** Serializes filter state to URLSearchParams — omits empty/default temporal values. */
 export function drugGeoFilterStateToSearchParams(state: DrugGeoFilterState): URLSearchParams {
   const params = new URLSearchParams();
-  for (const key of URL_KEYS) {
+  for (const key of STRING_KEYS) {
+    const value = state[key];
+    if (value === null || value === "" || value === undefined) continue;
+    // timeFrom/timeTo only meaningful for CUSTOM
+    if ((key === "timeFrom" || key === "timeTo") && state.timePreset !== "CUSTOM") continue;
+    params.set(key, String(value));
+  }
+  for (const key of NUMERIC_KEYS) {
     const value = state[key];
     if (value === null || value === "" || value === undefined) continue;
     params.set(key, String(value));
   }
+  const weekdays = serializeWeekdaysParam(state.weekdays);
+  if (weekdays) params.set("weekdays", weekdays);
+  if (state.timePreset && state.timePreset !== "ALL_DAY") params.set("timePreset", state.timePreset);
   return params;
 }
 
 export function isDrugGeoFilterStateEmpty(state: DrugGeoFilterState): boolean {
-  return URL_KEYS.every((key) => {
+  if (state.weekdays.length > 0) return false;
+  if (state.timePreset !== "ALL_DAY") return false;
+  if (state.timeFrom || state.timeTo) return false;
+  const keys: Array<keyof DrugGeoFilterState> = [...STRING_KEYS, ...NUMERIC_KEYS];
+  return keys.every((key) => {
     const value = state[key];
     return value === null || value === "" || value === undefined;
   });

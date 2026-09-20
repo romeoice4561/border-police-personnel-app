@@ -119,6 +119,7 @@ async function seedBareCase(
     id: string;
     caseNumber: string;
     arrestDate?: Date | null;
+    arrestTime?: string | null;
     province?: string | null;
     district?: string | null;
     status?: string;
@@ -142,6 +143,7 @@ async function seedBareCase(
       title: data.caseNumber,
       status: data.status ?? "OPEN",
       arrestDate: data.arrestDate === undefined ? new Date("2026-01-15") : data.arrestDate,
+      arrestTime: data.arrestTime === undefined ? null : data.arrestTime,
       headquartersId: data.headquartersId ?? null,
       regionId: data.regionId ?? null,
       battalionId: data.battalionId ?? null,
@@ -720,14 +722,14 @@ test("query count is fixed for N=12, N=500, and N=2001", async () => {
   assert.equal(n12.result.markers.length, 6);
   assert.equal(n12.result.list.items.length, 12);
   assert.deepEqual(n12.result.warnings, []);
-  assert.equal(n12.queries, 7, `N=12 queries ${n12.queries}`);
+  assert.equal(n12.queries, 8, `N=12 queries ${n12.queries}`);
 
   const n500 = await measure(500, 500);
   assert.equal(n500.result.summary.withCoordinates, 500);
   assert.equal(n500.result.markers.length, 500);
   assert.equal(n500.result.list.items.length, 50);
   assert.deepEqual(n500.result.warnings, []);
-  assert.equal(n500.queries, 6, `N=500 queries ${n500.queries}`);
+  assert.equal(n500.queries, 7, `N=500 queries ${n500.queries}`);
 
   const n2001 = await measure(2001, 2001);
   assert.equal(n2001.result.summary.totalCases, 2001);
@@ -736,7 +738,7 @@ test("query count is fixed for N=12, N=500, and N=2001", async () => {
   assert.equal(n2001.result.markers.length, 0);
   assert.deepEqual(n2001.result.warnings, ["MARKER_LIMIT"]);
   assert.equal(n2001.result.list.items.length, 50);
-  assert.equal(n2001.queries, 5, `N=2001 queries ${n2001.queries}`);
+  assert.equal(n2001.queries, 6, `N=2001 queries ${n2001.queries}`);
 });
 
 test("fallback first-location scan query count stays fixed for N=12, N=500, and N=2001", async () => {
@@ -757,19 +759,48 @@ test("fallback first-location scan query count stays fixed for N=12, N=500, and 
   const n12 = await measureFallback(12);
   assert.equal(n12.result.summary.withCoordinates, 12);
   assert.equal(n12.result.markers.length, 12);
-  assert.equal(n12.queries, 9, `fallback N=12 queries ${n12.queries}`);
+  assert.equal(n12.queries, 10, `fallback N=12 queries ${n12.queries}`);
   assert.ok(n12.queries <= MAP_QUERY_MAX_DB_CALLS);
 
   const n500 = await measureFallback(500);
   assert.equal(n500.result.summary.withCoordinates, 500);
   assert.equal(n500.result.markers.length, 500);
-  assert.equal(n500.queries, 9, `fallback N=500 queries ${n500.queries}`);
+  assert.equal(n500.queries, 10, `fallback N=500 queries ${n500.queries}`);
 
   const n2001 = await measureFallback(2001);
   assert.equal(n2001.result.summary.withCoordinates, 2001);
   assert.equal(n2001.result.markers.length, 0);
   assert.deepEqual(n2001.result.warnings, ["MARKER_LIMIT"]);
-  assert.equal(n2001.queries, 8, `fallback N=2001 queries ${n2001.queries}`);
+  assert.equal(n2001.queries, 9, `fallback N=2001 queries ${n2001.queries}`);
+});
+
+test("DI-8.2.1: weekday + night filter and unknown time coverage", async () => {
+  const db = new InMemoryDatabaseClient();
+  // Friday 2026-08-07
+  await seedBareCase(db, { id: "fri-night", caseNumber: "FRI-N", arrestDate: new Date("2026-08-07"), arrestTime: "21:00", latitude: 10, longitude: 99 });
+  await seedBareCase(db, { id: "fri-day", caseNumber: "FRI-D", arrestDate: new Date("2026-08-07"), arrestTime: "10:00", latitude: 10, longitude: 99 });
+  await seedBareCase(db, { id: "fri-unk", caseNumber: "FRI-U", arrestDate: new Date("2026-08-07"), arrestTime: null, latitude: 10, longitude: 99 });
+  // Saturday
+  await seedBareCase(db, { id: "sat-night", caseNumber: "SAT-N", arrestDate: new Date("2026-08-08"), arrestTime: "22:00", latitude: 10, longitude: 99 });
+  // Monday
+  await seedBareCase(db, { id: "mon-night", caseNumber: "MON-N", arrestDate: new Date("2026-08-10"), arrestTime: "21:00", latitude: 10, longitude: 99 });
+
+  const allDay = await new DrugMapQueryService(db).load({ weekdays: [5, 6] });
+  assert.equal(allDay.summary.totalCases, 4);
+  assert.equal(allDay.temporal.coverage.total, 4);
+  assert.equal(allDay.temporal.coverage.withTime, 3);
+  assert.equal(allDay.temporal.coverage.withoutTime, 1);
+  assert.equal(allDay.temporal.timeFilterActive, false);
+  assert.equal(allDay.temporal.weekdayFrequency[5], 3); // Fri facet ignores weekday? wait - afterTimeOnly with no time filter = all 5 cases; Fri=3 Sat=1 Mon=1
+  assert.equal(allDay.temporal.weekdayFrequency[6], 1);
+
+  const night = await new DrugMapQueryService(db).load({ weekdays: [5, 6], timePreset: "H21_24" });
+  assert.equal(night.summary.totalCases, 2);
+  assert.equal(night.temporal.timeFilterActive, true);
+  assert.equal(night.temporal.coverage.total, 4); // post-weekday pre-time
+  assert.equal(night.temporal.coverage.withTime, 3);
+  assert.equal(night.list.items.every((i) => i.arrestTime != null), true);
+  assert.ok(night.markers.every((m) => m.arrestTime === "21:00" || m.arrestTime === "22:00"));
 });
 
 test("markers stay lightweight and list/markers omit sensitive identifiers", async () => {

@@ -1,35 +1,55 @@
 /**
- * DrugGeoFilterPanel (Phase DI-8, Section 11/12/13/14).
+ * DrugGeoFilterPanel (Phase DI-8 / DI-8.2.1).
  *
- * All filters read/write the SAME DrugGeoFilterState the page owns and
- * mirrors into URL search params (Section 29) — this component has no
- * fetch logic of its own, purely a controlled-input surface.
- *
- * Province is the canonical Thai province Combobox (never raw free-text
- * dev-style input — Section 12). Org filters reuse the canonical
- * OrgHierarchyPicker (Section 13) for both the reporting unit and the lead
- * arrest unit, independently. Drug category and status use Thai labels
- * only — no raw enum value is ever rendered (Section 14).
- *
- * Arrest date range uses the shared ThaiDatePicker (ISO wire YYYY-MM-DD,
- * Thai Buddhist calendar UI) — never the browser-native date input.
+ * Compact temporal + geographic filters. Custom time uses shared ThaiTimePicker
+ * popover (24h). Missing arrestTime is never implied by UI controls.
  */
 "use client";
 
 import { Combobox } from "@/components/ui/combobox";
 import { Select } from "@/components/ui/select";
 import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MAX, THAI_EXPIRY_YEAR_BE_MIN } from "@/components/ui/thai_date_picker";
+import { ThaiTimePicker } from "@/components/ui/thai_time_picker";
 import { OrgHierarchyPicker, type OrgHierarchyValue } from "@/components/officer/org_hierarchy_picker";
 import { Field, HelperText } from "@/components/drug_intelligence/create_case_field";
 import { useT } from "@/components/i18n/language_provider";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
 import { DRUG_CASE_STATUSES, DRUG_CASE_STATUS_META } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_CATEGORIES, DRUG_CATEGORY_LABELS } from "@/lib/drug_intelligence/drug_seized_item_options";
-import { DRUG_GEO_TIME_PERIODS, resolveDrugGeoTimePeriodRange, drugGeoTimePeriodLabel, type DrugGeoTimePeriod } from "@/lib/drug_intelligence/drug_geo_time_period";
+import {
+  ISO_WEEKDAYS,
+  ISO_WEEKDAY_SHORT_TH,
+  MAP_TIME_BUCKETS,
+  resolveMapDatePresetRange,
+  type IsoWeekday,
+  type MapDatePreset,
+  type MapTimeBucketId,
+  type MapTimePreset,
+} from "@/lib/drug_intelligence/drug_map_temporal";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 import type { DrugGeoFilterState } from "@/lib/drug_intelligence/drug_geo_filter_state";
 
 const MAP_YEAR_RANGE = { min: THAI_EXPIRY_YEAR_BE_MIN, max: THAI_EXPIRY_YEAR_BE_MAX };
+
+const DATE_PRESETS: Array<{ value: Exclude<MapDatePreset, "CUSTOM">; labelKey: string }> = [
+  { value: "TODAY", labelKey: "di.map.datePresetToday" },
+  { value: "LAST_7", labelKey: "di.map.datePresetLast7" },
+  { value: "LAST_30", labelKey: "di.map.datePresetLast30" },
+  { value: "THIS_MONTH", labelKey: "di.map.datePresetThisMonth" },
+  { value: "THIS_FISCAL_YEAR", labelKey: "di.map.datePresetFiscalYear" },
+];
+
+const TIME_PRESET_BUTTONS: Array<{ value: MapTimePreset; labelKey?: string; labelTh?: string }> = [
+  { value: "ALL_DAY", labelKey: "di.map.filterTimeAllDay" },
+  ...MAP_TIME_BUCKETS.map((b) => ({ value: b.id as MapTimePreset, labelTh: b.labelTh })),
+  { value: "CUSTOM", labelKey: "di.map.filterTimeCustom" },
+];
+
+function chipClass(active: boolean): string {
+  return active
+    ? "rounded-md bg-accent px-2 py-1 text-xs font-medium text-accent-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    : "rounded-md border border-border px-2 py-1 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+}
 
 export function DrugGeoFilterPanel({
   filters,
@@ -40,15 +60,10 @@ export function DrugGeoFilterPanel({
   onChange: (patch: Partial<DrugGeoFilterState>) => void;
   organizationEngine: OrganizationEngine | undefined;
 }) {
-  const { t, language } = useT();
+  const { t } = useT();
 
   const statusOptions = [{ value: "", label: t("di.map.filterAny") }, ...DRUG_CASE_STATUSES.map((s) => ({ value: s, label: DRUG_CASE_STATUS_META[s].labelTh }))];
   const categoryOptions = [{ value: "", label: t("di.map.filterAny") }, ...DRUG_CATEGORIES.map((c) => ({ value: c, label: DRUG_CATEGORY_LABELS[c].labelTh }))];
-  // CUSTOM isn't a clickable preset — it's the implicit state whenever the
-  // user types their own dateFrom/dateTo below, so only the 4 COMPUTED
-  // presets get a button; "กำหนดช่วงเอง" is communicated by the date inputs
-  // themselves being directly editable, not by a 5th no-op button.
-  const timePeriodOptions = DRUG_GEO_TIME_PERIODS.filter((p): p is Exclude<DrugGeoTimePeriod, "CUSTOM"> => p !== "CUSTOM").map((p) => ({ value: p, label: drugGeoTimePeriodLabel(p, language) }));
 
   const rangeInvalid =
     Boolean(filters.dateFrom) &&
@@ -57,9 +72,33 @@ export function DrugGeoFilterPanel({
     /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo) &&
     filters.dateFrom > filters.dateTo;
 
-  function handleTimePeriodChange(period: Exclude<DrugGeoTimePeriod, "CUSTOM">) {
-    const range = resolveDrugGeoTimePeriodRange(period);
+  const overnightCustom =
+    filters.timePreset === "CUSTOM" &&
+    Boolean(filters.timeFrom) &&
+    Boolean(filters.timeTo) &&
+    filters.timeFrom > filters.timeTo;
+
+  function handleDatePreset(preset: Exclude<MapDatePreset, "CUSTOM">) {
+    const range = resolveMapDatePresetRange(preset);
     onChange({ dateFrom: range.dateFrom, dateTo: range.dateTo });
+  }
+
+  function toggleWeekday(day: IsoWeekday) {
+    const selected = filters.weekdays.includes(day);
+    const next = selected ? filters.weekdays.filter((d) => d !== day) : [...filters.weekdays, day].sort((a, b) => a - b);
+    onChange({ weekdays: next as IsoWeekday[] });
+  }
+
+  function setTimePreset(preset: MapTimePreset) {
+    if (preset === "ALL_DAY") {
+      onChange({ timePreset: "ALL_DAY", timeFrom: "", timeTo: "" });
+      return;
+    }
+    if (preset === "CUSTOM") {
+      onChange({ timePreset: "CUSTOM" });
+      return;
+    }
+    onChange({ timePreset: preset as MapTimeBucketId, timeFrom: "", timeTo: "" });
   }
 
   const reportingOrgValue: OrgHierarchyValue = {
@@ -83,31 +122,25 @@ export function DrugGeoFilterPanel({
     companyText: filters.leadCompanyText,
   };
 
+  const weekdaysAll = filters.weekdays.length === 0;
+
   return (
-    <div className="space-y-4 overflow-visible">
-      {/*
-        Temporal block — date presets + range today.
-        Layout keeps vertical room for a future Temporal Intelligence row:
-        weekday chips + time-of-day buckets (overnight-capable custom range).
-        Do not add those controls here yet.
-      */}
-      <section className="space-y-3 overflow-visible" data-testid="map-temporal-filters" aria-label={t("di.map.filterTimePeriod")}>
-        <Field label={t("di.map.filterTimePeriod")}>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("di.map.filterTimePeriod")}>
-            {timePeriodOptions.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleTimePeriodChange(opt.value)}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                {opt.label}
+    <div className="space-y-3 overflow-visible">
+      <section className="space-y-2.5 overflow-visible" data-testid="map-temporal-filters" aria-label={t("di.map.filterDateRange")}>
+        {/* ROW 1 — date presets */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="text-xs font-semibold text-foreground">{t("di.map.filterDateRange")}</span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("di.map.filterDateRange")}>
+            {DATE_PRESETS.map((opt) => (
+              <button key={opt.value} type="button" onClick={() => handleDatePreset(opt.value)} className={chipClass(false)}>
+                {t(opt.labelKey as "di.map.datePresetToday")}
               </button>
             ))}
           </div>
-        </Field>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 overflow-visible sm:grid-cols-2" data-testid="map-date-range-filters">
+        {/* ROW 2 — date range */}
+        <div className="grid grid-cols-1 gap-3 overflow-visible sm:grid-cols-2" data-testid="map-date-range-filters">
           <Field label={t("di.map.filterDateFrom")} htmlFor="geo-dateFrom">
             <ThaiDatePicker
               id="geo-dateFrom"
@@ -146,9 +179,73 @@ export function DrugGeoFilterPanel({
             {t("di.map.filterDateRangeInvalid")}
           </p>
         ) : null}
+
+        {/* ROW 3 — weekdays */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="text-xs font-semibold text-foreground">{t("di.map.filterWeekdays")}</span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("di.map.filterWeekdays")} data-testid="map-weekday-filters">
+            <button type="button" onClick={() => onChange({ weekdays: [] })} className={chipClass(weekdaysAll)} aria-pressed={weekdaysAll}>
+              {t("di.map.filterWeekdayAll")}
+            </button>
+            {ISO_WEEKDAYS.map((day) => {
+              const active = filters.weekdays.includes(day);
+              return (
+                <button key={day} type="button" onClick={() => toggleWeekday(day)} className={chipClass(active)} aria-pressed={active} title={ISO_WEEKDAY_SHORT_TH[day]}>
+                  {ISO_WEEKDAY_SHORT_TH[day]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ROW 4 — time-of-day presets */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="text-xs font-semibold text-foreground">{t("di.map.filterTimeOfDay")}</span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("di.map.filterTimeOfDay")} data-testid="map-time-of-day-filters">
+            {TIME_PRESET_BUTTONS.map((opt) => {
+              const active = filters.timePreset === opt.value;
+              const label = opt.labelKey ? t(opt.labelKey as "di.map.filterTimeAllDay") : (opt.labelTh ?? "");
+              return (
+                <button key={opt.value} type="button" onClick={() => setTimePreset(opt.value)} className={chipClass(active)} aria-pressed={active}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {filters.timePreset === "CUSTOM" ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="map-custom-time-range">
+            <Field label={t("di.map.filterTimeFrom")} htmlFor="geo-timeFrom">
+              <ThaiTimePicker
+                id="geo-timeFrom"
+                variant="popover"
+                value={filters.timeFrom}
+                onChange={(v) => onChange({ timeFrom: v })}
+                aria-label={t("di.map.filterTimeFrom")}
+                placeholder="--:-- น."
+              />
+            </Field>
+            <Field label={t("di.map.filterTimeTo")} htmlFor="geo-timeTo">
+              <ThaiTimePicker
+                id="geo-timeTo"
+                variant="popover"
+                value={filters.timeTo}
+                onChange={(v) => onChange({ timeTo: v })}
+                aria-label={t("di.map.filterTimeTo")}
+                placeholder="--:-- น."
+              />
+            </Field>
+            {overnightCustom ? (
+              <p className="text-xs text-muted sm:col-span-2" data-testid="map-overnight-hint">
+                {t("di.map.filterTimeOvernightHint")}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label={t("di.map.filterProvince")}>
           <Combobox value={filters.province} onChange={(v) => onChange({ province: v })} suggestions={THAI_PROVINCE_OPTIONS} placeholder={t("di.map.filterAny")} />
         </Field>
@@ -157,7 +254,7 @@ export function DrugGeoFilterPanel({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label={t("di.map.filterStatus")}>
           <Select options={statusOptions} value={filters.status} onChange={(e) => onChange({ status: e.target.value })} />
         </Field>
@@ -167,7 +264,7 @@ export function DrugGeoFilterPanel({
       </div>
 
       {organizationEngine ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div className="space-y-2 rounded-xl border border-border p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.map.filterReportingUnit")}</p>
             <OrgHierarchyPicker

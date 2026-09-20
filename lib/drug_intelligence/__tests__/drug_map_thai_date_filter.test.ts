@@ -1,11 +1,11 @@
 /**
- * Map filter Thai date picker contracts (hotfix).
+ * Map filter Thai date picker + DI-8.2.1 temporal filter contracts.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolveDrugGeoTimePeriodRange } from "@/lib/drug_intelligence/drug_geo_time_period";
+import { resolveMapDatePresetRange } from "@/lib/drug_intelligence/drug_map_temporal";
 import { drugGeoFilterStateFromSearchParams, drugGeoFilterStateToSearchParams, createEmptyDrugGeoFilterState } from "@/lib/drug_intelligence/drug_geo_filter_state";
 import { normalizeDrugMapQueryInput, DrugMapQueryInvalidFilterError } from "@/lib/drug_intelligence/drug_map_query";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
@@ -26,10 +26,15 @@ test("Map filter panel uses ThaiDatePicker, not native date input", () => {
   assert.doesNotMatch(panel, /placeholder="DD\/MM\/YYYY"/);
 });
 
-test("Map temporal filter section is structurally ready for future weekday/time rows", () => {
+test("Map temporal filter section includes weekday and time-of-day controls", () => {
   assert.match(panel, /data-testid="map-temporal-filters"/);
   assert.match(panel, /data-testid="map-date-range-filters"/);
-  assert.match(panel, /Temporal Intelligence/);
+  assert.match(panel, /data-testid="map-weekday-filters"/);
+  assert.match(panel, /data-testid="map-time-of-day-filters"/);
+  assert.match(panel, /resolveMapDatePresetRange/);
+  assert.match(panel, /ThaiTimePicker/);
+  assert.match(panel, /variant="popover"/);
+  assert.doesNotMatch(panel, /type="time"/);
 });
 
 test("UI selection 1 Aug 2569 maps to ISO 2026-08-01 in filter/URL contract", () => {
@@ -61,14 +66,16 @@ test("start/end range: start > end is rejected by map query normalization", () =
 
 test("presets still resolve to YYYY-MM-DD pairs", () => {
   const fixed = new Date("2026-08-15T12:00:00.000Z");
-  const today = resolveDrugGeoTimePeriodRange("TODAY", fixed);
+  const today = resolveMapDatePresetRange("TODAY", fixed);
   assert.equal(today.dateFrom, "2026-08-15");
   assert.equal(today.dateTo, "2026-08-15");
-  const month = resolveDrugGeoTimePeriodRange("THIS_MONTH", fixed);
+  const month = resolveMapDatePresetRange("THIS_MONTH", fixed);
   assert.equal(month.dateFrom, "2026-08-01");
   assert.equal(month.dateTo, "2026-08-31");
-  assert.match(panel, /handleTimePeriodChange/);
-  assert.match(panel, /resolveDrugGeoTimePeriodRange/);
+  const last7 = resolveMapDatePresetRange("LAST_7", fixed);
+  assert.equal(last7.dateFrom, "2026-08-09");
+  assert.equal(last7.dateTo, "2026-08-15");
+  assert.match(panel, /resolveMapDatePresetRange/);
 });
 
 test("clear/reset empties dateFrom/dateTo in URL serialization", () => {
@@ -88,4 +95,5 @@ test("Map page has no native date input and no mm/dd/yyyy copy", () => {
   assert.doesNotMatch(mapPage, /type="date"/);
   assert.doesNotMatch(mapPage, /mm\/dd\/yyyy/i);
   assert.match(mapPage, /DrugGeoFilterPanel/);
+  assert.match(mapPage, /DrugGeoTemporalSummary/);
 });

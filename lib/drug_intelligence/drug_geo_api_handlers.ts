@@ -21,6 +21,7 @@ import {
 } from "@/lib/drug_intelligence/drug_map_case_detail";
 import { DrugCaseNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
 import { mapListTotalPages } from "@/lib/drug_intelligence/drug_map_view";
+import { parseWeekdaysParam } from "@/lib/drug_intelligence/drug_map_temporal";
 
 function zodDetails(error: z.ZodError): unknown {
   return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
@@ -65,6 +66,10 @@ export async function handleDrugMapQuery(service: DrugMapQueryService, searchPar
   const input: DrugMapQueryInput = {
     dateFrom: parsed.dateFrom || parsed.arrestDateFrom,
     dateTo: parsed.dateTo || parsed.arrestDateTo,
+    weekdays: parseWeekdaysParam(parsed.weekdays),
+    timePreset: parsed.timePreset,
+    timeFrom: parsed.timeFrom,
+    timeTo: parsed.timeTo,
     status: parsed.status,
     drugCategory: parsed.drugCategory,
     province: parsed.province,

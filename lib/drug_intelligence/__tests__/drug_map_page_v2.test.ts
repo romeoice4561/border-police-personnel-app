@@ -27,8 +27,13 @@ test("page distinguishes empty, soft limit, and hard limit", () => {
   assert.match(page, /map-marker-soft-limit/);
   assert.match(page, /map-marker-hard-limit/);
   assert.match(page, /map-hard-limit-pane/);
-  assert.match(page, /di\.map\.emptyResult/);
+  assert.match(page, /di\.map\.emptyNoMatch/);
+  assert.match(page, /di\.map\.emptyNoCoordinates/);
+  assert.match(page, /di\.map\.emptyNoTimeData/);
   assert.match(page, /di\.map\.markerHardLimit/);
+  assert.match(page, /DrugGeoTemporalSummary/);
+  assert.match(page, /weekdays/);
+  assert.match(page, /timePreset/);
 });
 
 test("page does not render misleading deferred analytics", () => {

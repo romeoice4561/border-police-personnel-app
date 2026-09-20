@@ -82,19 +82,21 @@ import { DrugGeoReportDrawer } from "@/components/drug_intelligence/drug_geo_rep
 import {
   drugGeoFilterStateFromSearchParams,
   drugGeoFilterStateToSearchParams,
-  isDrugGeoFilterStateEmpty,
   type DrugGeoFilterState,
 } from "@/lib/drug_intelligence/drug_geo_filter_state";
 import { deriveDrugGeoFilterChips } from "@/lib/drug_intelligence/drug_geo_filter_chips";
 import { isDrugMapHardLimit, isDrugMapSoftLimit, isDrugMapTrueEmpty } from "@/lib/drug_intelligence/drug_map_view";
 import { MAP_LIST_DEFAULT_PAGE_SIZE } from "@/lib/drug_intelligence/drug_map_query";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
+import { serializeWeekdaysParam } from "@/lib/drug_intelligence/drug_map_temporal";
 import type { DrugGeoQueryParams } from "@/lib/drug_intelligence/drug_geo_client";
+import { DrugGeoTemporalSummary } from "@/components/drug_intelligence/drug_geo_temporal_summary";
 
 const VIEW_MODES = ["MAP", "LIST", "PROVINCE"] as const;
 type ViewMode = (typeof VIEW_MODES)[number];
 
 function filterStateToQueryParams(state: DrugGeoFilterState): DrugGeoQueryParams {
+  const weekdays = serializeWeekdaysParam(state.weekdays);
   return {
     province: state.province || undefined,
     district: state.district || undefined,
@@ -102,6 +104,10 @@ function filterStateToQueryParams(state: DrugGeoFilterState): DrugGeoQueryParams
     drugCategory: state.drugCategory || undefined,
     dateFrom: state.dateFrom || undefined,
     dateTo: state.dateTo || undefined,
+    weekdays,
+    timePreset: state.timePreset !== "ALL_DAY" ? state.timePreset : undefined,
+    timeFrom: state.timePreset === "CUSTOM" ? state.timeFrom || undefined : undefined,
+    timeTo: state.timePreset === "CUSTOM" ? state.timeTo || undefined : undefined,
     headquartersId: state.headquartersId ?? undefined,
     regionId: state.regionId ?? undefined,
     battalionId: state.battalionId ?? undefined,
@@ -112,6 +118,27 @@ function filterStateToQueryParams(state: DrugGeoFilterState): DrugGeoQueryParams
     leadCompanyId: state.leadCompanyId ?? undefined,
     personId: state.personId || undefined,
   };
+}
+
+function countActiveMapFilters(filters: DrugGeoFilterState): number {
+  let n = 0;
+  if (filters.dateFrom) n += 1;
+  if (filters.dateTo) n += 1;
+  if (filters.weekdays.length) n += 1;
+  if (filters.timePreset !== "ALL_DAY") n += 1;
+  if (filters.province) n += 1;
+  if (filters.district) n += 1;
+  if (filters.status) n += 1;
+  if (filters.drugCategory) n += 1;
+  if (filters.headquartersId != null) n += 1;
+  if (filters.regionId != null) n += 1;
+  if (filters.battalionId != null) n += 1;
+  if (filters.companyId != null) n += 1;
+  if (filters.leadHeadquartersId != null) n += 1;
+  if (filters.leadRegionId != null) n += 1;
+  if (filters.leadBattalionId != null) n += 1;
+  if (filters.leadCompanyId != null) n += 1;
+  return n;
 }
 
 export default function DrugIntelligenceMapPage() {
@@ -260,7 +287,7 @@ function DrugIntelligenceMapContent({
   const detailCaseId = viewMode === "MAP" && selectedCaseId && geoQuery.data?.markers.some((marker) => marker.caseId === selectedCaseId) ? selectedCaseId : null;
   const caseDetail = useDrugMapCaseDetail(actorId, detailCaseId, Boolean(detailCaseId));
 
-  const activeFilterCount = useMemo(() => (isDrugGeoFilterStateEmpty(filters) ? 0 : Object.entries(filters).filter(([, v]) => v !== null && v !== "").length), [filters]);
+  const activeFilterCount = useMemo(() => countActiveMapFilters(filters), [filters]);
   const filterChips = useMemo(() => deriveDrugGeoFilterChips(filters, organizationEngine), [filters, organizationEngine]);
 
   const handleSelectMarker = useCallback((caseId: string) => setSelectedCaseId(caseId), [setSelectedCaseId]);
@@ -295,10 +322,12 @@ function DrugIntelligenceMapContent({
   }
   if (!geoQuery.data) return null;
 
-  const { summary, markers, list, provinces, warnings } = geoQuery.data;
+  const { summary, markers, list, provinces, warnings, temporal } = geoQuery.data;
   const hardLimit = isDrugMapHardLimit(warnings);
   const softLimit = isDrugMapSoftLimit(warnings);
   const trueEmpty = isDrugMapTrueEmpty(summary.totalCases);
+  const timeFilterBlocksMap =
+    temporal.timeFilterActive && temporal.coverage.total > 0 && temporal.coverage.withTime === 0 && trueEmpty;
 
   const periodLabel =
     filters.dateFrom || filters.dateTo
@@ -394,6 +423,8 @@ function DrugIntelligenceMapContent({
         </Card>
       ) : null}
 
+      {!expanded ? <DrugGeoTemporalSummary temporal={temporal} filters={filters} onApply={applyFilters} /> : null}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
@@ -452,7 +483,10 @@ function DrugIntelligenceMapContent({
             {viewMode === "MAP" ? (
               trueEmpty ? (
                 <div data-testid="map-empty-result">
-                  <EmptyState title={t("di.map.emptyResult")} icon={<MapPinned className="h-8 w-8" />} />
+                  <EmptyState
+                    title={timeFilterBlocksMap ? t("di.map.emptyNoTimeData") : t("di.map.emptyNoMatch")}
+                    icon={<MapPinned className="h-8 w-8" />}
+                  />
                 </div>
               ) : hardLimit ? (
                 <div
@@ -462,7 +496,9 @@ function DrugIntelligenceMapContent({
                   {t("di.map.markerHardLimit")}
                 </div>
               ) : markers.length === 0 ? (
-                <EmptyState title={t("di.map.emptyMap")} icon={<MapPinned className="h-8 w-8" />} />
+                <div data-testid="map-empty-no-coordinates">
+                  <EmptyState title={t("di.map.emptyNoCoordinates")} icon={<MapPinned className="h-8 w-8" />} />
+                </div>
               ) : (
                 <DrugGeoMap
                   markers={markers}

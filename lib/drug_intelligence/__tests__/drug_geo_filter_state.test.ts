@@ -55,6 +55,44 @@ test("isDrugGeoFilterStateEmpty correctly distinguishes empty from non-empty sta
   assert.equal(isDrugGeoFilterStateEmpty({ ...createEmptyDrugGeoFilterState(), province: "ชุมพร" }), false);
 });
 
+test("weekdays Friday+Saturday round-trip as weekdays=5,6", () => {
+  const state = { ...createEmptyDrugGeoFilterState(), weekdays: [5, 6] as const };
+  const params = drugGeoFilterStateToSearchParams({ ...state, weekdays: [5, 6] });
+  assert.equal(params.get("weekdays"), "5,6");
+  const restored = drugGeoFilterStateFromSearchParams(params);
+  assert.deepEqual(restored.weekdays, [5, 6]);
+  assert.equal(isDrugGeoFilterStateEmpty(restored), false);
+});
+
+test("timePreset H21_24 round-trips; ALL_DAY omitted from URL", () => {
+  const withNight = { ...createEmptyDrugGeoFilterState(), timePreset: "H21_24" as const };
+  const params = drugGeoFilterStateToSearchParams(withNight);
+  assert.equal(params.get("timePreset"), "H21_24");
+  assert.equal(params.get("timeFrom"), null);
+  const restored = drugGeoFilterStateFromSearchParams(params);
+  assert.equal(restored.timePreset, "H21_24");
+
+  const allDay = drugGeoFilterStateToSearchParams(createEmptyDrugGeoFilterState());
+  assert.equal(allDay.get("timePreset"), null);
+});
+
+test("overnight CUSTOM 20:00–02:00 round-trips (start > end is valid for TIME)", () => {
+  const state = {
+    ...createEmptyDrugGeoFilterState(),
+    timePreset: "CUSTOM" as const,
+    timeFrom: "20:00",
+    timeTo: "02:00",
+  };
+  const params = drugGeoFilterStateToSearchParams(state);
+  assert.equal(params.get("timePreset"), "CUSTOM");
+  assert.equal(params.get("timeFrom"), "20:00");
+  assert.equal(params.get("timeTo"), "02:00");
+  const restored = drugGeoFilterStateFromSearchParams(params);
+  assert.equal(restored.timeFrom, "20:00");
+  assert.equal(restored.timeTo, "02:00");
+  assert.equal(restored.timePreset, "CUSTOM");
+});
+
 test("text label fields (headquartersText etc.) are never written to the URL", () => {
   const state = { ...createEmptyDrugGeoFilterState(), companyId: 69, companyText: "ตชด.444" };
   const params = drugGeoFilterStateToSearchParams(state);

@@ -21,6 +21,12 @@ import type { DrugGeoFilterState } from "@/lib/drug_intelligence/drug_geo_filter
 import { DRUG_CASE_STATUS_META, isValidDrugCaseStatus } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligence/drug_seized_item_options";
 import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
+import {
+  ISO_WEEKDAY_SHORT_TH,
+  mapTimeBucketChipLabel,
+  type IsoWeekday,
+  type MapTimeBucketId,
+} from "@/lib/drug_intelligence/drug_map_temporal";
 import type { OrganizationEngine } from "@/lib/organization/organization_engine";
 
 export interface DrugGeoFilterChip {
@@ -115,9 +121,31 @@ export function deriveDrugGeoFilterChips(filters: DrugGeoFilterState, organizati
     const fromLabel = filters.dateFrom ? formatChipDate(filters.dateFrom) : null;
     const toLabel = filters.dateTo ? formatChipDate(filters.dateTo) : null;
     const label =
-      fromLabel && toLabel ? `ช่วงเวลา: ${fromLabel} – ${toLabel}` : fromLabel ? `ตั้งแต่: ${fromLabel}` : `ถึง: ${toLabel}`;
+      fromLabel && toLabel ? `ช่วงวันที่: ${fromLabel} – ${toLabel}` : fromLabel ? `ตั้งแต่: ${fromLabel}` : `ถึง: ${toLabel}`;
     chips.push({ key: "date", label, clearPatch: { dateFrom: "", dateTo: "" } });
   }
+
+  for (const day of filters.weekdays) {
+    const remaining = filters.weekdays.filter((d) => d !== day) as IsoWeekday[];
+    chips.push({
+      key: `weekday-${day}`,
+      label: ISO_WEEKDAY_SHORT_TH[day],
+      clearPatch: { weekdays: remaining },
+    });
+  }
+
+  if (filters.timePreset && filters.timePreset !== "ALL_DAY") {
+    const timeLabel =
+      filters.timePreset === "CUSTOM"
+        ? `${filters.timeFrom || "…"}–${filters.timeTo || "…"}`
+        : mapTimeBucketChipLabel(filters.timePreset as MapTimeBucketId);
+    chips.push({
+      key: "time",
+      label: timeLabel,
+      clearPatch: { timePreset: "ALL_DAY", timeFrom: "", timeTo: "" },
+    });
+  }
+
   if (filters.province) {
     chips.push({ key: "province", label: `จังหวัด: ${filters.province}`, clearPatch: { province: "" } });
   }

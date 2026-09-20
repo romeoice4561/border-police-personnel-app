@@ -21,6 +21,7 @@ export interface DrugMapMarkerView {
   coordinateSource: "CASE" | "ARREST_LOCATION";
   caseNumber: string;
   arrestDate: string | null;
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   status: string;
@@ -33,6 +34,7 @@ export interface DrugMapListItemView {
   caseId: string;
   caseNumber: string;
   arrestDate: string | null;
+  arrestTime: string | null;
   province: string | null;
   district: string | null;
   locationName: string | null;
@@ -58,6 +60,21 @@ export interface DrugMapSummaryView {
   provinceCount: number;
 }
 
+export interface DrugMapTemporalView {
+  coverage: {
+    total: number;
+    withTime: number;
+    withoutTime: number;
+    coveragePercent: number;
+  };
+  weekdayFrequency: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, number>;
+  timeBucketFrequency: Record<
+    "H00_03" | "H03_06" | "H06_09" | "H09_12" | "H12_15" | "H15_18" | "H18_21" | "H21_24",
+    number
+  >;
+  timeFilterActive: boolean;
+}
+
 export interface DrugMapListView {
   items: DrugMapListItemView[];
   page: number;
@@ -68,6 +85,7 @@ export interface DrugMapListView {
 
 export interface DrugMapResultView {
   summary: DrugMapSummaryView;
+  temporal: DrugMapTemporalView;
   markers: DrugMapMarkerView[];
   list: DrugMapListView;
   provinces: DrugMapProvinceView[];
@@ -92,6 +110,10 @@ export interface DrugGeoQueryParams {
   dateTo?: string;
   arrestDateFrom?: string;
   arrestDateTo?: string;
+  weekdays?: string;
+  timePreset?: string;
+  timeFrom?: string;
+  timeTo?: string;
   leadHeadquartersId?: number;
   leadRegionId?: number;
   leadBattalionId?: number;
