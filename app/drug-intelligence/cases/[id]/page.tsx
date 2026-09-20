@@ -1,33 +1,35 @@
 /**
  * Drug Case Workspace (Phase DI-1 Round 2, Section 15-17).
  *
- * A Drug-specific workspace — deliberately NOT built on top of
- * OfficerWorkspace (Section 15: "ไม่ coupling กับ OfficerWorkspace โดยตรงจนเสี่ยง
- * regression"). Header + clickable KPI row + tab navigation over 8 sections;
- * Network/Timeline/Map are NOT implemented (Section 17) — shown as a single
- * "coming soon" note, never individually-disabled dead buttons cluttering
- * the tab bar itself.
+ * Visual Intelligence polish: Case identity header + compact intelligence
+ * summary. Deliberately NOT built on OfficerWorkspace. Network/Timeline/Map
+ * remain existing navigation targets — not reinvented here.
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History, FileText } from "lucide-react";
 import { DrugCaseReportDrawer } from "@/components/drug_intelligence/drug_case_report_drawer";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
-import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
-import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DrugCaseStatusBadge } from "@/components/drug_intelligence/drug_case_status_badge";
-import { DrugKpiTile } from "@/components/drug_intelligence/drug_kpi_tile";
+import { Badge } from "@/components/ui/badge";
+import { DrugCaseIdentityHeader } from "@/components/drug_intelligence/drug_case_identity_header";
+import { DrugCaseIntelligenceSummary } from "@/components/drug_intelligence/drug_case_intelligence_summary";
 import { DrugCaseAlertSummary } from "@/components/drug_intelligence/drug_case_alert_summary";
 import { DrugCaseTimelineSummary } from "@/components/drug_intelligence/drug_case_timeline_summary";
 import { DrugPersonDrawer } from "@/components/drug_intelligence/drug_person_drawer";
 import { DrugAnalystNotesPanel } from "@/components/drug_intelligence/drug_analyst_notes_panel";
 import { DrugInvestigationTasksPanel } from "@/components/drug_intelligence/drug_investigation_tasks_panel";
+import {
+  VisualIntelligenceCard,
+  IntelligenceCardGrid,
+  IntelligenceSection,
+  compactEntityId,
+} from "@/components/drug_intelligence/drug_person_workspace_cards";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugCase } from "@/lib/drug_intelligence/drug_intelligence_hooks";
@@ -40,7 +42,7 @@ import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analy
 import { DrugCaseInvestigatorContactCard } from "@/components/drug_intelligence/drug_case_investigator_contact_card";
 import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import { casePersonInvestigationHref } from "@/lib/drug_intelligence/drug_entity_routes";
-import { toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
+import { DrugWorkspaceTabBar } from "@/components/drug_intelligence/drug_workspace_tab_bar";
 import type {
   DrugCaseDetailResponse,
   DrugCasePersonRow,
@@ -67,6 +69,8 @@ const TABS = [
   { key: "notes", labelKey: "di.workspace.tabNotes" },
 ] as const;
 
+type TabKey = (typeof TABS)[number]["key"];
+
 function personRoleLabel(role: string, language: "th" | "en"): string {
   if (!isValidDrugCasePersonRole(role)) return role;
   const meta = DRUG_CASE_PERSON_ROLE_LABELS[role];
@@ -92,7 +96,7 @@ export default function DrugCaseWorkspacePage() {
   const returnTo = getSafeReturnTo(searchParams);
   const { user, can } = useAuth();
   const { t, language } = useT();
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>(() =>
+  const [activeTab, setActiveTab] = useState<TabKey>(() =>
     typeof window !== "undefined" && window.location.hash === "#media" ? "media" : "overview"
   );
   const [selectedPersonId, setSelectedPersonId] = useState("");
@@ -101,9 +105,27 @@ export default function DrugCaseWorkspacePage() {
 
   const detail = useDrugCase(user?.id ?? null, caseId);
 
+  useEffect(() => {
+    function syncMediaHash() {
+      if (typeof window !== "undefined" && window.location.hash === "#media") {
+        setActiveTab("media");
+      }
+    }
+    syncMediaHash();
+    window.addEventListener("hashchange", syncMediaHash);
+    return () => window.removeEventListener("hashchange", syncMediaHash);
+  }, []);
+
   function openPersonDrawer(personId: string, role?: string) {
     setSelectedPersonId(personId);
     setSelectedPersonRole(role);
+  }
+
+  function goTab(tab: TabKey) {
+    setActiveTab(tab);
+    if (tab === "media" && typeof window !== "undefined") {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#media`);
+    }
   }
 
   if (detail.isPending) {
@@ -116,97 +138,76 @@ export default function DrugCaseWorkspacePage() {
   const data = detail.data;
   const canViewFull = can("drug.edit");
 
+  const headerActions = (
+    <div className="flex flex-wrap gap-2">
+      {returnTo ? (
+        <Button asChild variant="outline" size="sm" className="min-h-10">
+          <Link href={returnTo} data-testid="back-via-return-to">
+            {t(returnToBackLabelKey(returnTo))}
+          </Link>
+        </Button>
+      ) : null}
+      <Button asChild size="sm" data-testid="case-primary-network">
+        <Link href={withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`, returnTo)}>
+          <Network className="h-4 w-4" aria-hidden="true" />
+          {t("di.network.openNetwork")}
+        </Link>
+      </Button>
+      <Button asChild variant="outline" size="sm">
+        <Link href={`/drug-intelligence/timeline?caseId=${encodeURIComponent(caseId)}`}>
+          <History className="h-4 w-4" aria-hidden="true" />
+          {t("di.timeline.navLabel")}
+        </Link>
+      </Button>
+      {can("drug.read") ? (
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
+            <MapPinned className="h-4 w-4" aria-hidden="true" />
+            {t("di.map.actionOpenOnMap")}
+          </Link>
+        </Button>
+      ) : null}
+      {can("drug.export") ? (
+        <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)} data-testid="case-report-btn">
+          <FileText className="h-4 w-4" aria-hidden="true" />
+          {t("di.export.caseReport")}
+        </Button>
+      ) : null}
+      <Button asChild variant="ghost" size="sm">
+        <Link href="/drug-intelligence/cases">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          {t("di.workspace.backToList")}
+        </Link>
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title={data.case.caseNumber}
-        description={data.case.title}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            {returnTo ? (
-              <Button asChild variant="outline" size="sm" className="min-h-10">
-                <Link href={returnTo} data-testid="back-via-return-to">
-                  {t(returnToBackLabelKey(returnTo))}
-                </Link>
-              </Button>
-            ) : null}
-            <Button asChild variant="outline" size="sm">
-              <Link href={withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`, returnTo)}>
-                <Network className="h-4 w-4" aria-hidden="true" />
-                {t("di.network.openNetwork")}
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/drug-intelligence/timeline?caseId=${encodeURIComponent(caseId)}`}>
-                <History className="h-4 w-4" aria-hidden="true" />
-                {t("di.timeline.navLabel")}
-              </Link>
-            </Button>
-            {can("drug.read") ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
-                  <MapPinned className="h-4 w-4" aria-hidden="true" />
-                  {t("di.map.actionOpenOnMap")}
-                </Link>
-              </Button>
-            ) : null}
-            {can("drug.export") ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)} data-testid="case-report-btn">
-                <FileText className="h-4 w-4" aria-hidden="true" />
-                {t("di.export.caseReport")}
-              </Button>
-            ) : null}
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/drug-intelligence/cases">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                {t("di.workspace.backToList")}
-              </Link>
-            </Button>
-          </div>
-        }
+    <div className="space-y-4">
+      <DrugCaseIdentityHeader
+        caseId={caseId}
+        caseNumber={data.case.caseNumber}
+        title={data.case.title}
+        status={data.case.status}
+        arrestDate={data.case.arrestDate}
+        province={data.case.province}
+        reportingUnitText={data.case.reportingUnitText}
+        actions={headerActions}
       />
 
-      <Card>
-        <CardBody className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-          <span className="text-muted">
-            {t("di.field.arrestDate")}: <span className="text-foreground">{data.case.arrestDate ? toGregorianDateInputValue(data.case.arrestDate) : "—"}</span>
-          </span>
-          <span className="text-muted">
-            {t("di.field.reportingUnit")}: <span className="text-foreground">{data.case.reportingUnitText || "—"}</span>
-          </span>
-          <span className="text-muted">
-            {t("di.field.province")}: <span className="text-foreground">{data.case.province || "—"}</span>
-          </span>
-          <DrugCaseStatusBadge status={data.case.status} />
-        </CardBody>
-      </Card>
+      <DrugWorkspaceTabBar
+        testId="case-workspace-tabs"
+        activeKey={activeTab}
+        onChange={(key) => goTab(key as TabKey)}
+        tabs={TABS.map((tab) => ({ key: tab.key, label: t(tab.labelKey) }))}
+      />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <DrugKpiTile label={t("di.workspace.kpiPersons")} value={data.personCount} icon={Users} onClick={() => setActiveTab("persons")} />
-        <DrugKpiTile label={t("di.workspace.kpiPhones")} value={data.phoneCount} icon={Phone} onClick={() => setActiveTab("phones")} />
-        <DrugKpiTile label={t("di.workspace.kpiSims")} value={data.simCount} icon={Smartphone} onClick={() => setActiveTab("phones")} />
-        <DrugKpiTile label={t("di.workspace.kpiDevices")} value={data.deviceCount} icon={Smartphone} onClick={() => setActiveTab("devices")} />
-        <DrugKpiTile label={t("di.workspace.kpiVehicles")} value={data.vehicleCount} icon={Car} onClick={() => setActiveTab("vehicles")} />
-        <DrugKpiTile label={t("di.workspace.kpiSeized")} value={data.seizedItemCount} icon={Package} onClick={() => setActiveTab("seized")} />
-      </div>
-
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.key ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
-            }`}
-          >
-            {t(tab.labelKey)}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "overview" ? <OverviewTab data={data} /> : null}
-      {activeTab === "media" ? <DrugEntityMediaGallery entityType="CASE" entityId={caseId} sourceCaseId={caseId} /> : null}
+      {activeTab === "overview" ? <OverviewTab data={data} onOpenTab={goTab} /> : null}
+      {activeTab === "media" ? (
+        <div id="media">
+          <DrugEntityMediaGallery entityType="CASE" entityId={caseId} sourceCaseId={caseId} />
+        </div>
+      ) : null}
       {activeTab === "persons" ? (
         <PersonsTab
           persons={data.persons}
@@ -249,41 +250,11 @@ export default function DrugCaseWorkspacePage() {
   );
 }
 
-/**
- * Phase DI-8.1 Section 2: compact coordinate/location summary + "เปิดบนแผนที่"
- * action. Deliberately does NOT duplicate the geo read model's coordinate
- * precedence (DrugCase vs. ARREST_LOCATION DrugLocation) — this reads only
- * DrugCase's own latitude/longitude, which is the SAME first-priority
- * source that precedence rule checks first; a case whose only coordinates
- * live on an ARREST_LOCATION row (not the case itself) will correctly show
- * "ยังไม่มีพิกัดที่บันทึกไว้" here even though it still appears on the map —
- * this card is a case-row-level summary, not a duplicate of the map's own
- * resolution logic.
- */
-function DrugCaseCoordinateSummary({ caseId, latitude, longitude }: { caseId: string; latitude: string | null; longitude: string | null }) {
-  const { t } = useT();
-  const hasCoordinates = latitude !== null && longitude !== null;
-
-  return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.map.coordinateSummaryTitle")}</p>
-        <p className="mt-0.5 text-sm text-foreground">{hasCoordinates ? `${latitude}, ${longitude}` : t("di.map.noCoordinatesRecorded")}</p>
-      </div>
-      <Button asChild variant="outline" size="sm">
-        <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
-          <MapPinned className="h-4 w-4" aria-hidden="true" />
-          {t("di.map.actionOpenOnMap")}
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
-function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
-  const { t, language } = useT();
+function OverviewTab({ data, onOpenTab }: { data: DrugCaseDetailResponse; onOpenTab: (tab: TabKey) => void }) {
+  const { language } = useT();
   return (
     <div className="space-y-3">
+      <DrugCaseIntelligenceSummary data={data} onOpenTab={onOpenTab} />
       <DrugCaseAlertSummary caseId={data.case.id} />
       <DrugCaseTimelineSummary
         caseId={data.case.id}
@@ -300,84 +271,74 @@ function OverviewTab({ data }: { data: DrugCaseDetailResponse }) {
         investigatorPhone={data.case.investigatorPhone}
       />
       <DrugCaseUnitsAndTeamCard data={data} language={language} />
-      <Card>
-        <CardBody className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>
-          <p className="whitespace-pre-wrap text-sm text-foreground">{data.case.narrative || "—"}</p>
-          <DrugCaseCoordinateSummary caseId={data.case.id} latitude={data.case.latitude} longitude={data.case.longitude} />
-        </CardBody>
-      </Card>
     </div>
   );
 }
 
-/** Section 11: หน่วยและชุดจับกุม — reporting/lead/participating units plus arrest-team members, with internal officers linked to their profile and external officers clearly tagged. */
+/** Section 11: หน่วยและชุดจับกุม — reporting/lead/participating units plus arrest-team members. */
 function DrugCaseUnitsAndTeamCard({ data, language }: { data: DrugCaseDetailResponse; language: "th" | "en" }) {
   const { t } = useT();
   return (
-    <Card>
-      <CardBody className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("di.workspace.unitsAndTeamTitle")}</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <p className="text-xs text-muted">{t("di.review.reportingUnitLabel")}</p>
-            <p className="text-sm text-foreground">{data.case.reportingUnitText || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">{t("di.review.leadUnitLabel")}</p>
-            <p className="text-sm text-foreground">{data.case.leadUnitText || "—"}</p>
-          </div>
-        </div>
-
+    <IntelligenceSection title={t("di.workspace.unitsAndTeamTitle")}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <p className="mb-1 text-xs text-muted">{t("di.review.participatingUnitsLabel")}</p>
-          {data.participatingUnits.length === 0 ? (
-            <p className="text-sm text-foreground">{t("di.review.none")}</p>
-          ) : (
-            <ul className="space-y-1 text-sm text-foreground">
-              {data.participatingUnits.map((u) => (
-                <li key={u.id} className="flex items-center gap-2">
-                  <span>{u.unitText || "—"}</span>
-                  <span className="text-xs text-muted">
-                    ({isValidDrugCaseUnitRole(u.role) ? DRUG_CASE_UNIT_ROLE_LABELS[u.role][language === "th" ? "labelTh" : "labelEn"] : u.role})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <p className="text-xs text-muted">{t("di.review.reportingUnitLabel")}</p>
+          <p className="text-sm text-foreground">{data.case.reportingUnitText || "—"}</p>
         </div>
-
         <div>
-          <p className="mb-1 text-xs text-muted">{t("di.review.arrestTeamLabel")}</p>
-          {data.officers.length === 0 ? (
-            <p className="text-sm text-foreground">{t("di.review.none")}</p>
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {data.officers.map((o) => (
-                <li key={o.id} className="flex flex-wrap items-center gap-2">
-                  {o.officer ? (
-                    <Link href={`/officers/${encodeURIComponent(o.officer.officerId)}`} className="text-accent hover:underline">
-                      {o.officer.rank} {o.officer.firstName} {o.officer.lastName}
-                    </Link>
-                  ) : (
-                    <span className="text-foreground">
-                      {o.manualRank ? `${o.manualRank} ` : ""}
-                      {o.manualFullName || "—"}
-                    </span>
-                  )}
-                  <span className="text-xs text-muted">
-                    ({isValidDrugCaseOfficerRole(o.role) ? DRUG_CASE_OFFICER_ROLE_LABELS[o.role][language === "th" ? "labelTh" : "labelEn"] : o.role})
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${o.officer ? "bg-good/10 text-good" : "bg-warning/10 text-warning"}`}>
-                    {o.officer ? t("di.workspace.internalOfficerTag") : t("di.workspace.manualOfficerTag")}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <p className="text-xs text-muted">{t("di.review.leadUnitLabel")}</p>
+          <p className="text-sm text-foreground">{data.case.leadUnitText || "—"}</p>
         </div>
-      </CardBody>
-    </Card>
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs text-muted">{t("di.review.participatingUnitsLabel")}</p>
+        {data.participatingUnits.length === 0 ? (
+          <p className="text-sm text-muted">{t("di.review.none")}</p>
+        ) : (
+          <ul className="space-y-1 text-sm text-foreground">
+            {data.participatingUnits.map((u) => (
+              <li key={u.id} className="flex items-center gap-2">
+                <span>{u.unitText || "—"}</span>
+                <span className="text-xs text-muted">
+                  ({isValidDrugCaseUnitRole(u.role) ? DRUG_CASE_UNIT_ROLE_LABELS[u.role][language === "th" ? "labelTh" : "labelEn"] : u.role})
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs text-muted">{t("di.review.arrestTeamLabel")}</p>
+        {data.officers.length === 0 ? (
+          <p className="text-sm text-muted">{t("di.review.none")}</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {data.officers.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center gap-2">
+                {o.officer ? (
+                  <Link href={`/officers/${encodeURIComponent(o.officer.officerId)}`} className="text-accent hover:underline">
+                    {o.officer.rank} {o.officer.firstName} {o.officer.lastName}
+                  </Link>
+                ) : (
+                  <span className="text-foreground">
+                    {o.manualRank ? `${o.manualRank} ` : ""}
+                    {o.manualFullName || "—"}
+                  </span>
+                )}
+                <span className="text-xs text-muted">
+                  ({isValidDrugCaseOfficerRole(o.role) ? DRUG_CASE_OFFICER_ROLE_LABELS[o.role][language === "th" ? "labelTh" : "labelEn"] : o.role})
+                </span>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] ${o.officer ? "bg-good/10 text-good" : "bg-warning/10 text-warning"}`}>
+                  {o.officer ? t("di.workspace.internalOfficerTag") : t("di.workspace.manualOfficerTag")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </IntelligenceSection>
   );
 }
 
@@ -395,36 +356,51 @@ function PersonsTab({
   language: "th" | "en";
 }) {
   const { t } = useT();
-  if (persons.length === 0) return <EmptyState title={t("di.workspace.emptyPersons")} icon={<Users className="h-8 w-8" />} />;
+  if (persons.length === 0) {
+    return <EmptyState title={t("di.workspace.emptyPersons")} icon={<Users className="h-8 w-8" />} />;
+  }
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <IntelligenceCardGrid count={persons.length}>
       {persons.map((p) => {
         const profileHref = casePersonInvestigationHref(p.personId, caseId, returnTo);
+        const name = p.person?.primaryFullName || "—";
         return (
-          <div key={p.personId} className="rounded-xl border border-border bg-surface p-4" data-testid="case-person-card">
-            <Link
-              href={profileHref}
-              className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              data-testid="case-person-profile-link"
-              data-source-case-id={caseId}
-            >
-              <p className="font-medium text-foreground hover:text-accent">{p.person?.primaryFullName || "—"}</p>
-              <p className="mt-1 text-sm text-muted">{personRoleLabel(p.role, language)}</p>
-              {p.person?.nationality ? <p className="mt-1 text-xs text-muted">{p.person.nationality}</p> : null}
-              <p className="mt-2 text-xs font-medium text-accent">{t("di.person.viewProfile")} →</p>
-            </Link>
-            <button
-              type="button"
-              onClick={() => onSelectPerson(p.personId, p.role)}
-              className="mt-2 text-xs text-muted underline-offset-2 hover:text-foreground hover:underline"
-              data-testid="case-person-drawer-trigger"
-            >
-              {t("di.person.drawer.quickSummary")}
-            </button>
-          </div>
+          <VisualIntelligenceCard
+            key={p.personId}
+            testId="case-person-card"
+            dataAttrs={{ "source-case-id": caseId }}
+            icon={<Users className="h-4 w-4" />}
+            title={
+              <Link
+                href={profileHref}
+                className="hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                data-testid="case-person-profile-link"
+                data-source-case-id={caseId}
+              >
+                {name}
+              </Link>
+            }
+            badges={<Badge tone="neutral">{personRoleLabel(p.role, language)}</Badge>}
+            summary={p.person?.nationality ? <span className="text-muted">{p.person.nationality}</span> : null}
+            action={
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm">
+                  <Link href={profileHref}>{t("di.person.viewProfile")}</Link>
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => onSelectPerson(p.personId, p.role)}
+                  className="text-xs text-muted underline-offset-2 hover:text-foreground hover:underline"
+                  data-testid="case-person-drawer-trigger"
+                >
+                  {t("di.person.drawer.quickSummary")}
+                </button>
+              </div>
+            }
+          />
         );
       })}
-    </div>
+    </IntelligenceCardGrid>
   );
 }
 
@@ -440,23 +416,25 @@ function PhonesTab({
   canViewFull: boolean;
 }) {
   const { t } = useT();
-  if (phones.length === 0 && sims.length === 0) return <EmptyState title={t("di.workspace.emptyPhones")} icon={<Phone className="h-8 w-8" />} />;
+  if (phones.length === 0 && sims.length === 0) {
+    return <EmptyState title={t("di.workspace.emptyPhones")} icon={<Phone className="h-8 w-8" />} />;
+  }
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {phones.length > 0 ? (
         <div className="overflow-x-auto rounded-xl border border-border bg-surface">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-medium">{t("di.phone.number")}</th>
-                <th className="px-4 py-3 font-medium">{t("di.person.fullName")}</th>
-                <th className="px-4 py-3 font-medium">{t("di.workspace.provenanceStatus")}</th>
+                <th className="px-3 py-2.5 font-medium">{t("di.phone.number")}</th>
+                <th className="px-3 py-2.5 font-medium">{t("di.person.fullName")}</th>
+                <th className="px-3 py-2.5 font-medium">{t("di.workspace.provenanceStatus")}</th>
               </tr>
             </thead>
             <tbody>
               {phones.map((phone) => (
                 <tr key={`${phone.phoneNumberId}-${phone.personId ?? "case"}`} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
-                  <td className="px-4 py-3 font-mono">
+                  <td className="px-3 py-2.5 font-mono">
                     {phone.phoneNumber ? (
                       <Link href={`/drug-intelligence/phones/${encodeURIComponent(phone.phoneNumberId)}`} className="text-accent hover:underline">
                         {presentPhoneNumber(phone.phoneNumber.normalizedNumber, canViewFull)}
@@ -465,7 +443,7 @@ function PhonesTab({
                       "—"
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     {phone.personId ? (
                       <button type="button" onClick={() => onSelectPerson(phone.personId as string, undefined)} className="text-accent hover:underline">
                         {phone.person?.primaryFullName || "—"}
@@ -474,7 +452,9 @@ function PhonesTab({
                       <span className="text-muted">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted">{phone.status}</td>
+                  <td className="px-3 py-2.5">
+                    <Badge tone="neutral">{phone.status}</Badge>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -482,18 +462,23 @@ function PhonesTab({
         </div>
       ) : null}
       {sims.length > 0 ? (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">SIM</p>
-          <ul className="space-y-1 text-sm text-foreground">
+        <IntelligenceSection title="SIM">
+          <ul className="space-y-1.5 text-sm">
             {sims.map((sim) => (
-              <li key={sim.simId}>
-                <Link href={`/drug-intelligence/sims/${encodeURIComponent(sim.simId)}`} className="text-accent hover:underline">
-                  {sim.status}
-                </Link>
+              <li key={sim.simId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2">
+                <span className="text-muted">
+                  {t("di.workspace.openSim")} · {compactEntityId(sim.simId)}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Badge tone="neutral">{sim.status}</Badge>
+                  <Link href={`/drug-intelligence/sims/${encodeURIComponent(sim.simId)}`} className="text-xs font-medium text-accent hover:underline">
+                    {t("di.workspace.openSim")}
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>
-        </div>
+        </IntelligenceSection>
       ) : null}
     </div>
   );
@@ -503,23 +488,30 @@ function DevicesTab({ devices, onSelectPerson, canViewFull }: { devices: DrugCas
   const { t } = useT();
   if (devices.length === 0) return <EmptyState title={t("di.workspace.emptyDevices")} icon={<Smartphone className="h-8 w-8" />} />;
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {devices.map((d) => (
-        <Card key={d.deviceId}>
-          <CardBody className="space-y-1">
-            <Link href={`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`} className="block font-medium text-foreground hover:underline">
-              {[d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—"}
-            </Link>
-            {d.device?.imei1 ? <p className="font-mono text-sm text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</p> : null}
-            {d.personId ? (
-              <button type="button" onClick={() => onSelectPerson(d.personId as string, undefined)} className="text-sm text-accent hover:underline">
-                {d.person?.primaryFullName || "—"}
-              </button>
-            ) : null}
-          </CardBody>
-        </Card>
-      ))}
-    </div>
+    <IntelligenceCardGrid count={devices.length}>
+      {devices.map((d) => {
+        const label = [d.device?.brand, d.device?.model].filter(Boolean).join(" ") || "—";
+        return (
+          <VisualIntelligenceCard
+            key={d.deviceId}
+            icon={<Smartphone className="h-4 w-4" />}
+            title={
+              <Link href={`/drug-intelligence/devices/${encodeURIComponent(d.deviceId)}`} className="hover:underline">
+                {label}
+              </Link>
+            }
+            summary={d.device?.imei1 ? <span className="font-mono text-muted">{presentIdentifierValue(d.device.imei1, canViewFull)}</span> : null}
+            action={
+              d.personId ? (
+                <button type="button" onClick={() => onSelectPerson(d.personId as string, undefined)} className="text-sm text-accent hover:underline">
+                  {d.person?.primaryFullName || "—"}
+                </button>
+              ) : null
+            }
+          />
+        );
+      })}
+    </IntelligenceCardGrid>
   );
 }
 
@@ -527,23 +519,27 @@ function VehiclesTab({ vehicles, onSelectPerson }: { vehicles: DrugCaseVehicleRo
   const { t } = useT();
   if (vehicles.length === 0) return <EmptyState title={t("di.workspace.emptyVehicles")} icon={<Car className="h-8 w-8" />} />;
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <IntelligenceCardGrid count={vehicles.length}>
       {vehicles.map((v) => (
-        <Card key={v.vehicleId}>
-          <CardBody className="space-y-1">
-            <Link href={`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`} className="block font-medium text-foreground hover:underline">
+        <VisualIntelligenceCard
+          key={v.vehicleId}
+          icon={<Car className="h-4 w-4" />}
+          title={
+            <Link href={`/drug-intelligence/vehicles/${encodeURIComponent(v.vehicleId)}`} className="hover:underline">
               {v.vehicle?.registrationNumber || "—"}
             </Link>
-            <p className="text-sm text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</p>
-            {v.personId ? (
+          }
+          summary={<span className="text-muted">{[v.vehicle?.brand, v.vehicle?.model, v.vehicle?.color].filter(Boolean).join(" · ") || "—"}</span>}
+          action={
+            v.personId ? (
               <button type="button" onClick={() => onSelectPerson(v.personId as string, undefined)} className="text-sm text-accent hover:underline">
                 {v.person?.primaryFullName || "—"}
               </button>
-            ) : null}
-          </CardBody>
-        </Card>
+            ) : null
+          }
+        />
       ))}
-    </div>
+    </IntelligenceCardGrid>
   );
 }
 
@@ -553,65 +549,66 @@ function SeizedTab({ items, evidenceItems, language }: { items: DrugSeizedItemRo
   const firearms = evidenceItems.filter((item) => item.kind === "FIREARM");
   const other = evidenceItems.filter((item) => item.kind !== "FIREARM");
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <p className="text-sm font-semibold text-foreground">{t("di.review.seizedSummary")}</p>
       {items.length > 0 ? (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.evidenceDrugs")}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <IntelligenceCardGrid count={items.length}>
             {items.map((item) => {
               const categoryLabel = drugCategoryLabel(item.drugCategory, language);
+              const amount =
+                item.measurementKind === "MASS" && item.weightGrams
+                  ? `${gramsToKilograms(Number(item.weightGrams)).toLocaleString(language === "th" ? "th-TH" : "en-US", { maximumFractionDigits: 2 })} กก.`
+                  : item.quantity
+                    ? `${Number(item.quantity).toLocaleString(language === "th" ? "th-TH" : "en-US")} ${item.unit || ""}`
+                    : null;
               return (
-                <Card key={item.id}>
-                  <CardBody>
-                    <p className="font-medium text-foreground">{item.drugType}</p>
-                    {categoryLabel ? <p className="mt-0.5 text-xs text-muted">{categoryLabel}</p> : null}
-                    <p className="mt-1 text-sm text-muted">
-                      {item.measurementKind === "MASS" && item.weightGrams
-                        ? `${gramsToKilograms(Number(item.weightGrams)).toLocaleString(language === "th" ? "th-TH" : "en-US", { maximumFractionDigits: 2 })} กก.`
-                        : item.quantity
-                          ? `${Number(item.quantity).toLocaleString(language === "th" ? "th-TH" : "en-US")} ${item.unit || ""}`
-                          : null}
+                <VisualIntelligenceCard
+                  key={item.id}
+                  icon={<Package className="h-4 w-4" />}
+                  title={item.drugType}
+                  badges={categoryLabel ? <Badge tone="neutral">{categoryLabel}</Badge> : null}
+                  summary={
+                    <span className="text-muted">
+                      {amount}
                       {item.packageCount ? ` · ${item.packageCount} packages` : null}
-                    </p>
-                  </CardBody>
-                </Card>
+                    </span>
+                  }
+                />
               );
             })}
-          </div>
+          </IntelligenceCardGrid>
         </div>
       ) : null}
       {firearms.length > 0 ? (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.evidenceFirearms")}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <IntelligenceCardGrid count={firearms.length}>
             {firearms.map((item) => (
-              <Card key={item.id}>
-                <CardBody className="space-y-1">
-                  <p className="font-medium text-foreground">{item.label}</p>
-                  <p className="text-sm text-muted">{[item.brand, item.model, item.caliberOrSize].filter(Boolean).join(" · ") || "—"}</p>
-                  {item.quantity ? <p className="text-sm text-muted">{String(item.quantity)}</p> : null}
-                  {item.recordedDescription ? <p className="text-sm text-muted">{item.recordedDescription}</p> : null}
-                </CardBody>
-              </Card>
+              <VisualIntelligenceCard
+                key={item.id}
+                title={item.label}
+                summary={<span className="text-muted">{[item.brand, item.model, item.caliberOrSize].filter(Boolean).join(" · ") || "—"}</span>}
+                meta={item.quantity ? String(item.quantity) : item.recordedDescription || undefined}
+              />
             ))}
-          </div>
+          </IntelligenceCardGrid>
         </div>
       ) : null}
       {other.length > 0 ? (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("di.review.evidenceOther")}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <IntelligenceCardGrid count={other.length}>
             {other.map((item) => (
-              <Card key={item.id}>
-                <CardBody className="space-y-1">
-                  <p className="font-medium text-foreground">{item.label}</p>
-                  <p className="text-sm text-muted">{[item.quantity, item.unit].filter(Boolean).join(" ") || "—"}</p>
-                  {item.recordedDescription ? <p className="text-sm text-muted">{item.recordedDescription}</p> : null}
-                </CardBody>
-              </Card>
+              <VisualIntelligenceCard
+                key={item.id}
+                title={item.label}
+                summary={<span className="text-muted">{[item.quantity, item.unit].filter(Boolean).join(" ") || "—"}</span>}
+                meta={item.recordedDescription || undefined}
+              />
             ))}
-          </div>
+          </IntelligenceCardGrid>
         </div>
       ) : null}
     </div>
@@ -622,25 +619,25 @@ function LocationsTab({ locations, language }: { locations: DrugCaseLocationRow[
   const { t } = useT();
   if (locations.length === 0) return <EmptyState title={t("di.workspace.emptyLocations")} icon={<MapPin className="h-8 w-8" />} />;
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <IntelligenceCardGrid count={locations.length}>
       {locations.map((loc) => (
-        <Card key={`${loc.caseId}-${loc.locationId}`}>
-          <CardBody>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{locationRoleLabel(loc.role, language)}</p>
-            <p className="mt-1 font-medium text-foreground">{loc.location?.name || loc.location?.addressText || "—"}</p>
-            <p className="mt-1 text-sm text-muted">{loc.location?.province || "—"}</p>
-          </CardBody>
-        </Card>
+        <VisualIntelligenceCard
+          key={`${loc.caseId}-${loc.locationId}`}
+          icon={<MapPin className="h-4 w-4" />}
+          title={loc.location?.name || loc.location?.addressText || "—"}
+          badges={<Badge tone="neutral">{locationRoleLabel(loc.role, language)}</Badge>}
+          summary={<span className="text-muted">{loc.location?.province || "—"}</span>}
+        />
       ))}
-    </div>
+    </IntelligenceCardGrid>
   );
 }
 
 function NotesTab({ data }: { data: DrugCaseDetailResponse }) {
   const { t } = useT();
   return (
-    <Card>
-      <CardBody className="space-y-2 text-sm">
+    <IntelligenceSection title={t("di.workspace.tabNotes")}>
+      <div className="space-y-2 text-sm">
         <p>
           <span className="text-muted">{t("di.workspace.createdBy")}:</span> <span className="text-foreground">{data.case.createdByName}</span>
         </p>
@@ -653,7 +650,13 @@ function NotesTab({ data }: { data: DrugCaseDetailResponse }) {
             <span className="text-muted">{t("di.workspace.updatedBy")}:</span> <span className="text-foreground">{data.case.updatedByName}</span>
           </p>
         ) : null}
-      </CardBody>
-    </Card>
+        <details className="pt-1">
+          <summary className="cursor-pointer text-xs text-muted hover:text-foreground">{t("di.workspace.technicalDetails")}</summary>
+          <p className="mt-1 font-mono text-[10px] text-muted" title={data.case.id}>
+            ID: {compactEntityId(data.case.id)}
+          </p>
+        </details>
+      </div>
+    </IntelligenceSection>
   );
 }

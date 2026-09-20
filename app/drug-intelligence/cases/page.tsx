@@ -24,14 +24,14 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { ThaiDatePicker } from "@/components/ui/thai_date_picker";
-import { DrugCaseStatusBadge } from "@/components/drug_intelligence/drug_case_status_badge";
+import { DrugCaseListCard } from "@/components/drug_intelligence/drug_case_list_card";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugCases } from "@/lib/drug_intelligence/drug_intelligence_hooks";
 import { DRUG_CASE_STATUSES } from "@/lib/drug_intelligence/drug_case_options";
 import { THAI_PROVINCE_OPTIONS } from "@/lib/officer_profile/thai_province_options";
 import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
-import type { DrugCaseListQuery, DrugCaseListRow } from "@/lib/drug_intelligence/drug_intelligence_client";
+import type { DrugCaseListQuery } from "@/lib/drug_intelligence/drug_intelligence_client";
 import {
   isCaseCompletenessFilter,
   isCommanderUnitGroupBy,
@@ -198,21 +198,21 @@ export default function DrugCaseListPage() {
       ) : null}
 
       <Card>
-        <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <CardBody className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted">{t("di.list.filterDateFrom")}</label>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("di.list.filterDateFrom")}</label>
             <ThaiDatePicker value={filters.arrestDateFrom} onChange={(v) => updateFilters({ arrestDateFrom: v })} placeholder="DD/MM/YYYY" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted">{t("di.list.filterDateTo")}</label>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("di.list.filterDateTo")}</label>
             <ThaiDatePicker value={filters.arrestDateTo} onChange={(v) => updateFilters({ arrestDateTo: v })} placeholder="DD/MM/YYYY" />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted">{t("di.list.filterProvince")}</label>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("di.list.filterProvince")}</label>
             <Select options={provinceOptions} placeholder={t("common.all")} value={filters.province} onChange={(e) => updateFilters({ province: e.target.value })} />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted">{t("di.list.filterStatus")}</label>
+            <label className="mb-1 block text-xs font-medium text-muted">{t("di.list.filterStatus")}</label>
             <Select options={statusOptions} placeholder={t("common.all")} value={filters.status} onChange={(e) => updateFilters({ status: e.target.value })} />
           </div>
           <div className="flex items-end">
@@ -233,114 +233,16 @@ export default function DrugCaseListPage() {
           icon={<FileWarning className="h-8 w-8" />}
         />
       ) : (
-        <div className="space-y-4">
-          <DrugCaseTable rows={cases.data.rows} />
+        <div className="space-y-3">
+          <div className="grid gap-2" data-testid="case-list-results">
+            {cases.data.rows.map((row) => (
+              <DrugCaseListCard key={row.id} row={row} />
+            ))}
+          </div>
           <Pagination page={cases.data.meta.page} totalPages={cases.data.meta.totalPages} total={cases.data.meta.total} pageSize={cases.data.meta.pageSize} onPageChange={setPage} />
         </div>
       )}
       <DrugCaseListExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} filters={exportFilters} />
     </div>
-  );
-}
-
-function DrugCaseTable({ rows }: { rows: DrugCaseListRow[] }) {
-  const { t } = useT();
-
-  return (
-    <>
-      {/* Mobile: card list */}
-      <div className="grid gap-3 sm:hidden">
-        {rows.map((row) => (
-          <Link
-            key={row.id}
-            href={`/drug-intelligence/cases/${encodeURIComponent(row.id)}`}
-            className="block rounded-xl border border-border bg-surface p-4 hover:border-accent/50"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-foreground">{row.caseNumber}</p>
-                <p className="mt-0.5 line-clamp-2 text-sm text-muted">{row.title}</p>
-              </div>
-              <DrugCaseStatusBadge status={row.status} />
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
-              <div>
-                <dt className="uppercase tracking-wide">{t("di.list.columnArrestDate")}</dt>
-                <dd className="mt-0.5 text-foreground">{row.arrestDate ? toGregorianDateInputValue(row.arrestDate) : "—"}</dd>
-              </div>
-              <div>
-                <dt className="uppercase tracking-wide">{t("di.list.columnLocation")}</dt>
-                <dd className="mt-0.5 text-foreground">{row.province || "—"}</dd>
-              </div>
-              <div>
-                <dt className="uppercase tracking-wide">{t("di.list.columnPersons")}</dt>
-                <dd className="mt-0.5 text-foreground">{row.personCount}</dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="uppercase tracking-wide">{t("di.list.columnSeized")}</dt>
-                <dd className="mt-0.5 truncate text-foreground">{row.seizedItemsSummary || "—"}</dd>
-              </div>
-            </dl>
-          </Link>
-        ))}
-      </div>
-
-      {/* Desktop/tablet: table */}
-      <div className="hidden overflow-x-auto rounded-xl border border-border bg-surface sm:block">
-        <table className="w-full table-fixed text-left text-sm">
-          <colgroup>
-            <col className="w-[14%]" />
-            <col className="w-[10%]" />
-            <col className="w-[14%]" />
-            <col className="w-[14%]" />
-            <col className="w-[8%]" />
-            <col className="w-[20%]" />
-            <col className="w-[10%]" />
-            <col className="w-[10%]" />
-          </colgroup>
-          <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnCaseNumber")}</th>
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnArrestDate")}</th>
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnUnit")}</th>
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnLocation")}</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">{t("di.list.columnPersons")}</th>
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnSeized")}</th>
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnStatus")}</th>
-              <th scope="col" className="px-4 py-3 font-medium">{t("di.list.columnUpdatedAt")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0 hover:bg-neutral-bg/60">
-                <td className="px-4 py-3 font-medium">
-                  <Link href={`/drug-intelligence/cases/${encodeURIComponent(row.id)}`} className="line-clamp-2 wrap-break-word text-accent hover:underline" title={row.caseNumber}>
-                    {row.caseNumber}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-muted">{row.arrestDate ? toGregorianDateInputValue(row.arrestDate) : "—"}</td>
-                <td className="px-4 py-3 text-muted">
-                  <span className="line-clamp-2 wrap-break-word">{row.reportingUnitText || "—"}</span>
-                  {row.leadUnitText && row.leadUnitText !== row.reportingUnitText ? (
-                    <span className="mt-0.5 block line-clamp-1 wrap-break-word text-xs text-muted/70" title={t("di.review.leadUnitLabel")}>
-                      {t("di.review.leadUnitLabel")}: {row.leadUnitText}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3 text-muted">{row.province || "—"}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{row.personCount}</td>
-                <td className="px-4 py-3 text-muted">
-                  <span className="line-clamp-2 wrap-break-word">{row.seizedItemsSummary || "—"}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <DrugCaseStatusBadge status={row.status} />
-                </td>
-                <td className="px-4 py-3 text-muted">{new Date(row.updatedAt).toLocaleDateString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
   );
 }

@@ -55,7 +55,7 @@ test("Person workspace page wires investigation story and media actions", () => 
   assert.match(page, /VisualIntelligenceCard/);
   assert.match(page, /DiscoveryStatusBadge/);
   assert.match(page, /IntelligenceCardGrid/);
-  assert.match(page, /flex-nowrap/);
+  assert.match(page, /DrugWorkspaceTabBar/);
   assert.doesNotMatch(page, /labelYOffset/);
   assert.doesNotMatch(page, /di\.profile\.knowAtGlance/);
 });
@@ -66,12 +66,20 @@ test("analyst notes stay visually distinct from verified evidence", () => {
   assert.match(src, /border-dashed/);
 });
 
-test("tab bar stays single-line with horizontal scroll", () => {
+test("tab bar stays single-line with overflow-aware navigation", () => {
   const page = readFileSync(join(ROOT, "app/drug-intelligence/persons/[id]/page.tsx"), "utf8");
-  assert.match(page, /data-testid="person-profile-tabs"/);
-  assert.match(page, /flex flex-nowrap gap-1 overflow-x-auto/);
-  assert.match(page, /shrink-0 whitespace-nowrap/);
-  assert.match(page, /\[scrollbar-width:none\]/);
+  const tabBar = readFileSync(join(ROOT, "components/drug_intelligence/drug_workspace_tab_bar.tsx"), "utf8");
+  assert.match(page, /DrugWorkspaceTabBar/);
+  assert.match(page, /testId="person-profile-tabs"/);
+  assert.match(page, /di\.tasks\.tab/);
+  assert.match(page, /investigation-tasks/);
+  assert.match(tabBar, /flex flex-nowrap gap-1 overflow-x-auto/);
+  assert.match(tabBar, /shrink-0 whitespace-nowrap/);
+  assert.match(tabBar, /\[scrollbar-width:none\]/);
+  assert.match(tabBar, /scrollTabIntoView/);
+  assert.match(tabBar, /tabsScrollPrev/);
+  assert.match(tabBar, /tabsScrollNext/);
+  assert.match(tabBar, /data-has-overflow/);
 });
 
 test("low-count IntelligenceCardGrid uses capped single-card width", () => {

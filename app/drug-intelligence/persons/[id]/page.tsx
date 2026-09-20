@@ -72,6 +72,7 @@ import {
 import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import { DrugEntityMediaAction } from "@/components/drug_intelligence/drug_entity_media_action";
 import { DrugPersonIdentityHeader } from "@/components/drug_intelligence/drug_person_identity_header";
+import { DrugWorkspaceTabBar } from "@/components/drug_intelligence/drug_workspace_tab_bar";
 import {
   HumanIdLabel,
   IntelligenceSection,
@@ -333,26 +334,12 @@ function DrugPersonProfileContent() {
 
       <DrugEntityMediaGallery entityType="PERSON" entityId={data.person.id} />
 
-      <div
-        role="tablist"
-        className="flex flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        data-testid="person-profile-tabs"
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            role="tab"
-            type="button"
-            aria-selected={activeTab === tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.key ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg hover:text-foreground"
-            }`}
-          >
-            {t(tab.labelKey)}
-          </button>
-        ))}
-      </div>
+      <DrugWorkspaceTabBar
+        testId="person-profile-tabs"
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as (typeof TABS)[number]["key"])}
+        tabs={TABS.map((tab) => ({ key: tab.key, label: t(tab.labelKey) }))}
+      />
 
       {activeTab === "overview" ? (
         <OverviewTab
