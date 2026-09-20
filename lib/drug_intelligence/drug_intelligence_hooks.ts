@@ -490,6 +490,13 @@ export function useUploadDrugEntityMedia(actorId: string | null, actorName: stri
       }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: drugQueryKeys.entityMedia(actorId, variables.entityType, variables.entityId) });
+      queryClient.invalidateQueries({ queryKey: ["drug-network-neighborhood"] });
+      if (variables.entityType === "PERSON") {
+        queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.entityId) });
+      }
+      if (variables.entityType === "CASE") {
+        queryClient.invalidateQueries({ queryKey: drugQueryKeys.case(actorId, variables.entityId) });
+      }
     },
   });
 }
@@ -507,6 +514,10 @@ export function useUpdateDrugEntityMedia(actorId: string | null, actorName: stri
       }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: drugQueryKeys.entityMedia(actorId, variables.entityType, variables.entityId) });
+      queryClient.invalidateQueries({ queryKey: ["drug-network-neighborhood"] });
+      if (variables.entityType === "PERSON") {
+        queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.entityId) });
+      }
     },
   });
 }
@@ -518,6 +529,13 @@ export function useDeleteDrugEntityMedia(actorId: string | null, actorName: stri
       drugIntelligenceClient.deleteEntityMedia(body.mediaId, { actorId: actorId as string, actorName }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: drugQueryKeys.entityMedia(actorId, variables.entityType, variables.entityId) });
+      queryClient.invalidateQueries({ queryKey: ["drug-network-neighborhood"] });
+      if (variables.entityType === "PERSON") {
+        queryClient.invalidateQueries({ queryKey: drugQueryKeys.personProfile(actorId, variables.entityId) });
+      }
+      if (variables.entityType === "CASE") {
+        queryClient.invalidateQueries({ queryKey: drugQueryKeys.case(actorId, variables.entityId) });
+      }
     },
   });
 }

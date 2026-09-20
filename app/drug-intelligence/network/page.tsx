@@ -981,7 +981,12 @@ function DrugNetworkContent() {
       const pruned = prunePinnedNodeIds(current, currentNodeIds);
       return pruned.size === current.size ? current : pruned;
     });
-    setSelectedNode((current) => nextSelectedEntityAfterNeighborhoodChange(current, currentNodeIds));
+    setSelectedNode((current) => {
+      const kept = nextSelectedEntityAfterNeighborhoodChange(current, currentNodeIds);
+      if (!kept) return null;
+      // Refresh selected node payload (visual / photoCount) after media or neighborhood refetch.
+      return neighborhood.data.nodes.find((node) => node.id === kept.id) ?? kept;
+    });
     setSelectedEdge((current) => nextSelectedEntityAfterNeighborhoodChange(current, neighborhood.data.edges.map((edge) => edge.id)));
   }, [neighborhood.data]);
 

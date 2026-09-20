@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { useT } from "@/components/i18n/language_provider";
 import { drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
+import { DrugNetworkInspectorMedia } from "@/components/drug_intelligence/drug_network_inspector_media";
 import { withReturnTo } from "@/lib/ui/return_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { SelectedPathStep } from "@/lib/drug_intelligence/drug_network_graph_readability";
@@ -86,11 +87,10 @@ export function DrugNetworkNodeDetail({
             {t("di.profile.status")}: {node.metadata.status === "MERGED" ? t("di.profile.statusMerged") : t("di.profile.statusActive")}
           </p>
         ) : null}
-        {typeof node.photoCount === "number" && (node.type === "PERSON" || node.type === "VEHICLE" || node.type === "CASE") ? (
-          <p className="mt-1 text-xs font-medium text-foreground">{t("di.media.allPhotos").replace("{count}", String(node.photoCount))}</p>
-        ) : null}
         </div>
       </div>
+
+      <DrugNetworkInspectorMedia entityType={node.type} entityId={node.id} openReturnPath={openReturnPath} />
 
       {node.riskIndicators.length > 0 ? (
         <div className="space-y-1.5">
@@ -224,7 +224,7 @@ export function DrugNetworkNodeDetail({
             <Link href={withReturnTo(drugEntityDetailPath(node.type, node.id), openReturnPath)}>{actionLabel}</Link>
           </Button>
         ) : null}
-        {showOpenLink && (node.type === "PERSON" || node.type === "VEHICLE" || node.type === "CASE") ? (
+        {showOpenLink && (node.type === "PERSON" || node.type === "VEHICLE" || node.type === "CASE" || node.type === "DEVICE") ? (
           <Button asChild variant="outline" size="sm">
             <Link href={withReturnTo(`${drugEntityDetailPath(node.type, node.id)}#media`, openReturnPath)}>
               {t("di.media.openGallery")}
