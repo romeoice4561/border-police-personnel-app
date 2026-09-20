@@ -60,6 +60,14 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
         {result.entityType === "CASE" ? null : (
           <p className="text-xs text-muted">
             {result.caseCount > 0 ? `${result.caseCount} ${t("di.person.casesInvolved")}` : null}
+            {result.caseCount >= 2 ? (
+              <>
+                {" · "}
+                <Link href={entityHref(result)} className="text-accent hover:underline">
+                  {t("di.connection.viewConnections")}
+                </Link>
+              </>
+            ) : null}
             {result.lastSeen ? ` · ${t("di.profile.lastSeen")}: ${formatThaiOperationalDate(result.lastSeen)}` : null}
           </p>
         )}

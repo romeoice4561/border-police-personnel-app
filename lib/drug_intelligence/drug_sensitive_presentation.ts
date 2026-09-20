@@ -60,6 +60,25 @@ export function presentIdentifierValue(value: string, canViewFull: boolean): str
   return canViewFull ? value : maskIdentifierValue(value);
 }
 
+/**
+ * Human-readable Thai mobile display for a matching-key or raw phone.
+ * Does not change stored/canonical matching value — display only.
+ * 668900001001 / 0900001001 → 090-000-1001 when unmasked.
+ * Non-Thai / non-10-digit shapes are left as digit strings (still masked when restricted).
+ */
+export function formatPhoneForDisplay(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return value.trim();
+  const thai =
+    digits.startsWith("66") && digits.length === 11
+      ? `0${digits.slice(2)}`
+      : digits.length === 10 && digits.startsWith("0")
+        ? digits
+        : null;
+  if (!thai) return digits;
+  return `${thai.slice(0, 3)}-${thai.slice(3, 6)}-${thai.slice(6)}`;
+}
+
 export function presentPhoneNumber(value: string, canViewFull: boolean): string {
-  return canViewFull ? value : maskPhoneNumber(value);
+  return canViewFull ? formatPhoneForDisplay(value) : maskPhoneNumber(value);
 }

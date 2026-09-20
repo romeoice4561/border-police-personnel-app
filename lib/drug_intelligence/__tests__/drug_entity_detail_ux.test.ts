@@ -154,7 +154,7 @@ test("missing IMSI/network fallback is a dash, long ICCID uses wrapping class", 
 
 test("masking helpers remain the permission-safe display path", () => {
   assert.equal(presentPhoneNumber("66900001001", false).includes("xxx") || presentPhoneNumber("66900001001", false).includes("x"), true);
-  assert.equal(presentPhoneNumber("66900001001", true), "66900001001");
+  assert.equal(presentPhoneNumber("66900001001", true), "090-000-1001");
   assert.equal(presentIdentifierValue("89000000000000000001", false).endsWith("0001"), true);
   const phonePage = read("app/drug-intelligence/phones/[id]/page.tsx");
   const simPage = read("app/drug-intelligence/sims/[id]/page.tsx");

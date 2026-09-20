@@ -34,6 +34,10 @@ import {
   maxTimestamp,
   type PersonRelatedEntity,
 } from "@/lib/drug_intelligence/person_entity_provenance";
+import {
+  derivePersonOccurrenceBounds,
+  sortCasesChronologically,
+} from "@/lib/drug_intelligence/drug_cross_case_connection";
 
 export interface DrugPersonDataQualityFlag {
   code: "NO_IDENTIFIER" | "NO_SOURCE_CASE" | "CONFLICTING_DOB" | "POTENTIAL_DUPLICATE" | "IDENTIFIER_SHARED";
@@ -176,10 +180,19 @@ export class DrugPersonProfileService {
     const vehicleById = new Map(vehicleRows.map((row) => [row.id, row]));
     const locationById = new Map(locationRows.map((row) => [row.id, row]));
 
-    const cases = typedCaseLinks.map((link) => ({
-      ...link,
-      case: caseById.get(link.caseId) ?? null,
-    }));
+    const cases = sortCasesChronologically(
+      typedCaseLinks.map((link) => {
+        const drugCase = caseById.get(link.caseId) ?? null;
+        return {
+          ...link,
+          case: drugCase,
+          caseId: link.caseId,
+          caseNumber: drugCase?.caseNumber ?? null,
+          arrestDate: drugCase?.arrestDate ?? null,
+          arrestTime: (drugCase as { arrestTime?: string | null } | null)?.arrestTime ?? null,
+        };
+      }),
+    );
 
     // Locations tab: DrugCaseLocation on cases this person is linked to — never
     // auto-derived as "this person was at this place".
@@ -267,8 +280,9 @@ export class DrugPersonProfileService {
       cases: entity.cases,
     }));
 
-    // First/Last seen (Section 24): derived from actual provenance timestamps across every relationship, never from createdAt alone when a more accurate observed date exists.
-    const observedDates: Date[] = [];
+    // DI-8.2A occurrence hierarchy: arrestDate → relationship observation → null
+    // (never person createdAt/updatedAt).
+    const observedDates: Array<Date | null> = [];
     for (const p of phones) {
       if (p.firstSeenAt) observedDates.push(p.firstSeenAt);
       if (p.lastSeenAt) observedDates.push(p.lastSeenAt);
@@ -281,11 +295,12 @@ export class DrugPersonProfileService {
       if (v.firstSeenAt) observedDates.push(v.firstSeenAt);
       if (v.lastSeenAt) observedDates.push(v.lastSeenAt);
     }
-    for (const c of cases) {
-      if (c.case?.arrestDate) observedDates.push(new Date(c.case.arrestDate));
-    }
-    const firstSeenAt = observedDates.length > 0 ? new Date(Math.min(...observedDates.map((d) => d.getTime()))) : person.createdAt;
-    const lastSeenAt = observedDates.length > 0 ? new Date(Math.max(...observedDates.map((d) => d.getTime()))) : person.updatedAt;
+    const occurrence = derivePersonOccurrenceBounds({
+      arrestDates: cases.map((c) => c.case?.arrestDate ?? null),
+      observationTimestamps: observedDates,
+    });
+    const firstSeenAt = occurrence.firstRecordedAt ? new Date(`${occurrence.firstRecordedAt}T00:00:00.000Z`) : null;
+    const lastSeenAt = occurrence.lastRecordedAt ? new Date(`${occurrence.lastRecordedAt}T00:00:00.000Z`) : null;
 
     const dataQuality = await this.computeDataQuality(person, identifiers as Array<{ type: string; value: string }>, cases.length);
 

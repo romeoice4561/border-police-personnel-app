@@ -413,6 +413,44 @@ export interface DrugCaseDetailResponse {
   deviceCount: number;
   vehicleCount: number;
   seizedItemCount: number;
+  /** DI-8.2A: connected cases + shared-entity evidence (null when service unavailable). */
+  connectedCases?: CrossCaseConnectionResultDto | null;
+}
+
+/** DI-8.2A wire shape for cross-case connection evidence. */
+export interface CrossCaseEvidenceItemDto {
+  entityType: "PERSON" | "PHONE" | "SIM" | "DEVICE" | "VEHICLE" | "LOCATION";
+  entityId: string;
+  displayLabel: string;
+  displayValue: string;
+  relationshipType: string;
+  provenance: "DIRECT_RECORDED" | "SHARED_ENTITY" | "EXPLICIT_RELATIONSHIP" | "INDIRECT_PATH";
+  href?: string | null;
+}
+
+export interface CrossCaseConnectionCaseSummaryDto {
+  caseId: string;
+  caseNumber: string;
+  arrestDate: string | null;
+  arrestTime: string | null;
+  province: string | null;
+  locationName: string | null;
+  status: string | null;
+}
+
+export interface CrossCaseConnectionDto {
+  sourceCase: CrossCaseConnectionCaseSummaryDto;
+  targetCase: CrossCaseConnectionCaseSummaryDto;
+  chronology: "BEFORE" | "AFTER" | "SAME_DAY" | "UNKNOWN";
+  directness: "DIRECT" | "INDIRECT";
+  hopCount: number;
+  evidenceItems: CrossCaseEvidenceItemDto[];
+  pathPreview?: string[] | null;
+}
+
+export interface CrossCaseConnectionResultDto {
+  sourceCase: CrossCaseConnectionCaseSummaryDto;
+  connections: CrossCaseConnectionDto[];
 }
 
 export interface DrugCaseCreatePersonInput {
@@ -852,8 +890,8 @@ export interface DrugPersonProfileResponse {
    */
   relatedLocations: DrugPersonRelatedLocation[];
   mergeHistory: DrugPersonMergeHistoryRow[];
-  firstSeenAt: string;
-  lastSeenAt: string;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
   dataQuality: DrugPersonDataQualityFlag[];
   counts: { cases: number; phones: number; sims: number; devices: number; vehicles: number; locations: number };
   /** DI-7.3: network-role assertions (append-only history). */

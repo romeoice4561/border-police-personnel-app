@@ -54,6 +54,12 @@ import {
 import { DRUG_CASE_STATUS_META } from "@/lib/drug_intelligence/drug_case_options";
 import { DRUG_LOCATION_ROLE_LABELS, isValidDrugLocationRole } from "@/lib/drug_intelligence/drug_location_options";
 import { formatDiDate, formatThaiCompactDateTime, formatThaiOperationalDate, formatThaiOperationalDateWithPlace } from "@/lib/drug_intelligence/di_date_helpers";
+import {
+  earliestCase,
+  latestCase,
+  sortCasesChronologically,
+  toDateOnly,
+} from "@/lib/drug_intelligence/drug_cross_case_connection";
 import { ApiClientError } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { getSafeReturnTo, withReturnTo, currentInternalHref } from "@/lib/ui/return_context";
 import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
@@ -665,22 +671,57 @@ function OverviewTab({
       >
         <p className="text-sm text-foreground">{t("di.profile.casesFoundIn").replace("{count}", String(data.counts.cases))}</p>
         {(() => {
-          const highlight =
-            (currentCaseId ? data.cases.find((c) => c.caseId === currentCaseId) : null) ?? data.cases[0] ?? null;
-          if (!highlight) return null;
+          const chronological = sortCasesChronologically(
+            data.cases.map((link) => ({
+              ...link,
+              caseNumber: link.case?.caseNumber ?? null,
+              arrestDate: link.case?.arrestDate ?? null,
+              arrestTime: link.case?.arrestTime ?? null,
+            })),
+          );
+          const first = earliestCase(chronological);
+          const last = latestCase(chronological);
+          if (!chronological.length) return null;
           return (
-            <div className="mt-2 rounded-lg border border-border bg-neutral-bg/50 px-2.5 py-2 text-sm">
-              <p className="text-[11px] text-muted">
-                {currentCaseId && highlight.caseId === currentCaseId
-                  ? t("di.profile.sourceCaseLabel")
-                  : t("di.profile.latestCase")}
-              </p>
-              <p className="font-semibold text-foreground">{highlight.case?.caseNumber || compactEntityId(highlight.caseId)}</p>
-              <p className="text-xs text-muted">
-                {highlight.case?.arrestDate ? formatDiDate(String(highlight.case.arrestDate)) : "—"}
-                {highlight.case?.province ? ` · ${highlight.case.province}` : ""}
-              </p>
-            </div>
+            <ol className="mt-2 space-y-1.5" data-testid="person-case-summary-chronology">
+              {chronological.map((link, index) => {
+                const isFirst = first?.caseId === link.caseId;
+                const isLast = last?.caseId === link.caseId && last.caseId !== first?.caseId;
+                const isOnly = first?.caseId === link.caseId && last?.caseId === link.caseId;
+                return (
+                  <li key={link.caseId} className="rounded-lg border border-border bg-neutral-bg/50 px-2.5 py-2 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted">{index + 1}.</p>
+                        <Link
+                          href={`/drug-intelligence/cases/${encodeURIComponent(link.caseId)}`}
+                          className="font-semibold text-accent hover:underline"
+                        >
+                          {link.case?.caseNumber || compactEntityId(link.caseId)}
+                        </Link>
+                        <p className="text-xs text-muted">
+                          {link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : "—"}
+                          {link.case?.arrestTime ? ` · ${link.case.arrestTime}` : ""}
+                          {link.case?.province ? ` · ${link.case.province}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {isFirst || isOnly ? (
+                          <span className="inline-flex rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-medium text-muted" data-testid="case-badge-first-recorded">
+                            {t("di.profile.occurrenceFirstBadge")}
+                          </span>
+                        ) : null}
+                        {isLast || isOnly ? (
+                          <span className="inline-flex rounded-full border border-accent/30 bg-accent/5 px-2 py-0.5 text-[10px] font-medium text-accent" data-testid="case-badge-last-recorded">
+                            {t("di.profile.occurrenceLastBadge")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
           );
         })()}
       </IntelligenceSection>
@@ -696,20 +737,56 @@ function OverviewTab({
           </Link>
         }
       >
-        <MiniTimeline
-          items={[
-            { id: "first", label: t("di.profile.firstSeen"), dateLabel: formatThaiOperationalDate(data.firstSeenAt) },
-            ...[...data.cases]
-              .sort((a, b) => new Date(b.case?.arrestDate || b.createdAt).getTime() - new Date(a.case?.arrestDate || a.createdAt).getTime())
-              .slice(0, 2)
-              .map((link) => ({
-                id: link.caseId,
-                label: link.case?.caseNumber || compactEntityId(link.caseId),
-                dateLabel: link.case?.arrestDate ? formatDiDate(String(link.case.arrestDate)) : formatAuditTimestamp(String(link.createdAt)),
-              })),
-            { id: "last", label: t("di.profile.lastSeen"), dateLabel: formatThaiOperationalDate(data.lastSeenAt) },
-          ]}
-        />
+        {(() => {
+          const chronological = sortCasesChronologically(
+            data.cases.map((link) => ({
+              ...link,
+              caseNumber: link.case?.caseNumber ?? null,
+              arrestDate: link.case?.arrestDate ?? null,
+              arrestTime: link.case?.arrestTime ?? null,
+            })),
+          );
+          const first = earliestCase(chronological);
+          const last = latestCase(chronological);
+          const withArrest = chronological.filter((c) => toDateOnly(c.case?.arrestDate ?? null));
+          if (withArrest.length > 0) {
+            return (
+              <MiniTimeline
+                items={withArrest.map((link) => {
+                  const isFirst = first?.caseId === link.caseId;
+                  const isLast = last?.caseId === link.caseId;
+                  const isOnly = isFirst && isLast;
+                  let badge: string | null = null;
+                  if (isOnly) badge = `${t("di.profile.occurrenceFirstBadge")} · ${t("di.profile.occurrenceLastBadge")}`;
+                  else if (isFirst) badge = t("di.profile.occurrenceFirstBadge");
+                  else if (isLast) badge = t("di.profile.occurrenceLastBadge");
+                  return {
+                    id: link.caseId,
+                    label: link.case?.caseNumber || compactEntityId(link.caseId),
+                    dateLabel: formatDiDate(String(link.case!.arrestDate)),
+                    badge,
+                    href: `/drug-intelligence/cases/${encodeURIComponent(link.caseId)}`,
+                  };
+                })}
+              />
+            );
+          }
+          if (data.firstSeenAt || data.lastSeenAt) {
+            return (
+              <MiniTimeline
+                items={[
+                  ...(data.firstSeenAt
+                    ? [{ id: "first", label: t("di.profile.firstSeen"), dateLabel: formatThaiOperationalDate(data.firstSeenAt) }]
+                    : []),
+                  ...(data.lastSeenAt && data.lastSeenAt !== data.firstSeenAt
+                    ? [{ id: "last", label: t("di.profile.lastSeen"), dateLabel: formatThaiOperationalDate(data.lastSeenAt) }]
+                    : []),
+                ]}
+              />
+            );
+          }
+          return <p className="text-sm text-muted">{t("di.profile.occurrenceInsufficient")}</p>;
+        })()}
       </IntelligenceSection>
 
       <IntelligenceSection title={t("di.profile.dataQualityTitle")} icon={<ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />}>
@@ -1021,16 +1098,21 @@ function CasesTab({
 }) {
   const { t } = useT();
   if (cases.length === 0) return <EmptyState title={t("di.profile.emptyCases")} icon={<Users className="h-8 w-8" />} />;
-  const sorted = [...cases].sort((a, b) => {
-    if (sourceCaseId) {
-      if (a.caseId === sourceCaseId) return -1;
-      if (b.caseId === sourceCaseId) return 1;
-    }
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+  const sorted = sortCasesChronologically(
+    cases.map((link) => ({
+      ...link,
+      caseNumber: link.case?.caseNumber ?? null,
+      arrestDate: link.case?.arrestDate ?? null,
+      arrestTime: link.case?.arrestTime ?? null,
+    })),
+  );
+  const first = earliestCase(sorted);
+  const last = latestCase(sorted);
   return (
-    <IntelligenceCardGrid count={sorted.length}>
-      {sorted.map((link, index) => {
+    <div className="space-y-3" data-testid="person-case-history">
+      <p className="text-sm font-semibold text-foreground">{t("di.profile.caseHistoryTitle")}</p>
+      <IntelligenceCardGrid count={sorted.length}>
+      {sorted.map((link) => {
         const caseLabel = preferHumanCaseLabel(link.case?.caseNumber, link.caseId);
         const roleLabel = personRoleLabel(link.role, language);
         const linkedPhones = phones.filter((p) => p.cases.some((c) => c.caseId === link.caseId));
@@ -1038,6 +1120,11 @@ function CasesTab({
         const linkedDevices = devices.filter((d) => d.cases.some((c) => c.caseId === link.caseId));
         const linkedVehicles = vehicles.filter((v) => v.cases.some((c) => c.caseId === link.caseId));
         const linkedTotal = linkedPhones.length + linkedSims.length + linkedDevices.length + linkedVehicles.length;
+        const viaParts: string[] = [];
+        if (linkedPhones.length) viaParts.push(t("di.workspace.kpiPhones"));
+        if (linkedSims.length) viaParts.push(t("di.workspace.kpiSims"));
+        if (linkedDevices.length) viaParts.push(t("di.workspace.kpiDevices"));
+        if (linkedVehicles.length) viaParts.push(t("di.workspace.kpiVehicles"));
         const originBadge = caseOriginBadge({
           caseId: link.caseId,
           sourceCaseId,
@@ -1047,6 +1134,9 @@ function CasesTab({
           originBadge === "SOURCE"
             ? t("di.profile.caseRoleInThisCase").replace("{role}", roleLabel)
             : t("di.profile.caseLinkedShort");
+        const isFirst = first?.caseId === link.caseId;
+        const isLast = last?.caseId === link.caseId;
+        const isOnly = isFirst && isLast;
         return (
           <VisualIntelligenceCard
             key={link.caseId}
@@ -1070,9 +1160,14 @@ function CasesTab({
                     {t("di.profile.caseBadgeLinked")}
                   </span>
                 ) : null}
-                {!sourceCaseId && index === 0 ? (
-                  <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-accent">
-                    {t("di.profile.latestCaseBadge")}
+                {isFirst || isOnly ? (
+                  <span className="inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-muted" data-testid="case-badge-first-recorded">
+                    {t("di.profile.occurrenceFirstBadge")}
+                  </span>
+                ) : null}
+                {(isLast && !isOnly) || isOnly ? (
+                  <span className="inline-flex rounded-full border border-accent/30 bg-accent/5 px-2 py-0.5 text-[11px] font-medium text-accent" data-testid="case-badge-last-recorded">
+                    {t("di.profile.occurrenceLastBadge")}
                   </span>
                 ) : null}
               </>
@@ -1088,6 +1183,11 @@ function CasesTab({
                 {link.case?.arrestDate
                   ? formatThaiOperationalDateWithPlace(link.case.arrestDate, link.case.province)
                   : link.case?.province || "—"}
+                {viaParts.length > 0 ? (
+                  <p className="mt-1 text-xs text-muted">
+                    {t("di.profile.linkedVia")}: {viaParts.join(" · ")}
+                  </p>
+                ) : null}
                 {linkedTotal > 0 ? (
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground" data-testid="case-linked-counts">
                     {linkedPhones.length > 0 ? <span>📞 {linkedPhones.length}</span> : null}
@@ -1108,6 +1208,7 @@ function CasesTab({
         );
       })}
     </IntelligenceCardGrid>
+    </div>
   );
 }
 

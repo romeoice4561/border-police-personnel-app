@@ -17,9 +17,9 @@ export async function GET(
 ): Promise<Response> {
   return guarded(async () => {
     const { id } = await params;
-    const { caseService } = await getDrugIntelligenceContainer();
+    const { caseService, crossCaseConnectionService } = await getDrugIntelligenceContainer();
     const actorId = request.nextUrl.searchParams.get("actorId");
-    return handleDrugCaseDetail(caseService, decodeURIComponent(id), actorId, request);
+    return handleDrugCaseDetail(caseService, decodeURIComponent(id), actorId, request, crossCaseConnectionService);
   });
 }
 

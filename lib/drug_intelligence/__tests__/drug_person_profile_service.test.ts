@@ -126,8 +126,86 @@ test("firstSeenAt/lastSeenAt are derived from actual provenance timestamps, not 
   const profileService = new DrugPersonProfileService(db);
   const profile = await profileService.getProfile(personId);
 
-  assert.equal(profile.firstSeenAt.toISOString().slice(0, 10), "2020-01-01");
-  assert.equal(profile.lastSeenAt.toISOString().slice(0, 10), "2024-06-15");
+  assert.ok(profile.firstSeenAt);
+  assert.ok(profile.lastSeenAt);
+  assert.equal(profile.firstSeenAt!.toISOString().slice(0, 10), "2020-01-01");
+  assert.equal(profile.lastSeenAt!.toISOString().slice(0, 10), "2024-06-15");
+});
+
+test("firstSeenAt/lastSeenAt are null when only audit timestamps exist (never createdAt/updatedAt)", async () => {
+  const db = new InMemoryDatabaseClient();
+  const caseService = new DrugCaseService({ db });
+  const caseA = await caseService.createCase(
+    baseCase({
+      caseNumber: "NO-EVENT-DATE",
+      arrestDate: null,
+      persons: [
+        {
+          newPerson: { primaryFullName: "ไม่มีวันที่เหตุการณ์", nationality: null, dateOfBirth: null, notes: null, identifiers: [] },
+          role: "SUSPECT",
+          linkedOfficerId: null,
+          notes: null,
+          phones: [{ rawInput: "0891112222", firstSeenAt: null, lastSeenAt: null, notes: null }],
+          sims: [],
+          devices: [],
+          vehicles: [],
+        },
+      ],
+    })
+  );
+  const personId = ((await db.drugCasePerson.findMany({ where: { caseId: caseA.caseId } }))[0] as { personId: string }).personId;
+  const profile = await new DrugPersonProfileService(db).getProfile(personId);
+  assert.equal(profile.firstSeenAt, null);
+  assert.equal(profile.lastSeenAt, null);
+});
+
+test("getProfile sorts cases chronologically and earliest/latest follow arrestDate", async () => {
+  const db = new InMemoryDatabaseClient();
+  const caseService = new DrugCaseService({ db });
+  const mid = await caseService.createCase(
+    baseCase({
+      caseNumber: "DI-TEST-002",
+      arrestDate: new Date("2026-08-05"),
+      arrestTime: "18:20",
+      persons: [
+        {
+          newPerson: { primaryFullName: "นายกิตติศักดิ์ ทดสอบระบบ", nationality: null, dateOfBirth: null, notes: null, identifiers: [] },
+          role: "ASSOCIATED_PERSON",
+          linkedOfficerId: null,
+          notes: null,
+          phones: [],
+          sims: [],
+          devices: [],
+          vehicles: [],
+        },
+      ],
+    }),
+  );
+  const personId = ((await db.drugCasePerson.findMany({ where: { caseId: mid.caseId } }))[0] as { personId: string }).personId;
+  await caseService.createCase(
+    baseCase({
+      caseNumber: "DI-TEST-003",
+      arrestDate: new Date("2026-08-10"),
+      arrestTime: "14:00",
+      persons: [{ existingPersonId: personId, role: "ARRESTED_PERSON", linkedOfficerId: null, notes: null, phones: [], sims: [], devices: [], vehicles: [] }],
+    }),
+  );
+  await caseService.createCase(
+    baseCase({
+      caseNumber: "DI-TEST-001",
+      arrestDate: new Date("2026-08-01"),
+      arrestTime: "21:30",
+      persons: [{ existingPersonId: personId, role: "ASSOCIATED_PERSON", linkedOfficerId: null, notes: null, phones: [], sims: [], devices: [], vehicles: [] }],
+    }),
+  );
+
+  const profile = await new DrugPersonProfileService(db).getProfile(personId);
+  assert.deepEqual(
+    profile.cases.map((c) => c.case?.caseNumber),
+    ["DI-TEST-001", "DI-TEST-002", "DI-TEST-003"],
+  );
+  assert.equal(profile.firstSeenAt?.toISOString().slice(0, 10), "2026-08-01");
+  assert.equal(profile.lastSeenAt?.toISOString().slice(0, 10), "2026-08-10");
 });
 
 test("data quality: a person with no identifier is flagged NO_IDENTIFIER", async () => {

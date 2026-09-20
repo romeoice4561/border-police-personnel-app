@@ -208,20 +208,33 @@ export function HumanIdLabel({
 export function MiniTimeline({
   items,
 }: {
-  items: Array<{ id: string; label: string; dateLabel: string }>;
+  items: Array<{ id: string; label: string; dateLabel: string; badge?: string | null; href?: string | null }>;
 }) {
   if (items.length === 0) return null;
   return (
-    <ol className="space-y-0">
+    <ol className="space-y-0" data-testid="person-mini-timeline">
       {items.map((item, index) => (
-        <li key={item.id} className="relative flex gap-3 pb-3 last:pb-0">
+        <li key={item.id} className="relative flex gap-3 pb-3 last:pb-0" data-testid="person-mini-timeline-item">
           <div className="flex w-3 flex-col items-center">
             <span className="mt-1 h-2.5 w-2.5 rounded-full bg-accent" />
             {index < items.length - 1 ? <span className="mt-1 w-px flex-1 bg-border" /> : null}
           </div>
           <div className="min-w-0 pt-0.5">
             <p className="text-[11px] text-muted">{item.dateLabel}</p>
-            <p className="text-sm text-foreground">{item.label}</p>
+            <p className="text-sm text-foreground">
+              {item.href ? (
+                <a href={item.href} className="font-medium text-accent hover:underline">
+                  {item.label}
+                </a>
+              ) : (
+                item.label
+              )}
+            </p>
+            {item.badge ? (
+              <span className="mt-0.5 inline-flex rounded-full border border-border bg-neutral-bg px-2 py-0.5 text-[10px] font-medium text-muted">
+                {item.badge}
+              </span>
+            ) : null}
           </div>
         </li>
       ))}

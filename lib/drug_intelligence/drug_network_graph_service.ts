@@ -628,27 +628,33 @@ export class DrugNetworkGraphService {
     ]);
 
     const caseCounts = await this.batchCaseCounts(byType);
+    const occurrenceByKey = await this.batchOccurrenceBounds(byType);
 
     const nodes: DrugGraphNode[] = [];
     for (const person of persons) {
       if (!person) continue;
-      nodes.push(this.buildPersonNode(person, duplicateIds, caseCounts.get(nodeKey("PERSON", person.id)) ?? 0));
+      const occ = occurrenceByKey.get(nodeKey("PERSON", person.id));
+      nodes.push(this.buildPersonNode(person, duplicateIds, caseCounts.get(nodeKey("PERSON", person.id)) ?? 0, occ));
     }
     for (const phone of phones) {
       if (!phone) continue;
-      nodes.push(this.buildPhoneNode(phone, options, caseCounts.get(nodeKey("PHONE", phone.id)) ?? 0));
+      const occ = occurrenceByKey.get(nodeKey("PHONE", phone.id));
+      nodes.push(this.buildPhoneNode(phone, options, caseCounts.get(nodeKey("PHONE", phone.id)) ?? 0, occ));
     }
     for (const sim of sims) {
       if (!sim) continue;
-      nodes.push(this.buildSimNode(sim, options, caseCounts.get(nodeKey("SIM", sim.id)) ?? 0));
+      const occ = occurrenceByKey.get(nodeKey("SIM", sim.id));
+      nodes.push(this.buildSimNode(sim, options, caseCounts.get(nodeKey("SIM", sim.id)) ?? 0, occ));
     }
     for (const device of devices) {
       if (!device) continue;
-      nodes.push(this.buildDeviceNode(device, options, caseCounts.get(nodeKey("DEVICE", device.id)) ?? 0));
+      const occ = occurrenceByKey.get(nodeKey("DEVICE", device.id));
+      nodes.push(this.buildDeviceNode(device, options, caseCounts.get(nodeKey("DEVICE", device.id)) ?? 0, occ));
     }
     for (const vehicle of vehicles) {
       if (!vehicle) continue;
-      nodes.push(this.buildVehicleNode(vehicle, options, caseCounts.get(nodeKey("VEHICLE", vehicle.id)) ?? 0));
+      const occ = occurrenceByKey.get(nodeKey("VEHICLE", vehicle.id));
+      nodes.push(this.buildVehicleNode(vehicle, options, caseCounts.get(nodeKey("VEHICLE", vehicle.id)) ?? 0, occ));
     }
     for (const drugCase of cases) {
       if (!drugCase) continue;
@@ -656,7 +662,8 @@ export class DrugNetworkGraphService {
     }
     for (const location of locations) {
       if (!location) continue;
-      nodes.push(this.buildLocationNode(location, caseCounts.get(nodeKey("LOCATION", location.id)) ?? 0));
+      const occ = occurrenceByKey.get(nodeKey("LOCATION", location.id));
+      nodes.push(this.buildLocationNode(location, caseCounts.get(nodeKey("LOCATION", location.id)) ?? 0, occ));
     }
     return nodes;
   }
@@ -713,7 +720,69 @@ export class DrugNetworkGraphService {
     return counts;
   }
 
-  private buildPersonNode(person: DrugPerson, duplicateIds: Set<string>, caseCount: number): DrugGraphNode {
+  /**
+   * DI-8.2A: entity recorded occurrence = earliest/latest linked case arrestDate.
+   * Summary boundaries only — never treated as temporal-frequency events.
+   */
+  private async batchOccurrenceBounds(byType: Map<DrugGraphNodeType, string[]>): Promise<Map<string, { first: Date | null; last: Date | null }>> {
+    const bounds = new Map<string, { first: Date | null; last: Date | null }>();
+    const personIds = byType.get("PERSON") ?? [];
+    const phoneIds = byType.get("PHONE") ?? [];
+    const simIds = byType.get("SIM") ?? [];
+    const deviceIds = byType.get("DEVICE") ?? [];
+    const vehicleIds = byType.get("VEHICLE") ?? [];
+    const locationIds = byType.get("LOCATION") ?? [];
+
+    const [personLinks, phoneLinks, simLinks, deviceLinks, vehicleLinks, locationLinks] = await Promise.all([
+      personIds.length ? this.db.drugCasePerson.findMany({ where: { personId: { in: personIds } } }) : Promise.resolve([]),
+      phoneIds.length ? this.db.drugCasePhone.findMany({ where: { phoneNumberId: { in: phoneIds } } }) : Promise.resolve([]),
+      simIds.length ? this.db.drugCaseSim.findMany({ where: { simId: { in: simIds } } }) : Promise.resolve([]),
+      deviceIds.length ? this.db.drugCaseDevice.findMany({ where: { deviceId: { in: deviceIds } } }) : Promise.resolve([]),
+      vehicleIds.length ? this.db.drugCaseVehicle.findMany({ where: { vehicleId: { in: vehicleIds } } }) : Promise.resolve([]),
+      locationIds.length ? this.db.drugCaseLocation.findMany({ where: { locationId: { in: locationIds } } }) : Promise.resolve([]),
+    ]);
+
+    const caseIds = new Set<string>();
+    for (const link of personLinks as Array<{ caseId: string }>) caseIds.add(link.caseId);
+    for (const link of phoneLinks as Array<{ caseId: string }>) caseIds.add(link.caseId);
+    for (const link of simLinks as Array<{ caseId: string }>) caseIds.add(link.caseId);
+    for (const link of deviceLinks as Array<{ caseId: string }>) caseIds.add(link.caseId);
+    for (const link of vehicleLinks as Array<{ caseId: string }>) caseIds.add(link.caseId);
+    for (const link of locationLinks as Array<{ caseId: string }>) caseIds.add(link.caseId);
+
+    const cases = caseIds.size ? await this.caseRepo.findByIds([...caseIds]) : [];
+    const arrestByCase = new Map(
+      (cases as Array<{ id: string; arrestDate: Date | null }>).map((c) => [c.id, c.arrestDate]),
+    );
+
+    const push = (key: string, caseId: string) => {
+      const arrest = arrestByCase.get(caseId) ?? null;
+      if (!arrest) return;
+      const existing = bounds.get(key);
+      if (!existing) {
+        bounds.set(key, { first: arrest, last: arrest });
+        return;
+      }
+      if (!existing.first || arrest < existing.first) existing.first = arrest;
+      if (!existing.last || arrest > existing.last) existing.last = arrest;
+    };
+
+    for (const link of personLinks as Array<{ personId: string; caseId: string }>) push(nodeKey("PERSON", link.personId), link.caseId);
+    for (const link of phoneLinks as Array<{ phoneNumberId: string; caseId: string }>) push(nodeKey("PHONE", link.phoneNumberId), link.caseId);
+    for (const link of simLinks as Array<{ simId: string; caseId: string }>) push(nodeKey("SIM", link.simId), link.caseId);
+    for (const link of deviceLinks as Array<{ deviceId: string; caseId: string }>) push(nodeKey("DEVICE", link.deviceId), link.caseId);
+    for (const link of vehicleLinks as Array<{ vehicleId: string; caseId: string }>) push(nodeKey("VEHICLE", link.vehicleId), link.caseId);
+    for (const link of locationLinks as Array<{ locationId: string; caseId: string }>) push(nodeKey("LOCATION", link.locationId), link.caseId);
+
+    return bounds;
+  }
+
+  private buildPersonNode(
+    person: DrugPerson,
+    duplicateIds: Set<string>,
+    caseCount: number,
+    occurrence?: { first: Date | null; last: Date | null },
+  ): DrugGraphNode {
     const hasPotentialDuplicate = duplicateIds.has(person.id);
     const riskIndicators: DrugGraphRiskIndicator[] = [];
     if (hasPotentialDuplicate) riskIndicators.push("POTENTIAL_DUPLICATE_PERSON");
@@ -725,14 +794,19 @@ export class DrugNetworkGraphService {
       secondaryLabel: null,
       maskedLabel: null,
       metadata: { type: "PERSON", status: person.status, canonicalTarget: null, hasPotentialDuplicate },
-      firstSeenAt: person.createdAt,
-      lastSeenAt: person.updatedAt,
+      firstSeenAt: occurrence?.first ?? null,
+      lastSeenAt: occurrence?.last ?? null,
       caseCount,
       riskIndicators,
     };
   }
 
-  private buildPhoneNode(phone: DrugPhoneNumber, options: DrugNetworkGraphServiceOptions, caseCount: number): DrugGraphNode {
+  private buildPhoneNode(
+    phone: DrugPhoneNumber,
+    options: DrugNetworkGraphServiceOptions,
+    caseCount: number,
+    occurrence?: { first: Date | null; last: Date | null },
+  ): DrugGraphNode {
     const label = presentPhoneNumber(phone.normalizedNumber, options.canViewFull);
     return {
       id: phone.id,
@@ -741,14 +815,19 @@ export class DrugNetworkGraphService {
       secondaryLabel: null,
       maskedLabel: label,
       metadata: { type: "PHONE", carrier: null },
-      firstSeenAt: phone.createdAt,
-      lastSeenAt: null,
+      firstSeenAt: occurrence?.first ?? null,
+      lastSeenAt: occurrence?.last ?? null,
       caseCount,
       riskIndicators: caseCount >= 3 ? ["HIGH_CASE_COUNT"] : [],
     };
   }
 
-  private buildSimNode(sim: DrugSim, options: DrugNetworkGraphServiceOptions, caseCount: number): DrugGraphNode {
+  private buildSimNode(
+    sim: DrugSim,
+    options: DrugNetworkGraphServiceOptions,
+    caseCount: number,
+    occurrence?: { first: Date | null; last: Date | null },
+  ): DrugGraphNode {
     const label = sim.iccid ? presentIdentifierValue(sim.iccid, options.canViewFull) : "SIM";
     return {
       id: sim.id,
@@ -757,14 +836,19 @@ export class DrugNetworkGraphService {
       secondaryLabel: sim.carrier,
       maskedLabel: label,
       metadata: { type: "SIM", imsi: sim.imsi ? presentIdentifierValue(sim.imsi, options.canViewFull) : null, carrier: sim.carrier },
-      firstSeenAt: sim.createdAt,
-      lastSeenAt: null,
+      firstSeenAt: occurrence?.first ?? null,
+      lastSeenAt: occurrence?.last ?? null,
       caseCount,
       riskIndicators: caseCount >= 3 ? ["HIGH_CASE_COUNT"] : [],
     };
   }
 
-  private buildDeviceNode(device: DrugDevice, options: DrugNetworkGraphServiceOptions, caseCount: number): DrugGraphNode {
+  private buildDeviceNode(
+    device: DrugDevice,
+    options: DrugNetworkGraphServiceOptions,
+    caseCount: number,
+    occurrence?: { first: Date | null; last: Date | null },
+  ): DrugGraphNode {
     const brandModel = [device.brand, device.model].filter(Boolean).join(" ") || null;
     const label = brandModel ?? (device.imei1 ? presentIdentifierValue(device.imei1, options.canViewFull) : "Device");
     return {
@@ -774,14 +858,19 @@ export class DrugNetworkGraphService {
       secondaryLabel: device.imei1 ? presentIdentifierValue(device.imei1, options.canViewFull) : null,
       maskedLabel: device.imei1 ? presentIdentifierValue(device.imei1, options.canViewFull) : label,
       metadata: { type: "DEVICE", brand: device.brand, model: device.model },
-      firstSeenAt: device.createdAt,
-      lastSeenAt: null,
+      firstSeenAt: occurrence?.first ?? null,
+      lastSeenAt: occurrence?.last ?? null,
       caseCount,
       riskIndicators: caseCount >= 3 ? ["HIGH_CASE_COUNT"] : [],
     };
   }
 
-  private buildVehicleNode(vehicle: DrugVehicle, options: DrugNetworkGraphServiceOptions, caseCount: number): DrugGraphNode {
+  private buildVehicleNode(
+    vehicle: DrugVehicle,
+    options: DrugNetworkGraphServiceOptions,
+    caseCount: number,
+    occurrence?: { first: Date | null; last: Date | null },
+  ): DrugGraphNode {
     const label = vehicle.registrationNumber ? presentIdentifierValue(vehicle.registrationNumber, options.canViewFull) : "Vehicle";
     return {
       id: vehicle.id,
@@ -790,8 +879,8 @@ export class DrugNetworkGraphService {
       secondaryLabel: vehicle.registrationProvince,
       maskedLabel: label,
       metadata: { type: "VEHICLE", registrationProvince: vehicle.registrationProvince, brand: vehicle.brand, model: vehicle.model, color: vehicle.color },
-      firstSeenAt: vehicle.createdAt,
-      lastSeenAt: null,
+      firstSeenAt: occurrence?.first ?? null,
+      lastSeenAt: occurrence?.last ?? null,
       caseCount,
       riskIndicators: caseCount >= 3 ? ["HIGH_CASE_COUNT"] : [],
     };
@@ -812,14 +901,19 @@ export class DrugNetworkGraphService {
         province: drugCase.province,
         reportingUnitText: drugCase.reportingUnitText,
       },
-      firstSeenAt: drugCase.arrestDate ?? drugCase.createdAt,
+      // DI-8.2A: CASE is an event — do not conflate arrestDate into entity first/last seen.
+      firstSeenAt: null,
       lastSeenAt: null,
       caseCount: 1,
       riskIndicators: [],
     };
   }
 
-  private buildLocationNode(location: DrugLocation, caseCount: number): DrugGraphNode {
+  private buildLocationNode(
+    location: DrugLocation,
+    caseCount: number,
+    occurrence?: { first: Date | null; last: Date | null },
+  ): DrugGraphNode {
     return {
       id: location.id,
       type: "LOCATION",
@@ -827,8 +921,8 @@ export class DrugNetworkGraphService {
       secondaryLabel: location.province,
       maskedLabel: null,
       metadata: { type: "LOCATION", province: location.province, district: location.district },
-      firstSeenAt: location.createdAt,
-      lastSeenAt: null,
+      firstSeenAt: occurrence?.first ?? null,
+      lastSeenAt: occurrence?.last ?? null,
       caseCount,
       riskIndicators: caseCount >= 3 ? ["HIGH_CASE_COUNT"] : [],
     };

@@ -36,8 +36,8 @@ export function DrugPersonIdentityHeader({
   personId: string;
   name: string;
   status: string;
-  firstSeenAt: string;
-  lastSeenAt: string;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
   aliases: DrugPersonAliasRow[];
   identifiers: DrugPersonIdentifierRow[];
   canViewFull: boolean;
@@ -80,10 +80,16 @@ export function DrugPersonIdentityHeader({
             </p>
             <p className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted sm:justify-start">
               <span>
-                {t("di.profile.firstSeen")}: <span className="text-foreground">{formatThaiOperationalDate(firstSeenAt)}</span>
+                {t("di.profile.firstSeen")}:{" "}
+                <span className="text-foreground">
+                  {firstSeenAt ? formatThaiOperationalDate(firstSeenAt) : t("di.profile.occurrenceInsufficient")}
+                </span>
               </span>
               <span>
-                {t("di.profile.lastSeen")}: <span className="text-foreground">{formatThaiOperationalDate(lastSeenAt)}</span>
+                {t("di.profile.lastSeen")}:{" "}
+                <span className="text-foreground">
+                  {lastSeenAt ? formatThaiOperationalDate(lastSeenAt) : t("di.profile.occurrenceInsufficient")}
+                </span>
               </span>
             </p>
             {aliasText ? (

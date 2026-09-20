@@ -109,7 +109,13 @@ export async function handleDrugCaseList(service: DrugCaseService, searchParams:
 }
 
 /** GET /api/drug-intelligence/cases/{id} — case detail (Section 18). */
-export async function handleDrugCaseDetail(service: DrugCaseService, caseId: string, actorId: string | null, request: Request): Promise<Response> {
+export async function handleDrugCaseDetail(
+  service: DrugCaseService,
+  caseId: string,
+  actorId: string | null,
+  request: Request,
+  crossCaseConnectionService?: import("@/lib/drug_intelligence/drug_cross_case_connection_service").DrugCrossCaseConnectionService,
+): Promise<Response> {
   if (!actorId) return jsonError("BAD_REQUEST", "actorId query parameter is required", 400);
 
   const denied = await assertDrugIntelligencePermission(request, actorId, "drug.read");
@@ -117,7 +123,13 @@ export async function handleDrugCaseDetail(service: DrugCaseService, caseId: str
 
   try {
     const result = await service.getCase(caseId);
-    return jsonOk(result);
+    let connectedCases: import("@/lib/drug_intelligence/drug_cross_case_connection").CrossCaseConnectionResult | null = null;
+    if (crossCaseConnectionService) {
+      const user = await getAuthUserById(actorId);
+      const canViewFull = Boolean(user && hasPermission(user.permissions, "drug.edit"));
+      connectedCases = await crossCaseConnectionService.loadForCase(caseId, { canViewFull });
+    }
+    return jsonOk({ ...result, connectedCases });
   } catch (error) {
     if (error instanceof DrugCaseNotFoundError) return notFound(error.message);
     throw error;

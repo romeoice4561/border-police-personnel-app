@@ -154,12 +154,15 @@ test("network: commander sees masked node labels, admin (drug.edit) sees full va
   const commanderPhoneNode = commanderBody.data.nodes.find((n) => n.type === "PHONE")!;
   assert.ok(commanderPhoneNode, "expected a PHONE node in the person's 1-hop neighborhood");
   assert.doesNotMatch(commanderPhoneNode.label, /812223333/);
+  assert.match(commanderPhoneNode.label, /xxx/i);
 
   const adminRequest = requestWithSession(`http://localhost/api/drug-intelligence/network?actorId=mock:admin&entityType=PERSON&entityId=${personId}&depth=1`);
   const adminResponse = await handleDrugGraphNeighborhood(graph, new URL(adminRequest.url).searchParams, adminRequest);
   const adminBody = (await adminResponse.json()) as { data: { nodes: Array<{ type: string; label: string }> } };
   const adminPhoneNode = adminBody.data.nodes.find((n) => n.type === "PHONE")!;
-  assert.match(adminPhoneNode.label, /812223333/);
+  // DI-8.2A: full view uses human-readable Thai grouping; digits remain unmasked.
+  assert.match(adminPhoneNode.label, /081-222-3333|0812223333|812223333/);
+  assert.doesNotMatch(adminPhoneNode.label, /xxx/i);
 });
 
 test("path: officer is REJECTED with 403", async () => {

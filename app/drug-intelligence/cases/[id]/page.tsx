@@ -40,6 +40,7 @@ import { DRUG_CATEGORY_LABELS, isValidDrugCategory } from "@/lib/drug_intelligen
 import { DRUG_CASE_UNIT_ROLE_LABELS, isValidDrugCaseUnitRole, DRUG_CASE_OFFICER_ROLE_LABELS, isValidDrugCaseOfficerRole } from "@/lib/drug_intelligence/drug_case_officer_options";
 import { gramsToKilograms } from "@/lib/drug_intelligence/drug_seized_item_analytics";
 import { DrugCaseInvestigatorContactCard } from "@/components/drug_intelligence/drug_case_investigator_contact_card";
+import { DrugCaseConnectedCasesSection } from "@/components/drug_intelligence/drug_cross_case_connection_cards";
 import { DrugEntityMediaGallery } from "@/components/drug_intelligence/drug_entity_media_gallery";
 import { casePersonInvestigationHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import { DrugWorkspaceTabBar } from "@/components/drug_intelligence/drug_workspace_tab_bar";
@@ -204,7 +205,7 @@ export default function DrugCaseWorkspacePage() {
         tabs={TABS.map((tab) => ({ key: tab.key, label: t(tab.labelKey) }))}
       />
 
-      {activeTab === "overview" ? <OverviewTab data={data} onOpenTab={goTab} /> : null}
+      {activeTab === "overview" ? <OverviewTab data={data} onOpenTab={goTab} caseId={caseId} returnTo={returnTo} /> : null}
       {activeTab === "media" ? (
         <div id="media">
           <DrugEntityMediaGallery entityType="CASE" entityId={caseId} sourceCaseId={caseId} />
@@ -252,11 +253,25 @@ export default function DrugCaseWorkspacePage() {
   );
 }
 
-function OverviewTab({ data, onOpenTab }: { data: DrugCaseDetailResponse; onOpenTab: (tab: TabKey) => void }) {
+function OverviewTab({
+  data,
+  onOpenTab,
+  caseId,
+  returnTo,
+}: {
+  data: DrugCaseDetailResponse;
+  onOpenTab: (tab: TabKey) => void;
+  caseId: string;
+  returnTo: string | null;
+}) {
   const { language } = useT();
   return (
     <div className="space-y-3">
       <DrugCaseIntelligenceSummary data={data} onOpenTab={onOpenTab} />
+      <DrugCaseConnectedCasesSection
+        connectedCases={data.connectedCases}
+        returnTo={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(caseId)}`, returnTo)}
+      />
       <DrugCaseAlertSummary caseId={data.case.id} />
       <DrugCaseTimelineSummary
         caseId={data.case.id}

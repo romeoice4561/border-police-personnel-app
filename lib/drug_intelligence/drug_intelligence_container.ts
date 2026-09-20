@@ -13,6 +13,7 @@
 
 import type { DatabaseClient } from "@/lib/database/database_types";
 import { DrugCaseService } from "@/lib/drug_intelligence/drug_case_service";
+import { DrugCrossCaseConnectionService } from "@/lib/drug_intelligence/drug_cross_case_connection_service";
 import { DrugStatsService } from "@/lib/drug_intelligence/drug_stats_service";
 import { DrugPersonMatchingService } from "@/lib/drug_intelligence/drug_person_matching_service";
 import { DrugPersonMergeService } from "@/lib/drug_intelligence/drug_person_merge_service";
@@ -45,6 +46,8 @@ export interface DrugIntelligenceContainer {
   /** Raw DatabaseClient — passed to handlers that manage their own repositories directly (e.g. DI-7.2/7.3 network group/role handlers). */
   db: DatabaseClient;
   caseService: DrugCaseService;
+  /** DI-8.2A: cross-case connection evidence (shared-entity fan-out). */
+  crossCaseConnectionService: DrugCrossCaseConnectionService;
   statsService: DrugStatsService;
   /** Phase DI-2: Entity Resolution / Duplicate Matching services. */
   matchingService: DrugPersonMatchingService;
@@ -99,6 +102,7 @@ export function createDrugIntelligenceContainer(
   return {
     db: client,
     caseService: new DrugCaseService({ db: client }),
+    crossCaseConnectionService: new DrugCrossCaseConnectionService(client),
     statsService: new DrugStatsService(client),
     matchingService: new DrugPersonMatchingService(client),
     mergeService: new DrugPersonMergeService(client),

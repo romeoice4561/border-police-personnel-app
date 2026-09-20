@@ -134,14 +134,33 @@ export function DrugNetworkNodeDetail({
       ) : null}
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div>
-          <dt className="text-xs text-muted">{t("di.network.firstSeen")}</dt>
-          <dd className="text-foreground">{node.firstSeenAt ? formatThaiOperationalDate(node.firstSeenAt) : "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">{t("di.network.lastSeen")}</dt>
-          <dd className="text-foreground">{node.lastSeenAt ? formatThaiOperationalDate(node.lastSeenAt) : "—"}</dd>
-        </div>
+        {node.type === "CASE" ? (
+          <>
+            {node.metadata.type === "CASE" ? (
+              <>
+                <div>
+                  <dt className="text-xs text-muted">{t("di.field.arrestDate")}</dt>
+                  <dd className="text-foreground">{node.metadata.arrestDate ? formatThaiOperationalDate(node.metadata.arrestDate) : "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">{t("di.field.province")}</dt>
+                  <dd className="text-foreground">{node.metadata.province || "—"}</dd>
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div>
+              <dt className="text-xs text-muted">{t("di.network.firstRecorded")}</dt>
+              <dd className="text-foreground">{node.firstSeenAt ? formatThaiOperationalDate(node.firstSeenAt) : "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">{t("di.network.lastRecorded")}</dt>
+              <dd className="text-foreground">{node.lastSeenAt ? formatThaiOperationalDate(node.lastSeenAt) : "—"}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt className="text-xs text-muted">{t("di.entity.sourceCases")}</dt>
           <dd className="text-foreground">{node.caseCount}</dd>
@@ -179,18 +198,6 @@ export function DrugNetworkNodeDetail({
             <dt className="text-xs text-muted">{t("di.entity.registrationProvince")}</dt>
             <dd className="text-foreground">{node.metadata.registrationProvince || "—"}</dd>
           </div>
-        ) : null}
-        {node.metadata.type === "CASE" ? (
-          <>
-            <div>
-              <dt className="text-xs text-muted">{t("di.field.arrestDate")}</dt>
-              <dd className="text-foreground">{node.metadata.arrestDate ? formatThaiOperationalDate(node.metadata.arrestDate) : "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">{t("di.field.province")}</dt>
-              <dd className="text-foreground">{node.metadata.province || "—"}</dd>
-            </div>
-          </>
         ) : null}
         {node.metadata.type === "LOCATION" ? (
           <div>

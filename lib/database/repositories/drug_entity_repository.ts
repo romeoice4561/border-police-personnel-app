@@ -420,11 +420,24 @@ export class DrugEntityRepository {
   casePhonesForPhoneNumber(phoneNumberId: string) {
     return this.db.drugCasePhone.findMany({ where: { phoneNumberId } });
   }
+  /** DI-8.2A: batched reverse Case↔Phone fan-out (shared-entity → memberships). */
+  casePhonesForPhones(phoneNumberIds: string[]) {
+    if (phoneNumberIds.length === 0) return Promise.resolve([]);
+    return this.db.drugCasePhone.findMany({ where: { phoneNumberId: { in: phoneNumberIds } } });
+  }
   caseSimsForSim(simId: string) {
     return this.db.drugCaseSim.findMany({ where: { simId } });
   }
+  caseSimsForSims(simIds: string[]) {
+    if (simIds.length === 0) return Promise.resolve([]);
+    return this.db.drugCaseSim.findMany({ where: { simId: { in: simIds } } });
+  }
   caseDevicesForDevice(deviceId: string) {
     return this.db.drugCaseDevice.findMany({ where: { deviceId } });
+  }
+  caseDevicesForDevices(deviceIds: string[]) {
+    if (deviceIds.length === 0) return Promise.resolve([]);
+    return this.db.drugCaseDevice.findMany({ where: { deviceId: { in: deviceIds } } });
   }
   personDevicesForDevice(deviceId: string) {
     return this.db.drugPersonDevice.findMany({ where: { deviceId } });
@@ -432,8 +445,16 @@ export class DrugEntityRepository {
   caseVehiclesForVehicle(vehicleId: string) {
     return this.db.drugCaseVehicle.findMany({ where: { vehicleId } });
   }
+  caseVehiclesForVehicles(vehicleIds: string[]) {
+    if (vehicleIds.length === 0) return Promise.resolve([]);
+    return this.db.drugCaseVehicle.findMany({ where: { vehicleId: { in: vehicleIds } } });
+  }
   personVehiclesForVehicle(vehicleId: string) {
     return this.db.drugPersonVehicle.findMany({ where: { vehicleId } });
+  }
+  caseLocationsForLocations(locationIds: string[]) {
+    if (locationIds.length === 0) return Promise.resolve([]);
+    return this.db.drugCaseLocation.findMany({ where: { locationId: { in: locationIds } } });
   }
 
   // ── Seized Items (Section 11) ─────────────────────────────────────────

@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { maskIdentifierValue, maskPhoneNumber, presentIdentifierValue, presentPhoneNumber } from "@/lib/drug_intelligence/drug_sensitive_presentation";
+import { maskIdentifierValue, maskPhoneNumber, presentIdentifierValue, presentPhoneNumber, formatPhoneForDisplay } from "@/lib/drug_intelligence/drug_sensitive_presentation";
 
 test("maskIdentifierValue keeps only the last 4 characters visible", () => {
   assert.equal(maskIdentifierValue("1103700123456"), "xxxxxxxxx3456");
@@ -38,6 +38,16 @@ test("maskPhoneNumber fully masks a value too short to partially mask safely", (
 test("presentIdentifierValue/presentPhoneNumber show FULL value only when canViewFull is true", () => {
   assert.equal(presentIdentifierValue("1103700123456", true), "1103700123456");
   assert.equal(presentIdentifierValue("1103700123456", false), "xxxxxxxxx3456");
-  assert.equal(presentPhoneNumber("0812345678", true), "0812345678");
+  assert.equal(presentPhoneNumber("0812345678", true), "081-234-5678");
   assert.equal(presentPhoneNumber("0812345678", false), "081-xxx-5678");
+});
+
+test("presentPhoneNumber formats Thai matching-key 66… as 0XX-XXX-XXXX when unmasked", () => {
+  assert.equal(formatPhoneForDisplay("66900001001"), "090-000-1001");
+  assert.equal(presentPhoneNumber("66900001001", true), "090-000-1001");
+  assert.equal(presentPhoneNumber("66900001001", false), "090-xxx-1001");
+});
+
+test("presentPhoneNumber leaves non-Thai shapes ungrouped when unmasked", () => {
+  assert.equal(presentPhoneNumber("12345", true), "12345");
 });

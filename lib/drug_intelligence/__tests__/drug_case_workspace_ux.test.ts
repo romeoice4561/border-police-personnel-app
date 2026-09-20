@@ -41,6 +41,9 @@ test("Case Detail uses identity header and intelligence summary instead of large
   assert.match(summary, /data-testid="case-intelligence-summary"/);
   assert.match(summary, /data-testid="case-intelligence-stats"/);
   assert.match(summary, /di\.workspace\.intelligenceSummary/);
+  assert.match(page, /DrugCaseConnectedCasesSection/);
+  const cards = read("components/drug_intelligence/drug_cross_case_connection_cards.tsx");
+  assert.match(cards, /data-testid="case-connected-cases"/);
 });
 
 test("Case Detail entity tabs reuse VisualIntelligenceCard language", () => {
