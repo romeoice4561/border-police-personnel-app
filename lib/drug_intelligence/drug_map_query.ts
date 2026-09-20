@@ -45,6 +45,7 @@ export const MAP_MARKER_HARD_LIMIT = 2000;
 export const MAP_LIST_DEFAULT_PAGE_SIZE = 50;
 export const MAP_LIST_MAX_PAGE_SIZE = 100;
 export const MAP_UNKNOWN_PROVINCE_LABEL = "ไม่ระบุจังหวัด";
+export const MAP_UNKNOWN_DISTRICT_LABEL = "ไม่ระบุอำเภอ";
 /** Full foundation `load()` must stay at or under this many DB calls. */
 export const MAP_QUERY_MAX_DB_CALLS = 15;
 
@@ -113,6 +114,13 @@ export interface DrugMapProvinceRow {
   withCoordinates: number;
 }
 
+export interface DrugMapDistrictRow {
+  district: string;
+  unspecified: boolean;
+  caseCount: number;
+  withCoordinates: number;
+}
+
 export interface DrugMapQueryResult {
   summary: {
     totalCases: number;
@@ -122,6 +130,8 @@ export interface DrugMapQueryResult {
     markerLimitReached: boolean;
     /** Named provinces only — unknown/blank is visible in `provinces[]` but does not increment this KPI. */
     provinceCount: number;
+    /** Named districts only. */
+    districtCount: number;
   };
   /** Temporal coverage over the date/geo/weekday-matched universe (before time filter). */
   temporal: {
@@ -141,6 +151,7 @@ export interface DrugMapQueryResult {
     total: number;
   };
   provinces: DrugMapProvinceRow[];
+  districts: DrugMapDistrictRow[];
   warnings: DrugMapWarningCode[];
   limits: {
     markerSoft: number;
@@ -357,6 +368,10 @@ function isUnspecifiedProvince(value: string | null | undefined): boolean {
   return (value?.trim() ?? "") === "";
 }
 
+function isUnspecifiedDistrict(value: string | null | undefined): boolean {
+  return (value?.trim() ?? "") === "";
+}
+
 function groupCount(row: Record<string, unknown>): number {
   const count = row._count;
   if (typeof count === "number") return count;
@@ -368,6 +383,12 @@ function compareProvinces(a: DrugMapProvinceRow, b: DrugMapProvinceRow): number 
   if (a.caseCount !== b.caseCount) return b.caseCount - a.caseCount;
   if (a.unspecified !== b.unspecified) return a.unspecified ? 1 : -1;
   return a.province.localeCompare(b.province, "th");
+}
+
+function compareDistricts(a: DrugMapDistrictRow, b: DrugMapDistrictRow): number {
+  if (a.caseCount !== b.caseCount) return b.caseCount - a.caseCount;
+  if (a.unspecified !== b.unspecified) return a.unspecified ? 1 : -1;
+  return a.district.localeCompare(b.district, "th");
 }
 
 
@@ -416,11 +437,13 @@ export class DrugMapQueryService {
     const directWhere = andWhere(where, buildDrugMapDirectCoordinateWhere());
     const incompleteWhere = andWhere(where, buildDrugMapIncompleteCoordinateWhere());
 
-    const [totalCases, directCount, provinceGroups, provinceDirectGroups] = await Promise.all([
+    const [totalCases, directCount, provinceGroups, provinceDirectGroups, districtGroups, districtDirectGroups] = await Promise.all([
       filteredIds.length === 0 ? Promise.resolve(0) : this.db.drugCase.count({ where }),
       filteredIds.length === 0 ? Promise.resolve(0) : this.db.drugCase.count({ where: directWhere }),
       filteredIds.length === 0 ? Promise.resolve([] as Array<Record<string, unknown>>) : this.groupByProvince(where),
       filteredIds.length === 0 ? Promise.resolve([] as Array<Record<string, unknown>>) : this.groupByProvince(directWhere),
+      filteredIds.length === 0 ? Promise.resolve([] as Array<Record<string, unknown>>) : this.groupByDistrict(where),
+      filteredIds.length === 0 ? Promise.resolve([] as Array<Record<string, unknown>>) : this.groupByDistrict(directWhere),
     ]);
 
     const firstArrestByCase =
@@ -470,8 +493,17 @@ export class DrugMapQueryService {
       fallbackCompleteIds.length > 0
         ? this.groupByProvince({ id: { in: fallbackCompleteIds } })
         : Promise.resolve([] as Array<Record<string, unknown>>);
+    const fallbackDistrictPromise =
+      fallbackCompleteIds.length > 0
+        ? this.groupByDistrict({ id: { in: fallbackCompleteIds } })
+        : Promise.resolve([] as Array<Record<string, unknown>>);
 
-    const [rawMarkers, rawList, provinceFallbackGroups] = await Promise.all([markerPromise, listPromise, fallbackProvincePromise]);
+    const [rawMarkers, rawList, provinceFallbackGroups, districtFallbackGroups] = await Promise.all([
+      markerPromise,
+      listPromise,
+      fallbackProvincePromise,
+      fallbackDistrictPromise,
+    ]);
     const markerRows = rawMarkers as unknown as CaseSelectRow[];
     const listRows = rawList as unknown as CaseSelectRow[];
 
@@ -485,6 +517,7 @@ export class DrugMapQueryService {
 
     const listItems = listRows.map((row) => this.toListRow(row, firstArrestByCase.get(String(row.id))));
     const provinces = this.mergeProvinceAggregates(provinceGroups, [...provinceDirectGroups, ...provinceFallbackGroups]);
+    const districts = this.mergeDistrictAggregates(districtGroups, [...districtDirectGroups, ...districtFallbackGroups]);
 
     return {
       summary: {
@@ -494,6 +527,7 @@ export class DrugMapQueryService {
         markerCount: markers.length,
         markerLimitReached,
         provinceCount: provinces.filter((row) => !row.unspecified).length,
+        districtCount: districts.filter((row) => !row.unspecified).length,
       },
       temporal: {
         coverage,
@@ -509,6 +543,7 @@ export class DrugMapQueryService {
         total: totalCases,
       },
       provinces,
+      districts,
       warnings,
       limits: {
         markerSoft: MAP_MARKER_SOFT_LIMIT,
@@ -525,6 +560,14 @@ export class DrugMapQueryService {
       throw new Error("DatabaseClient.drugCase.groupBy is required for DrugMapQueryService");
     }
     return groupBy.call(this.db.drugCase, { by: ["province"], where, _count: { _all: true } });
+  }
+
+  private async groupByDistrict(where: Record<string, unknown>): Promise<Array<Record<string, unknown>>> {
+    const groupBy = this.db.drugCase.groupBy;
+    if (!groupBy) {
+      throw new Error("DatabaseClient.drugCase.groupBy is required for DrugMapQueryService");
+    }
+    return groupBy.call(this.db.drugCase, { by: ["district"], where, _count: { _all: true } });
   }
 
   /**
@@ -640,5 +683,39 @@ export class DrugMapQueryService {
       if (existing) existing.withCoordinates = withCoordinates;
     }
     return [...merged.values()].sort(compareProvinces);
+  }
+
+  private mergeDistrictAggregates(
+    allGroups: Array<Record<string, unknown>>,
+    coordGroups: Array<Record<string, unknown>>
+  ): DrugMapDistrictRow[] {
+    const coordByKey = new Map<string, number>();
+    for (const row of coordGroups) {
+      const key = isUnspecifiedDistrict(row.district as string | null) ? "" : String(row.district);
+      coordByKey.set(key, (coordByKey.get(key) ?? 0) + groupCount(row));
+    }
+
+    const merged = new Map<string, DrugMapDistrictRow>();
+    for (const row of allGroups) {
+      const unspecified = isUnspecifiedDistrict(row.district as string | null);
+      const key = unspecified ? "" : String(row.district);
+      const existing = merged.get(key);
+      const caseCount = groupCount(row);
+      if (existing) {
+        existing.caseCount += caseCount;
+        continue;
+      }
+      merged.set(key, {
+        district: unspecified ? MAP_UNKNOWN_DISTRICT_LABEL : key,
+        unspecified,
+        caseCount,
+        withCoordinates: 0,
+      });
+    }
+    for (const [key, withCoordinates] of coordByKey) {
+      const existing = merged.get(key);
+      if (existing) existing.withCoordinates = withCoordinates;
+    }
+    return [...merged.values()].sort(compareDistricts);
   }
 }

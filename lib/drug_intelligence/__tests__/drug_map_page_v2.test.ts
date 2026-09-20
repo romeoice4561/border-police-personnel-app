@@ -36,6 +36,18 @@ test("page distinguishes empty, soft limit, and hard limit", () => {
   assert.match(page, /timePreset/);
 });
 
+test("DI-8.2B page wires hotspot mode, radius URL, inspector, and area ranking", () => {
+  assert.match(page, /computeDrugGeoHotspots/);
+  assert.match(page, /geoMode: mode/);
+  assert.match(page, /hotspotRadiusKm/);
+  assert.match(page, /DrugGeoHotspotInspector/);
+  assert.match(page, /DrugGeoAreaRankingPanel/);
+  assert.match(page, /map-empty-hotspot-few/);
+  assert.match(page, /HOTSPOT/);
+  assert.match(page, /DENSITY/);
+  assert.doesNotMatch(page, /setClusterMode/);
+});
+
 test("page does not render misleading deferred analytics", () => {
   assert.doesNotMatch(page, /computeDrugGeoDefendantCount/);
   assert.doesNotMatch(page, /computeDrugGeoUnitCount/);

@@ -19,9 +19,15 @@ import {
   DrugMapCaseDetailInvalidIdError,
   DrugMapCaseDetailService,
 } from "@/lib/drug_intelligence/drug_map_case_detail";
+import {
+  DrugGeoHotspotContextInvalidError,
+  DrugGeoHotspotContextService,
+} from "@/lib/drug_intelligence/drug_geo_hotspot_context_service";
 import { DrugCaseNotFoundError } from "@/lib/drug_intelligence/drug_case_types";
 import { mapListTotalPages } from "@/lib/drug_intelligence/drug_map_view";
 import { parseWeekdaysParam } from "@/lib/drug_intelligence/drug_map_temporal";
+import { getAuthUserById } from "@/lib/auth/mock_auth_backend";
+import { hasPermission } from "@/lib/auth/roles";
 
 function zodDetails(error: z.ZodError): unknown {
   return error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
@@ -127,5 +133,37 @@ export async function handleDrugMapCaseDetail(
       return notFound(error.message);
     }
     return jsonError("INTERNAL_ERROR", "Failed to load map case detail", 500);
+  }
+}
+
+/** LIVE POST /api/drug-intelligence/map/hotspot-context — batch entity evidence for hotspot cases. */
+export async function handleDrugGeoHotspotContext(
+  service: DrugGeoHotspotContextService,
+  body: unknown,
+  actorId: string | null,
+  rawHeaders: Request,
+): Promise<Response> {
+  if (!actorId) return jsonError("BAD_REQUEST", "actorId query parameter is required", 400);
+
+  const denied = await assertDrugIntelligencePermission(rawHeaders, actorId, "drug.read");
+  if (denied) return denied;
+
+  const parsed = z
+    .object({
+      caseIds: z.array(z.string().trim().min(1).max(64)).min(1).max(120),
+    })
+    .safeParse(body);
+  if (!parsed.success) return badRequest("Invalid hotspot context body", zodDetails(parsed.error));
+
+  try {
+    const user = await getAuthUserById(actorId);
+    const canViewFull = Boolean(user && hasPermission(user.permissions, "drug.edit"));
+    const result = await service.load(parsed.data.caseIds, { canViewFull });
+    return jsonOk(result);
+  } catch (error) {
+    if (error instanceof DrugGeoHotspotContextInvalidError) {
+      return badRequest("Invalid hotspot context");
+    }
+    return jsonError("INTERNAL_ERROR", "Failed to load hotspot context", 500);
   }
 }

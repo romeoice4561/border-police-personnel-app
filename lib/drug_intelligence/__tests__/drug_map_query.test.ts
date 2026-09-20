@@ -722,14 +722,14 @@ test("query count is fixed for N=12, N=500, and N=2001", async () => {
   assert.equal(n12.result.markers.length, 6);
   assert.equal(n12.result.list.items.length, 12);
   assert.deepEqual(n12.result.warnings, []);
-  assert.equal(n12.queries, 8, `N=12 queries ${n12.queries}`);
+  assert.equal(n12.queries, 10, `N=12 queries ${n12.queries}`);
 
   const n500 = await measure(500, 500);
   assert.equal(n500.result.summary.withCoordinates, 500);
   assert.equal(n500.result.markers.length, 500);
   assert.equal(n500.result.list.items.length, 50);
   assert.deepEqual(n500.result.warnings, []);
-  assert.equal(n500.queries, 7, `N=500 queries ${n500.queries}`);
+  assert.equal(n500.queries, 9, `N=500 queries ${n500.queries}`);
 
   const n2001 = await measure(2001, 2001);
   assert.equal(n2001.result.summary.totalCases, 2001);
@@ -738,7 +738,7 @@ test("query count is fixed for N=12, N=500, and N=2001", async () => {
   assert.equal(n2001.result.markers.length, 0);
   assert.deepEqual(n2001.result.warnings, ["MARKER_LIMIT"]);
   assert.equal(n2001.result.list.items.length, 50);
-  assert.equal(n2001.queries, 6, `N=2001 queries ${n2001.queries}`);
+  assert.equal(n2001.queries, 8, `N=2001 queries ${n2001.queries}`);
 });
 
 test("fallback first-location scan query count stays fixed for N=12, N=500, and N=2001", async () => {
@@ -759,19 +759,19 @@ test("fallback first-location scan query count stays fixed for N=12, N=500, and 
   const n12 = await measureFallback(12);
   assert.equal(n12.result.summary.withCoordinates, 12);
   assert.equal(n12.result.markers.length, 12);
-  assert.equal(n12.queries, 10, `fallback N=12 queries ${n12.queries}`);
+  assert.equal(n12.queries, 13, `fallback N=12 queries ${n12.queries}`);
   assert.ok(n12.queries <= MAP_QUERY_MAX_DB_CALLS);
 
   const n500 = await measureFallback(500);
   assert.equal(n500.result.summary.withCoordinates, 500);
   assert.equal(n500.result.markers.length, 500);
-  assert.equal(n500.queries, 10, `fallback N=500 queries ${n500.queries}`);
+  assert.equal(n500.queries, 13, `fallback N=500 queries ${n500.queries}`);
 
   const n2001 = await measureFallback(2001);
   assert.equal(n2001.result.summary.withCoordinates, 2001);
   assert.equal(n2001.result.markers.length, 0);
   assert.deepEqual(n2001.result.warnings, ["MARKER_LIMIT"]);
-  assert.equal(n2001.queries, 9, `fallback N=2001 queries ${n2001.queries}`);
+  assert.equal(n2001.queries, 12, `fallback N=2001 queries ${n2001.queries}`);
 });
 
 test("DI-8.2.1: weekday + night filter and unknown time coverage", async () => {

@@ -1,50 +1,69 @@
 /**
- * DrugGeoMapCanvas (Phase DI-8, Section 4/15/16/27/28).
+ * DrugGeoMapCanvas (Phase DI-8 / DI-8.2B).
  *
- * The actual Leaflet map — isolated in its own "use client" file and always
- * loaded via next/dynamic with ssr:false (see drug_geo_map.tsx), since
- * Leaflet touches `window`/`document` at import time and cannot run during
- * Next.js's server render. OpenStreetMap tiles, no API key.
+ * Leaflet map — loaded via next/dynamic ssr:false.
  *
- * Marker design (Section 15): plain circle markers, neutral project accent
- * color — never risk/severity-colored. The selected marker gets a visible
- * emphasis ring, never a "danger" color scheme.
- *
- * Clustering (Phase DI-8.2, Section 8/13): an opt-in "ความหนาแน่น" view
- * mode groups nearby markers into a grid-bucket cluster bubble
- * (lib/drug_intelligence/drug_geo_cluster.ts) — deliberately NOT a
- * react-leaflet-cluster/leaflet.markercluster dependency (unconfirmed
- * compatibility with react-leaflet@5/React 19), and deliberately NOT a
- * heatmap (no interpolation/guessed density — every cluster's position is
- * the exact centroid of its real, stored-coordinate members).
+ * Modes:
+ * - POINTS: individual event markers
+ * - HOTSPOT: radius-based intelligence hotspots (NOT display clusters)
+ * - DENSITY: zoom grid-bucket display clusters (NOT intelligence hotspots)
  */
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap, useMapEvent } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Circle, Marker, Popup, useMap, useMapEvent } from "react-leaflet";
 import { divIcon, type LatLngBoundsExpression } from "leaflet";
 import { computeDrugGeoClusters } from "@/lib/drug_intelligence/drug_geo_cluster";
 import type { DrugMapMarkerView } from "@/lib/drug_intelligence/drug_geo_client";
+import type { DrugGeoHotspot, DrugGeoMapMode } from "@/lib/drug_intelligence/drug_geo_hotspot";
 
-// Thailand-wide default view (Section 28) — a sensible national center/zoom,
-// never a precise operational location.
 const THAILAND_CENTER: [number, number] = [13.7563, 100.5018];
 const THAILAND_DEFAULT_ZOOM = 6;
 const SINGLE_MARKER_ZOOM = 12;
 
-const MARKER_COLOR = "#f97316"; // neutral/orange project accent — never risk-red
-const MARKER_SELECTED_COLOR = "#2563eb"; // accent-blue selection emphasis, not a severity color
+const MARKER_COLOR = "#f97316";
+const MARKER_SELECTED_COLOR = "#2563eb";
+const HOTSPOT_COLOR = "#ea580c";
+const HOTSPOT_SELECTED_COLOR = "#2563eb";
 
-function FitBoundsController({ markers, selectedCaseId, fitToken }: { markers: DrugMapMarkerView[]; selectedCaseId: string | null; fitToken: number }) {
+function FitBoundsController({
+  markers,
+  hotspots,
+  geoMode,
+  selectedCaseId,
+  selectedHotspotId,
+  fitToken,
+}: {
+  markers: DrugMapMarkerView[];
+  hotspots: DrugGeoHotspot[];
+  geoMode: DrugGeoMapMode;
+  selectedCaseId: string | null;
+  selectedHotspotId: string | null;
+  fitToken: number;
+}) {
   const map = useMap();
   const lastFitToken = useRef<number>(-1);
 
   useEffect(() => {
-    // Only re-fit when the caller explicitly asks (fitToken changes) — never
-    // fight the user's manual pan/zoom after every minor interaction
-    // (Section 27's explicit instruction).
     if (fitToken === lastFitToken.current) return;
     lastFitToken.current = fitToken;
+
+    if (geoMode === "HOTSPOT") {
+      if (hotspots.length === 0) {
+        map.setView(THAILAND_CENTER, THAILAND_DEFAULT_ZOOM);
+        return;
+      }
+      if (hotspots.length === 1) {
+        map.setView([hotspots[0]!.centerLatitude, hotspots[0]!.centerLongitude], SINGLE_MARKER_ZOOM);
+        return;
+      }
+      const bounds: LatLngBoundsExpression = hotspots.map(
+        (h) => [h.centerLatitude, h.centerLongitude] as [number, number],
+      );
+      map.fitBounds(bounds, { padding: [40, 40] });
+      return;
+    }
 
     if (markers.length === 0) {
       map.setView(THAILAND_CENTER, THAILAND_DEFAULT_ZOOM);
@@ -56,33 +75,41 @@ function FitBoundsController({ markers, selectedCaseId, fitToken }: { markers: D
     }
     const bounds: LatLngBoundsExpression = markers.map((m) => [m.latitude, m.longitude] as [number, number]);
     map.fitBounds(bounds, { padding: [40, 40] });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fitToken is the deliberate re-fit trigger; markers/map are read, not depended on, to avoid re-fitting on every marker array identity change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitToken]);
 
   useEffect(() => {
+    if (geoMode === "HOTSPOT") {
+      if (!selectedHotspotId) return;
+      const hs = hotspots.find((h) => h.hotspotId === selectedHotspotId);
+      if (hs) map.setView([hs.centerLatitude, hs.centerLongitude], Math.max(map.getZoom(), 10), { animate: true });
+      return;
+    }
     if (!selectedCaseId) return;
     const marker = markers.find((m) => m.caseId === selectedCaseId);
     if (marker) map.setView([marker.latitude, marker.longitude], Math.max(map.getZoom(), SINGLE_MARKER_ZOOM), { animate: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately reacts only to selectedCaseId changing, not marker array identity
-  }, [selectedCaseId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCaseId, selectedHotspotId, geoMode]);
 
   return null;
 }
 
-/** Tracks the current zoom level into React state so cluster bucket size can react to zoom/pan without prop-drilling a Leaflet map instance. */
 function ZoomTracker({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
   const map = useMap();
   useEffect(() => {
     onZoomChange(map.getZoom());
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- report the initial zoom once on mount; subsequent changes come from the zoomend event below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useMapEvent("zoomend", (e) => onZoomChange(e.target.getZoom()));
   return null;
 }
 
-/** Thai-only, matching this file's existing convention of hardcoding Thai text locally rather than importing useT() into a Leaflet-internals-heavy client canvas (same pattern as drug_geo_marker_popup.tsx's own date formatter). */
 function clusterAriaLabel(count: number): string {
-  return `กลุ่มคดี ${count.toLocaleString("th-TH")} คดี กดเพื่อขยาย`;
+  return `กลุ่มแสดงผล ${count.toLocaleString("th-TH")} จุด กดเพื่อขยาย`;
+}
+
+function hotspotAriaLabel(count: number): string {
+  return `กลุ่มเหตุการณ์ ${count.toLocaleString("th-TH")} เหตุการณ์ กดเพื่อดูสรุป`;
 }
 
 function clusterDivIcon(count: number, ariaLabel: string) {
@@ -94,6 +121,16 @@ function clusterDivIcon(count: number, ariaLabel: string) {
   });
 }
 
+function hotspotDivIcon(count: number, selected: boolean, ariaLabel: string) {
+  const size = count >= 10 ? 44 : count >= 5 ? 38 : 32;
+  const bg = selected ? HOTSPOT_SELECTED_COLOR : HOTSPOT_COLOR;
+  return divIcon({
+    html: `<div role="button" tabindex="0" aria-label="${ariaLabel}" style="display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:${bg};color:#ffffff;font-weight:700;font-size:13px;border:3px solid #ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.4);cursor:pointer;">${count}</div>`,
+    className: "di-geo-hotspot-icon",
+    iconSize: [size, size],
+  });
+}
+
 export interface DrugGeoMapCanvasProps {
   markers: DrugMapMarkerView[];
   selectedCaseId: string | null;
@@ -101,18 +138,39 @@ export interface DrugGeoMapCanvasProps {
   fitToken: number;
   renderPopup: (marker: DrugMapMarkerView) => React.ReactNode;
   heightClassName?: string;
-  /** Section 8/13 (DI-8.2): opt-in "ความหนาแน่น" view — grid-bucket clustering, off by default so the original point view is unchanged when omitted. */
+  /** @deprecated use geoMode — kept for older call sites */
   clusterMode?: boolean;
+  geoMode?: DrugGeoMapMode;
+  hotspots?: DrugGeoHotspot[];
+  selectedHotspotId?: string | null;
+  onSelectHotspot?: (hotspotId: string) => void;
 }
 
-export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitToken, renderPopup, heightClassName, clusterMode = false }: DrugGeoMapCanvasProps) {
+export function DrugGeoMapCanvas({
+  markers,
+  selectedCaseId,
+  onSelectMarker,
+  fitToken,
+  renderPopup,
+  heightClassName,
+  clusterMode = false,
+  geoMode: geoModeProp,
+  hotspots = [],
+  selectedHotspotId = null,
+  onSelectHotspot,
+}: DrugGeoMapCanvasProps) {
+  const geoMode: DrugGeoMapMode = geoModeProp ?? (clusterMode ? "DENSITY" : "POINTS");
+
   const initialCenter = useMemo<[number, number]>(() => {
     if (markers.length === 1) return [markers[0].latitude, markers[0].longitude];
     return THAILAND_CENTER;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- initial mount value only; FitBoundsController owns subsequent view changes
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [zoom, setZoom] = useState(THAILAND_DEFAULT_ZOOM);
-  const clusters = useMemo(() => (clusterMode ? computeDrugGeoClusters(markers, zoom) : []), [clusterMode, markers, zoom]);
+  const clusters = useMemo(
+    () => (geoMode === "DENSITY" ? computeDrugGeoClusters(markers, zoom) : []),
+    [geoMode, markers, zoom],
+  );
 
   return (
     <div className={heightClassName ?? "h-[70vh] min-h-[420px] w-full overflow-hidden rounded-xl border border-border"}>
@@ -121,12 +179,37 @@ export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitT
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBoundsController markers={markers} selectedCaseId={selectedCaseId} fitToken={fitToken} />
-        {clusterMode ? <ZoomTracker onZoomChange={setZoom} /> : null}
-        {clusterMode
+        <FitBoundsController
+          markers={markers}
+          hotspots={hotspots}
+          geoMode={geoMode}
+          selectedCaseId={selectedCaseId}
+          selectedHotspotId={selectedHotspotId}
+          fitToken={fitToken}
+        />
+        {geoMode === "DENSITY" ? <ZoomTracker onZoomChange={setZoom} /> : null}
+
+        {geoMode === "HOTSPOT"
+          ? hotspots.map((hs) => (
+              <HotspotMarker
+                key={hs.hotspotId}
+                hotspot={hs}
+                selected={hs.hotspotId === selectedHotspotId}
+                onSelect={() => onSelectHotspot?.(hs.hotspotId)}
+              />
+            ))
+          : null}
+
+        {geoMode === "DENSITY"
           ? clusters.map((cluster) =>
               cluster.markers.length === 1 ? (
-                <ClusterSingleMarker key={cluster.clusterId} marker={cluster.markers[0]} selectedCaseId={selectedCaseId} onSelectMarker={onSelectMarker} renderPopup={renderPopup} />
+                <ClusterSingleMarker
+                  key={cluster.clusterId}
+                  marker={cluster.markers[0]}
+                  selectedCaseId={selectedCaseId}
+                  onSelectMarker={onSelectMarker}
+                  renderPopup={renderPopup}
+                />
               ) : (
                 <ClusterBubbleMarker
                   key={cluster.clusterId}
@@ -135,9 +218,12 @@ export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitT
                   count={cluster.markers.length}
                   ariaLabel={clusterAriaLabel(cluster.markers.length)}
                 />
-              )
+              ),
             )
-          : markers.map((marker) => (
+          : null}
+
+        {geoMode === "POINTS"
+          ? markers.map((marker) => (
               <CircleMarker
                 key={marker.caseId}
                 center={[marker.latitude, marker.longitude]}
@@ -152,13 +238,56 @@ export function DrugGeoMapCanvas({ markers, selectedCaseId, onSelectMarker, fitT
               >
                 <Popup className="di-geo-popup">{renderPopup(marker)}</Popup>
               </CircleMarker>
-            ))}
+            ))
+          : null}
       </MapContainer>
     </div>
   );
 }
 
-/** A cluster bubble — clicking OR pressing Enter/Space zooms in on its centroid so the underlying points separate out (Section 8: "click/zoom: expand into underlying points"; Section 21: keyboard-accessible, not click-only). Uses useMap() rather than reaching into Leaflet's Marker event target for the map instance. */
+function HotspotMarker({
+  hotspot,
+  selected,
+  onSelect,
+}: {
+  hotspot: DrugGeoHotspot;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const radiusMeters = hotspot.radiusKm * 1000;
+  return (
+    <>
+      <Circle
+        center={[hotspot.centerLatitude, hotspot.centerLongitude]}
+        radius={radiusMeters}
+        pathOptions={{
+          color: selected ? HOTSPOT_SELECTED_COLOR : HOTSPOT_COLOR,
+          fillColor: selected ? HOTSPOT_SELECTED_COLOR : HOTSPOT_COLOR,
+          fillOpacity: selected ? 0.18 : 0.1,
+          weight: selected ? 2 : 1,
+        }}
+        eventHandlers={{ click: onSelect }}
+      />
+      <Marker
+        position={[hotspot.centerLatitude, hotspot.centerLongitude]}
+        icon={hotspotDivIcon(hotspot.eventCount, selected, hotspotAriaLabel(hotspot.eventCount))}
+        eventHandlers={{
+          click: onSelect,
+          add: (e) => {
+            const el = e.target.getElement();
+            el?.addEventListener("keydown", (ke: KeyboardEvent) => {
+              if (ke.key === "Enter" || ke.key === " ") {
+                ke.preventDefault();
+                onSelect();
+              }
+            });
+          },
+        }}
+      />
+    </>
+  );
+}
+
 function ClusterBubbleMarker({ latitude, longitude, count, ariaLabel }: { latitude: number; longitude: number; count: number; ariaLabel: string }) {
   const map = useMap();
   const expand = () => map.setView([latitude, longitude], Math.min(map.getZoom() + 2, 18), { animate: true });
@@ -182,7 +311,6 @@ function ClusterBubbleMarker({ latitude, longitude, count, ariaLabel }: { latitu
   );
 }
 
-/** A cluster bucket that happens to contain exactly one marker renders as a normal point marker (same visual language as the non-cluster view), not a size-1 cluster bubble. */
 function ClusterSingleMarker({
   marker,
   selectedCaseId,

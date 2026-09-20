@@ -19,6 +19,13 @@ import {
   type IsoWeekday,
   type MapTimePreset,
 } from "@/lib/drug_intelligence/drug_map_temporal";
+import {
+  DRUG_GEO_HOTSPOT_DEFAULT_RADIUS_KM,
+  parseDrugGeoMapModeParam,
+  parseHotspotRadiusKmParam,
+  type DrugGeoHotspotRadiusKm,
+  type DrugGeoMapMode,
+} from "@/lib/drug_intelligence/drug_geo_hotspot";
 
 export interface DrugGeoFilterState {
   dateFrom: string;
@@ -53,6 +60,10 @@ export interface DrugGeoFilterState {
   leadCompanyText: string;
   personId: string;
   caseId: string;
+  /** DI-8.2B — POINTS | HOTSPOT | DENSITY. Default POINTS omitted from URL. */
+  geoMode: DrugGeoMapMode;
+  /** DI-8.2B — hotspot radius km. Default 3 omitted from URL. */
+  hotspotRadiusKm: DrugGeoHotspotRadiusKm;
 }
 
 export function createEmptyDrugGeoFilterState(): DrugGeoFilterState {
@@ -85,6 +96,8 @@ export function createEmptyDrugGeoFilterState(): DrugGeoFilterState {
     leadCompanyText: "",
     personId: "",
     caseId: "",
+    geoMode: "POINTS",
+    hotspotRadiusKm: DRUG_GEO_HOTSPOT_DEFAULT_RADIUS_KM,
   };
 }
 
@@ -134,6 +147,8 @@ export function drugGeoFilterStateFromSearchParams(params: URLSearchParams): Dru
   state.weekdays = parseWeekdaysParam(params.get("weekdays"));
   const timePreset = params.get("timePreset");
   if (timePreset && isMapTimePreset(timePreset)) state.timePreset = timePreset;
+  state.geoMode = parseDrugGeoMapModeParam(params.get("geoMode"));
+  state.hotspotRadiusKm = parseHotspotRadiusKmParam(params.get("hotspotRadiusKm"));
   return state;
 }
 
@@ -155,6 +170,10 @@ export function drugGeoFilterStateToSearchParams(state: DrugGeoFilterState): URL
   const weekdays = serializeWeekdaysParam(state.weekdays);
   if (weekdays) params.set("weekdays", weekdays);
   if (state.timePreset && state.timePreset !== "ALL_DAY") params.set("timePreset", state.timePreset);
+  if (state.geoMode && state.geoMode !== "POINTS") params.set("geoMode", state.geoMode);
+  if (state.hotspotRadiusKm !== DRUG_GEO_HOTSPOT_DEFAULT_RADIUS_KM) {
+    params.set("hotspotRadiusKm", String(state.hotspotRadiusKm));
+  }
   return params;
 }
 
@@ -162,6 +181,8 @@ export function isDrugGeoFilterStateEmpty(state: DrugGeoFilterState): boolean {
   if (state.weekdays.length > 0) return false;
   if (state.timePreset !== "ALL_DAY") return false;
   if (state.timeFrom || state.timeTo) return false;
+  if (state.geoMode !== "POINTS") return false;
+  if (state.hotspotRadiusKm !== DRUG_GEO_HOTSPOT_DEFAULT_RADIUS_KM) return false;
   const keys: Array<keyof DrugGeoFilterState> = [...STRING_KEYS, ...NUMERIC_KEYS];
   return keys.every((key) => {
     const value = state[key];

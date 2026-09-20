@@ -77,8 +77,10 @@ import { DrugGeoMap } from "@/components/drug_intelligence/drug_geo_map";
 import { DrugGeoMarkerPopup } from "@/components/drug_intelligence/drug_geo_marker_popup";
 import { DrugGeoResultList } from "@/components/drug_intelligence/drug_geo_result_list";
 import { DrugGeoProvinceBreakdown } from "@/components/drug_intelligence/drug_geo_province_breakdown";
-import { DrugGeoTopProvincesPanel } from "@/components/drug_intelligence/drug_geo_top_provinces_panel";
 import { DrugGeoReportDrawer } from "@/components/drug_intelligence/drug_geo_report_drawer";
+import { DrugGeoHotspotInspector } from "@/components/drug_intelligence/drug_geo_hotspot_inspector";
+import { DrugGeoAreaRankingPanel } from "@/components/drug_intelligence/drug_geo_area_ranking_panel";
+import { DrugGeoIntelligenceSummary } from "@/components/drug_intelligence/drug_geo_intelligence_summary";
 import {
   drugGeoFilterStateFromSearchParams,
   drugGeoFilterStateToSearchParams,
@@ -91,9 +93,22 @@ import { formatShortThaiDateTh } from "@/lib/intelligence/shared/thai_date";
 import { serializeWeekdaysParam } from "@/lib/drug_intelligence/drug_map_temporal";
 import type { DrugGeoQueryParams } from "@/lib/drug_intelligence/drug_geo_client";
 import { DrugGeoTemporalSummary } from "@/components/drug_intelligence/drug_geo_temporal_summary";
+import {
+  computeDrugGeoHotspots,
+  DRUG_GEO_HOTSPOT_RADIUS_KM_OPTIONS,
+  type DrugGeoHotspot,
+  type DrugGeoHotspotRadiusKm,
+  type DrugGeoMapMode,
+} from "@/lib/drug_intelligence/drug_geo_hotspot";
+import {
+  enrichDistrictRanking,
+  enrichProvinceRanking,
+} from "@/lib/drug_intelligence/drug_geo_area_intelligence";
 
 const VIEW_MODES = ["MAP", "LIST", "PROVINCE"] as const;
 type ViewMode = (typeof VIEW_MODES)[number];
+
+const GEO_MODES: DrugGeoMapMode[] = ["POINTS", "HOTSPOT", "DENSITY"];
 
 function filterStateToQueryParams(state: DrugGeoFilterState): DrugGeoQueryParams {
   const weekdays = serializeWeekdaysParam(state.weekdays);
@@ -159,12 +174,14 @@ function DrugIntelligenceMapPageContent() {
   const [expanded, setExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(true);
-  const [clusterMode, setClusterMode] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(null);
   const [fitToken, setFitToken] = useState(0);
 
   const filters = useMemo(() => drugGeoFilterStateFromSearchParams(searchParams), [searchParams]);
   const inboundReturnTo = getSafeReturnTo(searchParams);
+  const geoMode = filters.geoMode;
+  const hotspotRadiusKm = filters.hotspotRadiusKm;
 
   // DI-8.2.1: a real browser navigation, not router.push/replace — see the
   // file's top doc comment for why. Kept as ONE shared helper so both
@@ -211,10 +228,12 @@ function DrugIntelligenceMapPageContent() {
       setShowFilters={setShowFilters}
       showAnalysisPanel={showAnalysisPanel}
       setShowAnalysisPanel={setShowAnalysisPanel}
-      clusterMode={clusterMode}
-      setClusterMode={setClusterMode}
+      geoMode={geoMode}
+      hotspotRadiusKm={hotspotRadiusKm}
       selectedCaseId={selectedCaseId}
       setSelectedCaseId={setSelectedCaseId}
+      selectedHotspotId={selectedHotspotId}
+      setSelectedHotspotId={setSelectedHotspotId}
       fitToken={fitToken}
       setFitToken={setFitToken}
       actorId={user?.id ?? null}
@@ -236,10 +255,12 @@ function DrugIntelligenceMapContent({
   setShowFilters,
   showAnalysisPanel,
   setShowAnalysisPanel,
-  clusterMode,
-  setClusterMode,
+  geoMode,
+  hotspotRadiusKm,
   selectedCaseId,
   setSelectedCaseId,
+  selectedHotspotId,
+  setSelectedHotspotId,
   fitToken,
   setFitToken,
   actorId,
@@ -257,10 +278,12 @@ function DrugIntelligenceMapContent({
   setShowFilters: (v: boolean) => void;
   showAnalysisPanel: boolean;
   setShowAnalysisPanel: (v: boolean) => void;
-  clusterMode: boolean;
-  setClusterMode: (v: boolean) => void;
+  geoMode: DrugGeoMapMode;
+  hotspotRadiusKm: DrugGeoHotspotRadiusKm;
   selectedCaseId: string | null;
   setSelectedCaseId: (id: string | null) => void;
+  selectedHotspotId: string | null;
+  setSelectedHotspotId: (id: string | null) => void;
   fitToken: number;
   setFitToken: (updater: (prev: number) => number) => void;
   actorId: string | null;
@@ -290,7 +313,14 @@ function DrugIntelligenceMapContent({
   const activeFilterCount = useMemo(() => countActiveMapFilters(filters), [filters]);
   const filterChips = useMemo(() => deriveDrugGeoFilterChips(filters, organizationEngine), [filters, organizationEngine]);
 
-  const handleSelectMarker = useCallback((caseId: string) => setSelectedCaseId(caseId), [setSelectedCaseId]);
+  const handleSelectMarker = useCallback((caseId: string) => {
+    setSelectedHotspotId(null);
+    setSelectedCaseId(caseId);
+  }, [setSelectedCaseId, setSelectedHotspotId]);
+  const handleSelectHotspot = useCallback((hotspotId: string) => {
+    setSelectedCaseId(null);
+    setSelectedHotspotId(hotspotId);
+  }, [setSelectedCaseId, setSelectedHotspotId]);
   const handleFitToScreen = useCallback(() => setFitToken((n) => n + 1), [setFitToken]);
 
   // Section 5 (DI-8.1): a caseId deep link (Case Workspace / Timeline "เปิดบนแผนที่")
@@ -309,12 +339,41 @@ function DrugIntelligenceMapContent({
   }, [filters.caseId, geoQuery.data, setSelectedCaseId, setFitToken]);
   const handleSelectProvince = useCallback(
     (province: string) => {
-      applyFilters({ province });
+      applyFilters({ province, district: "" });
       setViewMode("MAP");
       setFitToken((n) => n + 1);
     },
     [applyFilters, setViewMode, setFitToken]
   );
+  const handleSelectDistrict = useCallback(
+    (district: string) => {
+      applyFilters({ district });
+      setViewMode("MAP");
+      setFitToken((n) => n + 1);
+    },
+    [applyFilters, setViewMode, setFitToken]
+  );
+
+  const hotspots: DrugGeoHotspot[] = useMemo(() => {
+    if (!geoQuery.data) return [];
+    return computeDrugGeoHotspots(geoQuery.data.markers, hotspotRadiusKm);
+  }, [geoQuery.data, hotspotRadiusKm]);
+
+  const selectedHotspot = useMemo(
+    () => hotspots.find((h) => h.hotspotId === selectedHotspotId) ?? null,
+    [hotspots, selectedHotspotId],
+  );
+
+  const provinceRanking = useMemo(() => {
+    if (!geoQuery.data) return [];
+    return enrichProvinceRanking(geoQuery.data.provinces, geoQuery.data.markers, geoQuery.data.summary.totalCases);
+  }, [geoQuery.data]);
+
+  const districtRanking = useMemo(() => {
+    if (!geoQuery.data) return [];
+    const districts = geoQuery.data.districts ?? [];
+    return enrichDistrictRanking(districts, geoQuery.data.markers, geoQuery.data.summary.totalCases);
+  }, [geoQuery.data]);
 
   if (geoQuery.isLoading && !geoQuery.data) return <LoadingState />;
   if (geoQuery.isError && !geoQuery.data) {
@@ -328,6 +387,7 @@ function DrugIntelligenceMapContent({
   const trueEmpty = isDrugMapTrueEmpty(summary.totalCases);
   const timeFilterBlocksMap =
     temporal.timeFilterActive && temporal.coverage.total > 0 && temporal.coverage.withTime === 0 && trueEmpty;
+  const hotspotTooFew = geoMode === "HOTSPOT" && markers.length > 0 && hotspots.length === 0;
 
   const periodLabel =
     filters.dateFrom || filters.dateTo
@@ -425,6 +485,16 @@ function DrugIntelligenceMapContent({
 
       {!expanded ? <DrugGeoTemporalSummary temporal={temporal} filters={filters} onApply={applyFilters} /> : null}
 
+      {!expanded ? (
+        <DrugGeoIntelligenceSummary
+          temporal={temporal}
+          hotspotCount={hotspots.length}
+          radiusKm={hotspotRadiusKm}
+          geoMode={geoMode}
+          selectedHotspot={selectedHotspot}
+        />
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
@@ -439,25 +509,47 @@ function DrugIntelligenceMapContent({
               </button>
             ))}
           </div>
-          {/* Section 8/13 (DI-8.2): "จุดจับกุม" (points) vs. "ความหนาแน่น" (grid-bucket cluster density) — only meaningful in MAP view mode. */}
           {viewMode === "MAP" ? (
-            <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
-              <button
-                type="button"
-                onClick={() => setClusterMode(false)}
-                aria-pressed={!clusterMode}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${!clusterMode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
-              >
-                {t("di.map.viewModePoints")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setClusterMode(true)}
-                aria-pressed={clusterMode}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${clusterMode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
-              >
-                {t("di.map.viewModeCluster")}
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1 rounded-xl border border-border bg-surface p-1">
+                {GEO_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      applyFilters({ geoMode: mode });
+                      setSelectedHotspotId(null);
+                    }}
+                    aria-pressed={geoMode === mode}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${geoMode === mode ? "bg-accent text-accent-fg" : "text-muted hover:bg-neutral-bg"}`}
+                  >
+                    {mode === "POINTS"
+                      ? t("di.map.viewModePoints")
+                      : mode === "HOTSPOT"
+                        ? t("di.map.viewModeHotspot")
+                        : t("di.map.viewModeCluster")}
+                  </button>
+                ))}
+              </div>
+              {geoMode === "HOTSPOT" ? (
+                <label className="flex items-center gap-1.5 text-xs text-muted">
+                  <span>{t("di.map.hotspotRadiusLabel")}</span>
+                  <select
+                    className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
+                    value={hotspotRadiusKm}
+                    onChange={(e) => {
+                      applyFilters({ hotspotRadiusKm: Number(e.target.value) as DrugGeoHotspotRadiusKm });
+                      setSelectedHotspotId(null);
+                    }}
+                  >
+                    {DRUG_GEO_HOTSPOT_RADIUS_KM_OPTIONS.map((km) => (
+                      <option key={km} value={km}>
+                        {km < 1 ? `${km * 1000} ม.` : `${km} กม.`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -467,7 +559,6 @@ function DrugIntelligenceMapContent({
               {t("di.map.fitToScreen")}
             </Button>
           ) : null}
-          {/* When expanded, the fixed-overlay header already has its own exit control (below) — avoid a second, redundant "ย่อกลับ" button on screen at once. */}
           {!expanded ? (
             <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
               <Maximize2 className="h-4 w-4" aria-hidden="true" />
@@ -477,7 +568,15 @@ function DrugIntelligenceMapContent({
         </div>
       </div>
 
-      <div className={expanded ? "min-h-0 flex-1" : "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"}>
+      <div
+        className={
+          expanded
+            ? "min-h-0 flex-1"
+            : selectedHotspot && geoMode === "HOTSPOT"
+              ? "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(400px,440px)]"
+              : "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]"
+        }
+      >
         <div className={expanded ? "flex h-full flex-col gap-3" : "space-y-5"}>
           <div className={expanded ? "min-h-0 flex-1" : ""}>
             {viewMode === "MAP" ? (
@@ -499,12 +598,20 @@ function DrugIntelligenceMapContent({
                 <div data-testid="map-empty-no-coordinates">
                   <EmptyState title={t("di.map.emptyNoCoordinates")} icon={<MapPinned className="h-8 w-8" />} />
                 </div>
+              ) : hotspotTooFew ? (
+                <div data-testid="map-empty-hotspot-few">
+                  <EmptyState title={t("di.map.hotspotEmptyFew")} icon={<MapPinned className="h-8 w-8" />} />
+                </div>
               ) : (
                 <DrugGeoMap
                   markers={markers}
                   selectedCaseId={selectedCaseId}
                   onSelectMarker={handleSelectMarker}
                   fitToken={fitToken}
+                  geoMode={geoMode}
+                  hotspots={hotspots}
+                  selectedHotspotId={selectedHotspotId}
+                  onSelectHotspot={handleSelectHotspot}
                   renderPopup={(marker) => (
                     <DrugGeoMarkerPopup
                       marker={marker}
@@ -513,7 +620,6 @@ function DrugIntelligenceMapContent({
                     />
                   )}
                   heightClassName={expanded ? "h-full w-full" : undefined}
-                  clusterMode={clusterMode}
                 />
               )
             ) : viewMode === "LIST" ? (
@@ -549,12 +655,25 @@ function DrugIntelligenceMapContent({
 
         {!expanded && showAnalysisPanel ? (
           <div className="space-y-4">
-            <Card>
-              <CardBody className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">{t("di.map.topProvincesTitle")}</p>
-                <DrugGeoTopProvincesPanel rows={provinces} />
-              </CardBody>
-            </Card>
+            {selectedHotspot && geoMode === "HOTSPOT" ? (
+              <DrugGeoHotspotInspector
+                hotspot={selectedHotspot}
+                actorId={actorId}
+                mapReturnUrl={mapReturnUrl}
+                onClose={() => setSelectedHotspotId(null)}
+              />
+            ) : (
+              <Card>
+                <CardBody className="space-y-2">
+                  <DrugGeoAreaRankingPanel
+                    provinceRows={provinceRanking}
+                    districtRows={districtRanking}
+                    onSelectProvince={handleSelectProvince}
+                    onSelectDistrict={handleSelectDistrict}
+                  />
+                </CardBody>
+              </Card>
+            )}
           </div>
         ) : null}
       </div>

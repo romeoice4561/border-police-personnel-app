@@ -51,6 +51,13 @@ export interface DrugMapProvinceView {
   withCoordinates: number;
 }
 
+export interface DrugMapDistrictView {
+  district: string;
+  unspecified: boolean;
+  caseCount: number;
+  withCoordinates: number;
+}
+
 export interface DrugMapSummaryView {
   totalCases: number;
   withCoordinates: number;
@@ -58,6 +65,7 @@ export interface DrugMapSummaryView {
   markerCount: number;
   markerLimitReached: boolean;
   provinceCount: number;
+  districtCount: number;
 }
 
 export interface DrugMapTemporalView {
@@ -89,6 +97,7 @@ export interface DrugMapResultView {
   markers: DrugMapMarkerView[];
   list: DrugMapListView;
   provinces: DrugMapProvinceView[];
+  districts: DrugMapDistrictView[];
   warnings: DrugMapWarningCode[];
   limits: {
     markerSoft: number;
