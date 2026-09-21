@@ -41,6 +41,7 @@ import {
   DRUG_GRAPH_HARD_MAX_NODES,
   DRUG_GRAPH_MAX_DEPTH,
   DRUG_GRAPH_PATH_MAX_DEPTH,
+  DRUG_GRAPH_PATH_HARD_MAX_PATHS,
   type DrugGraphNode,
   type DrugGraphEdge,
   type DrugGraphNodeType,
@@ -1005,10 +1006,11 @@ export class DrugNetworkGraphService {
     return inferred;
   }
 
-  // ── Section 5: bounded path finding ────────────────────────────────────
+  // ── Section 5: bounded path finding (DI-8.3: optional multi-path) ───────
 
   async findPaths(request: DrugGraphPathRequest, options: DrugNetworkGraphServiceOptions): Promise<DrugGraphPathResult> {
     const maxDepth = Math.min(request.maxDepth ?? DRUG_GRAPH_PATH_MAX_DEPTH, DRUG_GRAPH_PATH_MAX_DEPTH);
+    const maxPaths = Math.min(Math.max(1, request.maxPaths ?? 1), DRUG_GRAPH_PATH_HARD_MAX_PATHS);
     const mergeCache = new Map<string, string>();
 
     let fromId = request.fromId;
@@ -1026,60 +1028,120 @@ export class DrugNetworkGraphService {
 
     const startKey = nodeKey(request.fromType, fromId);
     const targetKey = nodeKey(request.toType, toId);
-    if (startKey === targetKey) return { paths: [], found: false };
+    if (startKey === targetKey) return { paths: [], found: false, truncated: false };
 
-    // Bounded BFS — each frontier node expanded via the same gatherDirectEdges used by getNeighborhood, capped by DRUG_GRAPH_HARD_MAX_NODES total visits to prevent runaway traversal on a densely-connected graph.
-    const cameFrom = new Map<string, { fromKey: string; edge: DrugGraphEdge }>();
-    const visited = new Map<string, { type: DrugGraphNodeType; id: string }>([[startKey, { type: request.fromType, id: fromId }]]);
+    // Expand a bounded neighborhood and keep ALL directed edges (not only first
+    // arrival) so multiple independent simple paths can be enumerated.
+    type AdjEdge = { toKey: string; neighborType: DrugGraphNodeType; neighborId: string; edge: DrugGraphEdge };
+    const adj = new Map<string, AdjEdge[]>();
+    const nodeRefs = new Map<string, { type: DrugGraphNodeType; id: string }>([
+      [startKey, { type: request.fromType, id: fromId }],
+    ]);
     let frontier: Array<{ type: DrugGraphNodeType; id: string }> = [{ type: request.fromType, id: fromId }];
-    let found = false;
+    let visitBudget = 0;
 
-    for (let hop = 0; hop < maxDepth && !found; hop++) {
+    for (let hop = 0; hop < maxDepth; hop++) {
       const nextFrontier: Array<{ type: DrugGraphNodeType; id: string }> = [];
       for (const node of frontier) {
-        if (visited.size >= DRUG_GRAPH_HARD_MAX_NODES) break;
+        if (visitBudget >= DRUG_GRAPH_HARD_MAX_NODES) break;
+        visitBudget += 1;
         const rawEdges = await this.gatherDirectEdges(node.type, node.id, mergeCache);
+        const fromK = nodeKey(node.type, node.id);
+        const bucket = adj.get(fromK) ?? [];
         for (const raw of rawEdges) {
-          const key = nodeKey(raw.neighborType, raw.neighborId);
-          if (visited.has(key)) continue;
-          const ref = { type: raw.neighborType, id: raw.neighborId };
-          visited.set(key, ref);
-          cameFrom.set(key, { fromKey: nodeKey(node.type, node.id), edge: raw.edge });
-          if (key === targetKey) {
-            found = true;
-            break;
+          const toK = nodeKey(raw.neighborType, raw.neighborId);
+          if (!bucket.some((e) => e.toKey === toK && e.edge.relationshipType === raw.edge.relationshipType)) {
+            bucket.push({ toKey: toK, neighborType: raw.neighborType, neighborId: raw.neighborId, edge: raw.edge });
           }
-          nextFrontier.push(ref);
+          if (!nodeRefs.has(toK)) {
+            nodeRefs.set(toK, { type: raw.neighborType, id: raw.neighborId });
+            nextFrontier.push({ type: raw.neighborType, id: raw.neighborId });
+          }
         }
-        if (found || visited.size >= DRUG_GRAPH_HARD_MAX_NODES) break;
+        adj.set(fromK, bucket);
+        if (visitBudget >= DRUG_GRAPH_HARD_MAX_NODES) break;
       }
       frontier = nextFrontier;
+      if (visitBudget >= DRUG_GRAPH_HARD_MAX_NODES) break;
     }
 
-    if (!found) return { paths: [], found: false };
+    type PathTrace = Array<{ key: string; viaEdge: DrugGraphEdge | null }>;
+    const foundTraces: PathTrace[] = [];
+    /** Collect beyond maxPaths so we can prefer shortest useful paths, then slice. */
+    const enumerationCap = Math.max(maxPaths * 8, DRUG_GRAPH_PATH_HARD_MAX_PATHS * 4);
+    let enumerationTruncated = false;
 
-    const keyChain: string[] = [targetKey];
-    let cursor = targetKey;
-    while (cursor !== startKey) {
-      const step = cameFrom.get(cursor);
-      if (!step) break;
-      keyChain.push(step.fromKey);
-      cursor = step.fromKey;
-    }
-    keyChain.reverse();
+    const dfs = (key: string, depth: number, chain: PathTrace, usedKeys: Set<string>) => {
+      if (foundTraces.length >= enumerationCap) {
+        enumerationTruncated = true;
+        return;
+      }
+      if (key === targetKey && chain.length > 1) {
+        foundTraces.push(chain.map((c) => ({ ...c })));
+        return;
+      }
+      if (depth >= maxDepth) return;
+      for (const edge of adj.get(key) ?? []) {
+        if (usedKeys.has(edge.toKey)) continue;
+        usedKeys.add(edge.toKey);
+        chain.push({ key: edge.toKey, viaEdge: edge.edge });
+        dfs(edge.toKey, depth + 1, chain, usedKeys);
+        chain.pop();
+        usedKeys.delete(edge.toKey);
+        if (foundTraces.length >= enumerationCap) {
+          enumerationTruncated = true;
+          return;
+        }
+      }
+    };
 
-    const nodeRefs = keyChain.map((key) => visited.get(key)!);
-    const nodes = await this.hydrateNodes(nodeRefs, options);
-    const nodeByKey = new Map(nodes.map((n) => [nodeKey(n.type, n.id), n]));
+    dfs(startKey, 0, [{ key: startKey, viaEdge: null }], new Set([startKey]));
 
-    const steps = keyChain.map((key, index) => {
-      const node = nodeByKey.get(key)!;
-      const viaEdge = index === 0 ? null : cameFrom.get(key)!.edge;
-      return { node, viaEdge };
+    if (foundTraces.length === 0) return { paths: [], found: false, truncated: visitBudget >= DRUG_GRAPH_HARD_MAX_NODES };
+
+    // Prefer shorter paths first, then stable by relationship sequence.
+    foundTraces.sort((a, b) => {
+      if (a.length !== b.length) return a.length - b.length;
+      const sa = a.map((s) => s.viaEdge?.relationshipType ?? "").join("|");
+      const sb = b.map((s) => s.viaEdge?.relationshipType ?? "").join("|");
+      return sa.localeCompare(sb);
     });
 
-    const path: DrugGraphPath = { steps, hopCount: steps.length - 1 };
-    return { paths: [path], found: true };
+    // Deduplicate semantically identical paths (same node sequence + relationship types).
+    const seenSignatures = new Set<string>();
+    const uniqueTraces: PathTrace[] = [];
+    for (const trace of foundTraces) {
+      const sig = trace.map((s) => `${s.key}:${s.viaEdge?.relationshipType ?? ""}`).join(">");
+      if (seenSignatures.has(sig)) continue;
+      seenSignatures.add(sig);
+      uniqueTraces.push(trace);
+    }
+
+    const selectedTraces = uniqueTraces.slice(0, maxPaths);
+    const truncated =
+      enumerationTruncated ||
+      uniqueTraces.length > maxPaths ||
+      visitBudget >= DRUG_GRAPH_HARD_MAX_NODES;
+
+    const neededKeys = new Set<string>();
+    for (const trace of selectedTraces) for (const step of trace) neededKeys.add(step.key);
+    const hydrateRefs = [...neededKeys].map((k) => nodeRefs.get(k)!).filter(Boolean);
+    const nodes = await this.hydrateNodes(hydrateRefs, options);
+    const nodeByKey = new Map(nodes.map((n) => [nodeKey(n.type, n.id), n]));
+
+    const paths: DrugGraphPath[] = selectedTraces.map((trace) => {
+      const steps = trace.map((step) => ({
+        node: nodeByKey.get(step.key)!,
+        viaEdge: step.viaEdge,
+      }));
+      return { steps, hopCount: Math.max(0, steps.length - 1) };
+    });
+
+    return {
+      paths,
+      found: true,
+      truncated,
+    };
   }
 }
 

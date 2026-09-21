@@ -60,11 +60,12 @@ describe("Phase 1B.2.4 answer order + post-result actions", () => {
     assert.match(resultsSrc, /data-testid="relationship-search-context"/);
     assert.match(resultsSrc, /data-testid="relationship-result-summary"/);
     const ctxIdx = resultsSrc.indexOf('data-testid="relationship-search-context"');
-    const sumIdx = resultsSrc.indexOf('data-testid="relationship-result-summary"');
-    const cardIdx = resultsSrc.indexOf("relationship-result-card");
-    assert.ok(ctxIdx >= 0 && sumIdx >= 0);
-    assert.ok(ctxIdx < sumIdx, "Search Context before Result Summary");
-    if (cardIdx >= 0) assert.ok(sumIdx < cardIdx, "Result Summary before cards");
+    const exportIdx = resultsSrc.indexOf("export function DrugRelationshipSearchResults");
+    const sumIdx = resultsSrc.indexOf('data-testid="relationship-result-summary"', exportIdx);
+    const firstCard = resultsSrc.indexOf("<ResultCard", exportIdx);
+    assert.ok(ctxIdx >= 0 && sumIdx >= 0 && exportIdx >= 0);
+    assert.ok(ctxIdx < exportIdx, "Search Context component defined before results export");
+    assert.ok(sumIdx < firstCard || firstCard < 0, "Result Summary before ResultCard renders");
   });
 
   test("G/H. ค้นหาใหม่ clears completed state and restores Quick Search path", () => {

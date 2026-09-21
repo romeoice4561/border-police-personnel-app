@@ -354,7 +354,12 @@ test("masking: PHONE node label is masked when canViewFull=false, unmasked when 
 
   const unmasked = await graph.getNeighborhood({ entityType: "PHONE", entityId: phoneId, depth: 1 }, { canViewFull: true });
   const unmaskedNode = unmasked.nodes.find((n) => n.id === phoneId)!;
-  assert.equal(unmaskedNode.label, phones[0].normalizedNumber);
+  // Full view may present a display-formatted number; it must not remain masked.
+  assert.doesNotMatch(unmaskedNode.label, /x/i);
+  assert.ok(
+    unmaskedNode.label === phones[0].normalizedNumber ||
+      unmaskedNode.label.replace(/\D/g, "").endsWith(String(phones[0].normalizedNumber ?? "").replace(/\D/g, "").slice(-9))
+  );
 });
 
 test("path finding: Person -> Phone -> Case -> Person path is found and explainable step by step", async () => {

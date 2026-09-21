@@ -25,13 +25,13 @@ describe("Phase 1B.2 Search Center mode cards", () => {
     assert.match(modeSrc, /data-testid=\{`search-mode-\$\{item\.id\}`\}/);
     assert.match(modeSrc, /id:\s*"general"/);
     assert.match(modeSrc, /id:\s*"relationship"/);
-    assert.match(modeSrc, /id:\s*"ai"/);
+    assert.match(modeSrc, /id:\s*"graph"/);
   });
 
-  test("AI mode remains disabled with coming-soon badge", () => {
-    assert.match(modeSrc, /id:\s*"ai"[\s\S]*disabled:\s*true/);
-    assert.match(modeSrc, /di\.search\.modeAiSoon/);
-    assert.match(modeSrc, /aria-disabled=\{item\.disabled/);
+  test("graph mode navigates to existing Network workspace", () => {
+    assert.match(modeSrc, /id:\s*"graph"/);
+    assert.match(modeSrc, /\/drug-intelligence\/network/);
+    assert.match(modeSrc, /di\.search\.modeGraph/);
   });
 
   test("active mode uses accent border/background (not color-only)", () => {
@@ -157,12 +157,13 @@ describe("Phase 1B.2 governance + results", () => {
   });
 
   test("results keep detail/network primary hierarchy with why/evidence sections", () => {
-    assert.match(resultsSrc, /di\.rel\.openNetwork/);
+    assert.match(resultsSrc, /di\.rel\.openNetwork|di\.rel\.openInGraph/);
     assert.match(resultsSrc, /di\.rel\.expand/);
     assert.match(resultsSrc, /variant="accent"/);
     assert.match(resultsSrc, /di\.rel\.whyFoundLabel/);
     assert.match(resultsSrc, /di\.rel\.evidenceInSystem/);
-    assert.match(resultsSrc, /primaryIsDetail/);
+    assert.match(resultsSrc, /di\.rel\.expandDetails/);
+    assert.match(resultsSrc, /data-compact="true"/);
   });
 
   test("page header uses stronger Search Center identity", () => {

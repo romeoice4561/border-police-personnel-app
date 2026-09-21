@@ -1,13 +1,16 @@
 /**
- * Intelligence Search Center mode cards (Phase 1B.2).
+ * Intelligence Search Center mode cards (Phase 1B.2 + DI-8.3).
  * Semantic tabs with field-officer-friendly cards — no new sidebar item.
+ *
+ * Modes: General Search · Relationship Search · Network Graph (existing workspace).
  */
 "use client";
 
-import { Bot, Link2, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Link2, Network, Search } from "lucide-react";
 import { useT } from "@/components/i18n/language_provider";
 
-export type DrugSearchCenterMode = "general" | "relationship" | "ai";
+export type DrugSearchCenterMode = "general" | "relationship" | "graph";
 
 export function DrugSearchModeSwitcher({
   mode,
@@ -17,14 +20,13 @@ export function DrugSearchModeSwitcher({
   onChange: (mode: DrugSearchCenterMode) => void;
 }) {
   const { t } = useT();
+  const router = useRouter();
 
   const modes: Array<{
     id: DrugSearchCenterMode;
     title: string;
     description: string;
     icon: typeof Search;
-    disabled?: boolean;
-    badge?: string;
   }> = [
     {
       id: "general",
@@ -39,12 +41,10 @@ export function DrugSearchModeSwitcher({
       icon: Link2,
     },
     {
-      id: "ai",
-      title: t("di.search.modeAi"),
-      description: t("di.search.modeAiDesc"),
-      icon: Bot,
-      disabled: true,
-      badge: t("di.search.modeAiSoon"),
+      id: "graph",
+      title: t("di.search.modeGraph"),
+      description: t("di.search.modeGraphDesc"),
+      icon: Network,
     },
   ];
 
@@ -64,27 +64,27 @@ export function DrugSearchModeSwitcher({
             type="button"
             role="tab"
             aria-selected={selected}
-            aria-disabled={item.disabled || undefined}
-            disabled={item.disabled}
             data-testid={`search-mode-${item.id}`}
             data-active={selected ? "true" : "false"}
             onClick={() => {
-              if (!item.disabled) onChange(item.id);
+              if (item.id === "graph") {
+                router.push("/drug-intelligence/network");
+                return;
+              }
+              onChange(item.id);
             }}
             className={[
               "min-h-[4.75rem] rounded-xl border px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-              item.disabled
-                ? "cursor-not-allowed border-border/70 bg-neutral-bg/70 text-muted opacity-75"
-                : selected
-                  ? "border-accent bg-accent/10 text-foreground shadow-sm"
-                  : "border-border bg-surface text-foreground hover:border-accent/50 hover:bg-neutral-bg/60",
+              selected
+                ? "border-accent bg-accent/10 text-foreground shadow-sm"
+                : "border-border bg-surface text-foreground hover:border-accent/50 hover:bg-neutral-bg/60",
             ].join(" ")}
           >
             <div className="flex items-start gap-2.5">
               <span
                 className={[
                   "mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                  selected && !item.disabled ? "bg-accent/15 text-accent" : "bg-neutral-bg text-muted",
+                  selected ? "bg-accent/15 text-accent" : "bg-neutral-bg text-muted",
                 ].join(" ")}
                 aria-hidden="true"
               >
@@ -93,11 +93,6 @@ export function DrugSearchModeSwitcher({
               <span className="min-w-0 space-y-0.5">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold sm:text-[0.95rem]">{item.title}</span>
-                  {item.badge ? (
-                    <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-medium text-muted">
-                      {item.badge}
-                    </span>
-                  ) : null}
                 </span>
                 <span className="block text-xs leading-snug text-muted">{item.description}</span>
               </span>

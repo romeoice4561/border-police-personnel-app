@@ -1,5 +1,5 @@
 /**
- * DrugSearchResultCard (Phase DI-3 — Sections 11, 18, 20).
+ * DrugSearchResultCard (Phase DI-3 — Sections 11, 18, 20 + DI-8.3 Relationship prefill).
  *
  * One card per search result, entity-type-aware. Always shows the match
  * explanation (Section 18 — never a bare unexplained relevance number) and
@@ -11,7 +11,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Network } from "lucide-react";
+import { AlertTriangle, Link2, Network } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,29 @@ import { formatThaiOperationalDate } from "@/lib/drug_intelligence/di_date_helpe
 
 const STRENGTH_TONE = { EXACT: "critical", PARTIAL: "neutral" } as const;
 
+const ALL_RELATED_BY_TYPE: Record<DrugSearchResult["entityType"], string> = {
+  PERSON: "person_all_related",
+  PHONE: "phone_all_related",
+  SIM: "sim_all_related",
+  DEVICE: "device_all_related",
+  VEHICLE: "vehicle_all_related",
+  CASE: "case_all_related",
+};
+
 function entityHref(result: DrugSearchResult): string {
   return drugEntityDetailPath(result.entityType, result.canonicalTarget?.entityId ?? result.entityId);
+}
+
+function relationshipSearchHref(result: DrugSearchResult): string {
+  const entityId = result.canonicalTarget?.entityId ?? result.entityId;
+  const params = new URLSearchParams({
+    mode: "relationship",
+    relSourceType: result.entityType,
+    relSourceId: entityId,
+    relSourceLabel: result.primaryLabel,
+    relationId: ALL_RELATED_BY_TYPE[result.entityType],
+  });
+  return `/drug-intelligence/search?${params.toString()}`;
 }
 
 function actionLabelKey(entityType: DrugSearchResult["entityType"]): "di.search.viewProfile" | "di.search.viewRelations" | "di.search.openCase" {
@@ -37,6 +58,7 @@ function actionLabelKey(entityType: DrugSearchResult["entityType"]): "di.search.
 export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
   const { t } = useT();
   const matchLabel = t(DRUG_SEARCH_MATCHED_FIELD_LABEL_KEY[result.matchedField]);
+  const relHref = relationshipSearchHref(result);
 
   return (
     <Card>
@@ -63,7 +85,16 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
             {result.caseCount >= 2 ? (
               <>
                 {" · "}
-                <Link href={entityHref(result)} className="text-accent hover:underline">
+                <span className="text-foreground">{t("di.search.multiCaseHint")}</span>
+                {" · "}
+                <Link href={relHref} className="text-accent hover:underline" data-testid="search-view-relationships">
+                  {t("di.connection.viewConnections")}
+                </Link>
+              </>
+            ) : result.caseCount === 1 ? (
+              <>
+                {" · "}
+                <Link href={relHref} className="text-accent hover:underline" data-testid="search-view-relationships">
                   {t("di.connection.viewConnections")}
                 </Link>
               </>
@@ -86,6 +117,12 @@ export function DrugSearchResultCard({ result }: { result: DrugSearchResult }) {
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href={entityHref(result)}>{t(actionLabelKey(result.entityType))}</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" data-testid="search-open-relationship">
+            <Link href={relHref}>
+              <Link2 className="h-4 w-4" aria-hidden="true" />
+              {t("di.connection.viewConnections")}
+            </Link>
           </Button>
           <Button asChild variant="ghost" size="sm">
             <Link href={drugNetworkFocusPath(result.entityType, result.canonicalTarget?.entityId ?? result.entityId)}>

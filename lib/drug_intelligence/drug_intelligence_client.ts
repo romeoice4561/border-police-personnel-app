@@ -1017,11 +1017,19 @@ export interface DrugRelationshipSearchResultItem {
   sourceCaseIds: string[];
   firstSeenAt: string | null;
   lastSeenAt: string | null;
-  explanation: DrugGraphEdgeExplanation | { kind: "PATH"; hopCount: number } | { kind: "PATH_NOT_FOUND" };
+  explanation: DrugGraphEdgeExplanation | { kind: "PATH"; hopCount: number; pathIndex?: number } | { kind: "PATH_NOT_FOUND" };
   pathSteps?: Array<{
     entity: DrugRelationshipSearchEntityRef;
     viaRelationshipType: string | null;
     viaEdgeKind: DrugGraphEdgeKind | null;
+  }>;
+  relatedCases?: Array<{
+    caseId: string;
+    caseNumber: string;
+    arrestDate: string | null;
+    arrestTime: string | null;
+    province: string | null;
+    district: string | null;
   }>;
   actions: {
     detailPath: string | null;
@@ -1043,6 +1051,7 @@ export interface DrugRelationshipSearchResponse {
     total: number;
     byTargetType: Partial<Record<DrugGraphNodeType, number>>;
     found: boolean;
+    relatedCaseCount?: number;
   };
   results: DrugRelationshipSearchResultItem[];
   truncated: boolean;

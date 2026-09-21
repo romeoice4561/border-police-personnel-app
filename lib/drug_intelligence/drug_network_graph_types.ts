@@ -147,12 +147,16 @@ export interface DrugGraphPathRequest {
   toId: string;
   /** Section 5 — small bounded max, default/ceiling enforced server-side. */
   maxDepth?: number;
+  /** DI-8.3 — collect up to N independent simple paths (default 1; hard-capped). */
+  maxPaths?: number;
 }
 
 export interface DrugGraphPathResult {
   paths: DrugGraphPath[];
   /** True when no path was found within maxDepth — a deliberate, explainable "no connection found in recorded data" result, never an error. */
   found: boolean;
+  /** True when enumeration stopped early due to maxPaths / visit caps. */
+  truncated?: boolean;
 }
 
 /** Section 4/19 — hard safety ceilings, never exceeded regardless of caller input. */
@@ -160,3 +164,7 @@ export const DRUG_GRAPH_DEFAULT_MAX_NODES = 50;
 export const DRUG_GRAPH_HARD_MAX_NODES = 150;
 export const DRUG_GRAPH_MAX_DEPTH = 2;
 export const DRUG_GRAPH_PATH_MAX_DEPTH = 4;
+/** DI-8.3 Relationship Search preferred path depth (≤ hard ceiling). */
+export const DRUG_REL_SEARCH_PATH_MAX_DEPTH = 3;
+export const DRUG_REL_SEARCH_MAX_PATHS = 3;
+export const DRUG_GRAPH_PATH_HARD_MAX_PATHS = 5;

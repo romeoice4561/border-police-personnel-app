@@ -188,9 +188,9 @@ test("relationship query: PERSON A → PERSON B path found", async () => {
   );
 
   assert.equal(result.summary.found, true);
-  assert.equal(result.results.length, 1);
-  assert.equal(result.results[0]!.resultKind, "PATH");
-  assert.equal(result.results[0]!.edgeKind, "PATH");
+  assert.ok(result.results.length >= 1);
+  assert.ok(result.results.every((r) => r.resultKind === "PATH"));
+  assert.ok(result.results.every((r) => r.edgeKind === "PATH"));
   assert.ok((result.results[0]!.pathSteps?.length ?? 0) >= 2);
 });
 

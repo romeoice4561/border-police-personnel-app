@@ -40,13 +40,15 @@ export interface DrugRelationshipQueryResultItem {
   sourceCaseIds: string[];
   firstSeenAt: Date | null;
   lastSeenAt: Date | null;
-  explanation: DrugGraphEdgeExplanation | { kind: "PATH"; hopCount: number } | { kind: "PATH_NOT_FOUND" };
+  explanation: DrugGraphEdgeExplanation | { kind: "PATH"; hopCount: number; pathIndex?: number } | { kind: "PATH_NOT_FOUND" };
   /** Path hops when resultKind === PATH and found. */
   pathSteps?: Array<{
     entity: DrugRelationshipQueryEntityRef;
     viaRelationshipType: string | null;
     viaEdgeKind: DrugGraphEdgeKind | null;
   }>;
+  /** DI-8.3 — chronological related cases (arrestDate ASC; never createdAt). */
+  relatedCases?: DrugRelationshipQueryCaseSummary[];
   actions: {
     detailPath: string | null;
     networkPath: string;
@@ -54,6 +56,15 @@ export interface DrugRelationshipQueryResultItem {
     mapPath: string | null;
     expandSource: { entityType: DrugGraphNodeType; entityId: string; label: string };
   };
+}
+
+export interface DrugRelationshipQueryCaseSummary {
+  caseId: string;
+  caseNumber: string;
+  arrestDate: string | null;
+  arrestTime: string | null;
+  province: string | null;
+  district: string | null;
 }
 
 export interface DrugRelationshipQueryResponse {
@@ -67,6 +78,8 @@ export interface DrugRelationshipQueryResponse {
     total: number;
     byTargetType: Partial<Record<DrugGraphNodeType, number>>;
     found: boolean;
+    /** Distinct related cases across all result rows. */
+    relatedCaseCount?: number;
   };
   results: DrugRelationshipQueryResultItem[];
   truncated: boolean;

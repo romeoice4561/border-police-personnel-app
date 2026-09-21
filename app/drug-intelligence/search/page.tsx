@@ -50,7 +50,8 @@ function toIsoDate(thaiDate: string): string | undefined {
 
 function parseMode(raw: string | null): DrugSearchCenterMode {
   if (raw === "relationship") return "relationship";
-  if (raw === "ai") return "ai";
+  if (raw === "graph") return "graph";
+  // Legacy AI placeholder URLs fall back to General Search.
   return "general";
 }
 
@@ -125,7 +126,7 @@ function DrugSearchContent() {
         <DrugContextualReturnLink />
       </header>
 
-      <DrugSearchModeSwitcher mode={mode === "ai" ? "general" : mode} onChange={setMode} />
+      <DrugSearchModeSwitcher mode={mode === "graph" ? "general" : mode} onChange={setMode} />
 
       {mode === "relationship" ? (
         <DrugRelationshipSearchPanel />

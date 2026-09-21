@@ -104,3 +104,41 @@ export async function handleDrugRelationshipSearch(
     return internalError("Failed to run relationship search");
   }
 }
+
+/** POST /api/drug-intelligence/search/relationships — same contract as GET (DI-8.3). */
+export async function handleDrugRelationshipSearchPost(
+  service: DrugIntelligenceRelationshipQueryService,
+  request: Request,
+  media?: DrugEntityMediaService | null
+): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return badRequest("Invalid JSON body");
+  }
+  if (!body || typeof body !== "object") return badRequest("Invalid relationship search body");
+
+  const raw = body as Record<string, unknown>;
+  const source = raw.source && typeof raw.source === "object" ? (raw.source as Record<string, unknown>) : {};
+  const target = raw.target && typeof raw.target === "object" ? (raw.target as Record<string, unknown>) : {};
+  const flattened = {
+    actorId: raw.actorId,
+    actorName: raw.actorName,
+    sourceType: source.type ?? source.entityType ?? raw.sourceType,
+    sourceId: source.id ?? source.entityId ?? raw.sourceId,
+    relationId: raw.relationId ?? raw.relationshipType,
+    targetType: target.type ?? target.entityType ?? raw.targetType,
+    targetId: target.id ?? target.entityId ?? raw.targetId,
+    page: raw.page,
+    pageSize: raw.pageSize,
+    dateFrom: raw.dateFrom,
+    dateTo: raw.dateTo,
+  };
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(flattened)) {
+    if (value != null && value !== "") params.set(key, String(value));
+  }
+  return handleDrugRelationshipSearch(service, params, request, media);
+}

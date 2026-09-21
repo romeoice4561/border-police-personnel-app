@@ -736,7 +736,11 @@ export function DrugRelationshipSearchPanel() {
     value: et,
     label: t(DRUG_GRAPH_NODE_TYPE_LABEL_KEY[et] as TranslationKey),
   }));
-  const targetTypeLocked = Boolean(selectedRelation && selectedRelation.targetTypes.length === 1);
+  const targetTypeLocked = Boolean(
+    selectedRelation &&
+      (selectedRelation.targetTypes.length === 1 ||
+        (selectedRelation.queryMode === "NEIGHBORHOOD" && selectedRelation.graphRelationshipType == null))
+  );
 
   const disabledHint =
     disabledReason === "need_source"

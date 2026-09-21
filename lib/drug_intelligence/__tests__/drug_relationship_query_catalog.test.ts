@@ -23,7 +23,11 @@ test("catalog: every relation has valid source/target types and mapping", () => 
     assert.ok(relation.targetTypes.length > 0);
     assert.ok(DICTIONARY[relation.labelKey], `missing dictionary key ${relation.labelKey}`);
     if (relation.queryMode === "NEIGHBORHOOD") {
-      assert.ok(relation.graphRelationshipType, `${relation.id} must map a graph type`);
+      // DI-8.3 overview (“all related”) deliberately has null graphRelationshipType.
+      if (relation.graphRelationshipType == null) {
+        assert.ok(relation.id.endsWith("_all_related"), `${relation.id} null mapping only allowed for overview`);
+        continue;
+      }
       if (relation.edgeKind === "DIRECT") {
         assert.ok(CATALOG_DIRECT_GRAPH_TYPES.includes(relation.graphRelationshipType));
       } else if (relation.edgeKind === "INFERRED") {

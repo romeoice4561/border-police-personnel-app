@@ -222,10 +222,11 @@ describe("Phase 1B.2.3 result card / action hierarchy", () => {
     assert.match(resultsSrc, /di\.rel\.whyFoundLabel/);
     assert.match(resultsSrc, /di\.rel\.evidenceInSystem/);
     assert.match(resultsSrc, /di\.rel\.viewDetail/);
-    assert.match(resultsSrc, /di\.rel\.openNetwork/);
+    assert.match(resultsSrc, /di\.rel\.openNetwork|di\.rel\.openInGraph/);
     assert.match(resultsSrc, /di\.rel\.expand/);
+    assert.match(resultsSrc, /di\.rel\.expandDetails/);
     assert.match(dictSrc, /ขยายต่อ/);
-    assert.match(dictSrc, /เปิดผังความเชื่อมโยง/);
+    assert.match(dictSrc, /เปิดผังความเชื่อมโยง|ดูในผัง/);
     assert.match(dictSrc, /ดูไทม์ไลน์/);
     assert.match(dictSrc, /ดูแผนที่/);
   });
@@ -234,7 +235,8 @@ describe("Phase 1B.2.3 result card / action hierarchy", () => {
     assert.match(resultsSrc, /di\.rel\.badgeDirectHint/);
     assert.match(resultsSrc, /di\.rel\.badgeInferredHint/);
     assert.match(resultsSrc, /di\.rel\.badgePathHint/);
-    assert.match(dictSrc, /มีข้อมูลเชื่อมโยงโดยตรงในระบบ/);
+    assert.match(dictSrc, /พบหลักฐานเชื่อมโยงโดยตรงในระบบ/);
+    assert.doesNotMatch(dictSrc, /"di\.rel\.badgeDirect":\s*tr\("ข้อเท็จจริง"/);
   });
 });
 

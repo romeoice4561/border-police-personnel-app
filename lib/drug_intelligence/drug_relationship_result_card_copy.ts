@@ -34,6 +34,33 @@ export function relationshipWhyFoundText(
   return explainDrugGraphEdgeClient(item.explanation, roleLabel, language);
 }
 
+/**
+ * Compact row phrase — omits repeating the focus/source entity name
+ * when page context already shows the starting point.
+ */
+export function relationshipCompactWhyText(
+  item: DrugRelationshipSearchResultItem,
+  language: "th" | "en",
+  roleLabel: (role: string) => string,
+  t: (key: TranslationKey) => string
+): string {
+  if (item.explanation.kind === "PATH") {
+    return t("di.rel.compactWhyPath").replace("{count}", String(item.explanation.hopCount));
+  }
+  if (item.explanation.kind === "PATH_NOT_FOUND") {
+    return t("di.rel.pathNotFound");
+  }
+  if (item.explanation.kind === "DIRECT_ROLE") {
+    return language === "th"
+      ? `พบในฐานะ${roleLabel(item.explanation.role)}`
+      : `Recorded as ${roleLabel(item.explanation.role)}`;
+  }
+  if (item.explanation.kind === "DIRECT_LINK") {
+    return t("di.rel.compactWhyDirect");
+  }
+  return explainDrugGraphEdgeClient(item.explanation, roleLabel, language);
+}
+
 export function relationshipEvidenceText(
   item: DrugRelationshipSearchResultItem,
   language: "th" | "en",

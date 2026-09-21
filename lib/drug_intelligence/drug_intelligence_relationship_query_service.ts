@@ -11,7 +11,7 @@ import { DrugAuditLogRepository } from "@/lib/database/repositories/drug_audit_l
 import type { DatabaseClient } from "@/lib/database/database_types";
 import { DrugNetworkGraphService, DrugPersonGraphNotFoundError, DrugGraphEntityNotFoundError } from "@/lib/drug_intelligence/drug_network_graph_service";
 import type { DrugGraphEdge, DrugGraphNode, DrugGraphNodeType } from "@/lib/drug_intelligence/drug_network_graph_types";
-import { DRUG_GRAPH_DEFAULT_MAX_NODES, DRUG_GRAPH_HARD_MAX_NODES, DRUG_GRAPH_PATH_MAX_DEPTH } from "@/lib/drug_intelligence/drug_network_graph_types";
+import { DRUG_GRAPH_DEFAULT_MAX_NODES, DRUG_GRAPH_HARD_MAX_NODES, DRUG_REL_SEARCH_MAX_PATHS, DRUG_REL_SEARCH_PATH_MAX_DEPTH } from "@/lib/drug_intelligence/drug_network_graph_types";
 import { drugEntityDetailPath, drugNetworkFocusPath } from "@/lib/drug_intelligence/drug_entity_routes";
 import { getControlledRelation, isValidRelationCombination } from "@/lib/drug_intelligence/drug_relationship_query_catalog";
 import {
@@ -19,12 +19,16 @@ import {
   DRUG_REL_QUERY_HARD_PAGE_SIZE,
   DrugRelationshipQueryEntityNotFoundError,
   DrugRelationshipQueryValidationError,
+  type DrugRelationshipQueryCaseSummary,
   type DrugRelationshipQueryEntityRef,
   type DrugRelationshipQueryRequest,
   type DrugRelationshipQueryResponse,
   type DrugRelationshipQueryResultItem,
   type DrugRelationshipQueryServiceOptions,
 } from "@/lib/drug_intelligence/drug_relationship_query_types";
+import { sortCasesChronologically, toDateOnly } from "@/lib/drug_intelligence/drug_cross_case_connection";
+import { parseThaiClockHhMm } from "@/lib/drug_intelligence/di_date_helpers";
+import { DrugCaseRepository } from "@/lib/database/repositories/drug_case_repository";
 
 function clampPageSize(pageSize: number | undefined): number {
   const raw = pageSize ?? DRUG_REL_QUERY_DEFAULT_PAGE_SIZE;
@@ -94,10 +98,12 @@ function buildActions(entity: DrugRelationshipQueryEntityRef): DrugRelationshipQ
 export class DrugIntelligenceRelationshipQueryService {
   private readonly graph: DrugNetworkGraphService;
   private readonly auditRepo: DrugAuditLogRepository;
+  private readonly caseRepo: DrugCaseRepository;
 
   constructor(db: DatabaseClient, graphService?: DrugNetworkGraphService) {
     this.graph = graphService ?? new DrugNetworkGraphService(db);
     this.auditRepo = new DrugAuditLogRepository(db);
+    this.caseRepo = new DrugCaseRepository(db);
   }
 
   async query(request: DrugRelationshipQueryRequest, options: DrugRelationshipQueryServiceOptions): Promise<DrugRelationshipQueryResponse> {
@@ -172,13 +178,17 @@ export class DrugIntelligenceRelationshipQueryService {
     const relation = getControlledRelation(relationId)!;
     const depth = relation.neighborhoodDepth;
     const maxNodes = Math.min(DRUG_GRAPH_DEFAULT_MAX_NODES, DRUG_GRAPH_HARD_MAX_NODES);
+    /** DI-8.3 — “ความเกี่ยวข้องทั้งหมด”: neighborhood with no single relationshipType filter. */
+    const isAllRelated = relation.queryMode === "NEIGHBORHOOD" && relation.graphRelationshipType == null;
 
     // INFERRED SHARED_* edges are derived after DIRECT expansion. Filtering
     // relationshipTypes to SHARED_* during gather would drop the DIRECT
     // junctions needed to build the neighborhood — so only apply the graph
     // relationshipTypes filter for DIRECT catalog entries.
     const relationshipTypes =
-      relation.edgeKind === "DIRECT" && relation.graphRelationshipType ? [relation.graphRelationshipType] : undefined;
+      !isAllRelated && relation.edgeKind === "DIRECT" && relation.graphRelationshipType
+        ? [relation.graphRelationshipType]
+        : undefined;
 
     const neighborhood = await this.graph.getNeighborhood(
       {
@@ -203,18 +213,26 @@ export class DrugIntelligenceRelationshipQueryService {
 
     const targetFilterId = request.target.entityId != null && String(request.target.entityId).trim() ? String(request.target.entityId) : null;
     const matched: DrugRelationshipQueryResultItem[] = [];
+    const allowedTargetTypes = new Set(relation.targetTypes);
 
     for (const edge of neighborhood.edges) {
-      if (relation.graphRelationshipType && edge.relationshipType !== relation.graphRelationshipType) continue;
-      if (relation.edgeKind === "DIRECT" && edge.edgeKind !== "DIRECT") continue;
-      if (relation.edgeKind === "INFERRED" && edge.edgeKind !== "INFERRED") continue;
+      if (!isAllRelated) {
+        if (relation.graphRelationshipType && edge.relationshipType !== relation.graphRelationshipType) continue;
+        if (relation.edgeKind === "DIRECT" && edge.edgeKind !== "DIRECT") continue;
+        if (relation.edgeKind === "INFERRED" && edge.edgeKind !== "INFERRED") continue;
+      }
 
       const otherId = otherEndpoint(edge, focusId);
       if (!otherId) continue;
       const otherNode = nodesById.get(otherId);
       if (!otherNode) continue;
-      if (otherNode.type !== request.target.entityType) continue;
-      if (targetFilterId && String(otherNode.id) !== String(targetFilterId)) continue;
+      if (isAllRelated) {
+        if (!allowedTargetTypes.has(otherNode.type)) continue;
+        if (targetFilterId && String(otherNode.id) !== String(targetFilterId)) continue;
+      } else {
+        if (otherNode.type !== request.target.entityType) continue;
+        if (targetFilterId && String(otherNode.id) !== String(targetFilterId)) continue;
+      }
 
       const toRef = toEntityRef(otherNode);
       matched.push({
@@ -244,10 +262,13 @@ export class DrugIntelligenceRelationshipQueryService {
     const total = matched.length;
     const start = (page - 1) * pageSize;
     const pageRows = matched.slice(start, start + pageSize);
+    await this.attachRelatedCases(pageRows);
     const byTargetType: Partial<Record<DrugGraphNodeType, number>> = {};
     for (const row of matched) {
       byTargetType[row.to.entityType] = (byTargetType[row.to.entityType] ?? 0) + 1;
     }
+    const relatedCaseIds = new Set<string>();
+    for (const row of matched) for (const id of row.sourceCaseIds) relatedCaseIds.add(id);
 
     return {
       interpretation: {
@@ -256,7 +277,7 @@ export class DrugIntelligenceRelationshipQueryService {
         relationId,
         target: { entityType: request.target.entityType, entityId: targetFilterId },
       },
-      summary: { total, byTargetType, found: total > 0 },
+      summary: { total, byTargetType, found: total > 0, relatedCaseCount: relatedCaseIds.size },
       results: pageRows,
       truncated: neighborhood.truncated || total > page * pageSize,
       bounds: { page, pageSize, maxNodes, depth },
@@ -281,7 +302,8 @@ export class DrugIntelligenceRelationshipQueryService {
         fromId: request.source.entityId,
         toType: request.target.entityType,
         toId: targetId,
-        maxDepth: DRUG_GRAPH_PATH_MAX_DEPTH,
+        maxDepth: DRUG_REL_SEARCH_PATH_MAX_DEPTH,
+        maxPaths: DRUG_REL_SEARCH_MAX_PATHS,
       },
       { canViewFull: options.canViewFull }
     );
@@ -294,57 +316,106 @@ export class DrugIntelligenceRelationshipQueryService {
           relationId,
           target: { entityType: request.target.entityType, entityId: targetId },
         },
-        summary: { total: 0, byTargetType: {}, found: false },
+        summary: { total: 0, byTargetType: {}, found: false, relatedCaseCount: 0 },
         results: [],
-        truncated: false,
-        bounds: { page, pageSize, maxNodes: DRUG_GRAPH_DEFAULT_MAX_NODES, depth: DRUG_GRAPH_PATH_MAX_DEPTH },
+        truncated: Boolean(pathResult.truncated),
+        bounds: { page, pageSize, maxNodes: DRUG_GRAPH_DEFAULT_MAX_NODES, depth: DRUG_REL_SEARCH_PATH_MAX_DEPTH },
       };
       return empty;
     }
 
-    const path = pathResult.paths[0]!;
-    const fromNode = path.steps[0]!.node;
-    const toNode = path.steps[path.steps.length - 1]!.node;
-    const fromRef = toEntityRef(fromNode);
-    const toRef = toEntityRef(toNode);
+    const items: DrugRelationshipQueryResultItem[] = pathResult.paths.map((path, pathIndex) => {
+      const fromNode = path.steps[0]!.node;
+      const toNode = path.steps[path.steps.length - 1]!.node;
+      const fromRef = toEntityRef(fromNode);
+      const toRef = toEntityRef(toNode);
+      return {
+        resultKind: "PATH" as const,
+        edgeKind: "PATH" as const,
+        relationshipType: null,
+        relationId,
+        from: fromRef,
+        to: toRef,
+        evidenceCount: Math.max(0, path.hopCount),
+        sourceCaseIds: [
+          ...new Set(path.steps.flatMap((s) => s.viaEdge?.sourceCaseIds ?? []).filter(Boolean)),
+        ],
+        firstSeenAt: null,
+        lastSeenAt: null,
+        explanation: { kind: "PATH" as const, hopCount: path.hopCount, pathIndex: pathIndex + 1 },
+        pathSteps: path.steps.map((step) => ({
+          entity: toEntityRef(step.node),
+          viaRelationshipType: step.viaEdge?.relationshipType ?? null,
+          viaEdgeKind: step.viaEdge?.edgeKind ?? null,
+        })),
+        actions: buildActions(toRef),
+      };
+    });
 
-    const item: DrugRelationshipQueryResultItem = {
-      resultKind: "PATH",
-      edgeKind: "PATH",
-      relationshipType: null,
-      relationId,
-      from: fromRef,
-      to: toRef,
-      evidenceCount: Math.max(0, path.hopCount),
-      sourceCaseIds: [
-        ...new Set(
-          path.steps
-            .flatMap((s) => s.viaEdge?.sourceCaseIds ?? [])
-            .filter(Boolean)
-        ),
-      ],
-      firstSeenAt: null,
-      lastSeenAt: null,
-      explanation: { kind: "PATH", hopCount: path.hopCount },
-      pathSteps: path.steps.map((step) => ({
-        entity: toEntityRef(step.node),
-        viaRelationshipType: step.viaEdge?.relationshipType ?? null,
-        viaEdgeKind: step.viaEdge?.edgeKind ?? null,
-      })),
-      actions: buildActions(toRef),
-    };
+    await this.attachRelatedCases(items);
+
+    const total = items.length;
+    const start = (page - 1) * pageSize;
+    const pageRows = items.slice(start, start + pageSize);
+    const relatedCaseIds = new Set<string>();
+    for (const row of items) for (const id of row.sourceCaseIds) relatedCaseIds.add(id);
 
     return {
       interpretation: {
         kind: "QUERY",
-        source: { entityType: request.source.entityType, entityId: fromRef.entityId },
+        source: { entityType: request.source.entityType, entityId: items[0]!.from.entityId },
         relationId,
         target: { entityType: request.target.entityType, entityId: targetId },
       },
-      summary: { total: 1, byTargetType: { [toRef.entityType]: 1 }, found: true },
-      results: page === 1 ? [item] : [],
-      truncated: false,
-      bounds: { page, pageSize, maxNodes: DRUG_GRAPH_DEFAULT_MAX_NODES, depth: DRUG_GRAPH_PATH_MAX_DEPTH },
+      summary: {
+        total,
+        byTargetType: { [items[0]!.to.entityType]: total },
+        found: true,
+        relatedCaseCount: relatedCaseIds.size,
+      },
+      results: pageRows,
+      truncated: Boolean(pathResult.truncated) || total > page * pageSize,
+      bounds: { page, pageSize, maxNodes: DRUG_GRAPH_DEFAULT_MAX_NODES, depth: DRUG_REL_SEARCH_PATH_MAX_DEPTH },
     };
+  }
+
+  private async attachRelatedCases(rows: DrugRelationshipQueryResultItem[]): Promise<void> {
+    const ids = [...new Set(rows.flatMap((r) => r.sourceCaseIds))];
+    if (ids.length === 0) {
+      for (const row of rows) row.relatedCases = [];
+      return;
+    }
+    const cases = (await this.caseRepo.findByIds(ids)) as Array<{
+      id: string;
+      caseNumber: string;
+      arrestDate: Date | string | null;
+      arrestTime?: string | null;
+      province: string | null;
+      district?: string | null;
+    }>;
+    const byId = new Map(
+      cases.map((c) => {
+        const summary: DrugRelationshipQueryCaseSummary = {
+          caseId: c.id,
+          caseNumber: c.caseNumber,
+          arrestDate: toDateOnly(c.arrestDate),
+          arrestTime: parseThaiClockHhMm(c.arrestTime ?? null),
+          province: c.province,
+          district: c.district ?? null,
+        };
+        return [c.id, summary] as const;
+      }),
+    );
+    for (const row of rows) {
+      const list = row.sourceCaseIds.map((id) => byId.get(id)).filter((c): c is DrugRelationshipQueryCaseSummary => Boolean(c));
+      row.relatedCases = sortCasesChronologically(
+        list.map((c) => ({
+          caseId: c.caseId,
+          caseNumber: c.caseNumber,
+          arrestDate: c.arrestDate,
+          arrestTime: c.arrestTime,
+        })),
+      ).map((ordered) => byId.get(ordered.caseId)!);
+    }
   }
 }
