@@ -280,7 +280,12 @@ export function DrugGeoHotspotInspector({
                       </Link>
                     </Button>
                     <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
-                      <Link href={`/drug-intelligence/network?focusCaseId=${row.caseId}&returnTo=${encodeURIComponent(mapReturnUrl)}`}>
+                      {/* DI-8.5 fix: Network Graph reads focusType=CASE&focusId=<id> (see
+                          app/drug-intelligence/network/page.tsx) — the previous focusCaseId
+                          param was never read by that page and silently opened an unfocused graph. */}
+                      <Link
+                        href={`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(row.caseId)}&returnTo=${encodeURIComponent(mapReturnUrl)}`}
+                      >
                         {t("di.map.hotspotOpenNetwork")}
                       </Link>
                     </Button>

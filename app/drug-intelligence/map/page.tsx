@@ -81,6 +81,7 @@ import { DrugGeoReportDrawer } from "@/components/drug_intelligence/drug_geo_rep
 import { DrugGeoHotspotInspector } from "@/components/drug_intelligence/drug_geo_hotspot_inspector";
 import { DrugGeoAreaRankingPanel } from "@/components/drug_intelligence/drug_geo_area_ranking_panel";
 import { DrugGeoIntelligenceSummary } from "@/components/drug_intelligence/drug_geo_intelligence_summary";
+import { DrugGeoAreaTemporalPatternPanel } from "@/components/drug_intelligence/drug_geo_area_temporal_pattern_panel";
 import {
   drugGeoFilterStateFromSearchParams,
   drugGeoFilterStateToSearchParams,
@@ -353,6 +354,16 @@ function DrugIntelligenceMapContent({
     },
     [applyFilters, setViewMode, setFitToken]
   );
+  // DI-8.5 Section 8 "ดูเหตุการณ์" action: filter to this province AND switch
+  // to List view (vs. handleSelectProvince's Map+fit) — same canonical
+  // applyFilters mechanism, one filter state, no separate dashboard model.
+  const handleViewProvinceEvents = useCallback(
+    (province: string) => {
+      applyFilters({ province, district: "" });
+      setViewMode("LIST");
+    },
+    [applyFilters, setViewMode]
+  );
 
   const hotspots: DrugGeoHotspot[] = useMemo(() => {
     if (!geoQuery.data) return [];
@@ -382,6 +393,16 @@ function DrugIntelligenceMapContent({
   if (!geoQuery.data) return null;
 
   const { summary, markers, list, provinces, warnings, temporal } = geoQuery.data;
+  // DI-8.5 Section 8: derived purely client-side from the already-bounded
+  // markers array — zero new queries (see drug_geo_area_temporal_pattern.ts).
+  const areaTemporalRows = markers.map((m) => ({
+    id: m.caseId,
+    caseNumber: m.caseNumber,
+    arrestDate: m.arrestDate,
+    arrestTime: m.arrestTime,
+    province: m.province,
+    district: m.district,
+  }));
   const hardLimit = isDrugMapHardLimit(warnings);
   const softLimit = isDrugMapSoftLimit(warnings);
   const trueEmpty = isDrugMapTrueEmpty(summary.totalCases);
@@ -492,6 +513,15 @@ function DrugIntelligenceMapContent({
           radiusKm={hotspotRadiusKm}
           geoMode={geoMode}
           selectedHotspot={selectedHotspot}
+        />
+      ) : null}
+
+      {!expanded ? (
+        <DrugGeoAreaTemporalPatternPanel
+          rows={areaTemporalRows}
+          mapReturnUrl={mapReturnUrl}
+          onFilterProvince={handleSelectProvince}
+          onViewEvents={handleViewProvinceEvents}
         />
       ) : null}
 
