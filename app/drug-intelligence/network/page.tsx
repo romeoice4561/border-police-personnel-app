@@ -199,7 +199,12 @@ import {
   parseCompareInspectSlot,
 } from "@/lib/drug_intelligence/drug_link_compare_highlight";
 import { computeGroupByTypeLaneHeaders, planGroupByHopLayout, resolveAutoLayoutMode, type DrugNetworkLayoutMode } from "@/lib/drug_intelligence/drug_network_graph_layout";
-import { appearanceReasonKey, connectingRelationshipTypes, selectedPathSteps, shortestUndirectedPath, summarizeNeighborhood } from "@/lib/drug_intelligence/drug_network_graph_readability";
+import { appearanceReasonKey, connectingRelationshipTypes, shortestUndirectedPath, summarizeNeighborhood } from "@/lib/drug_intelligence/drug_network_graph_readability";
+import {
+  explainFocusToSelectedPaths,
+  viaHintFromPath,
+  viaHintsForNeighborhood,
+} from "@/lib/drug_intelligence/drug_network_path_explanation";
 import { drugEntityDetailHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import {
   connectionDepthUrlPatch,
@@ -241,9 +246,15 @@ import { DrugNetworkConnectionDepthControl } from "@/components/drug_intelligenc
 import { DrugNetworkDepthViewControl } from "@/components/drug_intelligence/drug_network_depth_view";
 import { DrugNetworkHopBandHeaders } from "@/components/drug_intelligence/drug_network_hop_band_headers";
 import {
+  collectPathFitNodes,
   computeDrawerAwarePathViewport,
+  computeSelectedPathFocusViewport,
   measureDrawerWidth,
+  PATH_FOCUS_FIT_DURATION_MS,
+  pathCameraFitKey,
+  shouldFitPathCamera,
   shouldFitSelectedPath,
+  type NetworkPathCameraMode,
 } from "@/lib/drug_intelligence/drug_network_drawer_viewport";
 import {
   computeReadableHopContextViewport,
@@ -777,6 +788,9 @@ function DrugNetworkContent() {
   const [pathFrom, setPathFrom] = useState<DrugNetworkEntitySelection | null>(null);
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
+  const [selectedPathIndex, setSelectedPathIndex] = useState(0);
+  const [pathCameraMode, setPathCameraMode] = useState<NetworkPathCameraMode>("SELECTED_PATH");
+  const lastPathCameraKeyRef = useRef<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<DrugGraphEdge | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
@@ -885,6 +899,54 @@ function DrugNetworkContent() {
     if (!neighborhood.data || !selectedSecondaryId) return null;
     return shortestUndirectedPath(neighborhood.data.focus.entityId, selectedSecondaryId, neighborhood.data.edges);
   }, [neighborhood.data, selectedSecondaryId]);
+
+  const pathExplanation = useMemo(() => {
+    if (!neighborhood.data || !selectedSecondaryId) return null;
+    return explainFocusToSelectedPaths(neighborhood.data, selectedSecondaryId);
+  }, [neighborhood.data, selectedSecondaryId]);
+
+  useEffect(() => {
+    setSelectedPathIndex(0);
+    setPathCameraMode("SELECTED_PATH");
+    lastPathCameraKeyRef.current = null;
+  }, [selectedSecondaryId]);
+
+  const activeExplainedPath = useMemo(() => {
+    if (!pathExplanation || pathExplanation.paths.length === 0) return null;
+    return pathExplanation.paths[Math.min(selectedPathIndex, pathExplanation.paths.length - 1)] ?? null;
+  }, [pathExplanation, selectedPathIndex]);
+
+  const handleSelectPathIndex = useCallback((index: number) => {
+    setSelectedPathIndex(index);
+    setPathCameraMode("SELECTED_PATH");
+  }, []);
+
+  const applyPathCameraMode = useCallback(
+    (mode: NetworkPathCameraMode) => {
+      setPathCameraMode(mode);
+      if (mode === "FULL_NETWORK") {
+        lastPathCameraKeyRef.current = null;
+        window.requestAnimationFrame(() => {
+          if (isNodeDraggingRef.current) return;
+          fitView({ duration: 300 });
+        });
+        return;
+      }
+      // Force a path refit even if the same path was already fitted before leaving FULL_NETWORK.
+      lastPathCameraKeyRef.current = null;
+    },
+    [fitView],
+  );
+
+  const neighborhoodViaHints = useMemo(() => {
+    if (!neighborhood.data) return new Map<string, string>();
+    const hints = viaHintsForNeighborhood(neighborhood.data);
+    if (selectedSecondaryId && activeExplainedPath) {
+      const via = viaHintFromPath(activeExplainedPath);
+      if (via) hints.set(selectedSecondaryId, via);
+    }
+    return hints;
+  }, [neighborhood.data, selectedSecondaryId, activeExplainedPath]);
 
   const readabilitySummary = useMemo(
     () => (neighborhood.data ? summarizeNeighborhood(neighborhood.data) : null),
@@ -1180,7 +1242,7 @@ function DrugNetworkContent() {
       nodeDensity,
       pathNodeIdsInOrder:
         canvasArrangement === "VERTICAL_PATH"
-          ? selectedInvestigationPath?.nodeIds
+          ? (activeExplainedPath?.nodeIds ?? selectedInvestigationPath?.nodeIds)
           : pathViewNodeIds ?? undefined,
       pinnedNodeIds: effectivePinnedNodeIds,
       edgeRoutes,
@@ -1189,6 +1251,12 @@ function DrugNetworkContent() {
       onWaypointDrag: handleWaypointDrag,
       canvasArrangement,
       isolateSelectedPath,
+      emphasizeSelectedPath: Boolean(selectedSecondaryId),
+      emphasizedPath: activeExplainedPath
+        ? { nodeIds: activeExplainedPath.nodeIds, edgeIds: activeExplainedPath.edgeIds }
+        : selectedInvestigationPath,
+      pathViaHints: neighborhoodViaHints,
+      pathViaMoreCount: pathExplanation?.alternativeCount ?? 0,
       showHopBadges: depth === 2,
       connectionDepth: depth,
       onExpandNode: handleExpandGraphCard,
@@ -1310,6 +1378,7 @@ function DrugNetworkContent() {
         fitView({ duration: 300 });
       });
     } else if (
+      !pathExplanation &&
       shouldFitSelectedPath({
         selectedId: selectedNode?.id ?? null,
         focusId: neighborhood.data.focus.entityId,
@@ -1352,7 +1421,63 @@ function DrugNetworkContent() {
       lastPathFitSelectionRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot, depth]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot, depth, selectedPathIndex, activeExplainedPath?.signature, neighborhoodViaHints, pathExplanation?.alternativeCount, isolateSelectedPath, selectedSecondaryId]);
+
+  // DI-8.4 follow-up: camera/viewport only — frames the active explained path.
+  // Never re-layouts nodes. Does not loop after manual pan (keyed once per path).
+  useEffect(() => {
+    if (!neighborhood.data || !selectedSecondaryId || !activeExplainedPath) return;
+    if (
+      !shouldFitPathCamera({
+        selectedId: selectedSecondaryId,
+        focusId: neighborhood.data.focus.entityId,
+        pathSignature: activeExplainedPath.signature,
+        lastFittedKey: lastPathCameraKeyRef.current,
+        cameraMode: pathCameraMode,
+        isDragging: isNodeDraggingRef.current,
+      })
+    ) {
+      return;
+    }
+    const key = pathCameraFitKey({
+      selectedId: selectedSecondaryId,
+      pathSignature: activeExplainedPath.signature,
+    });
+    if (!key) return;
+    lastPathCameraKeyRef.current = key;
+    lastPathFitSelectionRef.current = selectedSecondaryId;
+
+    const pathNodeIds = activeExplainedPath.nodeIds;
+    window.requestAnimationFrame(() => {
+      if (isNodeDraggingRef.current) return;
+      const pathNodes = collectPathFitNodes({
+        pathNodeIds,
+        focusId: neighborhood.data.focus.entityId,
+        nodes: latestFlowNodesRef.current,
+      });
+      if (pathNodes.length < 2) return;
+      const canvas = canvasContainerRef.current;
+      const canvasRect = canvas?.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const drawerWidth = measureDrawerWidth(document.querySelector("[data-app-drawer]"), viewportWidth);
+      const viewport = computeSelectedPathFocusViewport({
+        nodes: pathNodes,
+        canvasWidth: canvasRect?.width ?? canvas?.clientWidth ?? 960,
+        canvasHeight: canvasRect?.height ?? canvas?.clientHeight ?? 640,
+        canvasRight: canvasRect?.right ?? viewportWidth,
+        drawerWidth,
+        viewportWidth,
+      });
+      if (viewport) setViewport(viewport, { duration: PATH_FOCUS_FIT_DURATION_MS });
+    });
+  }, [
+    neighborhood.data,
+    selectedSecondaryId,
+    activeExplainedPath?.signature,
+    activeExplainedPath?.nodeIds,
+    pathCameraMode,
+    setViewport,
+  ]);
 
   // Hover labels are patched onto the already-built edges. Never put hover
   // into the topology rebuild above — drag moves the pointer in/out of the
@@ -3116,6 +3241,29 @@ function DrugNetworkContent() {
                 onPointerUp={handleDrawPointerUp}
                 onPointerCancel={handleDrawPointerCancel}
               >
+                {selectedSecondaryId && pathExplanation && activeExplainedPath ? (
+                  <div
+                    className="absolute right-3 top-3 z-20 flex flex-wrap gap-1.5"
+                    data-testid="network-path-camera-overlay"
+                  >
+                    <Button
+                      size="sm"
+                      variant={pathCameraMode === "SELECTED_PATH" ? "accent" : "outline"}
+                      aria-pressed={pathCameraMode === "SELECTED_PATH"}
+                      onClick={() => applyPathCameraMode("SELECTED_PATH")}
+                    >
+                      {t("di.network.pathFocusSelected")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={pathCameraMode === "FULL_NETWORK" ? "accent" : "outline"}
+                      aria-pressed={pathCameraMode === "FULL_NETWORK"}
+                      onClick={() => applyPathCameraMode("FULL_NETWORK")}
+                    >
+                      {t("di.network.pathFocusFull")}
+                    </Button>
+                  </div>
+                ) : null}
                 {/* DI-9.4 Section 3: vertical toolbar — always left of canvas in Analyst Mode */}
                 {effectiveWorkspaceMode === "ANALYST" ? (
                   <DrugNetworkAnalystToolbar
@@ -3342,7 +3490,11 @@ function DrugNetworkContent() {
                   })
                 : undefined
             }
-            pathSteps={neighborhood.data ? selectedPathSteps(neighborhood.data, selectedNode.id) : []}
+            pathExplanation={pathExplanation}
+            selectedPathIndex={selectedPathIndex}
+            onSelectPathIndex={handleSelectPathIndex}
+            pathCameraMode={pathCameraMode}
+            onPathCameraModeChange={applyPathCameraMode}
           />
         ) : null}
       </Drawer>

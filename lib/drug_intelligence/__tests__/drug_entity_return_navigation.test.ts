@@ -6,8 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DrugNetworkEdgeDetail } from "@/components/drug_intelligence/drug_network_edge_detail";
 import { DrugNetworkNodeDetail } from "@/components/drug_intelligence/drug_network_node_detail";
 import { drugEntityDetailHref, drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes";
@@ -26,6 +27,11 @@ const ROOT = join(process.cwd());
 
 function read(rel: string): string {
   return readFileSync(join(ROOT, rel), "utf8");
+}
+
+function renderWithProviders(node: ReactNode): string {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderToStaticMarkup(createElement(QueryClientProvider, { client }, node));
 }
 
 const KITTISAK_ID = "04d2ac30-976a-460d-b77d-31e74153e59f";
@@ -225,14 +231,14 @@ test("I: Device and Vehicle opened from Network use the same safe-return contrac
   assert.match(devicePage, /entityDetailBackLabelKey\(inboundReturnTo\)/);
   assert.match(vehiclePage, /entityDetailBackHref\(searchParams\)/);
   assert.match(vehiclePage, /entityDetailBackLabelKey\(inboundReturnTo\)/);
-  const deviceHtml = renderToStaticMarkup(
+  const deviceHtml = renderWithProviders(
     createElement(DrugNetworkNodeDetail, {
       node: deviceNode(DEVICE_ID, "iPhone"),
       onExpand: () => undefined,
       openReturnPath: PERSON_NETWORK_HREF,
     })
   );
-  const vehicleHtml = renderToStaticMarkup(
+  const vehicleHtml = renderWithProviders(
     createElement(DrugNetworkNodeDetail, {
       node: vehicleNode(VEHICLE_ID, "TEST-9009"),
       onExpand: () => undefined,

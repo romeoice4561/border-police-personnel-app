@@ -442,6 +442,8 @@ function flowNode(id: string, position: { x: number; y: number }): FlowNode {
       onSelectedPath: false,
       showHopBadge: false,
       stronglyDimmed: false,
+      pathViaHint: null,
+      pathViaMoreCount: 0,
       compareRole: null,
       compareSlot: null,
       compareJunction: false,

@@ -78,6 +78,10 @@ export interface DrugNetworkFlowNodeData extends Record<string, unknown> {
   showHopBadge: boolean;
   /** Stronger isolation dimming for selected-path view. */
   stronglyDimmed: boolean;
+  /** DI-8.4: compact "ผ่าน …" hint for indirect nodes on the selected path. */
+  pathViaHint: string | null;
+  /** DI-8.4: extra path alternatives count for card chip (+อีก N). */
+  pathViaMoreCount: number;
   /** LC-2C.1 compare-highlight role. Null when Compare Highlight Mode is off. */
   compareRole: "endpoint" | "path" | "context" | null;
   /** A/B/C badge when this node is a compared endpoint. */
@@ -159,6 +163,17 @@ export interface BuildFlowGraphOptions {
   canvasArrangement?: NetworkDepthCanvasArrangement;
   /** When true, off-path nodes/edges use isolate opacity. Never removes graph records. */
   isolateSelectedPath?: boolean;
+  /**
+   * DI-8.4: when a secondary node is selected, always emphasize the focus→selected path
+   * and dim everything else — even outside SELECTED_PATH vertical layout.
+   * Does not change layout arrangement.
+   */
+  emphasizeSelectedPath?: boolean;
+  /** Optional explicit path (for multi-path switching). Falls back to shortest undirected. */
+  emphasizedPath?: { nodeIds: string[]; edgeIds: string[] } | null;
+  /** Compact via hints keyed by node id (selected node only typically). */
+  pathViaHints?: ReadonlyMap<string, string>;
+  pathViaMoreCount?: number;
   /** Show ชั้น 1 / ชั้น 2 chips on non-focus nodes. */
   showHopBadges?: boolean;
   /** LC-2C.1 presentation-only compare emphasis. Absent on ordinary Network. */
@@ -264,10 +279,15 @@ export function buildDrugNetworkFlowGraph(
   const compareEmphasize = Boolean(compareHighlight && options.compareHighlightEmphasize !== false);
   const compareInspectSlot = options.compareInspectSlot ?? null;
   const arrangementIsolatesPath = arrangement === "VERTICAL_PATH" || Boolean(options.isolateSelectedPath);
-  const isolatePathVisuals = Boolean(compareEmphasize || arrangementIsolatesPath || selectedGraphEdge);
+  const emphasizeSelectedPath = Boolean(options.emphasizeSelectedPath) && selectedIsSecondary;
+  const isolatePathVisuals = Boolean(
+    compareEmphasize || arrangementIsolatesPath || selectedGraphEdge || emphasizeSelectedPath,
+  );
   const selectedPath =
     !compareHighlight && selectedIsSecondary && selectedNodeId
-      ? shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
+      ? options.emphasizedPath && options.emphasizedPath.nodeIds.length >= 2
+        ? options.emphasizedPath
+        : shortestUndirectedPath(focusId, selectedNodeId, neighborhood.edges)
       : null;
   const comparePathIds = compareEmphasize && compareHighlight
     ? compareHighlightGraphNodeIds(neighborhood.nodes, compareHighlight).pathIds
@@ -293,6 +313,8 @@ export function buildDrugNetworkFlowGraph(
       ? connectedNodeIds(selectedNodeId, neighborhood.edges)
       : null;
   const hasCanvasSelection = Boolean(selectedNodeId || selectedEdgeId);
+  const viaHints = options.pathViaHints ?? null;
+  const viaMore = options.pathViaMoreCount ?? 0;
 
   const flowNodes: FlowNode[] = neighborhood.nodes.map((n) => {
     const isFocus = n.id === focusId;
@@ -323,7 +345,13 @@ export function buildDrugNetworkFlowGraph(
         isShared: isSharedEntity(n, isFocus),
         onSelectedPath: pathNodeIds ? pathNodeIds.has(n.id) : Boolean(selectedPath?.nodeIds.includes(n.id)),
         showHopBadge: Boolean(options.showHopBadges) && !isFocus && hopDistance >= 1,
-        stronglyDimmed: compareClass ? compareClass.role === "context" : Boolean(options.isolateSelectedPath) && dimmed,
+        stronglyDimmed:
+          compareClass
+            ? compareClass.role === "context"
+            : Boolean(options.isolateSelectedPath || emphasizeSelectedPath) && dimmed,
+        pathViaHint: hopDistance >= 2 ? viaHints?.get(n.id) ?? null : null,
+        pathViaMoreCount:
+          selectedNodeId && n.id === selectedNodeId && viaMore > 0 ? viaMore : 0,
         compareRole: compareClass?.role ?? null,
         compareSlot: compareClass?.slot ?? null,
         compareJunction: compareClass?.junction ?? false,
@@ -445,7 +473,7 @@ export function buildDrugNetworkFlowGraph(
       compareHighlight: Boolean(compareHighlight),
       compareEmphasize,
       isolatePathVisuals,
-      isolateSelectedPath: Boolean(options.isolateSelectedPath),
+      isolateSelectedPath: Boolean(options.isolateSelectedPath || emphasizeSelectedPath),
       onPath,
       edgeDimmed,
       focusDirect,

@@ -7,6 +7,7 @@
 import { useViewport } from "@xyflow/react";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
+import { networkHopBandKey } from "@/lib/drug_intelligence/drug_network_path_explanation";
 import type { GroupByHopBandHeader, GroupByHopTypeHeader } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -31,7 +32,7 @@ export function DrugNetworkHopBandHeaders({
             transform: `translate(${x + band.x * zoom}px, ${y + band.y * zoom}px) translate(-50%, -50%)`,
           }}
         >
-          {band.hop === 1 ? t("di.network.hopBandOne") : t("di.network.hopBandTwo")}
+          {t(networkHopBandKey(band.hop))}
         </div>
       ))}
       {typeHeaders.map((header) => (

@@ -18,12 +18,18 @@ export function resolveDrawerPanelMaxWidth(viewportWidth: number): number {
 export const PATH_FIT_MAX_ZOOM = 1.08;
 export const PATH_FIT_MIN_ZOOM = 0.2;
 export const PATH_FIT_PADDING = 0.28;
+/** DI-8.4 follow-up: slightly closer fit so short explained paths stay readable. */
+export const PATH_FOCUS_MAX_ZOOM = 1.22;
+export const PATH_FOCUS_PADDING = 0.22;
+export const PATH_FOCUS_FIT_DURATION_MS = 350;
 export const MIN_VISIBLE_CANVAS_WIDTH_PX = 160;
 
 const DEFAULT_NODE_WIDTH = 180;
 const DEFAULT_NODE_HEIGHT = 110;
 const DEFAULT_FOCUS_WIDTH = 240;
 const DEFAULT_FOCUS_HEIGHT = 150;
+
+export type NetworkPathCameraMode = "SELECTED_PATH" | "FULL_NETWORK";
 
 export interface PathFitNode {
   id: string;
@@ -44,6 +50,65 @@ export function shouldFitSelectedPath(args: {
   if (!args.selectedId || !args.focusId) return false;
   if (args.selectedId === args.focusId) return false;
   return args.lastFittedSelectionId !== args.selectedId;
+}
+
+/** Stable camera key: refit when selection OR active path alternative changes. */
+export function pathCameraFitKey(args: {
+  selectedId: string | null;
+  pathSignature: string | null;
+}): string | null {
+  if (!args.selectedId || !args.pathSignature) return null;
+  return `${args.selectedId}|${args.pathSignature}`;
+}
+
+/**
+ * Path-camera autofit gate (DI-8.4 follow-up).
+ * Fires once per (selection, pathSignature) while in SELECTED_PATH mode.
+ * Never while dragging; never in FULL_NETWORK mode (manual pan stays free).
+ */
+export function shouldFitPathCamera(args: {
+  selectedId: string | null;
+  focusId: string | null;
+  pathSignature: string | null;
+  lastFittedKey: string | null;
+  cameraMode: NetworkPathCameraMode;
+  isDragging: boolean;
+}): boolean {
+  if (args.isDragging) return false;
+  if (args.cameraMode !== "SELECTED_PATH") return false;
+  if (!args.selectedId || !args.focusId) return false;
+  if (args.selectedId === args.focusId) return false;
+  const key = pathCameraFitKey({ selectedId: args.selectedId, pathSignature: args.pathSignature });
+  if (!key) return false;
+  return args.lastFittedKey !== key;
+}
+
+/** Map explained path node ids onto live flow positions — never invents coordinates. */
+export function collectPathFitNodes(args: {
+  pathNodeIds: readonly string[];
+  focusId: string | null;
+  nodes: ReadonlyArray<{
+    id: string;
+    position: { x: number; y: number };
+    width?: number | null;
+    height?: number | null;
+    measured?: { width?: number; height?: number } | null;
+  }>;
+}): PathFitNode[] {
+  const byId = new Map(args.nodes.map((node) => [node.id, node]));
+  const out: PathFitNode[] = [];
+  for (const id of args.pathNodeIds) {
+    const node = byId.get(id);
+    if (!node) continue;
+    out.push({
+      id,
+      position: node.position,
+      width: node.width ?? node.measured?.width ?? undefined,
+      height: node.height ?? node.measured?.height ?? undefined,
+      isFocus: Boolean(args.focusId && id === args.focusId),
+    });
+  }
+  return out;
 }
 
 export function visibleCanvasWidthLeftOfDrawer(args: {
@@ -103,6 +168,22 @@ export function computeDrawerAwarePathViewport(args: {
     args.maxZoom ?? PATH_FIT_MAX_ZOOM,
     args.padding ?? PATH_FIT_PADDING
   );
+}
+
+/** Path-focus camera: same drawer-aware math, tuned padding/maxZoom for readability. */
+export function computeSelectedPathFocusViewport(args: {
+  nodes: PathFitNode[];
+  canvasWidth: number;
+  canvasHeight: number;
+  canvasRight: number;
+  drawerWidth: number;
+  viewportWidth: number;
+}): { x: number; y: number; zoom: number } | null {
+  return computeDrawerAwarePathViewport({
+    ...args,
+    maxZoom: PATH_FOCUS_MAX_ZOOM,
+    padding: PATH_FOCUS_PADDING,
+  });
 }
 
 export function measureDrawerWidth(drawer: Element | null, viewportWidth: number): number {

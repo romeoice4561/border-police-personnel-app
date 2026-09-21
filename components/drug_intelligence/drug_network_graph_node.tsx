@@ -44,7 +44,27 @@ function countLabel(template: string, count: number): string {
 }
 
 export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: DrugNetworkFlowNodeData }) {
-  const { graphNode, isFocus, density, dimmed, pinned, hopDistance, isShared, onSelectedPath, showHopBadge, stronglyDimmed, compareRole, compareSlot, compareJunction, compareInspect, neighborCounts, canExpand, onExpand } = data;
+  const {
+    graphNode,
+    isFocus,
+    density,
+    dimmed,
+    pinned,
+    hopDistance,
+    isShared,
+    onSelectedPath,
+    showHopBadge,
+    stronglyDimmed,
+    pathViaHint,
+    pathViaMoreCount,
+    compareRole,
+    compareSlot,
+    compareJunction,
+    compareInspect,
+    neighborCounts,
+    canExpand,
+    onExpand,
+  } = data;
   const { t } = useT();
   const Icon = NODE_ICON[graphNode.type];
   const hasRisk = graphNode.riskIndicators.length > 0;
@@ -62,6 +82,11 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
   const photoSize = isCompact ? "search" : isFocus && graphNode.type === "PERSON" ? "graphCardFocus" : "graphCard";
   const summary = cardSummary();
   const stats = cardStats();
+  const hopBadgeKey =
+    hopDistance <= 1 ? "di.network.hopBadgeOne" : hopDistance === 2 ? "di.network.hopBadgeTwo" : "di.network.hopBadgeThree";
+  const viaCaption = pathViaHint
+    ? t("di.network.pathViaPrefix").replace("{label}", pathViaHint)
+    : null;
 
   function cardSummary(): string | null {
     if (graphNode.type === "PERSON") {
@@ -181,11 +206,22 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
           ) : null}
           {stats ? <p className="mt-1 truncate text-[11px] text-muted">{stats}</p> : null}
           {pinned ? <span className="mt-1 block text-[10px] font-semibold text-accent">{t("di.network.pinnedNode")}</span> : null}
-          {showHopBadge && hopDistance === 1 ? (
-            <span className="mt-1 inline-flex rounded-full bg-neutral-bg px-1.5 py-px text-[10px] font-medium text-muted">{t("di.network.hopBadgeOne")}</span>
+          {showHopBadge && hopDistance >= 1 ? (
+            <span className="mt-1 inline-flex rounded-full bg-neutral-bg px-1.5 py-px text-[10px] font-medium text-muted">
+              {t(hopBadgeKey)}
+            </span>
           ) : null}
-          {showHopBadge && hopDistance >= 2 ? (
-            <span className="mt-1 inline-flex rounded-full bg-neutral-bg px-1.5 py-px text-[10px] font-medium text-muted">{t("di.network.hopBadgeTwo")}</span>
+          {viaCaption && !isCompact ? (
+            <span
+              className="mt-1 block truncate text-[10px] font-medium text-accent"
+              title={viaCaption}
+              data-testid="network-card-via-hint"
+            >
+              {viaCaption}
+              {pathViaMoreCount > 0
+                ? ` ${t("di.network.pathViaMore").replace("{count}", String(pathViaMoreCount))}`
+                : ""}
+            </span>
           ) : null}
           {compareJunctionNode ? (
             <span

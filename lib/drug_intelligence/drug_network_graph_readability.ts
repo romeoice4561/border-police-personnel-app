@@ -4,6 +4,7 @@
  */
 
 import type { DrugGraphNeighborhoodResponse, DrugGraphNode, DrugGraphNodeType, DrugGraphRelationshipType } from "@/lib/drug_intelligence/drug_intelligence_client";
+import { DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import type { LayoutEdgeInput, LayoutNodeInput } from "@/lib/drug_intelligence/drug_network_graph_layout";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
@@ -370,6 +371,10 @@ export interface SelectedPathStep {
   id: string;
   label: string;
   type: DrugGraphNodeType;
+  /** Relationship that reached this step; null on focus/origin. */
+  viaRelationshipType?: DrugGraphRelationshipType | null;
+  viaLabelKey?: TranslationKey | null;
+  supportingCaseIds?: string[];
 }
 
 /** Entity sequence along the existing undirected selected path. Labels come from the loaded neighborhood only. */
@@ -380,12 +385,30 @@ export function selectedPathSteps(
   if (!selectedNodeId || selectedNodeId === neighborhood.focus.entityId) return [];
   const path = shortestUndirectedPath(neighborhood.focus.entityId, selectedNodeId, neighborhood.edges);
   if (!path) return [];
-  return path.nodeIds.map((id) => {
+  return path.nodeIds.map((id, index) => {
     const node = neighborhood.nodes.find((item) => item.id === id);
+    if (index === 0) {
+      return {
+        id,
+        label: node?.label ?? id,
+        type: node?.type ?? neighborhood.focus.entityType,
+        viaRelationshipType: null,
+        viaLabelKey: null,
+        supportingCaseIds: [],
+      };
+    }
+    const prevId = path.nodeIds[index - 1]!;
+    const edge = neighborhood.edges.find(
+      (e) => (e.source === prevId && e.target === id) || (e.source === id && e.target === prevId),
+    );
+    const viaType = edge?.relationshipType ?? null;
     return {
       id,
       label: node?.label ?? id,
       type: node?.type ?? neighborhood.focus.entityType,
+      viaRelationshipType: viaType,
+      viaLabelKey: viaType ? (DRUG_GRAPH_RELATIONSHIP_SHORT_LABEL_KEY[viaType] as TranslationKey) : null,
+      supportingCaseIds: edge?.sourceCaseIds ?? [],
     };
   });
 }
