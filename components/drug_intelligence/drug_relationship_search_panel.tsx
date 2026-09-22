@@ -258,6 +258,16 @@ export function DrugRelationshipSearchPanel() {
   const resultsRef = useRef<HTMLElement | null>(null);
   const sourceInputRef = useRef<HTMLInputElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * DI-8.6 — the 3-step query builder used to stay full-height even after a
+   * search completed, pushing the answer (results) below a large form the
+   * user had already finished with. Now it collapses to a one-line summary
+   * once results exist; "แก้ไขเงื่อนไขการค้นหา" re-expands it in place
+   * (local UI state only — does NOT touch the query/URL/answer state
+   * machine, so editConditions()'s "exit result mode" behavior is untouched
+   * and still reachable from the post-result footer for a full re-edit).
+   */
+  const [builderExpanded, setBuilderExpanded] = useState(false);
   const [focusSourcePicker, setFocusSourcePicker] = useState(false);
   const [pickerHelperKey, setPickerHelperKey] = useState<TranslationKey | null>(null);
   const scrolledForRun = useRef<string | null>(null);
@@ -759,6 +769,14 @@ export function DrugRelationshipSearchPanel() {
    * sessionSuppressed forces pre-search UI immediately on ล้างทั้งหมด / ค้นหาใหม่.
    */
   const showAnswerFirst = Boolean(run && query) && !sessionSuppressed;
+
+  /** DI-8.6 — start collapsed on every fresh answer (new/edited search), not just the first one. */
+  const prevShowAnswerFirst = useRef(false);
+  useEffect(() => {
+    if (showAnswerFirst && !prevShowAnswerFirst.current) setBuilderExpanded(false);
+    prevShowAnswerFirst.current = showAnswerFirst;
+  }, [showAnswerFirst]);
+
   const searchSettled = showAnswerFirst && !search.isPending;
   const showZeroOrErrorActions =
     searchSettled && (search.isError || Boolean(search.data && search.data.summary.total === 0));
@@ -1027,9 +1045,36 @@ export function DrugRelationshipSearchPanel() {
       ) : null}
 
       <div data-testid="relationship-workflow">
+        {showAnswerFirst && !builderExpanded ? (
+          <button
+            type="button"
+            onClick={() => setBuilderExpanded(true)}
+            data-testid="rel-builder-collapsed-summary"
+            className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-left transition-colors hover:border-accent/50 hover:bg-neutral-bg/50"
+          >
+            <p className="min-w-0 truncate text-sm text-foreground">
+              <span className="font-medium">{sourceLabel || draftSource?.label || t("di.rel.sourceSection")}</span>
+              {selectedRelation ? <span className="text-muted"> · {t(selectedRelation.labelKey)}</span> : null}
+              {draftTarget ? <span className="text-muted"> · {draftTarget.label}</span> : null}
+            </p>
+            <span className="shrink-0 text-xs font-medium text-accent">{t("di.rel.editConditions")}</span>
+          </button>
+        ) : (
         <Card>
           <CardBody className="space-y-3">
-            <h2 className="sr-only">{t("di.rel.workflowLabel")}</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="sr-only">{t("di.rel.workflowLabel")}</h2>
+              {showAnswerFirst ? (
+                <button
+                  type="button"
+                  onClick={() => setBuilderExpanded(false)}
+                  data-testid="rel-builder-collapse"
+                  className="ml-auto text-xs font-medium text-muted hover:text-foreground"
+                >
+                  {t("di.rel.collapseBuilder")}
+                </button>
+              ) : null}
+            </div>
 
             <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch lg:gap-2">
               {/* Step 1 */}
@@ -1260,6 +1305,7 @@ export function DrugRelationshipSearchPanel() {
             ) : null}
           </CardBody>
         </Card>
+        )}
       </div>
 
       {showAnswerFirst ? (

@@ -348,6 +348,13 @@ function CompactResultRow({
             ) : null}
           </div>
 
+          {/* DI-8.6: was up to 7 same-row buttons (primary/secondary/tertiary all
+              visually competing). Now only the primary action + one secondary
+              (view relationships) + the details toggle stay always-visible;
+              the lower-traffic actions (open in graph, expand network, view
+              timeline, view map) move into the "ขยายรายละเอียด" disclosure
+              below as a compact secondary-actions row — still one click away,
+              no longer competing with the primary action for attention. */}
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             {detailHref ? (
               <Button asChild variant="accent" size="sm" className="h-8 min-h-8 px-2.5 text-xs">
@@ -371,37 +378,6 @@ function CompactResultRow({
               {detailsOpen ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
               {detailsOpen ? t("di.rel.collapseDetails") : t("di.rel.expandDetails")}
             </Button>
-            <Button asChild variant="ghost" size="sm" className="h-8 min-h-8 px-2 text-xs text-muted">
-              <Link href={networkHref}>{t("di.rel.openInGraph")}</Link>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 min-h-8 px-2 text-xs text-muted"
-              title={expandDisabled ? t("di.rel.expandDisabledLimit") : t("di.rel.expandHint")}
-              disabled={expandDisabled}
-              data-testid="rel-expand-result"
-              onClick={() =>
-                onExpand({
-                  ...item.actions.expandSource,
-                  edgeKind: item.edgeKind,
-                  evidenceSummary: evidence,
-                })
-              }
-            >
-              {t("di.rel.expand")}
-            </Button>
-            {item.actions.timelinePath ? (
-              <Button asChild variant="ghost" size="sm" className="h-8 min-h-8 px-2 text-xs text-muted">
-                <Link href={withReturnTo(item.actions.timelinePath, returnPath)}>{t("di.rel.viewTimeline")}</Link>
-              </Button>
-            ) : null}
-            {item.actions.mapPath ? (
-              <Button asChild variant="ghost" size="sm" className="h-8 min-h-8 px-2 text-xs text-muted">
-                <Link href={withReturnTo(item.actions.mapPath, returnPath)}>{t("di.rel.viewMap")}</Link>
-              </Button>
-            ) : null}
           </div>
 
           {detailsOpen ? (
@@ -442,6 +418,39 @@ function CompactResultRow({
                   ))}
                 </ol>
               ) : null}
+              <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-1.5" data-testid="rel-secondary-actions">
+                <Button asChild variant="ghost" size="sm" className="h-7 min-h-7 px-2 text-xs text-muted">
+                  <Link href={networkHref}>{t("di.rel.openInGraph")}</Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 min-h-7 px-2 text-xs text-muted"
+                  title={expandDisabled ? t("di.rel.expandDisabledLimit") : t("di.rel.expandHint")}
+                  disabled={expandDisabled}
+                  data-testid="rel-expand-result"
+                  onClick={() =>
+                    onExpand({
+                      ...item.actions.expandSource,
+                      edgeKind: item.edgeKind,
+                      evidenceSummary: evidence,
+                    })
+                  }
+                >
+                  {t("di.rel.expand")}
+                </Button>
+                {item.actions.timelinePath ? (
+                  <Button asChild variant="ghost" size="sm" className="h-7 min-h-7 px-2 text-xs text-muted">
+                    <Link href={withReturnTo(item.actions.timelinePath, returnPath)}>{t("di.rel.viewTimeline")}</Link>
+                  </Button>
+                ) : null}
+                {item.actions.mapPath ? (
+                  <Button asChild variant="ghost" size="sm" className="h-7 min-h-7 px-2 text-xs text-muted">
+                    <Link href={withReturnTo(item.actions.mapPath, returnPath)}>{t("di.rel.viewMap")}</Link>
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>

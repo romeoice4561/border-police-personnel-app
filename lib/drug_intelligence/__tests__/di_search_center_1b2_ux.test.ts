@@ -70,7 +70,12 @@ describe("Phase 1B.2 Relationship 3-step workflow", () => {
       panelSrc,
       /showAnswerFirst \? \(\s*<>\s*\{resultsSection\}\s*\{postResultFooter\}\s*<\/>\s*\)/
     );
-    const answerBranch = panelSrc.match(/\{showAnswerFirst \? \(([\s\S]*?)\) : \(/)?.[1] ?? "";
+    // DI-8.6 added a second, earlier `showAnswerFirst ? (` (the collapsed
+    // builder-summary toggle) — anchor on the outer render-return ternary
+    // specifically (it immediately follows the workflow container's closing
+    // </div>), not just the first occurrence in the file.
+    const outerTernaryMatch = panelSrc.match(/<\/div>\s*\n\s*\{showAnswerFirst \? \(([\s\S]*?)\) : \(/);
+    const answerBranch = outerTernaryMatch?.[1] ?? "";
     assert.ok(answerBranch.includes("{resultsSection}"));
     assert.ok(answerBranch.includes("{postResultFooter}"));
     assert.ok(!answerBranch.includes("{quickSearchSection}"), "Quick Search must not appear in answer branch");

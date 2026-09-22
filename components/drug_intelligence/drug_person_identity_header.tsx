@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
+import { compactEntityId } from "@/components/drug_intelligence/drug_person_workspace_cards";
 import { useAuth } from "@/components/auth/auth_provider";
 import { useT } from "@/components/i18n/language_provider";
 import { useDrugEntityMedia } from "@/lib/drug_intelligence/drug_intelligence_hooks";
@@ -71,9 +72,6 @@ export function DrugPersonIdentityHeader({
           <div className="min-w-0 flex-1 space-y-1.5 text-center sm:text-left">
             <div>
               <h1 className="text-2xl font-semibold leading-tight break-words text-foreground">{name}</h1>
-              <p className="mt-0.5 truncate text-xs text-muted" title={`${t("di.profile.personId")}: ${personId}`}>
-                {t("di.profile.personId")}: {personId}
-              </p>
             </div>
             <p className="text-sm text-foreground">
               <span className="text-muted">{t("di.profile.status")}:</span> {statusLabel}
@@ -114,6 +112,18 @@ export function DrugPersonIdentityHeader({
               >
                 {t("di.media.viewAllCount").replace("{count}", String(items.length))}
               </a>
+              {/* DI-8.6: matches the Case Workspace's existing collapsed-ID pattern
+                  (drug_case_identity_header.tsx) — the raw Person ID (UUID) is
+                  technical metadata, not operationally-useful info, and no longer
+                  prints unconditionally under the name. */}
+              <details className="text-left">
+                <summary className="cursor-pointer text-[11px] text-muted hover:text-foreground">
+                  {t("di.workspace.technicalDetails")}
+                </summary>
+                <p className="mt-1 font-mono text-[10px] text-muted" title={personId}>
+                  {t("di.profile.personId")}: {compactEntityId(personId)}
+                </p>
+              </details>
               {duplicateHref ? (
                 <Link
                   href={duplicateHref}

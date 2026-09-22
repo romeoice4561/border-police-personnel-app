@@ -65,11 +65,19 @@ export default function DrugIntelligenceLandingPage() {
         <ErrorState message={(stats.error as Error).message} onRetry={() => stats.refetch()} />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {/* DI-8.6: each KPI now routes to ITS OWN list/search surface instead of
+              all five silently landing on /cases (previous behavior — a broken
+              "clickable KPI" affordance). Persons has a real list page; Phones/
+              Devices/Vehicles have no dedicated list route (only /[id] detail
+              routes exist — see app/drug-intelligence/{phones,devices,vehicles}/),
+              so they route to Search Center pre-filtered by entity type, the
+              correct existing surface for that data (di.search entityType param,
+              app/drug-intelligence/search/page.tsx). */}
           <DrugKpiTile label={t("di.landing.kpiCases")} value={stats.data.totalCases} icon={FileText} href="/drug-intelligence/cases" />
-          <DrugKpiTile label={t("di.landing.kpiPersons")} value={stats.data.totalPersons} icon={Users} href="/drug-intelligence/cases" />
-          <DrugKpiTile label={t("di.landing.kpiPhones")} value={stats.data.totalPhones} icon={Phone} href="/drug-intelligence/cases" />
-          <DrugKpiTile label={t("di.landing.kpiDevices")} value={stats.data.totalDevices} icon={Smartphone} href="/drug-intelligence/cases" />
-          <DrugKpiTile label={t("di.landing.kpiVehicles")} value={stats.data.totalVehicles} icon={Car} href="/drug-intelligence/cases" />
+          <DrugKpiTile label={t("di.landing.kpiPersons")} value={stats.data.totalPersons} icon={Users} href="/drug-intelligence/persons" />
+          <DrugKpiTile label={t("di.landing.kpiPhones")} value={stats.data.totalPhones} icon={Phone} href="/drug-intelligence/search?entityType=PHONE" />
+          <DrugKpiTile label={t("di.landing.kpiDevices")} value={stats.data.totalDevices} icon={Smartphone} href="/drug-intelligence/search?entityType=DEVICE" />
+          <DrugKpiTile label={t("di.landing.kpiVehicles")} value={stats.data.totalVehicles} icon={Car} href="/drug-intelligence/search?entityType=VEHICLE" />
         </div>
       )}
 

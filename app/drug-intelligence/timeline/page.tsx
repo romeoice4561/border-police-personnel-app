@@ -468,8 +468,12 @@ function TimelineEventDetail({ event, returnTo }: { event: DrugTimelineEvent; re
         </p>
       ) : null}
 
+      {/* DI-8.6: "Open Case" is now the visually primary action (accent) —
+          previously all 3-4 buttons here were equal-weight outline, giving
+          no cue about which is most likely the next step. Network/Map/Alert
+          remain outline (secondary), same destinations, unchanged data. */}
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-        <Button asChild size="sm" variant="outline">
+        <Button asChild size="sm" variant="accent">
           <Link href={withReturnTo(`/drug-intelligence/cases/${encodeURIComponent(event.caseId)}`, returnTo)}>
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
             {t("di.timeline.openCase")}

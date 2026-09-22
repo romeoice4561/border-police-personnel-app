@@ -20,7 +20,6 @@ import {
   IntelligenceStat,
 } from "@/components/drug_intelligence/drug_person_workspace_cards";
 import { useT } from "@/components/i18n/language_provider";
-import { formatThaiOperationalDateWithClock } from "@/lib/drug_intelligence/di_date_helpers";
 import type { DrugCaseDetailResponse } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { cn } from "@/lib/ui/cn";
 
@@ -47,9 +46,6 @@ export function DrugCaseIntelligenceSummary({
   className?: string;
 }) {
   const { t } = useT();
-  const c = data.case;
-  const arrest = c.arrestDate ? formatThaiOperationalDateWithClock(c.arrestDate, c.arrestTime) : "—";
-  const place = [c.province, c.district, c.subdistrict].filter(Boolean).join(" · ") || "—";
   const personPreview = data.persons
     .slice(0, 3)
     .map((p) => p.person?.primaryFullName)
@@ -66,13 +62,13 @@ export function DrugCaseIntelligenceSummary({
       title={t("di.workspace.intelligenceSummary")}
       icon={<FolderOpen className="h-4 w-4 text-accent" aria-hidden="true" />}
     >
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4" data-testid="case-intelligence-facts">
-        <Fact label={t("di.field.arrestDate")} value={arrest} />
-        <Fact label={t("di.field.province")} value={place} />
-        <Fact label={t("di.field.reportingUnit")} value={c.reportingUnitText || "—"} />
-        <Fact label={t("di.review.leadUnitLabel")} value={c.leadUnitText || "—"} />
-      </div>
-
+      {/* DI-8.6: the arrest date/province/reporting-unit/lead-unit Fact row that
+          used to render here duplicated the Case Workspace identity header
+          (arrest date, province, reporting unit — shown immediately above this
+          section) and the Units & Team card below (reporting unit, lead unit,
+          in fuller context alongside participating units/arrest team). Removed
+          rather than shown a third time; this section now leads with its own
+          unique value — the clickable stats grid and preview blocks. */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" data-testid="case-intelligence-stats">
         <button type="button" className="text-left" onClick={() => onOpenTab("persons")}>
           <IntelligenceStat icon={<Users className="h-4 w-4" />} label={t("di.workspace.kpiPersons")} value={data.personCount} />
@@ -111,10 +107,10 @@ export function DrugCaseIntelligenceSummary({
         />
       </div>
 
-      {c.narrative ? (
+      {data.case.narrative ? (
         <div className="rounded-lg border border-border bg-neutral-bg/40 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("di.workspace.narrative")}</p>
-          <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm text-foreground">{c.narrative}</p>
+          <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm text-foreground">{data.case.narrative}</p>
         </div>
       ) : (
         <p className="text-xs text-muted">{t("di.workspace.emptyNarrative")}</p>
@@ -129,16 +125,6 @@ export function DrugCaseIntelligenceSummary({
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-lg border border-border bg-neutral-bg/40 px-2.5 py-2">
-      <p className="truncate text-[11px] text-muted">{label}</p>
-      <p className="truncate text-sm font-medium text-foreground" title={value}>
-        {value}
-      </p>
-    </div>
-  );
-}
 
 function PreviewBlock({
   title,
