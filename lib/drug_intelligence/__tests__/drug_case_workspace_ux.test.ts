@@ -64,3 +64,28 @@ test("Case workspace keeps investigator contact before units team", () => {
   const contactIdx = detail.indexOf("DrugCaseInvestigatorContactCard");
   assert.ok(contactIdx > 0 && contactIdx < unitsIdx);
 });
+
+test("Case identity header regression: the actions column is width-bounded, so an extra header button (e.g. returnTo's back-to-network link) can never starve the identity/metadata column into character-by-character wrapping", () => {
+  const header = read("components/drug_intelligence/drug_case_identity_header.tsx");
+  // The identity/metadata column must remain flexible and allowed to actually
+  // shrink-to-grow (min-w-0 + flex-1) — this half of the bug was already
+  // correct; asserted here so a future edit can't silently remove it.
+  assert.match(header, /min-w-0 w-full flex-1 basis-0/);
+  // The actions column must be bounded (max-w-*) at md+ so its own internal
+  // flex-wrap triggers before it can grow wide enough to compress its sibling.
+  // A bare `shrink-0` with no width ceiling was the actual regression: the
+  // browser gave the actions column its full unbounded preferred width first,
+  // and reduced the identity column to whatever was left over.
+  assert.match(header, /md:max-w-/, "the actions column must have an md+ max-width bound");
+  assert.match(header, /className="flex w-full shrink-0 flex-wrap[^"]*md:max-w-/);
+});
+
+test("Case Detail header actions include the returnTo back-to-network link only when returnTo is present, alongside the always-present network/timeline/list actions", () => {
+  const page = read("app/drug-intelligence/cases/[id]/page.tsx");
+  assert.match(page, /data-testid="back-via-return-to"/);
+  assert.match(page, /\{returnTo \? \(/);
+  assert.match(page, /returnToBackLabelKey/);
+  assert.match(page, /data-testid="case-primary-network"/);
+  assert.match(page, /di\.timeline\.navLabel/);
+  assert.match(page, /di\.workspace\.backToList/);
+});

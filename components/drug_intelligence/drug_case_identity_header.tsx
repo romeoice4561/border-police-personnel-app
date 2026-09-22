@@ -97,7 +97,26 @@ export function DrugCaseIdentityHeader({
             </div>
           </div>
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-start justify-center gap-2 sm:justify-end">{actions}</div> : null}
+        {/* DI-8.6 hotfix: this column previously had `shrink-0` with no width
+            bound at all. With returnTo present (e.g. arriving from the
+            Network Inspector's step-evidence "เปิดคดีที่เกี่ยวข้อง" flow), an
+            extra "กลับไปยังผังความเชื่อมโยง" button is added to `actions`
+            (see app/drug-intelligence/cases/[id]/page.tsx's headerActions),
+            growing its natural flex-basis. shrink-0 then refused to let the
+            browser reclaim any of that width, so the sibling identity column
+            (min-w-0 flex-1) was compressed toward its floor and its case
+            number/metadata text wrapped character-by-character. Bounding
+            this column's max-width lets its own flex-wrap trigger sooner —
+            buttons wrap onto additional rows within THIS column — instead of
+            the column silently growing wide and starving the identity
+            column of space. Not a fixed width: it still shrinks to content
+            on narrower viewports, and still stacks below the identity
+            column on mobile per the parent's flex-col breakpoint. */}
+        {actions ? (
+          <div className="flex w-full shrink-0 flex-wrap items-start justify-center gap-2 sm:justify-end md:w-auto md:max-w-88">
+            {actions}
+          </div>
+        ) : null}
       </div>
     </header>
   );
