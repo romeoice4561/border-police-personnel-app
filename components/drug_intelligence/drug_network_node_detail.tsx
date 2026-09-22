@@ -15,6 +15,8 @@ import { drugEntityDetailPath } from "@/lib/drug_intelligence/drug_entity_routes
 import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entity_visual_thumb";
 import { DrugNetworkInspectorMedia } from "@/components/drug_intelligence/drug_network_inspector_media";
 import { DrugNetworkPathStoryView } from "@/components/drug_intelligence/drug_network_path_story_view";
+import { DrugNetworkInsightPanel } from "@/components/drug_intelligence/drug_network_insight_panel";
+import { insightsForEntity, type NetworkGraphInsight } from "@/lib/drug_intelligence/drug_network_graph_insights";
 import { withReturnTo } from "@/lib/ui/return_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import {
@@ -46,6 +48,8 @@ export function DrugNetworkNodeDetail({
   pathCameraMode = "SELECTED_PATH",
   onPathCameraModeChange,
   openReturnPath = null,
+  insights = [],
+  onInsightViewOnGraph,
 }: {
   node: DrugGraphNode;
   onExpand: () => void;
@@ -64,6 +68,9 @@ export function DrugNetworkNodeDetail({
   onPathCameraModeChange?: (mode: NetworkPathCameraMode) => void;
   /** Navigation-only Network (or other internal) path to restore after opening this entity. */
   openReturnPath?: string | null;
+  /** DI-8.7 V1: the full set of deterministic observations for the currently loaded neighborhood — filtered internally to this node. */
+  insights?: readonly NetworkGraphInsight[];
+  onInsightViewOnGraph?: (insight: NetworkGraphInsight) => void;
 }) {
   const { t } = useT();
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -85,6 +92,9 @@ export function DrugNetworkNodeDetail({
         ? t("di.network.openCase")
         : t("di.network.openDetail");
   const showOpenLink = node.type !== "LOCATION";
+  // DI-8.7 V1: this node's own deterministic observations, filtered from
+  // the full loaded-neighborhood insight set the page computed once.
+  const nodeInsights = insightsForEntity(insights, node.id);
   const activePath =
     pathExplanation && !isFocus
       ? pathExplanation.paths[Math.min(selectedPathIndex, pathExplanation.paths.length - 1)] ?? null
@@ -362,6 +372,21 @@ export function DrugNetworkNodeDetail({
 
       {node.type === "PERSON" && node.metadata.type === "PERSON" && node.metadata.canonicalTarget ? (
         <p className="rounded-lg bg-neutral-bg px-3 py-2 text-xs text-muted">{t("di.network.mergedNotice")}</p>
+      ) : null}
+
+      {/* DI-8.7 V1: "ข้อสังเกตจากข้อมูล" — deterministic recorded-data
+          observations for this node. Placed after Identity/Investigation
+          Story/Evidence and before technical metadata (Section 10). Not a
+          second drawer, not a new dashboard — one more section in the
+          existing Inspector. */}
+      {onInsightViewOnGraph ? (
+        <div className="border-t border-border/60 pt-2">
+          <DrugNetworkInsightPanel
+            insights={nodeInsights}
+            onViewOnGraph={onInsightViewOnGraph}
+            openReturnPath={openReturnPath}
+          />
+        </div>
       ) : null}
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

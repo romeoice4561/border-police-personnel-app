@@ -3489,6 +3489,40 @@ export const DICTIONARY = {
   "di.network.storyEvidenceStepEmpty": tr("ยังไม่มีหลักฐานที่แสดงแยกตามขั้นนี้ในระบบ", "No evidence recorded specifically for this step"),
   "di.network.storyEvidencePathLevelNote": tr("หลักฐานนี้เป็นหลักฐานระดับเส้นทาง ไม่ใช่หลักฐานเฉพาะขั้นนี้เพียงอย่างเดียว", "This evidence is path-level, not specific to this single step"),
   "di.network.storyBreadcrumbHeading": tr("เส้นทางโดยย่อ", "Path at a glance"),
+  // DI-8.7 V1 — deterministic intelligence graph observations. Descriptive recorded-data summarization only —
+  // never risk/suspicion/association language, never a criminal-network claim (see drug_network_graph_insights.ts).
+  "di.network.insightPanelHeading": tr("ข้อสังเกตจากข้อมูล", "Observations from recorded data"),
+  "di.network.insightPanelEmpty": tr("ยังไม่พบรูปแบบข้อมูลเพิ่มเติมจากเครือข่ายที่กำลังแสดง", "No additional data pattern found in the currently displayed network"),
+  "di.network.insightPanelEmptyHint": tr("ข้อสังเกตจะแสดงเมื่อพบข้อมูลซ้ำหรือข้อมูลร่วมที่ตรวจสอบย้อนกลับได้", "Observations appear when repeated or shared, traceable data is found"),
+  "di.network.insightShowAll": tr("ดูข้อสังเกตทั้งหมด ({count})", "Show all observations ({count})"),
+  "di.network.insightShowFewer": tr("แสดงน้อยลง", "Show fewer"),
+  "di.network.insightOrderingNote": tr("เรียงตามจำนวนคดีที่ปรากฏ", "Sorted by number of cases in which it appears"),
+  "di.network.insightReasonHeading": tr("เหตุที่ระบบแสดง", "Why the system shows this"),
+  "di.network.insightCasesHeading": tr("คดีที่รองรับข้อสังเกตนี้", "Cases supporting this observation"),
+  "di.network.insightActionViewOnGraph": tr("ดูบนผัง", "View on graph"),
+  "di.network.insightActionViewEvidence": tr("ดูหลักฐาน", "View evidence"),
+  // Cross-case / repeated entity (V1 #1)
+  "di.network.insightCrossCasePhone": tr("เบอร์โทรศัพท์นี้ปรากฏในหลายคดี", "This phone number appears in multiple cases"),
+  "di.network.insightCrossCaseSim": tr("ซิมนี้ปรากฏในหลายคดี", "This SIM appears in multiple cases"),
+  "di.network.insightCrossCaseDevice": tr("อุปกรณ์นี้ปรากฏในหลายคดี", "This device appears in multiple cases"),
+  "di.network.insightCrossCaseVehicle": tr("รถคันนี้ปรากฏในหลายคดี", "This vehicle appears in multiple cases"),
+  "di.network.insightCrossCasePerson": tr("บุคคลนี้ปรากฏในหลายคดี", "This person appears in multiple cases"),
+  "di.network.insightCrossCaseGeneric": tr("รายการนี้ปรากฏในหลายคดี", "This item appears in multiple cases"),
+  "di.network.insightReasonCrossCasePhone": tr("พบหมายเลขเดียวกันในข้อมูลของคดีมากกว่า 1 คดี", "The same phone number was found recorded in more than one case"),
+  "di.network.insightReasonCrossCaseSim": tr("พบซิมเดียวกันในข้อมูลของคดีมากกว่า 1 คดี", "The same SIM was found recorded in more than one case"),
+  "di.network.insightReasonCrossCaseDevice": tr("พบอุปกรณ์รายการเดียวกันในคดีมากกว่า 1 คดี", "The same device was found recorded in more than one case"),
+  "di.network.insightReasonCrossCaseVehicle": tr("พบรถคันเดียวกันในข้อมูลของคดีมากกว่า 1 คดี", "The same vehicle was found recorded in more than one case"),
+  "di.network.insightReasonCrossCasePerson": tr("พบบุคคลเดียวกันในข้อมูลของคดีมากกว่า 1 คดี", "The same person was found recorded in more than one case"),
+  "di.network.insightReasonCrossCaseGeneric": tr("พบรายการเดียวกันในข้อมูลของคดีมากกว่า 1 คดี", "The same item was found recorded in more than one case"),
+  // Shared connection (V1 #2)
+  "di.network.insightSharedConnection": tr("บุคคลทั้งสองมีข้อมูลร่วมกัน", "Both persons have recorded shared data"),
+  "di.network.insightReasonSharedConnection": tr("พบว่าทั้งสองรายการมีคดีเดียวกันเป็นข้อมูลร่วม", "Both records were found to share the same case as recorded data"),
+  // Common evidence across cases (V1 #3)
+  "di.network.insightCommonEvidence": tr("พบข้อมูลรายการเดียวกันในมากกว่าหนึ่งคดี", "The same recorded item was found in more than one case"),
+  "di.network.insightReasonCommonEvidence": tr("พบข้อมูลรายการเดียวกันในมากกว่าหนึ่งคดีที่บันทึกไว้", "The same recorded item was found across more than one recorded case"),
+  // Same-day recorded case observation (V1 #4)
+  "di.network.insightSameDayCases": tr("คดีที่เกี่ยวข้องมีวันจับกุมตรงกัน", "The related cases share the same recorded arrest date"),
+  "di.network.insightReasonSameDayCases": tr("ระบบพบวันจับกุมที่บันทึกไว้ตรงกัน", "The system found matching recorded arrest dates"),
 
   // Phase DI-5.3 — multi-layout network workspace (Sections 3-20).
   "di.network.layoutToolbarLabel": tr("รูปแบบผัง", "Layout"),

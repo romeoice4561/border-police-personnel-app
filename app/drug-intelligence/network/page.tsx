@@ -205,6 +205,7 @@ import {
   viaHintFromPath,
   viaHintsForNeighborhood,
 } from "@/lib/drug_intelligence/drug_network_path_explanation";
+import { computeNetworkGraphInsights, type NetworkGraphInsight } from "@/lib/drug_intelligence/drug_network_graph_insights";
 import { drugEntityDetailHref } from "@/lib/drug_intelligence/drug_entity_routes";
 import {
   connectionDepthUrlPatch,
@@ -791,6 +792,17 @@ function DrugNetworkContent() {
   const [selectedPathIndex, setSelectedPathIndex] = useState(0);
   const [pathCameraMode, setPathCameraMode] = useState<NetworkPathCameraMode>("SELECTED_PATH");
   const lastPathCameraKeyRef = useRef<string | null>(null);
+  /**
+   * DI-8.7 V1 — "ดูบนผัง" on an insight card. Minimal extension of the
+   * existing DI-8.4 emphasize/dim/camera-fit mechanism (approved reuse
+   * strategy, not a second camera engine): a real, already-loaded
+   * {nodeIds, edgeIds} set from one NetworkGraphInsight, merged into the
+   * SAME emphasizedPath prop the flow adapter already accepts. Cleared on
+   * any ordinary node/edge selection so it never lingers after the user
+   * moves on to something else.
+   */
+  const [activeInsightFocus, setActiveInsightFocus] = useState<{ nodeIds: string[]; edgeIds: string[] } | null>(null);
+  const lastInsightCameraKeyRef = useRef<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<DrugGraphEdge | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
@@ -909,7 +921,44 @@ function DrugNetworkContent() {
     setSelectedPathIndex(0);
     setPathCameraMode("SELECTED_PATH");
     lastPathCameraKeyRef.current = null;
+    // DI-8.7: an ordinary node selection (clicking the canvas, opening a
+    // different node's Inspector) must clear any lingering insight focus —
+    // "ดูบนผัง" is transient, never a persistent alternate state.
+    setActiveInsightFocus(null);
+    lastInsightCameraKeyRef.current = null;
   }, [selectedSecondaryId]);
+
+  // DI-8.7 V1: deterministic intelligence graph observations, derived
+  // purely client-side from the already-loaded, already-bounded
+  // neighborhood — zero new queries (see drug_network_graph_insights.ts).
+  const networkInsights = useMemo(() => {
+    if (!neighborhood.data) return [];
+    return computeNetworkGraphInsights(neighborhood.data);
+  }, [neighborhood.data]);
+
+  const handleInsightViewOnGraph = useCallback(
+    (insight: NetworkGraphInsight) => {
+      if (!neighborhood.data) return;
+      setActiveInsightFocus({ nodeIds: insight.graphFocus.nodeIds, edgeIds: insight.graphFocus.edgeIds });
+      // Reuses the existing selectedSecondaryId/emphasizeSelectedPath
+      // mechanism (Section 15), which requires a non-focus selected node to
+      // drive isolation — prefer the insight's own primaryNodeId, falling
+      // back to any other non-focus node in its set (e.g. a same-day
+      // observation's primary is one of its own CASE nodes already).
+      const candidateIds = insight.graphFocus.primaryNodeId
+        ? [insight.graphFocus.primaryNodeId, ...insight.graphFocus.nodeIds]
+        : insight.graphFocus.nodeIds;
+      const nonFocusId = candidateIds.find((id) => id !== focusId) ?? null;
+      const nodeToSelect = nonFocusId ? (neighborhood.data.nodes.find((n) => n.id === nonFocusId) ?? null) : null;
+      if (nodeToSelect) {
+        setSelectedNode(nodeToSelect);
+        setSelectedEdge(null);
+        setEdgeDrawerOpen(false);
+      }
+    },
+    [neighborhood.data, focusId],
+  );
+
 
   const activeExplainedPath = useMemo(() => {
     if (!pathExplanation || pathExplanation.paths.length === 0) return null;
@@ -926,6 +975,11 @@ function DrugNetworkContent() {
       setPathCameraMode(mode);
       if (mode === "FULL_NETWORK") {
         lastPathCameraKeyRef.current = null;
+        // DI-8.7: "ดูทั้งเครือข่าย" also restores full context from an
+        // active insight focus — the same existing restore action, no
+        // separate insight-only reset control.
+        setActiveInsightFocus(null);
+        lastInsightCameraKeyRef.current = null;
         window.requestAnimationFrame(() => {
           if (isNodeDraggingRef.current) return;
           fitView({ duration: 300 });
@@ -1250,11 +1304,18 @@ function DrugNetworkContent() {
       boardLocked,
       onWaypointDrag: handleWaypointDrag,
       canvasArrangement,
-      isolateSelectedPath,
-      emphasizeSelectedPath: Boolean(selectedSecondaryId),
-      emphasizedPath: activeExplainedPath
-        ? { nodeIds: activeExplainedPath.nodeIds, edgeIds: activeExplainedPath.edgeIds }
-        : selectedInvestigationPath,
+      // DI-8.7: activeInsightFocus, when set by "ดูบนผัง", takes priority —
+      // same {nodeIds, edgeIds} contract emphasizedPath already accepts, no
+      // new highlight mechanism. isolateSelectedPath/emphasizeSelectedPath
+      // are forced true here so a same-day-cases insight (whose primary
+      // node need not be the DI-8.4 "selected secondary") still isolates.
+      isolateSelectedPath: isolateSelectedPath || Boolean(activeInsightFocus),
+      emphasizeSelectedPath: Boolean(selectedSecondaryId) || Boolean(activeInsightFocus),
+      emphasizedPath: activeInsightFocus
+        ? activeInsightFocus
+        : activeExplainedPath
+          ? { nodeIds: activeExplainedPath.nodeIds, edgeIds: activeExplainedPath.edgeIds }
+          : selectedInvestigationPath,
       pathViaHints: neighborhoodViaHints,
       pathViaMoreCount: pathExplanation?.alternativeCount ?? 0,
       showHopBadges: depth === 2,
@@ -1478,6 +1539,42 @@ function DrugNetworkContent() {
     pathCameraMode,
     setViewport,
   ]);
+
+  // DI-8.7 V1: camera/viewport only — frames an active insight's own real
+  // node set when "ดูบนผัง" is clicked. Reuses the exact same
+  // collectPathFitNodes/computeSelectedPathFocusViewport/setViewport
+  // primitives as the DI-8.4 path-camera effect above (no second camera
+  // engine); keyed once per insight id so it never re-fits on every
+  // unrelated render, and never fires while dragging.
+  useEffect(() => {
+    if (!neighborhood.data || !activeInsightFocus) return;
+    const key = activeInsightFocus.nodeIds.join(">");
+    if (lastInsightCameraKeyRef.current === key) return;
+    lastInsightCameraKeyRef.current = key;
+    const insightNodeIds = activeInsightFocus.nodeIds;
+    window.requestAnimationFrame(() => {
+      if (isNodeDraggingRef.current) return;
+      const insightNodes = collectPathFitNodes({
+        pathNodeIds: insightNodeIds,
+        focusId: neighborhood.data.focus.entityId,
+        nodes: latestFlowNodesRef.current,
+      });
+      if (insightNodes.length < 2) return;
+      const canvas = canvasContainerRef.current;
+      const canvasRect = canvas?.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const drawerWidth = measureDrawerWidth(document.querySelector("[data-app-drawer]"), viewportWidth);
+      const viewport = computeSelectedPathFocusViewport({
+        nodes: insightNodes,
+        canvasWidth: canvasRect?.width ?? canvas?.clientWidth ?? 960,
+        canvasHeight: canvasRect?.height ?? canvas?.clientHeight ?? 640,
+        canvasRight: canvasRect?.right ?? viewportWidth,
+        drawerWidth,
+        viewportWidth,
+      });
+      if (viewport) setViewport(viewport, { duration: PATH_FOCUS_FIT_DURATION_MS });
+    });
+  }, [neighborhood.data, activeInsightFocus, setViewport]);
 
   // Hover labels are patched onto the already-built edges. Never put hover
   // into the topology rebuild above — drag moves the pointer in/out of the
@@ -3495,6 +3592,8 @@ function DrugNetworkContent() {
             onSelectPathIndex={handleSelectPathIndex}
             pathCameraMode={pathCameraMode}
             onPathCameraModeChange={applyPathCameraMode}
+            insights={networkInsights}
+            onInsightViewOnGraph={handleInsightViewOnGraph}
           />
         ) : null}
       </Drawer>

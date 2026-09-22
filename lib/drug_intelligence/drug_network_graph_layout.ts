@@ -278,12 +278,25 @@ export function computeHierarchicalLayout(focusId: string, nodes: LayoutNodeInpu
  * first-hop nodes occupy type lanes below; second-hop discoveries continue
  * in the same column, further down. Presentation only — never adds graph
  * entities. Lane order follows TYPE_SECTOR_ORDER.
+ *
+ * Visual-review hotfix (Depth-2 full-network / restore-full-network
+ * collision): this layout previously used a per-lane LOCAL hop1 bottom
+ * (`GROUP_HOP1_Y + hop1.length * LANE_NODE_SPACING`, a FIXED spacing
+ * constant that ignored each type's real card height) and a FIXED
+ * `GROUP_HOP2_GAP`, so a lane with many hop-1 cards (e.g. PHONE/SIM/DEVICE)
+ * could stack taller than the fixed gap assumed, and hop-2 cards in EVERY
+ * lane — including short ones — started at the same too-early Y, colliding
+ * with the tall lane's still-in-progress hop-1 stack. `planGroupByHopLayout`
+ * (the BY_DEPTH view) already computed hop-2 Y correctly from the ACTUAL
+ * maximum hop-1 bottom across all lanes; this function now applies the same
+ * discipline: real per-type card heights via graphLayoutCardSize (never a
+ * flat LANE_NODE_SPACING), and one shared hop2StartY derived from
+ * max(every lane's real hop-1 bottom) + HOP_SAFE_BAND_GAP — never a fixed
+ * constant, never a guessed row count.
  */
 const LANE_WIDTH = 380;
-const LANE_NODE_SPACING = 172;
 const GROUP_FOCUS_Y = 0;
 const GROUP_HOP1_Y = 360;
-const GROUP_HOP2_GAP = 200;
 const GROUP_LANE_HEADER_OFFSET = 112;
 const GROUP_LANE_HEADER_CENTER_X = 110;
 
@@ -318,20 +331,44 @@ function planGroupByTypeLayout(
     positions.set(focusId, { x: 0, y: GROUP_FOCUS_Y });
   }
 
+  // Pass 1: place every hop-1 card using its type's REAL height (not a flat
+  // spacing constant), and track the ACTUAL bottom edge each lane reaches —
+  // the same "measure, don't guess" principle planGroupByHopLayout already
+  // uses for its hop1Bottom.
+  let maxHop1Bottom = GROUP_HOP1_Y;
+  const hop1ByType = new Map<LayoutNodeType, string[]>();
+  const hop2ByType = new Map<LayoutNodeType, string[]>();
   occupied.forEach((type, typeIndex) => {
     const ids = (byType.get(type) ?? []).sort();
     const hop1 = ids.filter((id) => (distance.get(id) ?? 1) <= 1);
     const hop2 = ids.filter((id) => (distance.get(id) ?? 1) >= 2);
+    hop1ByType.set(type, hop1);
+    hop2ByType.set(type, hop2);
     const x = (typeIndex - (occupied.length - 1) / 2) * LANE_WIDTH;
+    const step = hopNeighborStep(type);
+    const cardHeight = graphLayoutCardSize(type).height;
     hop1.forEach((id, index) => {
-      positions.set(id, { x, y: GROUP_HOP1_Y + index * LANE_NODE_SPACING });
+      positions.set(id, { x, y: GROUP_HOP1_Y + index * step });
     });
+    if (hop1.length > 0) {
+      const laneBottom = GROUP_HOP1_Y + (hop1.length - 1) * step + cardHeight;
+      maxHop1Bottom = Math.max(maxHop1Bottom, laneBottom);
+    }
+  });
+
+  // Pass 2: hop-2 cards in every lane start from the SAME shared Y —
+  // max(every lane's real hop-1 bottom) + the canonical safe gap — never a
+  // fixed constant, never a per-lane-local guess.
+  const hop2StartY = maxHop1Bottom + HOP_SAFE_BAND_GAP;
+  occupied.forEach((type, typeIndex) => {
+    const hop1 = hop1ByType.get(type) ?? [];
+    const hop2 = hop2ByType.get(type) ?? [];
+    const x = (typeIndex - (occupied.length - 1) / 2) * LANE_WIDTH;
+    const step = hopNeighborStep(type);
     hop2.forEach((id, index) => {
-      positions.set(id, {
-        x,
-        y: GROUP_HOP1_Y + hop1.length * LANE_NODE_SPACING + GROUP_HOP2_GAP + index * LANE_NODE_SPACING,
-      });
+      positions.set(id, { x, y: hop2StartY + index * step });
     });
+    const ids = [...hop1, ...hop2];
     lanes.push({
       type,
       x: x + GROUP_LANE_HEADER_CENTER_X,
@@ -571,6 +608,59 @@ export function collectGroupByHopLayoutRects(
   const hop2BandTop = hop2Band ? hop2Band.y : hop1Bottom + HOP_SAFE_BAND_GAP;
 
   return { cardRects, bandHeaderRects, typeHeaderRects, hop1Bottom, hop2BandTop };
+}
+
+const GROUP_LANE_HEADER_WIDTH = 220;
+const GROUP_LANE_HEADER_HEIGHT = 24;
+
+/**
+ * Deterministic bounding boxes for GROUP_BY_TYPE collision tests — the
+ * layout used for Depth-2 FULL_NETWORK / restored-full-network view
+ * (visual-review hotfix). Mirrors collectGroupByHopLayoutRects's shape so
+ * the same anyLayoutRectsCollide/layoutRectsOverlap helpers apply to both.
+ */
+export function collectGroupByTypeLayoutRects(
+  focusId: string,
+  nodes: LayoutNodeInput[],
+  edges: LayoutEdgeInput[] = [],
+): {
+  cardRects: LayoutRect[];
+  laneHeaderRects: LayoutRect[];
+  hop1Bottom: number;
+  hop2StartY: number;
+} {
+  const plan = planGroupByTypeLayout(focusId, nodes, edges);
+  const distance = bfsDistances(focusId, nodes, edges);
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const cardRects: LayoutRect[] = [];
+  for (const [id, position] of plan.positions) {
+    const node = byId.get(id);
+    if (!node) continue;
+    const size = graphLayoutCardSize(node.type, id === focusId);
+    cardRects.push({ id, x: position.x, y: position.y, width: size.width, height: size.height });
+  }
+
+  const laneHeaderRects: LayoutRect[] = plan.lanes.map((lane) => ({
+    id: `lane-${lane.type}`,
+    x: lane.x - GROUP_LANE_HEADER_WIDTH / 2,
+    y: lane.y - GROUP_LANE_HEADER_HEIGHT / 2,
+    width: GROUP_LANE_HEADER_WIDTH,
+    height: GROUP_LANE_HEADER_HEIGHT,
+  }));
+
+  const hop1Cards = cardRects.filter((rect) => {
+    const hop = distance.get(rect.id);
+    return rect.id !== focusId && hop === 1;
+  });
+  const hop1Bottom =
+    hop1Cards.length > 0 ? Math.max(...hop1Cards.map((rect) => rect.y + rect.height)) : GROUP_HOP1_Y;
+  const hop2Cards = cardRects.filter((rect) => {
+    const hop = distance.get(rect.id);
+    return rect.id !== focusId && hop != null && hop >= 2;
+  });
+  const hop2StartY = hop2Cards.length > 0 ? Math.min(...hop2Cards.map((rect) => rect.y)) : hop1Bottom + HOP_SAFE_BAND_GAP;
+
+  return { cardRects, laneHeaderRects, hop1Bottom, hop2StartY };
 }
 
 /** True when any pair of rectangles intersects (optional positive gap = required clearance). */
