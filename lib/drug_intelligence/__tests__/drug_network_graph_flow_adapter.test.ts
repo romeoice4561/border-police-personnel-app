@@ -37,7 +37,7 @@ function neighborhood(): DrugGraphNeighborhoodResponse {
         label: "CASE-1",
         secondaryLabel: null,
         maskedLabel: null,
-        metadata: { type: "CASE", caseNumber: "CASE-1", status: "OPEN", arrestDate: null, province: null, reportingUnitText: null },
+        metadata: { type: "CASE", caseNumber: "CASE-1", status: "OPEN", arrestDate: null, arrestTime: null, province: null, reportingUnitText: null },
         firstSeenAt: null,
         lastSeenAt: null,
         caseCount: 1,

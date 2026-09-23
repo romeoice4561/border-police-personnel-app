@@ -52,11 +52,11 @@ function neighborhood(): DrugGraphNeighborhoodResponse {
     truncated: false,
     nodes: [
       node("p1", "PERSON", "นายทดสอบ", { secondaryLabel: "ก้อง", caseCount: 3 }),
-      node("c1", "CASE", "DI-A", { metadata: { type: "CASE", caseNumber: "DI-A", status: "OPEN", arrestDate: null, province: null, reportingUnitText: null } }),
-      node("c2", "CASE", "DI-B", { metadata: { type: "CASE", caseNumber: "DI-B", status: "OPEN", arrestDate: null, province: null, reportingUnitText: null } }),
+      node("c1", "CASE", "DI-A", { metadata: { type: "CASE", caseNumber: "DI-A", status: "OPEN", arrestDate: null, arrestTime: null, province: null, reportingUnitText: null } }),
+      node("c2", "CASE", "DI-B", { metadata: { type: "CASE", caseNumber: "DI-B", status: "OPEN", arrestDate: null, arrestTime: null, province: null, reportingUnitText: null } }),
       node("ph1", "PHONE", "66900001001", { metadata: { type: "PHONE", carrier: null }, caseCount: 2 }),
       node("sim1", "SIM", "89000000000000000001", { metadata: { type: "SIM", imsi: null, carrier: null } }),
-      node("c5", "CASE", "CASE005", { metadata: { type: "CASE", caseNumber: "CASE005", status: "OPEN", arrestDate: null, province: null, reportingUnitText: null } }),
+      node("c5", "CASE", "CASE005", { metadata: { type: "CASE", caseNumber: "CASE005", status: "OPEN", arrestDate: null, arrestTime: null, province: null, reportingUnitText: null } }),
     ],
     edges: [
       {

@@ -142,7 +142,7 @@ export function sampleLiveGraph(overrides?: { dropDirect?: boolean; dropInferred
     label: "คดี-001",
     secondaryLabel: null,
     maskedLabel: null,
-    metadata: { type: "CASE", caseNumber: "คดี-001", status: "OPEN", arrestDate: null, province: "ชุมพร", reportingUnitText: null },
+    metadata: { type: "CASE", caseNumber: "คดี-001", status: "OPEN", arrestDate: null, arrestTime: null, province: "ชุมพร", reportingUnitText: null },
     firstSeenAt: null,
     lastSeenAt: null,
     caseCount: 1,

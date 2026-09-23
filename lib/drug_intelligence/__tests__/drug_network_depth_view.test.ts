@@ -43,7 +43,7 @@ function node(
     maskedLabel: null,
     metadata:
       type === "CASE"
-        ? { type: "CASE", caseNumber: label, status: "OPEN", arrestDate: null, province: null, reportingUnitText: null }
+        ? { type: "CASE", caseNumber: label, status: "OPEN", arrestDate: null, arrestTime: null, province: null, reportingUnitText: null }
         : type === "VEHICLE"
           ? { type: "VEHICLE", registrationProvince: null, brand: null, model: null, color: null }
           : type === "SIM"

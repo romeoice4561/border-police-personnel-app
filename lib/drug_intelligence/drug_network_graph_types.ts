@@ -51,7 +51,7 @@ export type DrugGraphNodeMetadata =
   | { type: "SIM"; imsi: string | null; carrier: string | null }
   | { type: "DEVICE"; brand: string | null; model: string | null }
   | { type: "VEHICLE"; registrationProvince: string | null; brand: string | null; model: string | null; color: string | null }
-  | { type: "CASE"; caseNumber: string; status: string; arrestDate: Date | null; province: string | null; reportingUnitText: string | null }
+  | { type: "CASE"; caseNumber: string; status: string; arrestDate: Date | null; arrestTime: string | null; province: string | null; reportingUnitText: string | null }
   | { type: "LOCATION"; province: string | null; district: string | null };
 
 export type DrugGraphEdgeKind = "DIRECT" | "INFERRED";

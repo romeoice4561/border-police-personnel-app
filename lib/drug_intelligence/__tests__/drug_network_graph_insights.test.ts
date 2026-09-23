@@ -45,8 +45,13 @@ function node(
   };
 }
 
-function caseNode(id: string, caseNumber: string, arrestDate: string | null): DrugGraphNeighborhoodResponse["nodes"][number] {
-  return node(id, "CASE", caseNumber, { caseNumber, status: "OPEN", arrestDate, province: null, reportingUnitText: null });
+function caseNode(
+  id: string,
+  caseNumber: string,
+  arrestDate: string | null,
+  arrestTime: string | null = null,
+): DrugGraphNeighborhoodResponse["nodes"][number] {
+  return node(id, "CASE", caseNumber, { caseNumber, status: "OPEN", arrestDate, arrestTime, province: null, reportingUnitText: null });
 }
 
 function edge(

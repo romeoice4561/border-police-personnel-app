@@ -60,6 +60,7 @@ function caseNode(id: string, label: string, extra?: Partial<Extract<DrugGraphNo
       caseNumber: label,
       status: "OPEN",
       arrestDate: extra?.arrestDate ?? null,
+      arrestTime: extra?.arrestTime ?? null,
       province: extra?.province ?? null,
       reportingUnitText: extra?.reportingUnitText ?? null,
     },

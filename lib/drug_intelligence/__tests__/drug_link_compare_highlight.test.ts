@@ -62,7 +62,7 @@ function graphNode(id: string, type: DrugGraphNode["type"], label: string): Drug
       type === "PERSON"
         ? { type: "PERSON", status: "ACTIVE", canonicalTarget: null, hasPotentialDuplicate: false }
         : type === "CASE"
-          ? { type: "CASE", caseNumber: label, status: "OPEN", arrestDate: null, province: null, reportingUnitText: null }
+          ? { type: "CASE", caseNumber: label, status: "OPEN", arrestDate: null, arrestTime: null, province: null, reportingUnitText: null }
           : type === "VEHICLE"
             ? { type: "VEHICLE", registrationProvince: null, brand: null, model: null, color: null }
             : type === "PHONE"

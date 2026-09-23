@@ -93,6 +93,7 @@ function caseNode(id: string, label: string): DrugGraphNode {
       caseNumber: label,
       status: "OPEN",
       arrestDate: null,
+      arrestTime: null,
       province: null,
       reportingUnitText: null,
     },

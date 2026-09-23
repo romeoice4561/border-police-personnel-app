@@ -899,6 +899,13 @@ export class DrugNetworkGraphService {
         caseNumber: drugCase.caseNumber,
         status: drugCase.status,
         arrestDate: drugCase.arrestDate,
+        // DI-8.7 V1.5A: narrow read-model extension — DrugCase.arrestTime
+        // already exists in the canonical schema (prisma/schema.prisma:1498)
+        // and was already being fetched on every `drugCase` row; this is a
+        // pure pass-through, never a fallback. Missing arrestTime stays
+        // `null` here exactly as it is in the DB — NEVER "00:00" or any
+        // other invented default (see drug_map_temporal.ts's canonical rule).
+        arrestTime: drugCase.arrestTime,
         province: drugCase.province,
         reportingUnitText: drugCase.reportingUnitText,
       },

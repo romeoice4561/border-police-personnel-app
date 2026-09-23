@@ -1141,7 +1141,7 @@ export type DrugGraphNodeMetadata =
   | { type: "SIM"; imsi: string | null; carrier: string | null }
   | { type: "DEVICE"; brand: string | null; model: string | null }
   | { type: "VEHICLE"; registrationProvince: string | null; brand: string | null; model: string | null; color: string | null }
-  | { type: "CASE"; caseNumber: string; status: string; arrestDate: string | null; province: string | null; reportingUnitText: string | null }
+  | { type: "CASE"; caseNumber: string; status: string; arrestDate: string | null; arrestTime: string | null; province: string | null; reportingUnitText: string | null }
   | { type: "LOCATION"; province: string | null; district: string | null };
 
 export interface DrugGraphNode {

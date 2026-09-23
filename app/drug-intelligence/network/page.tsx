@@ -99,6 +99,7 @@ import {
   Bookmark,
   Save,
   FileText,
+  Clock,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/page_header";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
@@ -145,6 +146,7 @@ import { DrugNetworkSaveAsBoardDialog } from "@/components/drug_intelligence/dru
 import { DrugNetworkBoardConflictDialog } from "@/components/drug_intelligence/drug_network_board_conflict_dialog";
 import { DrugNetworkBoardConfirmDialog } from "@/components/drug_intelligence/drug_network_board_confirm_dialog";
 import { DrugInvestigationBoardReportDrawer } from "@/components/drug_intelligence/drug_investigation_board_report_drawer";
+import { DrugTemporalExplorerPanel } from "@/components/drug_intelligence/drug_temporal_explorer_panel";
 import type { InvestigationBoardAnnotationType } from "@/lib/drug_intelligence/drug_export_network_context";
 import {
   annotationsFromPersisted,
@@ -786,6 +788,10 @@ function DrugNetworkContent() {
   );
   const [showLegend, setShowLegend] = useState(false);
   const [showFindConnection, setShowFindConnection] = useState(false);
+  // DI-8.7 V1.5A — Temporal Explorer / Crime Clock toggle. Same inline-panel
+  // pattern as showFindConnection: local UI state only, no URL persistence,
+  // no refetch. See components/drug_intelligence/drug_temporal_explorer_panel.tsx.
+  const [showTemporalExplorer, setShowTemporalExplorer] = useState(false);
   const [pathFrom, setPathFrom] = useState<DrugNetworkEntitySelection | null>(null);
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
@@ -2625,6 +2631,15 @@ function DrugNetworkContent() {
               <GitCompare className="h-4 w-4" aria-hidden="true" />
               {t("di.network.findConnection")}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTemporalExplorer((v) => !v)}
+              data-testid="temporal-explorer-toggle"
+            >
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              {t("di.temporal.openAction")}
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link
                 href={withReturnTo("/drug-intelligence/network/compare", currentNetworkHref)}
@@ -2945,6 +2960,10 @@ function DrugNetworkContent() {
                 ) : null}
               </CardBody>
             </Card>
+          ) : null}
+
+          {showTemporalExplorer && neighborhood.data ? (
+            <DrugTemporalExplorerPanel neighborhood={neighborhood.data} returnPath={currentNetworkHref} />
           ) : null}
 
           <Card>
