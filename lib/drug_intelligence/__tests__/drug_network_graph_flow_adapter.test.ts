@@ -440,6 +440,8 @@ function flowNode(id: string, position: { x: number; y: number }): FlowNode {
       hopDistance: 0,
       isShared: false,
       onSelectedPath: false,
+      temporalFocused: false,
+      temporalContextDimmed: false,
       showHopBadge: false,
       stronglyDimmed: false,
       pathViaHint: null,

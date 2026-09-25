@@ -38,15 +38,18 @@ import { ThaiDatePicker, THAI_EXPIRY_YEAR_BE_MIN, THAI_EXPIRY_YEAR_BE_MAX } from
 import {
   ISO_WEEKDAYS,
   ISO_WEEKDAY_SHORT_TH,
-  type IsoWeekday,
 } from "@/lib/drug_intelligence/drug_map_temporal";
 import {
   type TemporalCaseRecord,
   type TemporalSelection,
+  type TemporalGraphFocus,
   emptyTemporalSelection,
   isTimeFilterActive,
   computeTemporalSelectionResult,
   computeTopHourlyBuckets,
+  computeTemporalGraphFocus,
+  isEffectiveTemporalNarrowing,
+  composeTemporalSelectionLabel,
 } from "@/lib/drug_intelligence/drug_temporal_explorer";
 import { formatThaiCompactDate, formatThaiClockLabel } from "@/lib/drug_intelligence/di_date_helpers";
 import { drugEntityDetailHref } from "@/lib/drug_intelligence/drug_entity_routes";
@@ -100,22 +103,39 @@ function computeEntitySummaryForCases(
   };
 }
 
-const ISO_WEEKDAY_FULL_TH: Record<IsoWeekday, string> = {
-  1: "จันทร์", 2: "อังคาร", 3: "พุธ", 4: "พฤหัสบดี", 5: "ศุกร์", 6: "เสาร์", 7: "อาทิตย์",
-};
-
 export function DrugTemporalExplorerPanel({
   neighborhood,
   returnPath,
   className,
+  selection: controlledSelection,
+  onSelectionChange,
+  onViewOnGraph,
 }: {
   neighborhood: DrugGraphNeighborhoodResponse;
   /** Navigation-only return path for case-detail / timeline links. */
   returnPath?: string | null;
   className?: string;
+  /**
+   * DI-8.7 V1.5B — optional controlled TemporalSelection. The Network
+   * page lifts this state up so it survives the panel being
+   * collapsed/reopened via "กลับไปนาฬิกา" (Section 15: the previous
+   * selection must be preserved, never reset). When omitted, the panel
+   * falls back to fully local state (its original V1.5A/hotfix-2
+   * behavior), which existing tests/usages keep working unchanged.
+   */
+  selection?: TemporalSelection;
+  onSelectionChange?: (next: TemporalSelection) => void;
+  /** "ดูบนผัง" — passes a real, already-derived TemporalGraphFocus up to the page's existing graph-focus/camera mechanism. Never called with a null focus (the action is disabled/hidden in that case). */
+  onViewOnGraph?: (focus: TemporalGraphFocus) => void;
 }) {
   const { t } = useT();
-  const [selection, setSelection] = useState<TemporalSelection>(emptyTemporalSelection());
+  const [localSelection, setLocalSelection] = useState<TemporalSelection>(emptyTemporalSelection());
+  const selection = controlledSelection ?? localSelection;
+  const setSelection = (updater: TemporalSelection | ((prev: TemporalSelection) => TemporalSelection)) => {
+    const next = typeof updater === "function" ? (updater as (prev: TemporalSelection) => TemporalSelection)(selection) : updater;
+    if (onSelectionChange) onSelectionChange(next);
+    else setLocalSelection(next);
+  };
 
   const cases = useMemo(() => extractTemporalCasesFromNeighborhood(neighborhood), [neighborhood]);
   const result = useMemo(() => computeTemporalSelectionResult(cases, selection), [cases, selection]);
@@ -133,23 +153,27 @@ export function DrugTemporalExplorerPanel({
 
   const timeActive = isTimeFilterActive(selection);
 
-  function selectedRangeTimeLabel(): string | null {
-    if (!timeActive || selection.startMinute == null || selection.endMinute == null) return null;
-    const startH = String(Math.floor(selection.startMinute / 60)).padStart(2, "0");
-    const startM = String(selection.startMinute % 60).padStart(2, "0");
-    const endMinuteDisplay = selection.endMinute === 24 * 60 ? 0 : selection.endMinute;
-    const endH = String(Math.floor(endMinuteDisplay / 60)).padStart(2, "0");
-    const endM = String(endMinuteDisplay % 60).padStart(2, "0");
-    return `${startH}:${startM}–${endH}:${endM} น.`;
+  /** The ONE shared label composer (drug_temporal_explorer.ts) — also used by the Network page when reconstructing temporal focus from a "กลับไปดูคดีตามช่วงเวลา" returnTo, so the banner text is identical either way. */
+  function selectedRangeLabel(): string {
+    return composeTemporalSelectionLabel(selection, t, formatThaiCompactDate);
   }
 
-  function selectedRangeLabel(): string {
-    const parts: string[] = [];
-    if (selection.weekday != null) parts.push(`วัน${ISO_WEEKDAY_FULL_TH[selection.weekday]}`);
-    const timeLabel = selectedRangeTimeLabel();
-    if (timeLabel) parts.push(timeLabel);
-    return parts.length > 0 ? parts.join(" / ") : t("di.temporal.selectedRangeNone");
-  }
+  // DI-8.7 V1.5B — "ดูบนผัง" availability (Section 10/11):
+  //   - zero matching cases -> disabled (never activates an empty focus)
+  //   - selection has no effective narrowing (fully empty filter) ->
+  //     disabled ("กำลังแสดงข้อมูลทั้งหมดอยู่แล้ว" — a temporal focus
+  //     that is just the whole loaded case set is pointless)
+  const graphFocus = useMemo(() => {
+    if (!isEffectiveTemporalNarrowing(selection)) return null;
+    return computeTemporalGraphFocus({
+      nodes: neighborhood.nodes,
+      edges: neighborhood.edges,
+      matchingCaseIds: result.matchingCaseIds,
+      selectionLabel: selectedRangeLabel(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, neighborhood.nodes, neighborhood.edges, result.matchingCaseIds]);
+  const canViewOnGraph = Boolean(onViewOnGraph) && graphFocus != null;
 
   // ── Synchronized start/end HH:MM selects — same TemporalSelection ──
   const startHourValue = selection.startMinute != null ? Math.floor(selection.startMinute / 60) : null;
@@ -329,7 +353,36 @@ export function DrugTemporalExplorerPanel({
               <p className="text-xs text-muted" data-testid="temporal-matching-count-base">
                 {t("di.temporal.selectedRangeCoverageLine").replace("{withTime}", String(result.coverage.withTime))}
               </p>
+              {result.matchingCaseCount === 0 ? (
+                <p className="mt-2 text-xs text-muted" data-testid="temporal-zero-match-note">
+                  {t("di.temporal.zeroMatchNote")}
+                </p>
+              ) : !isEffectiveTemporalNarrowing(selection) ? (
+                <p className="mt-2 text-xs text-muted" data-testid="temporal-all-data-note">
+                  {t("di.temporal.allDataNote")}
+                </p>
+              ) : null}
               <div className="mt-2 flex flex-wrap gap-2">
+                {onViewOnGraph ? (
+                  <button
+                    type="button"
+                    className="rounded-lg bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-fg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => {
+                      if (graphFocus) onViewOnGraph(graphFocus);
+                    }}
+                    disabled={!canViewOnGraph}
+                    data-testid="temporal-action-view-on-graph"
+                    title={
+                      result.matchingCaseCount === 0
+                        ? t("di.temporal.zeroMatchNote")
+                        : !isEffectiveTemporalNarrowing(selection)
+                          ? t("di.temporal.allDataNote")
+                          : undefined
+                    }
+                  >
+                    {t("di.temporal.actionViewOnGraph")}
+                  </button>
+                ) : null}
                 <a
                   href="#temporal-results-table-anchor"
                   className="rounded-lg border border-border bg-neutral-bg px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-surface"

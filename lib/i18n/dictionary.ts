@@ -3624,6 +3624,16 @@ export const DICTIONARY = {
   "di.temporal.colAction": tr("รายละเอียด", "Details"),
   "di.temporal.actionViewDetail": tr("ดูรายละเอียด", "View"),
 
+  // DI-8.7 V1.5B — Temporal Cross-View Intelligence (Crime Clock -> Network Graph)
+  "di.temporal.actionViewOnGraph": tr("ดูบนผัง", "View on graph"),
+  "di.temporal.backToTemporalFocus": tr("กลับไปดูคดีตามช่วงเวลา", "Back to cases in this time range"),
+  "di.temporal.zeroMatchNote": tr("ไม่พบคดีในช่วงที่เลือก", "No cases found in the selected range"),
+  "di.temporal.allDataNote": tr("กำลังแสดงข้อมูลทั้งหมดอยู่แล้ว", "Already showing the full loaded dataset"),
+  "di.temporal.bannerTitle": tr("กำลังแสดงคดีตามช่วงเวลาที่เลือก", "Showing cases for the selected time range"),
+  "di.temporal.bannerCaseCount": tr("{count} คดี", "{count} cases"),
+  "di.temporal.actionBackToClock": tr("กลับไปนาฬิกา", "Back to Crime Clock"),
+  "di.temporal.actionFullNetwork": tr("ดูทั้งเครือข่าย", "View full network"),
+
   // DI-9.5C — Saved Investigation Board workspace
   "di.board.savedBoards": tr("บอร์ดที่บันทึกไว้", "Saved boards"),
   "di.board.saveAs": tr("บันทึกเป็นบอร์ด", "Save as board"),

@@ -31,6 +31,7 @@ import {
   CARD_GRAPH_SECONDARY_OPACITY,
   CARD_GRAPH_SECONDARY_STROKE,
   CARD_GRAPH_SELECTED_INCIDENT_STROKE,
+  CARD_GRAPH_TEMPORAL_CONTEXT_OPACITY,
   CARD_GRAPH_UNRELATED_OPACITY,
   EDGE_LABEL_BG_PADDING,
   EDGE_SMOOTHSTEP_BASE_OFFSET,
@@ -74,6 +75,23 @@ export interface DrugNetworkFlowNodeData extends Record<string, unknown> {
   isShared: boolean;
   /** True when this node sits on the highlighted path from focus to the selected secondary node. */
   onSelectedPath: boolean;
+  /**
+   * DI-8.7 V1.5B VISUAL HOTFIX — true specifically when this node is inside
+   * an active presentationFocus set (the Crime Clock's "ดูบนผัง"), never
+   * for ordinary DI-8.4 selected-path/compare emphasis. Kept distinct from
+   * onSelectedPath so the node renderer can give temporal focus its OWN,
+   * visually stronger accent ring — onSelectedPath's existing ring-1
+   * accent/40 tier was too subtle for the "obvious within ~2 seconds"
+   * requirement this hotfix addresses. Presentation only.
+   */
+  temporalFocused: boolean;
+  /**
+   * True when a presentationFocus IS active but this node is NOT part of
+   * it — drives the much stronger CARD_GRAPH_TEMPORAL_CONTEXT_OPACITY tier
+   * (see drug_network_graph_readability.ts), distinct from the existing
+   * stronglyDimmed tier shared with DI-8.4 path/insight focus.
+   */
+  temporalContextDimmed: boolean;
   /** Depth-2 hop chip. Never shown on the focus node. */
   showHopBadge: boolean;
   /** Stronger isolation dimming for selected-path view. */
@@ -171,6 +189,23 @@ export interface BuildFlowGraphOptions {
   emphasizeSelectedPath?: boolean;
   /** Optional explicit path (for multi-path switching). Falls back to shortest undirected. */
   emphasizedPath?: { nodeIds: string[]; edgeIds: string[] } | null;
+  /**
+   * DI-8.7 V1.5B VISUAL HOTFIX — presentation-only emphasis/dimming from a
+   * real, already-loaded node/edge id set, WITHOUT requiring a selected
+   * secondary node. Every prior emphasis path (emphasizedPath,
+   * compareHighlight, selectedGraphEdge, …) is gated behind
+   * `selectedIsSecondary`/`selectedNodeId`/`selectedEdgeId` — a real canvas
+   * selection. presentationFocus is the one exception: it drives the exact
+   * same pathNodeIds/pathEdgeIds/dimming machinery those paths already use,
+   * but activates purely from this prop, so a system-driven focus (e.g. the
+   * Crime Clock's "ดูบนผัง") never has to fabricate a fake node selection
+   * just to get dimming. It NEVER affects topology, node/edge inclusion,
+   * hop classification, or DIRECT/PATH/INFERRED semantics — presentation
+   * (opacity/stroke) only, exactly like every other emphasis path here.
+   * Ignored while a real canvas selection (selectedNodeId/selectedEdgeId) is
+   * present, so an explicit user click always wins — see Section 6/7.
+   */
+  presentationFocus?: { nodeIds: readonly string[]; edgeIds: readonly string[] } | null;
   /** Compact via hints keyed by node id (selected node only typically). */
   pathViaHints?: ReadonlyMap<string, string>;
   pathViaMoreCount?: number;
@@ -201,6 +236,8 @@ function cardGraphEdgeAppearance(args: {
   focusDirect: boolean;
   hasCanvasSelection: boolean;
   incidentEmphasis: boolean;
+  /** DI-8.7 V1.5B VISUAL HOTFIX — presentation focus gets its OWN, much stronger context-dim tier than ordinary path/insight isolation (Section 2.D). */
+  hasPresentationFocus?: boolean;
 }): { opacity: number; strokeWidth: number } {
   if (args.compareEmphasize) {
     return {
@@ -210,6 +247,12 @@ function cardGraphEdgeAppearance(args: {
   }
   if (args.compareHighlight) {
     return { opacity: 1, strokeWidth: 1.5 };
+  }
+  if (args.hasPresentationFocus) {
+    return {
+      opacity: args.edgeDimmed ? CARD_GRAPH_TEMPORAL_CONTEXT_OPACITY : 1,
+      strokeWidth: args.onPath ? COMPARE_HIGHLIGHT_PATH_STROKE_WIDTH : 1.25,
+    };
   }
   if (args.isolatePathVisuals) {
     return {
@@ -275,13 +318,20 @@ export function buildDrugNetworkFlowGraph(
   const focusId = neighborhood.focus.entityId;
   const selectedGraphEdge = selectedEdgeId ? neighborhood.edges.find((edge) => edge.id === selectedEdgeId) ?? null : null;
   const selectedIsSecondary = Boolean(selectedNodeId && selectedNodeId !== focusId);
+  const hasCanvasSelection = Boolean(selectedNodeId || selectedEdgeId);
   const compareHighlight = options.compareHighlight ?? null;
   const compareEmphasize = Boolean(compareHighlight && options.compareHighlightEmphasize !== false);
   const compareInspectSlot = options.compareInspectSlot ?? null;
   const arrangementIsolatesPath = arrangement === "VERTICAL_PATH" || Boolean(options.isolateSelectedPath);
   const emphasizeSelectedPath = Boolean(options.emphasizeSelectedPath) && selectedIsSecondary;
+  // DI-8.7 V1.5B VISUAL HOTFIX: a real canvas selection always takes
+  // precedence — presentationFocus only activates when NOTHING is
+  // selected, so an explicit user click on a node/edge (Section 6/7) is
+  // never overridden by a lingering system-driven focus.
+  const presentationFocus = !hasCanvasSelection && !compareHighlight ? options.presentationFocus ?? null : null;
+  const hasPresentationFocus = Boolean(presentationFocus && presentationFocus.nodeIds.length > 0);
   const isolatePathVisuals = Boolean(
-    compareEmphasize || arrangementIsolatesPath || selectedGraphEdge || emphasizeSelectedPath,
+    compareEmphasize || arrangementIsolatesPath || selectedGraphEdge || emphasizeSelectedPath || hasPresentationFocus,
   );
   const selectedPath =
     !compareHighlight && selectedIsSecondary && selectedNodeId
@@ -294,25 +344,28 @@ export function buildDrugNetworkFlowGraph(
     : null;
   const pathNodeIds = comparePathIds
     ? comparePathIds
-    : selectedGraphEdge
-      ? new Set([selectedGraphEdge.source, selectedGraphEdge.target])
-      : isolatePathVisuals && selectedPath
-        ? new Set(selectedPath.nodeIds)
-        : null;
+    : hasPresentationFocus
+      ? new Set(presentationFocus!.nodeIds)
+      : selectedGraphEdge
+        ? new Set([selectedGraphEdge.source, selectedGraphEdge.target])
+        : isolatePathVisuals && selectedPath
+          ? new Set(selectedPath.nodeIds)
+          : null;
   const pathEdgeIds = comparePathIds
     ? new Set(
         neighborhood.edges.filter((edge) => isFactualComparePathEdge(edge, comparePathIds)).map((edge) => edge.id)
       )
-    : selectedGraphEdge
-      ? new Set([selectedGraphEdge.id])
-      : isolatePathVisuals && selectedPath
-        ? new Set(selectedPath.edgeIds)
-        : null;
+    : hasPresentationFocus
+      ? new Set(presentationFocus!.edgeIds)
+      : selectedGraphEdge
+        ? new Set([selectedGraphEdge.id])
+        : isolatePathVisuals && selectedPath
+          ? new Set(selectedPath.edgeIds)
+          : null;
   const neighborIds =
     !compareHighlight && !isolatePathVisuals && !selectedGraphEdge && selectedIsSecondary && selectedNodeId
       ? connectedNodeIds(selectedNodeId, neighborhood.edges)
       : null;
-  const hasCanvasSelection = Boolean(selectedNodeId || selectedEdgeId);
   const viaHints = options.pathViaHints ?? null;
   const viaMore = options.pathViaMoreCount ?? 0;
 
@@ -344,11 +397,13 @@ export function buildDrugNetworkFlowGraph(
         hopDistance,
         isShared: isSharedEntity(n, isFocus),
         onSelectedPath: pathNodeIds ? pathNodeIds.has(n.id) : Boolean(selectedPath?.nodeIds.includes(n.id)),
+        temporalFocused: hasPresentationFocus && Boolean(pathNodeIds?.has(n.id)),
+        temporalContextDimmed: hasPresentationFocus && !pathNodeIds?.has(n.id),
         showHopBadge: Boolean(options.showHopBadges) && !isFocus && hopDistance >= 1,
         stronglyDimmed:
           compareClass
             ? compareClass.role === "context"
-            : Boolean(options.isolateSelectedPath || emphasizeSelectedPath) && dimmed,
+            : Boolean(options.isolateSelectedPath || emphasizeSelectedPath || hasPresentationFocus) && dimmed,
         pathViaHint: hopDistance >= 2 ? viaHints?.get(n.id) ?? null : null,
         pathViaMoreCount:
           selectedNodeId && n.id === selectedNodeId && viaMore > 0 ? viaMore : 0,
@@ -473,12 +528,13 @@ export function buildDrugNetworkFlowGraph(
       compareHighlight: Boolean(compareHighlight),
       compareEmphasize,
       isolatePathVisuals,
-      isolateSelectedPath: Boolean(options.isolateSelectedPath || emphasizeSelectedPath),
+      isolateSelectedPath: Boolean(options.isolateSelectedPath || emphasizeSelectedPath || hasPresentationFocus),
       onPath,
       edgeDimmed,
       focusDirect,
       hasCanvasSelection,
       incidentEmphasis,
+      hasPresentationFocus,
     });
     // DI-9.3 Section 6/13: an edge only ever switches to the custom routed
     // renderer once it has a non-AUTO route WITH at least one waypoint —

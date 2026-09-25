@@ -14,8 +14,25 @@ export function isLinkCompareReturnTo(returnTo: string | null | undefined): bool
   return returnToPathname(returnTo) === "/drug-intelligence/network/compare";
 }
 
+/**
+ * DI-8.7 V1.5B VISUAL HOTFIX (Section 6/7) — true only when returnTo is a
+ * Network URL carrying the temporal-focus restoration flag (`tFocus=1`,
+ * written by temporalAwareReturnPath in app/drug-intelligence/network/
+ * page.tsx). Path-only check, same convention as isLinkCompareReturnTo —
+ * never inspects arbitrary query content beyond this one flag.
+ */
+export function isTemporalFocusReturnTo(returnTo: string | null | undefined): boolean {
+  if (!returnTo) return false;
+  if (returnToPathname(returnTo) !== "/drug-intelligence/network") return false;
+  const queryIndex = returnTo.indexOf("?");
+  if (queryIndex === -1) return false;
+  const params = new URLSearchParams(returnTo.slice(queryIndex + 1));
+  return params.get("tFocus") === "1";
+}
+
 export function returnToBackLabelKey(returnTo: string | null | undefined): TranslationKey {
   if (!returnTo) return "di.map.actionBackToMap";
+  if (isTemporalFocusReturnTo(returnTo)) return "di.temporal.backToTemporalFocus";
   if (isLinkCompareReturnTo(returnTo)) return "di.linkCompare.backToCompare";
   const path = returnTo.toLowerCase();
   if (

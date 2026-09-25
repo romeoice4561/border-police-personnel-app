@@ -660,8 +660,16 @@ test("page-level: 'ดูทั้งเครือข่าย' (FULL_NETWORK)
   const pageSource = readFileSync(networkPageSourcePath, "utf8");
   const idx = pageSource.indexOf('if (mode === "FULL_NETWORK")');
   assert.ok(idx >= 0, "the FULL_NETWORK branch must exist");
-  const nearby = pageSource.slice(idx, idx + 500);
+  // DI-8.7 V1.5B added a symmetric setActiveTemporalFocus(null) clear, and a
+  // later VISUAL HOTFIX round added setLastActiveTemporalReturnSelection(null)
+  // right after it, in this same branch (Crime Clock "ดูบนผัง" reuses this
+  // exact restore action too) — pushing fitView( further from the branch
+  // start each time. Window widened again to still safely stay within this
+  // one FULL_NETWORK branch, not the whole function.
+  const nearby = pageSource.slice(idx, idx + 1200);
   assert.match(nearby, /setActiveInsightFocus\(null\)/);
+  assert.match(nearby, /setActiveTemporalFocus\(null\)/);
+  assert.match(nearby, /setLastActiveTemporalReturnSelection\(null\)/);
   assert.match(nearby, /fitView\(/, "sanity: this is still the existing full-network fitView restore branch");
 });
 

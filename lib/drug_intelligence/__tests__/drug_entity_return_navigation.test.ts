@@ -264,7 +264,14 @@ test("Network drawers attach the live Network href via withReturnTo, not a guess
   const edgeDetail = read("components/drug_intelligence/drug_network_edge_detail.tsx");
   const nodeDetail = read("components/drug_intelligence/drug_network_node_detail.tsx");
   assert.match(networkPage, /currentInternalHref\(pathname, searchParams\)/);
-  assert.match(networkPage, /openReturnPath=\{currentNetworkHref\}/);
+  // DI-8.7 V1.5B VISUAL HOTFIX (2nd round): the Inspector drawers now attach
+  // temporalAwareReturnPath, not currentNetworkHref directly — it derives
+  // from currentNetworkHref (falls back to it exactly) but ALSO carries
+  // temporal-focus context when the user is still "in" the temporal
+  // workflow (see temporalAwareReturnPath / lastActiveTemporalReturnSelection).
+  // Still the same "live Network href, not a guessed root" guarantee.
+  assert.match(networkPage, /const temporalAwareReturnPath = useMemo\(\(\) => \{\s*\n\s*if \(!lastActiveTemporalReturnSelection\) return currentNetworkHref;/);
+  assert.match(networkPage, /openReturnPath=\{temporalAwareReturnPath\}/);
   assert.doesNotMatch(networkPage, /expandFromNode[\s\S]{0,500}returnTo=/);
   assert.match(edgeDetail, /withReturnTo\(href, openReturnPath\)/);
   assert.match(nodeDetail, /withReturnTo\(drugEntityDetailPath\(node\.type, node\.id\), openReturnPath\)/);

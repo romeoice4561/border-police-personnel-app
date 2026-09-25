@@ -13,7 +13,9 @@ import Link from "next/link";
 import { ArrowLeft, Users, Phone, Smartphone, Car, Package, MapPin, MapPinned, Network, History, FileText } from "lucide-react";
 import { DrugCaseReportDrawer } from "@/components/drug_intelligence/drug_case_report_drawer";
 import { getSafeReturnTo, withReturnTo } from "@/lib/ui/return_context";
-import { returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
+import { returnToBackLabelKey, isTemporalFocusReturnTo } from "@/lib/ui/return_to_back_label";
+import { parseTemporalSelectionFromParams, composeTemporalSelectionLabel } from "@/lib/drug_intelligence/drug_temporal_explorer";
+import { formatThaiCompactDate } from "@/lib/drug_intelligence/di_date_helpers";
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -140,47 +142,83 @@ export default function DrugCaseWorkspacePage() {
   const data = detail.data;
   const canViewFull = can("drug.edit");
 
+  // DI-8.7 V1.5B VISUAL HOTFIX (Section 7) — only computed/shown when
+  // returnTo actually carries temporal-focus context (isTemporalFocusReturnTo
+  // is a strict path+flag check); never fabricated for ordinary Network
+  // navigation. The label is derived purely from the real query params
+  // already present in returnTo, via the SAME composer the Crime Clock
+  // panel itself uses — never a second interpretation of the selection.
+  const temporalReturnLabel =
+    returnTo && isTemporalFocusReturnTo(returnTo)
+      ? (() => {
+          const queryIndex = returnTo.indexOf("?");
+          const params = new URLSearchParams(queryIndex === -1 ? "" : returnTo.slice(queryIndex + 1));
+          const selection = parseTemporalSelectionFromParams(params);
+          return composeTemporalSelectionLabel(selection, t, formatThaiCompactDate);
+        })()
+      : null;
+
   const headerActions = (
-    <div className="flex flex-wrap gap-2">
-      {returnTo ? (
-        <Button asChild variant="outline" size="sm" className="min-h-10">
-          <Link href={returnTo} data-testid="back-via-return-to">
-            {t(returnToBackLabelKey(returnTo))}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap gap-2">
+        {returnTo ? (
+          <Button asChild variant="outline" size="sm" className="min-h-10">
+            {/*
+              DI-8.7 V1.5B VISUAL HOTFIX ROUND 4 — prefetch={false} ONLY when
+              returnTo carries temporal-focus restoration context (tFocus=1).
+              Root cause: Next.js <Link> prefetches its destination in the
+              background as soon as it scrolls into view — that background
+              render executed the Network page's request-keyed restoration
+              effect (see shouldAttemptTemporalRestore) and consumed the
+              guard BEFORE the user's real click, so the actual navigation's
+              effect run saw an already-attempted key and skipped
+              restoration entirely. Ordinary (non-temporal) returnTo links
+              keep prefetching as before — this is scoped to exactly the
+              temporal-focus case, never a global prefetch change.
+            */}
+            <Link href={returnTo} data-testid="back-via-return-to" prefetch={isTemporalFocusReturnTo(returnTo) ? false : undefined}>
+              {t(returnToBackLabelKey(returnTo))}
+            </Link>
+          </Button>
+        ) : null}
+        <Button asChild size="sm" data-testid="case-primary-network">
+          <Link href={withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`, returnTo)}>
+            <Network className="h-4 w-4" aria-hidden="true" />
+            {t("di.network.openNetwork")}
           </Link>
         </Button>
-      ) : null}
-      <Button asChild size="sm" data-testid="case-primary-network">
-        <Link href={withReturnTo(`/drug-intelligence/network?focusType=CASE&focusId=${encodeURIComponent(caseId)}`, returnTo)}>
-          <Network className="h-4 w-4" aria-hidden="true" />
-          {t("di.network.openNetwork")}
-        </Link>
-      </Button>
-      <Button asChild variant="outline" size="sm">
-        <Link href={`/drug-intelligence/timeline?caseId=${encodeURIComponent(caseId)}`}>
-          <History className="h-4 w-4" aria-hidden="true" />
-          {t("di.timeline.navLabel")}
-        </Link>
-      </Button>
-      {can("drug.read") ? (
         <Button asChild variant="outline" size="sm">
-          <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
-            <MapPinned className="h-4 w-4" aria-hidden="true" />
-            {t("di.map.actionOpenOnMap")}
+          <Link href={`/drug-intelligence/timeline?caseId=${encodeURIComponent(caseId)}`}>
+            <History className="h-4 w-4" aria-hidden="true" />
+            {t("di.timeline.navLabel")}
           </Link>
         </Button>
-      ) : null}
-      {can("drug.export") ? (
-        <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)} data-testid="case-report-btn">
-          <FileText className="h-4 w-4" aria-hidden="true" />
-          {t("di.export.caseReport")}
+        {can("drug.read") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/drug-intelligence/map?caseId=${encodeURIComponent(caseId)}`}>
+              <MapPinned className="h-4 w-4" aria-hidden="true" />
+              {t("di.map.actionOpenOnMap")}
+            </Link>
+          </Button>
+        ) : null}
+        {can("drug.export") ? (
+          <Button type="button" variant="outline" size="sm" onClick={() => setReportOpen(true)} data-testid="case-report-btn">
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            {t("di.export.caseReport")}
+          </Button>
+        ) : null}
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/drug-intelligence/cases">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t("di.workspace.backToList")}
+          </Link>
         </Button>
+      </div>
+      {temporalReturnLabel ? (
+        <p className="text-xs text-muted" data-testid="temporal-return-context-label">
+          {temporalReturnLabel}
+        </p>
       ) : null}
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/drug-intelligence/cases">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("di.workspace.backToList")}
-        </Link>
-      </Button>
     </div>
   );
 

@@ -147,6 +147,22 @@ import { DrugNetworkBoardConflictDialog } from "@/components/drug_intelligence/d
 import { DrugNetworkBoardConfirmDialog } from "@/components/drug_intelligence/drug_network_board_confirm_dialog";
 import { DrugInvestigationBoardReportDrawer } from "@/components/drug_intelligence/drug_investigation_board_report_drawer";
 import { DrugTemporalExplorerPanel } from "@/components/drug_intelligence/drug_temporal_explorer_panel";
+import {
+  emptyTemporalSelection,
+  serializeTemporalSelectionParams,
+  parseTemporalSelectionFromParams,
+  shouldRestoreTemporalGraphFocus,
+  shouldAttemptTemporalRestore,
+  isEffectiveTemporalNarrowing,
+  isSelectionEmpty,
+  computeTemporalGraphFocus,
+  computeTemporalSelectionResult,
+  composeTemporalSelectionLabel,
+  type TemporalSelection,
+  type TemporalGraphFocus,
+} from "@/lib/drug_intelligence/drug_temporal_explorer";
+import { extractTemporalCasesFromNeighborhood } from "@/components/drug_intelligence/drug_temporal_explorer_panel";
+import { formatThaiCompactDate } from "@/lib/drug_intelligence/di_date_helpers";
 import type { InvestigationBoardAnnotationType } from "@/lib/drug_intelligence/drug_export_network_context";
 import {
   annotationsFromPersisted,
@@ -305,7 +321,7 @@ import {
 import type { DrugNetworkAnnotationNodeData } from "@/components/drug_intelligence/drug_network_annotation_node";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY, DRUG_GRAPH_RELATIONSHIP_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import { formatThaiPersonnelDate, toGregorianDateInputValue } from "@/lib/officer_profile/thai_personnel_date";
-import { getSafeReturnTo, currentInternalHref, withReturnTo } from "@/lib/ui/return_context";
+import { getSafeReturnTo, currentInternalHref, withReturnTo, isSafeInternalReturnPath } from "@/lib/ui/return_context";
 import { isLinkCompareReturnTo, returnToBackLabelKey } from "@/lib/ui/return_to_back_label";
 import type { DrugGraphNode, DrugGraphEdge, DrugGraphNodeType, DrugInvestigationBoardStateClient } from "@/lib/drug_intelligence/drug_intelligence_client";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
@@ -792,6 +808,49 @@ function DrugNetworkContent() {
   // pattern as showFindConnection: local UI state only, no URL persistence,
   // no refetch. See components/drug_intelligence/drug_temporal_explorer_panel.tsx.
   const [showTemporalExplorer, setShowTemporalExplorer] = useState(false);
+  // DI-8.7 V1.5B — the Crime Clock's own TemporalSelection is lifted up here
+  // (rather than living only inside the panel) so it SURVIVES the panel
+  // being collapsed when "ดูบนผัง" is clicked and later restored intact by
+  // "กลับไปนาฬิกา" (Section 15 — never reset unless the user explicitly
+  // clears/resets). Local component state — never written back to the URL
+  // during ordinary use (no URL persistence, no refetch) EXCEPT when
+  // building a temporal-aware returnTo for a case-detail link (see
+  // temporalAwareReturnPath below), so the initial value is seeded once
+  // from the URL on first mount — this is what lets "กลับไปดูคดีตามช่วงเวลา"
+  // (Case Detail -> back to Network) restore the exact same selection.
+  const [temporalSelection, setTemporalSelection] = useState<TemporalSelection>(() =>
+    parseTemporalSelectionFromParams(searchParams)
+  );
+  /**
+   * DI-8.7 V1.5B VISUAL HOTFIX (2nd round) — "last-active temporal return
+   * context." Precedence stays exactly as before: a real user node/edge
+   * selection still clears activeTemporalFocus immediately (Section 6/7 of
+   * the prior hotfix — the Inspector must never depend on activeTemporalFocus
+   * remaining set). But clicking a node to inspect it and then opening
+   * "เปิดคดี" must still carry temporal context into the case-detail
+   * returnTo, so this remembers ONLY the deterministic TemporalSelection
+   * (never a node/edge id set, never a second graph/topology snapshot) from
+   * the most recent "ดูบนผัง" activation. It is explicitly cleared by
+   * "ดูทั้งเครือข่าย", by the Crime Clock's own clear/reset actions, and by
+   * activating a different, independent focus (insight focus) — never by an
+   * ordinary node click, which is exactly what lets เปิดคดี after a click
+   * still carry it.
+   */
+  const [lastActiveTemporalReturnSelection, setLastActiveTemporalReturnSelection] = useState<TemporalSelection | null>(null);
+  /**
+   * DI-8.7 V1.5B — "ดูบนผัง" from the Crime Clock. Minimal extension of the
+   * SAME DI-8.4/DI-8.7-V1 emphasize/dim/camera-fit mechanism activeInsightFocus
+   * already uses (approved reuse strategy per this round's audit — not a
+   * second camera/highlight engine): a real, already-loaded {nodeIds, edgeIds}
+   * set derived purely from the currently loaded neighborhood via
+   * computeTemporalGraphFocus, merged into the SAME emphasizedPath prop.
+   * Mutually exclusive with activeInsightFocus/path-secondary-selection —
+   * see the precedence effect below.
+   */
+  const [activeTemporalFocus, setActiveTemporalFocus] = useState<TemporalGraphFocus | null>(null);
+  const lastTemporalCameraKeyRef = useRef<string | null>(null);
+  /** See the selectedSecondaryId-clearing effect below — set by handleInsightViewOnGraph/handleTemporalViewOnGraph right before setSelectedNode so that same-tick focus activation survives the effect's own clear-on-change logic. */
+  const skipNextFocusClearRef = useRef(false);
   const [pathFrom, setPathFrom] = useState<DrugNetworkEntitySelection | null>(null);
   const [pathTo, setPathTo] = useState<DrugNetworkEntitySelection | null>(null);
   const [selectedNode, setSelectedNode] = useState<DrugGraphNode | null>(null);
@@ -928,10 +987,24 @@ function DrugNetworkContent() {
     setPathCameraMode("SELECTED_PATH");
     lastPathCameraKeyRef.current = null;
     // DI-8.7: an ordinary node selection (clicking the canvas, opening a
-    // different node's Inspector) must clear any lingering insight focus —
-    // "ดูบนผัง" is transient, never a persistent alternate state.
-    setActiveInsightFocus(null);
-    lastInsightCameraKeyRef.current = null;
+    // different node's Inspector) must clear any lingering insight/temporal
+    // focus — "ดูบนผัง" is transient, never a persistent alternate state.
+    // DI-8.7 V1.5B: the temporal/insight "ดูบนผัง" handlers themselves also
+    // change selectedSecondaryId (via setSelectedNode, required to drive the
+    // existing emphasize/dim mechanism — see drug_network_graph_flow_adapter.ts).
+    // Without a guard, THIS effect would immediately clear the very focus
+    // those handlers just set, in the same render pass. skipNextFocusClearRef
+    // is set by those handlers right before calling setSelectedNode, and
+    // consumed (once) here — every OTHER selectedSecondaryId change (a plain
+    // node click, Find Connection, etc.) still clears both as before.
+    if (skipNextFocusClearRef.current) {
+      skipNextFocusClearRef.current = false;
+    } else {
+      setActiveInsightFocus(null);
+      lastInsightCameraKeyRef.current = null;
+      setActiveTemporalFocus(null);
+      lastTemporalCameraKeyRef.current = null;
+    }
   }, [selectedSecondaryId]);
 
   // DI-8.7 V1: deterministic intelligence graph observations, derived
@@ -945,6 +1018,14 @@ function DrugNetworkContent() {
   const handleInsightViewOnGraph = useCallback(
     (insight: NetworkGraphInsight) => {
       if (!neighborhood.data) return;
+      // DI-8.7 V1.5B: activating insight focus always takes precedence over
+      // (and clears) any active temporal focus — see the precedence effect.
+      setActiveTemporalFocus(null);
+      lastTemporalCameraKeyRef.current = null;
+      // VISUAL HOTFIX (2nd round): switching to a different, independent
+      // focus (insight focus) is an explicit exit from the temporal
+      // workflow — clear the remembered return context too.
+      setLastActiveTemporalReturnSelection(null);
       setActiveInsightFocus({ nodeIds: insight.graphFocus.nodeIds, edgeIds: insight.graphFocus.edgeIds });
       // Reuses the existing selectedSecondaryId/emphasizeSelectedPath
       // mechanism (Section 15), which requires a non-focus selected node to
@@ -957,6 +1038,7 @@ function DrugNetworkContent() {
       const nonFocusId = candidateIds.find((id) => id !== focusId) ?? null;
       const nodeToSelect = nonFocusId ? (neighborhood.data.nodes.find((n) => n.id === nonFocusId) ?? null) : null;
       if (nodeToSelect) {
+        skipNextFocusClearRef.current = true;
         setSelectedNode(nodeToSelect);
         setSelectedEdge(null);
         setEdgeDrawerOpen(false);
@@ -965,6 +1047,187 @@ function DrugNetworkContent() {
     [neighborhood.data, focusId],
   );
 
+  /**
+   * DI-8.7 V1.5B — "ดูบนผัง" from the Crime Clock. Mirrors
+   * handleInsightViewOnGraph exactly: reuses the same selectedSecondaryId/
+   * emphasizeSelectedPath/emphasizedPath mechanism, no new highlight engine.
+   * The panel only ever calls this with a real, non-null TemporalGraphFocus
+   * (its own "ดูบนผัง" button is disabled otherwise).
+   */
+  const handleTemporalViewOnGraph = useCallback(
+    (focus: TemporalGraphFocus) => {
+      if (!neighborhood.data) return;
+      // VISUAL HOTFIX: temporal focus is a SYSTEM-driven presentation focus,
+      // never a fabricated node selection — it must never auto-open the
+      // Inspector or imply one arbitrary matching case is "the" result
+      // (Section 1/2). It drives graph emphasis/dimming purely via
+      // presentationFocus (see drug_network_graph_flow_adapter.ts), which
+      // needs no selectedSecondaryId at all.
+      //
+      // Section 8: if an Inspector was already open from a PRIOR real user
+      // click, entering temporal focus is an intentional context switch away
+      // from that single-entity view — close it. This never touches the
+      // focus root person, the TemporalSelection, or the loaded graph.
+      // skipNextFocusClearRef: clearing the selection below changes
+      // selectedSecondaryId whenever an Inspector was open, which would
+      // otherwise trigger the selectedSecondaryId-clearing effect and
+      // immediately undo the temporal focus this handler sets further
+      // down (same render batch) — guard it exactly like the insight-focus
+      // handler already does.
+      skipNextFocusClearRef.current = true;
+      setSelectedNode(null);
+      setSelectedEdge(null);
+      setEdgeDrawerOpen(false);
+      // Activating temporal focus always takes precedence over (and clears)
+      // any active insight focus / path-secondary selection state it might
+      // ride on top of from a previous action.
+      setActiveInsightFocus(null);
+      lastInsightCameraKeyRef.current = null;
+      setActiveTemporalFocus(focus);
+      // Remember this activation's TemporalSelection (deterministic filter
+      // fields only — never a node/edge id set) so a later real node click
+      // + "เปิดคดี" can still carry temporal context into the case-detail
+      // returnTo, even though the click itself clears activeTemporalFocus.
+      setLastActiveTemporalReturnSelection(temporalSelection);
+      // Collapse the Crime Clock panel so attention returns to the graph
+      // (Section 3.7) — the TemporalSelection itself is preserved via the
+      // lifted temporalSelection state, so "กลับไปนาฬิกา" can reopen it
+      // with the exact same filters intact.
+      setShowTemporalExplorer(false);
+    },
+    [neighborhood.data, temporalSelection],
+  );
+
+  /** "กลับไปนาฬิกา" — reopens the Crime Clock panel with the SAME TemporalSelection (Section 15: never reset). Clears only the graph-focus presentation state, never the filters themselves. */
+  const handleBackToTemporalClock = useCallback(() => {
+    setActiveTemporalFocus(null);
+    lastTemporalCameraKeyRef.current = null;
+    setSelectedNode(null);
+    setShowTemporalExplorer(true);
+  }, []);
+
+  /**
+   * VISUAL HOTFIX (2nd round) — the Crime Clock panel's own onSelectionChange,
+   * wrapped only to additionally clear the remembered last-active temporal
+   * return context when the user explicitly resets/clears the selection
+   * back to fully empty ("ล้างตัวกรอง" / "แสดง 24 ชั่วโมง" in the panel both
+   * call setSelection(emptyTemporalSelection())) — an explicit exit from the
+   * temporal workflow, same as "ดูทั้งเครือข่าย". An ordinary narrowing edit
+   * (picking a different time range, etc.) never clears it.
+   */
+  const handleTemporalSelectionChange = useCallback((next: TemporalSelection) => {
+    setTemporalSelection(next);
+    if (isSelectionEmpty(next)) setLastActiveTemporalReturnSelection(null);
+  }, []);
+
+  /**
+   * DI-8.7 V1.5B VISUAL HOTFIX (ROUND 3 — root cause fix) —
+   * "กลับไปดูคดีตามช่วงเวลา" restoration (Section 6/8): when the URL was
+   * opened with `tFocus=1` (written by temporalAwareReturnPath below, only
+   * when a Case Detail link was generated while temporal focus was
+   * active), reconstruct activeTemporalFocus from the ALREADY-LOADED
+   * neighborhood using the exact same pure computeTemporalGraphFocus
+   * engine "ดูบนผัง" itself uses — no second fetch, no selected node, no
+   * Inspector auto-open.
+   *
+   * ROOT CAUSE OF THE ROUND-2 BUG: the guard was a plain boolean useRef,
+   * tied to the Network PAGE COMPONENT'S INSTANCE lifetime — not to the
+   * URL. The user is already on /drug-intelligence/network (with no
+   * tFocus) before ever opening the Crime Clock, so that FIRST mount
+   * already consumed the boolean guard (via the `!shouldRestoreTemporal
+   * GraphFocus` early-return branch, which also set it to true). Next.js
+   * App Router reuses the SAME mounted page instance for a same-route,
+   * query-only navigation (Case Detail's "กลับไปดูคดีตามช่วงเวลา" link is
+   * exactly that), so the effect never even attempted restoration on the
+   * return trip — the guard was already spent.
+   *
+   * FIX: key the guard on the RESTORE REQUEST ITSELF (the raw serialized
+   * temporal query string, via searchParams.toString()) instead of a
+   * single boolean. A genuinely NEW tFocus=1 request (different temporal
+   * params, or the same page reused for a brand-new return trip) always
+   * gets attempted; the SAME request is still only ever restored once
+   * (never loops on unrelated re-renders, since the ref only changes when
+   * this effect itself processes a request).
+   *
+   * Restoration is also correctly deferred until neighborhood.data is
+   * actually available (Section 3) — the effect returns early without
+   * marking the request as consumed while data is still loading, so it
+   * re-attempts on the next render once the neighborhood arrives.
+   */
+  const lastAttemptedTemporalRestoreKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const restoreKey = searchParams.toString();
+    const decision = shouldAttemptTemporalRestore({
+      restoreKey,
+      lastAttemptedRestoreKey: lastAttemptedTemporalRestoreKeyRef.current,
+      hasNeighborhoodData: Boolean(neighborhood.data),
+      isRestoreRequest: shouldRestoreTemporalGraphFocus(searchParams),
+    });
+    if (decision.consumeKey) lastAttemptedTemporalRestoreKeyRef.current = restoreKey;
+    if (!decision.attempt) return;
+    if (!neighborhood.data) return; // decision.attempt implies this is already true; narrows the type for TS below.
+    const restoredSelection = parseTemporalSelectionFromParams(searchParams);
+    // Restore the Crime Clock's own selection unconditionally from the URL
+    // — even when it turns out to be malformed/empty/zero-match below, this
+    // is what makes reopening Crime Clock show the honest resulting state
+    // (an empty filter, or a real zero-match result) rather than silently
+    // keeping whatever the reused page instance happened to have left over.
+    setTemporalSelection(restoredSelection);
+    // Malformed/no-longer-effective params: selection is restored above,
+    // but never activate a pointless or empty presentation focus.
+    if (!isEffectiveTemporalNarrowing(restoredSelection)) return;
+    const cases = extractTemporalCasesFromNeighborhood(neighborhood.data);
+    const result = computeTemporalSelectionResult(cases, restoredSelection);
+    const focus = computeTemporalGraphFocus({
+      nodes: neighborhood.data.nodes,
+      edges: neighborhood.data.edges,
+      matchingCaseIds: result.matchingCaseIds,
+      selectionLabel: composeTemporalSelectionLabel(restoredSelection, t, formatThaiCompactDate),
+    });
+    // Zero matching cases in the CURRENT neighborhood (Section 4): the
+    // selection is already restored above, but never activate an
+    // empty/arbitrary graph focus.
+    if (!focus) return;
+    // ROUND 4 FIX: the selectedSecondaryId-clearing effect (above) also
+    // fires around this same navigation (selectedSecondaryId settles to
+    // null on the fresh Case Detail round trip, since no node is actually
+    // selected on return) and would otherwise wipe out the
+    // activeTemporalFocus this effect is about to set, in the very next
+    // effect pass — exactly the race Section 3 warned about. Guard it the
+    // same way handleTemporalViewOnGraph/handleInsightViewOnGraph already
+    // do for their own same-tick activations.
+    skipNextFocusClearRef.current = true;
+    setActiveInsightFocus(null);
+    setActiveTemporalFocus(focus);
+    setLastActiveTemporalReturnSelection(restoredSelection);
+  }, [neighborhood.data, searchParams]);
+
+  /**
+   * DI-8.7 V1.5B VISUAL HOTFIX (2nd round, Section 5/6/9) — the returnTo
+   * path used for any case-detail link generated while the user is still
+   * "in" the temporal workflow. Keyed on lastActiveTemporalReturnSelection
+   * (NOT activeTemporalFocus directly) — a real node click intentionally
+   * clears activeTemporalFocus so the Inspector never depends on it
+   * (Section 6/7 of the previous hotfix), but เปิดคดี after that click must
+   * still carry temporal context. Carries the same focusType/focusId/depth
+   * as currentNetworkHref (already in searchParams) PLUS the serialized
+   * TemporalSelection and a `tFocus=1` flag, so opening Case Detail and
+   * returning reconstructs the exact same temporal subgraph from the
+   * already-loaded neighborhood — no second fetch, no fabricated selection,
+   * no Inspector auto-open (see the restoration effect above). Only
+   * diverges from currentNetworkHref when lastActiveTemporalReturnSelection
+   * is actually set; otherwise identical, so ordinary (non-temporal)
+   * case-detail navigation is completely unaffected.
+   */
+  const temporalAwareReturnPath = useMemo(() => {
+    if (!lastActiveTemporalReturnSelection) return currentNetworkHref;
+    const temporalParams = serializeTemporalSelectionParams(lastActiveTemporalReturnSelection, { focusActive: true });
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(temporalParams)) next.set(key, value);
+    const qs = next.toString();
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    return isSafeInternalReturnPath(href) ? href : currentNetworkHref;
+  }, [lastActiveTemporalReturnSelection, searchParams, pathname, currentNetworkHref]);
 
   const activeExplainedPath = useMemo(() => {
     if (!pathExplanation || pathExplanation.paths.length === 0) return null;
@@ -986,6 +1249,15 @@ function DrugNetworkContent() {
         // separate insight-only reset control.
         setActiveInsightFocus(null);
         lastInsightCameraKeyRef.current = null;
+        // DI-8.7 V1.5B: same restore action also clears an active temporal
+        // graph focus — one deterministic "back to everything" control.
+        setActiveTemporalFocus(null);
+        lastTemporalCameraKeyRef.current = null;
+        // VISUAL HOTFIX (2nd round): "ดูทั้งเครือข่าย" is an explicit exit
+        // from the temporal workflow — the remembered return context must
+        // not outlive it (a later "เปิดคดี" from ordinary browsing must
+        // never silently carry a stale temporal returnTo).
+        setLastActiveTemporalReturnSelection(null);
         window.requestAnimationFrame(() => {
           if (isNodeDraggingRef.current) return;
           fitView({ duration: 300 });
@@ -1310,11 +1582,14 @@ function DrugNetworkContent() {
       boardLocked,
       onWaypointDrag: handleWaypointDrag,
       canvasArrangement,
-      // DI-8.7: activeInsightFocus, when set by "ดูบนผัง", takes priority —
-      // same {nodeIds, edgeIds} contract emphasizedPath already accepts, no
-      // new highlight mechanism. isolateSelectedPath/emphasizeSelectedPath
-      // are forced true here so a same-day-cases insight (whose primary
-      // node need not be the DI-8.4 "selected secondary") still isolates.
+      // DI-8.7: activeInsightFocus, when set by "ดูบนผัง" on an insight card,
+      // takes priority — same {nodeIds, edgeIds} contract emphasizedPath
+      // already accepts, no new highlight mechanism. isolateSelectedPath/
+      // emphasizeSelectedPath are forced true here so a same-day-cases
+      // insight (whose primary node need not be the DI-8.4 "selected
+      // secondary") still isolates. Insight focus still rides on a real
+      // selectedSecondaryId (its own handler selects one of its nodes),
+      // unlike temporal focus below.
       isolateSelectedPath: isolateSelectedPath || Boolean(activeInsightFocus),
       emphasizeSelectedPath: Boolean(selectedSecondaryId) || Boolean(activeInsightFocus),
       emphasizedPath: activeInsightFocus
@@ -1322,6 +1597,14 @@ function DrugNetworkContent() {
         : activeExplainedPath
           ? { nodeIds: activeExplainedPath.nodeIds, edgeIds: activeExplainedPath.edgeIds }
           : selectedInvestigationPath,
+      // DI-8.7 V1.5B VISUAL HOTFIX: activeTemporalFocus drives emphasis via
+      // the dedicated presentationFocus extension instead — it needs no
+      // selected secondary node at all (see drug_network_graph_flow_adapter.ts).
+      // Only active while nothing is actually selected on the canvas (the
+      // adapter itself also enforces this — a real user click always wins).
+      presentationFocus: activeTemporalFocus
+        ? { nodeIds: activeTemporalFocus.nodeIds, edgeIds: activeTemporalFocus.edgeIds }
+        : null,
       pathViaHints: neighborhoodViaHints,
       pathViaMoreCount: pathExplanation?.alternativeCount ?? 0,
       showHopBadges: depth === 2,
@@ -1488,7 +1771,7 @@ function DrugNetworkContent() {
       lastPathFitSelectionRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot, depth, selectedPathIndex, activeExplainedPath?.signature, neighborhoodViaHints, pathExplanation?.alternativeCount, isolateSelectedPath, selectedSecondaryId]);
+  }, [neighborhood.data, querySignature, selectedNode?.id, selectedEdge?.id, labelMode, nodeDensity, pinnedNodeIds, edgeRoutes, effectiveWorkspaceMode, boardLocked, boardId, parsedBoardState, boardQuery.isPending, boardQuery.isSuccess, boardQuery.data?.version, compareHighlightKey, compareHighlightEmphasize, compareInspectSlot, depth, selectedPathIndex, activeExplainedPath?.signature, neighborhoodViaHints, pathExplanation?.alternativeCount, isolateSelectedPath, selectedSecondaryId, activeTemporalFocus]);
 
   // DI-8.4 follow-up: camera/viewport only — frames the active explained path.
   // Never re-layouts nodes. Does not loop after manual pan (keyed once per path).
@@ -1581,6 +1864,43 @@ function DrugNetworkContent() {
       if (viewport) setViewport(viewport, { duration: PATH_FOCUS_FIT_DURATION_MS });
     });
   }, [neighborhood.data, activeInsightFocus, setViewport]);
+
+  // DI-8.7 V1.5B — camera/viewport only: frames the Crime Clock's own
+  // temporal focus node set when "ดูบนผัง" is clicked. Reuses the EXACT
+  // same collectPathFitNodes/computeSelectedPathFocusViewport/setViewport
+  // primitives as the DI-8.4 path-camera effect and the DI-8.7 V1 insight-
+  // camera effect above (no second/third camera engine); keyed once per
+  // temporal focus node-set so it never re-fits on every unrelated render,
+  // and never fires while dragging.
+  useEffect(() => {
+    if (!neighborhood.data || !activeTemporalFocus) return;
+    const key = activeTemporalFocus.nodeIds.join(">");
+    if (lastTemporalCameraKeyRef.current === key) return;
+    lastTemporalCameraKeyRef.current = key;
+    const temporalNodeIds = activeTemporalFocus.nodeIds;
+    window.requestAnimationFrame(() => {
+      if (isNodeDraggingRef.current) return;
+      const temporalNodes = collectPathFitNodes({
+        pathNodeIds: temporalNodeIds,
+        focusId: neighborhood.data.focus.entityId,
+        nodes: latestFlowNodesRef.current,
+      });
+      if (temporalNodes.length < 2) return;
+      const canvas = canvasContainerRef.current;
+      const canvasRect = canvas?.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const drawerWidth = measureDrawerWidth(document.querySelector("[data-app-drawer]"), viewportWidth);
+      const viewport = computeSelectedPathFocusViewport({
+        nodes: temporalNodes,
+        canvasWidth: canvasRect?.width ?? canvas?.clientWidth ?? 960,
+        canvasHeight: canvasRect?.height ?? canvas?.clientHeight ?? 640,
+        canvasRight: canvasRect?.right ?? viewportWidth,
+        drawerWidth,
+        viewportWidth,
+      });
+      if (viewport) setViewport(viewport, { duration: PATH_FOCUS_FIT_DURATION_MS });
+    });
+  }, [neighborhood.data, activeTemporalFocus, setViewport]);
 
   // Hover labels are patched onto the already-built edges. Never put hover
   // into the topology rebuild above — drag moves the pointer in/out of the
@@ -2043,7 +2363,7 @@ function DrugNetworkContent() {
     if (isAnnotationId(node.id)) return;
     const graphNode = (node.data as DrugNetworkFlowNodeData).graphNode;
     if (graphNode.type === "LOCATION") return;
-    router.push(drugEntityDetailHref(graphNode.type, graphNode.id, currentNetworkHref));
+    router.push(drugEntityDetailHref(graphNode.type, graphNode.id, temporalAwareReturnPath));
   }
 
   function handleEdgeClick(_event: unknown, edge: Edge) {
@@ -2963,7 +3283,34 @@ function DrugNetworkContent() {
           ) : null}
 
           {showTemporalExplorer && neighborhood.data ? (
-            <DrugTemporalExplorerPanel neighborhood={neighborhood.data} returnPath={currentNetworkHref} />
+            <DrugTemporalExplorerPanel
+              neighborhood={neighborhood.data}
+              returnPath={temporalAwareReturnPath}
+              selection={temporalSelection}
+              onSelectionChange={handleTemporalSelectionChange}
+              onViewOnGraph={handleTemporalViewOnGraph}
+            />
+          ) : null}
+
+          {activeTemporalFocus ? (
+            <Card data-testid="temporal-focus-banner">
+              <CardBody className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{t("di.temporal.bannerTitle")}</p>
+                  <p className="text-xs text-muted" data-testid="temporal-focus-banner-label">
+                    {activeTemporalFocus.selectionLabel} · {t("di.temporal.bannerCaseCount").replace("{count}", String(activeTemporalFocus.matchingCaseCount))}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={handleBackToTemporalClock} data-testid="temporal-focus-back-to-clock">
+                    {t("di.temporal.actionBackToClock")}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => applyPathCameraMode("FULL_NETWORK")} data-testid="temporal-focus-full-network">
+                    {t("di.temporal.actionFullNetwork")}
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           ) : null}
 
           <Card>
@@ -3591,7 +3938,7 @@ function DrugNetworkContent() {
         {selectedNode ? (
           <DrugNetworkNodeDetail
             node={selectedNode}
-            openReturnPath={currentNetworkHref}
+            openReturnPath={temporalAwareReturnPath}
             onExpand={() => expandFromNode(selectedNode)}
             pinned={pinnedNodeIds.has(selectedNode.id)}
             onTogglePin={effectiveWorkspaceMode === "ANALYST" ? () => togglePinNode(selectedNode.id) : undefined}
@@ -3620,7 +3967,7 @@ function DrugNetworkContent() {
           {selectedEdge ? (
           <DrugNetworkEdgeDetail
             edge={selectedEdge}
-            openReturnPath={currentNetworkHref}
+            openReturnPath={temporalAwareReturnPath}
             sourceNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.source) ?? null}
             targetNode={neighborhood.data?.nodes.find((n) => n.id === selectedEdge.target) ?? null}
             neighborhood={neighborhood.data ?? undefined}

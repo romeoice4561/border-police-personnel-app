@@ -110,9 +110,16 @@ export function DrugCrimeClockHistogram({
             <button
               key={bucket.hour}
               type="button"
+              // V1.5B selection-readability polish: selection is now a
+              // single thin border UNDER the bar column (spans every
+              // selected hour as one continuous line, same idea as the
+              // clock's single outer arc) plus a very soft background
+              // tint — never a full ring drawn around each individual
+              // bar, which for a broad range reads as a grid of borders
+              // competing with the frequency bars themselves.
               className={cn(
-                "flex min-w-[22px] flex-col items-center gap-1 rounded-sm px-0.5 pt-1 pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                isSelected ? "bg-accent/10 ring-1 ring-foreground" : "hover:bg-neutral-bg",
+                "flex min-w-[22px] flex-col items-center gap-1 rounded-sm px-0.5 pt-1 pb-1 border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                isSelected ? "border-foreground bg-accent/5" : "border-transparent hover:bg-neutral-bg",
               )}
               aria-label={accessibleLabel}
               aria-pressed={isSelected}

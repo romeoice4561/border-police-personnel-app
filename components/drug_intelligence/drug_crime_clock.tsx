@@ -7,6 +7,18 @@
  * intentional center readout (24h total, or the active selection +
  * match count).
  *
+ * V1.5B SELECTION-READABILITY POLISH: a broad selection (e.g. 00:00–
+ * 12:59, ~13 segments) previously drew a bright per-segment
+ * stroke-foreground ring around EVERY selected wedge, including the
+ * internal boundaries between adjacent selected segments — this read as
+ * a grid of white lines competing with the orange frequency fill. Fixed
+ * by moving selection encoding to a SINGLE thin outer arc spanning the
+ * whole selected range (drawn once, outside the dial), while each
+ * segment's own stroke returns to the same subtle divider used for
+ * unselected segments. Frequency fill/opacity + the exact count label
+ * remain the dominant, per-segment signal; the outer arc is a
+ * secondary, unambiguous "this is the selected span" indicator.
+ *
  * Pure presentation; all filtering/aggregation math lives in
  * lib/drug_intelligence/drug_temporal_explorer.ts (no second temporal
  * engine here, no second aggregation — this component only projects
@@ -31,12 +43,14 @@ import { useT } from "@/components/i18n/language_provider";
 import { cn } from "@/lib/ui/cn";
 import type { HourlyBucket } from "@/lib/drug_intelligence/drug_temporal_explorer";
 
-const SIZE = 360;
+const SIZE = 384;
 const CENTER = SIZE / 2;
-const OUTER_R = 168;
+const OUTER_R = 164;
 const INNER_R = 92;
-const LABEL_R = 142;
-const COUNT_R = 130;
+const LABEL_R = 140;
+const COUNT_R = 128;
+/** The single outer selection-arc ring sits just outside the dial's own segments. */
+const SELECTION_ARC_R = OUTER_R + 12;
 
 function hourToAngle(hour: number): number {
   // 00:00 at the top (12 o'clock), clockwise, 15° per hour.
@@ -56,6 +70,58 @@ function segmentPath(hour: number, innerR: number, outerR: number): string {
   const p1i = polar(CENTER, CENTER, innerR, a1);
   const p0i = polar(CENTER, CENTER, innerR, a0);
   return `M ${p0o.x} ${p0o.y} A ${outerR} ${outerR} 0 0 1 ${p1o.x} ${p1o.y} L ${p1i.x} ${p1i.y} A ${innerR} ${innerR} 0 0 0 ${p0i.x} ${p0i.y} Z`;
+}
+
+/**
+ * Builds the outer selection-arc SVG path(s) for a set of selected
+ * hours. A contiguous run of hours (e.g. {0,1,...,12}) becomes ONE arc
+ * spanning hour 0's start to hour 12's end; a midnight-wrap selection
+ * that splits into two runs around the array boundary (e.g. {22,23,0,1})
+ * is still one contiguous angular run and stays a single arc. Only a
+ * genuinely non-contiguous set (not producible by the current click/drag
+ * interaction, but defensive) would emit multiple arcs.
+ */
+function selectionArcPaths(selectedHours: ReadonlySet<number>): string[] {
+  if (selectedHours.size === 0) return [];
+  if (selectedHours.size === 24) {
+    // Full circle: draw as two half-arcs (a single 360° arc command is degenerate in SVG).
+    const half1 = arcPath(hourToAngle(0), hourToAngle(12));
+    const half2 = arcPath(hourToAngle(12), hourToAngle(24));
+    return [half1, half2];
+  }
+  // Find contiguous runs over the circular hour sequence 0..23.
+  const runs: Array<{ start: number; end: number }> = [];
+  const sorted = [...selectedHours].sort((a, b) => a - b);
+  const visited = new Set<number>();
+  for (const startCandidate of sorted) {
+    if (visited.has(startCandidate)) continue;
+    // Walk backward to find the true start of this run (handles wrap).
+    let runStart = startCandidate;
+    while (selectedHours.has((runStart - 1 + 24) % 24) && !visited.has((runStart - 1 + 24) % 24)) {
+      runStart = (runStart - 1 + 24) % 24;
+      if (runStart === startCandidate) break; // full circle guard
+    }
+    let runEnd = runStart;
+    visited.add(runStart);
+    while (selectedHours.has((runEnd + 1) % 24) && !visited.has((runEnd + 1) % 24)) {
+      runEnd = (runEnd + 1) % 24;
+      visited.add(runEnd);
+      if (runEnd === runStart) break;
+    }
+    runs.push({ start: runStart, end: runEnd });
+  }
+  return runs.map((run) => {
+    const startAngle = hourToAngle(run.start);
+    const endAngle = run.end >= run.start ? hourToAngle(run.end + 1) : hourToAngle(run.end + 1 + 24);
+    return arcPath(startAngle, endAngle);
+  });
+}
+
+function arcPath(startAngleDeg: number, endAngleDeg: number): string {
+  const p0 = polar(CENTER, CENTER, SELECTION_ARC_R, startAngleDeg);
+  const p1 = polar(CENTER, CENTER, SELECTION_ARC_R, endAngleDeg);
+  const largeArc = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
+  return `M ${p0.x} ${p0.y} A ${SELECTION_ARC_R} ${SELECTION_ARC_R} 0 ${largeArc} 1 ${p1.x} ${p1.y}`;
 }
 
 /** Hours covered by [startMinute, endMinute), honoring midnight wrap. */
@@ -215,6 +281,20 @@ export function DrugCrimeClock({
         }}
       >
         <title id={titleId}>{t("di.temporal.title")}</title>
+        {effectiveHighlight && effectiveHighlight.size > 0
+          ? selectionArcPaths(effectiveHighlight).map((d, i) => (
+              <path
+                key={`selection-arc-${i}`}
+                d={d}
+                fill="none"
+                className="stroke-foreground"
+                strokeWidth={3}
+                strokeLinecap="round"
+                data-testid="crime-clock-selection-arc"
+                aria-hidden="true"
+              />
+            ))
+          : null}
         {hourlyDistribution.map((bucket) => {
           const isSelected = effectiveHighlight?.has(bucket.hour) ?? false;
           // Signal A: accent fill-opacity encodes frequency (never selection).
@@ -231,15 +311,19 @@ export function DrugCrimeClock({
             <g key={bucket.hour}>
               <path
                 d={segmentPath(bucket.hour, INNER_R, OUTER_R)}
-                // Signal B: a distinct stroke ring marks SELECTION, fully
-                // independent of the fill intensity above — a low-frequency
-                // selected hour is still unmistakably selected (Section 9).
-                className={cn(
-                  "cursor-pointer fill-accent transition-[fill-opacity,stroke-width]",
-                  isSelected ? "stroke-foreground" : "stroke-surface",
-                )}
+                // Signal B (selection) now lives ONLY in the single outer
+                // selection arc drawn above — never as a per-segment
+                // stroke. A broad multi-hour selection previously drew a
+                // bright ring around EVERY selected wedge (including the
+                // internal boundaries between adjacent selected hours),
+                // which read as a grid of white lines competing with the
+                // orange frequency fill. Every segment now uses the SAME
+                // subtle divider stroke regardless of selection state —
+                // frequency fill/opacity + the exact count label stay the
+                // dominant per-segment signal.
+                className="cursor-pointer fill-accent stroke-surface transition-[fill-opacity]"
                 style={{ fillOpacity: intensity }}
-                strokeWidth={isSelected ? 2.5 : 1}
+                strokeWidth={1}
                 tabIndex={0}
                 role="button"
                 aria-label={accessibleLabel}

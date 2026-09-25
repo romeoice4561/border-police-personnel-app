@@ -55,6 +55,8 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
     onSelectedPath,
     showHopBadge,
     stronglyDimmed,
+    temporalFocused,
+    temporalContextDimmed,
     pathViaHint,
     pathViaMoreCount,
     compareRole,
@@ -155,8 +157,19 @@ export function DrugNetworkGraphNode({ data, selected }: NodeProps & { data: Dru
         compareInspect && !isFocus ? "ring-2 ring-accent ring-offset-4 ring-offset-background shadow-md" : "",
         compareJunctionNode && !selected && !compareEndpoint ? "ring-2 ring-warning ring-offset-1 ring-offset-background shadow-md" : "",
         comparePath && !selected && !compareEndpoint && !compareJunctionNode ? "ring-1 ring-accent" : "",
-        onSelectedPath && !selected && !isFocus && !compareEndpoint && !comparePath ? "ring-1 ring-accent/40" : "",
-        stronglyDimmed ? "opacity-[0.55]" : dimmed ? "opacity-[0.62]" : ""
+        // DI-8.7 V1.5B VISUAL HOTFIX: temporalFocused gets its OWN strong
+        // accent ring — visibly bolder than the ordinary onSelectedPath
+        // ring-1/40 tier, so a matching CASE (and the entities directly
+        // connected to it) is obvious within a couple of seconds. Never a
+        // danger/risk color — same accent/orange C-INTEL token every other
+        // emphasis tier already uses.
+        temporalFocused && !selected && !isFocus ? "ring-2 ring-accent ring-offset-2 ring-offset-background shadow-md" : "",
+        onSelectedPath && !temporalFocused && !selected && !isFocus && !compareEndpoint && !comparePath ? "ring-1 ring-accent/40" : "",
+        // temporalContextDimmed uses a much stronger, dedicated opacity tier
+        // (CARD_GRAPH_TEMPORAL_CONTEXT_OPACITY = 0.22) than the ordinary
+        // stronglyDimmed/dimmed tiers (0.55/0.62) — those read as barely
+        // different from full network view; this one is unambiguous.
+        temporalContextDimmed ? "opacity-[0.22]" : stronglyDimmed ? "opacity-[0.55]" : dimmed ? "opacity-[0.62]" : ""
       )}
     >
       {compareSlot ? (

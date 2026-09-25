@@ -238,6 +238,16 @@ export const CARD_GRAPH_SECONDARY_OPACITY = 0.28;
 export const CARD_GRAPH_SELECTED_INCIDENT_STROKE = 2;
 export const CARD_GRAPH_UNRELATED_OPACITY = 0.16;
 export const CARD_GRAPH_FOCUS_DIRECT_WHEN_OTHER_SELECTED_OPACITY = 0.34;
+/**
+ * DI-8.7 V1.5B VISUAL HOTFIX — presentation-focus (e.g. the Crime Clock's
+ * "ดูบนผัง") context-node opacity. The existing "dimmed"/"stronglyDimmed"
+ * card opacities (0.62/0.55, see drug_network_graph_node.tsx) were tuned
+ * for the DI-8.4 selected-path view and read as too subtle for "unrelated
+ * context nodes/edges must be MUCH more visually subdued" — this constant
+ * is a distinct, much stronger dim tier used ONLY when a node is outside
+ * an active presentationFocus set, never for ordinary path/compare dimming.
+ */
+export const CARD_GRAPH_TEMPORAL_CONTEXT_OPACITY = 0.22;
 
 /** Horizontal / vertical padding around relationship label text (xyflow labelBgPadding). */
 export const EDGE_LABEL_BG_PADDING: [number, number] = [10, 5];
