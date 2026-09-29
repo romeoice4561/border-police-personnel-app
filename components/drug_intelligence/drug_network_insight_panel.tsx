@@ -22,7 +22,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { cn } from "@/lib/ui/cn";
 import { useT } from "@/components/i18n/language_provider";
 import { DRUG_ENTITY_ICON } from "@/components/drug_intelligence/drug_entity_visual";
@@ -69,16 +69,31 @@ export function DrugNetworkInsightPanel({
       ) : (
         <>
           <ul className="space-y-2">
-            {visible.map((insight) => {
+            {visible.map((insight, index) => {
               const Icon = insight.entityType ? DRUG_ENTITY_ICON[insight.entityType] : null;
               const evidenceOpen = evidenceOpenId === insight.id;
+              // DI-8.7 V2 (Section 7) — one small labeled divider, shown once,
+              // right before the first PATH_BRIDGE card in this already-sorted
+              // list. Never a second panel/component — the same unified card
+              // list, dedup, sorting, and camera/evidence actions apply to
+              // every card regardless of which side of the divider it's on.
+              const isFirstBridgeCard = insight.type === "PATH_BRIDGE" && visible.slice(0, index).every((prior) => prior.type !== "PATH_BRIDGE");
               return (
-                <li
-                  key={insight.id}
-                  className="rounded-lg border border-border/80 bg-surface px-3 py-2.5"
-                  data-testid="network-insight-card"
-                  data-insight-type={insight.type}
-                >
+                <Fragment key={insight.id}>
+                  {isFirstBridgeCard ? (
+                    <li key={`${insight.id}-bridge-heading`} aria-hidden="true">
+                      <div className="border-t border-border/60 pt-2" data-testid="network-bridge-section-heading">
+                        <p className="text-sm font-semibold text-foreground">{t("di.network.bridgeSectionHeading")}</p>
+                        <p className="text-[11px] text-muted">{t("di.network.bridgeSectionSubtitle")}</p>
+                      </div>
+                    </li>
+                  ) : null}
+                  <li
+                    key={insight.id}
+                    className="rounded-lg border border-border/80 bg-surface px-3 py-2.5"
+                    data-testid="network-insight-card"
+                    data-insight-type={insight.type}
+                  >
                   {/* A. what did the system notice — PRIMARY */}
                   <p className="text-sm font-semibold leading-snug text-foreground" data-testid="network-insight-title">
                     {t(insight.titleKey)}
@@ -97,8 +112,26 @@ export function DrugNetworkInsightPanel({
                     {insight.factText}
                   </p>
 
-                  {/* D. supporting case records — SUPPORTING */}
-                  {insight.cases.length > 0 ? (
+                  {/* D. supporting case records — SUPPORTING. PATH_BRIDGE shows
+                      compact real case-PAIR chips ("DI-TEST-001 ↔
+                      DI-TEST-005") instead of a flat case list, since the
+                      structural fact IS the pairing, not just membership
+                      (visual-hotfix Section 4). Capped to 3 visible pairs +
+                      "+N เส้นทาง" rather than an unbounded tall card. */}
+                  {insight.type === "PATH_BRIDGE" && insight.pathPairs && insight.pathPairs.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1" data-testid="network-insight-path-pairs">
+                      {insight.pathPairs.slice(0, 3).map((pair, i) => (
+                        <span key={`${pair.caseANumber}-${pair.caseBNumber}-${i}`} className="rounded bg-neutral-bg px-1.5 py-0.5 text-[11px] text-foreground">
+                          {pair.caseANumber} ↔ {pair.caseBNumber}
+                        </span>
+                      ))}
+                      {insight.pathPairs.length > 3 ? (
+                        <span className="rounded bg-neutral-bg px-1.5 py-0.5 text-[11px] text-muted" data-testid="network-insight-path-pairs-more">
+                          {t("di.network.insightPathBridgePairsMore").replace("{count}", String(insight.pathPairs.length - 3))}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : insight.cases.length > 0 ? (
                     <div className="mt-1.5 flex flex-wrap gap-1" data-testid="network-insight-cases">
                       {insight.cases.map((c) => (
                         <span key={c.caseId} className="rounded bg-neutral-bg px-1.5 py-0.5 text-[11px] text-foreground">
@@ -142,20 +175,40 @@ export function DrugNetworkInsightPanel({
                   </div>
 
                   {evidenceOpen ? (
-                    <ul className="mt-2 space-y-1 border-t border-border/60 pt-2" data-testid="network-insight-evidence-list">
-                      {insight.cases.map((c) => (
-                        <li key={c.caseId}>
-                          <Link
-                            href={withReturnTo(drugEntityDetailPath("CASE", c.caseId), openReturnPath)}
-                            className="text-xs font-medium text-accent underline-offset-2 hover:underline"
-                          >
-                            {t("di.network.openRelatedCase")}: {c.caseNumber}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-2 space-y-2 border-t border-border/60 pt-2" data-testid="network-insight-evidence-list">
+                      {/* PATH_BRIDGE: show the real path sequence per case pair
+                          (never just "พบ N เส้นทาง" repeated — Section 5/9 of
+                          the visual-hotfix prompt) before the plain case links. */}
+                      {insight.type === "PATH_BRIDGE" && insight.pathPairs && insight.pathPairs.length > 0 ? (
+                        <div data-testid="network-insight-path-sequence">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                            {t("di.network.insightEvidencePathSequence")}
+                          </p>
+                          <ul className="mt-1 space-y-1">
+                            {insight.pathPairs.map((pair, i) => (
+                              <li key={`${pair.caseANumber}-${pair.caseBNumber}-${i}`} className="text-[11px] leading-relaxed text-foreground">
+                                {pair.caseANumber} → {pair.pathNodeLabels.join(" → ")} → {pair.caseBNumber}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      <ul className="space-y-1">
+                        {insight.cases.map((c) => (
+                          <li key={c.caseId}>
+                            <Link
+                              href={withReturnTo(drugEntityDetailPath("CASE", c.caseId), openReturnPath)}
+                              className="text-xs font-medium text-accent underline-offset-2 hover:underline"
+                            >
+                              {t("di.network.openRelatedCase")}: {c.caseNumber}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ) : null}
-                </li>
+                  </li>
+                </Fragment>
               );
             })}
           </ul>

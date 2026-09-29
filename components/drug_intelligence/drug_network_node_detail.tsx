@@ -16,7 +16,11 @@ import { DrugEntityVisualThumb } from "@/components/drug_intelligence/drug_entit
 import { DrugNetworkInspectorMedia } from "@/components/drug_intelligence/drug_network_inspector_media";
 import { DrugNetworkPathStoryView } from "@/components/drug_intelligence/drug_network_path_story_view";
 import { DrugNetworkInsightPanel } from "@/components/drug_intelligence/drug_network_insight_panel";
-import { insightsForEntity, type NetworkGraphInsight } from "@/lib/drug_intelligence/drug_network_graph_insights";
+import {
+  insightsForEntity,
+  suppressPathBridgeDuplicateOfDrawerExplanation,
+  type NetworkGraphInsight,
+} from "@/lib/drug_intelligence/drug_network_graph_insights";
 import { withReturnTo } from "@/lib/ui/return_context";
 import { DRUG_GRAPH_NODE_TYPE_LABEL_KEY } from "@/lib/drug_intelligence/drug_network_graph_client_labels";
 import {
@@ -92,9 +96,6 @@ export function DrugNetworkNodeDetail({
         ? t("di.network.openCase")
         : t("di.network.openDetail");
   const showOpenLink = node.type !== "LOCATION";
-  // DI-8.7 V1: this node's own deterministic observations, filtered from
-  // the full loaded-neighborhood insight set the page computed once.
-  const nodeInsights = insightsForEntity(insights, node.id);
   const activePath =
     pathExplanation && !isFocus
       ? pathExplanation.paths[Math.min(selectedPathIndex, pathExplanation.paths.length - 1)] ?? null
@@ -108,6 +109,22 @@ export function DrugNetworkNodeDetail({
   // computes — no new path enumeration, no new relationship classification.
   const story =
     pathExplanation && !isFocus && activePath ? buildNetworkPathStory(pathExplanation, activePath, t) : null;
+  // DI-8.7 V2 (visual hotfix round 3): mirrors the exact same condition the
+  // dedicated path-explanation section below renders under — when that
+  // narrative is ALREADY shown for this node, its own PATH_BRIDGE card
+  // would repeat the identical "why this entity appears in the network"
+  // fact under "ข้อสังเกตจากข้อมูล". Every other insight (different type,
+  // or PATH_BRIDGE for a different entity) is untouched.
+  const hasDedicatedPathExplanation = Boolean(
+    !isFocus && pathExplanation && activePath && story && activePath.steps.length >= 2,
+  );
+  // DI-8.7 V1: this node's own deterministic observations, filtered from
+  // the full loaded-neighborhood insight set the page computed once.
+  const nodeInsights = suppressPathBridgeDuplicateOfDrawerExplanation(
+    insightsForEntity(insights, node.id),
+    node.id,
+    hasDedicatedPathExplanation,
+  );
   // DI-8.6 hotfix: reset the active evidence-step selection whenever the
   // active PATH itself changes (a different node selected, OR the same node
   // but a different path index/switch) — keyed on the path's own stable
@@ -378,8 +395,15 @@ export function DrugNetworkNodeDetail({
           observations for this node. Placed after Identity/Investigation
           Story/Evidence and before technical metadata (Section 10). Not a
           second drawer, not a new dashboard — one more section in the
-          existing Inspector. */}
-      {onInsightViewOnGraph ? (
+          existing Inspector.
+          DI-8.7 V2 (visual hotfix round 3): when the dedicated path
+          explanation above already suppressed this node's only insight(s),
+          the section is hidden entirely rather than showing an empty
+          "ข้อสังเกตจากข้อมูล" container — this is a Drawer-local
+          post-suppression empty state, distinct from the main Insight
+          Panel's own honest "no insights at all" empty state (which still
+          renders normally everywhere else this panel is used). */}
+      {onInsightViewOnGraph && nodeInsights.length > 0 ? (
         <div className="border-t border-border/60 pt-2">
           <DrugNetworkInsightPanel
             insights={nodeInsights}

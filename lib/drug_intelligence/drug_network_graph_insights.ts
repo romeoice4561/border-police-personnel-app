@@ -46,6 +46,7 @@ import type {
   DrugGraphNodeType,
 } from "@/lib/drug_intelligence/drug_intelligence_client";
 import { classifyCaseChronology, toDateOnly } from "@/lib/drug_intelligence/drug_cross_case_connection";
+import { computePathBridgeObservations } from "@/lib/drug_intelligence/drug_network_bridge_analysis";
 import type { TranslationKey } from "@/lib/i18n/dictionary";
 
 /** Entity types that can meaningfully repeat across cases in this graph model — mirrors what DrugNetworkGraphService actually loads, never invented. CASE/LOCATION are excluded: a case cannot "appear in itself," and LOCATION-sharing is explicitly never relationship evidence (see drug_cross_case_connection.ts). */
@@ -62,7 +63,8 @@ export type NetworkGraphInsightType =
   | "CROSS_CASE_ENTITY"
   | "SHARED_CONNECTION"
   | "COMMON_EVIDENCE"
-  | "SAME_DAY_CASES";
+  | "SAME_DAY_CASES"
+  | "PATH_BRIDGE";
 
 /** One case reference as shown on an insight card — always the real case node's number when loaded, never a raw id alone. */
 export interface InsightCaseRef {
@@ -70,6 +72,19 @@ export interface InsightCaseRef {
   /** caseNumber when the CASE node is loaded in this neighborhood; falls back to caseId only if the case node itself wasn't loaded (e.g. referenced only via edge.sourceCaseIds). Never fabricated. */
   caseNumber: string;
   arrestDate: string | null;
+}
+
+/**
+ * One PATH_BRIDGE case-pair, formatted for the compact "DI-TEST-001 ↔
+ * DI-TEST-005" display (Section 4 of the visual-hotfix prompt) plus its
+ * exact real path-sequence evidence for "ดูหลักฐาน" — never fabricated,
+ * only real loaded node/edge ids and labels.
+ */
+export interface PathBridgePairDisplay {
+  caseANumber: string;
+  caseBNumber: string;
+  /** The real intermediate node labels between the two cases, in path order (endpoints excluded) — for the "ดูหลักฐาน" path-sequence view. */
+  pathNodeLabels: string[];
 }
 
 /** Graph-focus payload for "ดูบนผัง" — real loaded node/edge ids only, never invented. Reuses the exact {nodeIds, edgeIds} shape the flow adapter's emphasizedPath prop already accepts (see drug_network_graph_flow_adapter.ts) — no new highlight mechanism. */
@@ -100,6 +115,8 @@ export interface NetworkGraphInsight {
   graphFocus: InsightGraphFocus;
   /** Ordering metric, exposed so the UI can render "เรียงตามจำนวนคดีที่ปรากฏ" honestly (Section 19). */
   metric: number;
+  /** PATH_BRIDGE only: exact supporting case pairs + real path sequence, for the compact case-pair display and "ดูหลักฐาน" path view (visual-hotfix Section 4/5). Undefined for every other insight type. */
+  pathPairs?: PathBridgePairDisplay[];
 }
 
 function nodeById(nodes: readonly DrugGraphNode[]): Map<string, DrugGraphNode> {
@@ -376,6 +393,73 @@ function computeSameDayInsights(neighborhood: DrugGraphNeighborhoodResponse): Ne
 }
 
 /**
+ * DI-8.7 V2 Insight #5 — Path bridge (TYPE C, drug_network_bridge_
+ * analysis.ts). For every distinct CASE-pair path found within the
+ * loaded neighborhood, names the exact intermediate entities and the
+ * exact case pairs they connect — a bounded, deterministic
+ * approximation of "which entities sit between multiple cases," never
+ * a global betweenness-centrality computation. Language is strictly
+ * structural: "ปรากฏเป็นทางผ่านของ N เส้นทาง," never "สำคัญที่สุด" or
+ * any risk/hierarchy claim (Section 4/10 of the V2 prompt).
+ */
+function computePathBridgeInsights(
+  neighborhood: DrugGraphNeighborhoodResponse,
+  byId: Map<string, DrugGraphNode>,
+): NetworkGraphInsight[] {
+  const observations = computePathBridgeObservations(neighborhood);
+  const out: NetworkGraphInsight[] = [];
+  for (const obs of observations) {
+    const entityNode = byId.get(obs.entityId);
+    if (!entityNode) continue;
+    // Every case id appearing across every supporting pair, as InsightCaseRef evidence (Section 9 — "show the case pair/path(s) supporting the observation").
+    const caseIds = new Set<string>();
+    for (const pair of obs.supportingPairs) {
+      caseIds.add(pair.caseAId);
+      caseIds.add(pair.caseBId);
+    }
+    const cases = resolveCaseRefs([...caseIds], byId);
+    // Real case-pair + path-sequence display evidence (visual-hotfix Section
+    // 4/5) — resolved from the SAME loaded nodes only, never fabricated.
+    // Deterministic ordering: by (caseANumber, caseBNumber) after each pair's
+    // own two case numbers are placed in sorted order, so the same pair
+    // never renders in two different orientations across renders.
+    const pathPairs: PathBridgePairDisplay[] = obs.supportingPairs
+      .map((pair) => {
+        const caseANode = byId.get(pair.caseAId);
+        const caseBNode = byId.get(pair.caseBId);
+        const caseANumber = caseANode && caseANode.metadata.type === "CASE" ? caseANode.metadata.caseNumber : pair.caseAId;
+        const caseBNumber = caseBNode && caseBNode.metadata.type === "CASE" ? caseBNode.metadata.caseNumber : pair.caseBId;
+        const [first, second] = [caseANumber, caseBNumber].sort((a, b) => a.localeCompare(b, "th"));
+        return {
+          caseANumber: first!,
+          caseBNumber: second!,
+          pathNodeLabels: pair.pathNodeIds.map((id) => byId.get(id)?.label ?? id),
+        };
+      })
+      .sort((a, b) => a.caseANumber.localeCompare(b.caseANumber, "th") || a.caseBNumber.localeCompare(b.caseBNumber, "th"));
+    out.push({
+      id: `path-bridge:${obs.entityId}`,
+      type: "PATH_BRIDGE",
+      titleKey: "di.network.insightPathBridge",
+      entityId: obs.entityId,
+      entityType: entityNode.type,
+      entityLabel: entityNode.label,
+      factText: `ปรากฏเป็นทางผ่านของ ${obs.pathCount} เส้นทาง`,
+      cases,
+      reasonKey: "di.network.insightReasonPathBridge",
+      graphFocus: {
+        nodeIds: [obs.entityId, ...obs.supportingNodeIds.filter((id) => id !== obs.entityId)],
+        edgeIds: obs.supportingEdgeIds,
+        primaryNodeId: obs.entityId,
+      },
+      metric: obs.pathCount,
+      pathPairs,
+    });
+  }
+  return out;
+}
+
+/**
  * Semantic dedup key: (entity identity) + (sorted, deduped supporting case
  * ids). Two insights that resolve to the identical tuple communicate the
  * SAME operational fact and must not both be shown — never compares
@@ -389,32 +473,42 @@ function factualKey(entityId: string | null, caseIds: readonly string[]): string
 }
 
 /**
- * Semantic deduplication (visual-review hotfix): CROSS_CASE_ENTITY and
- * COMMON_EVIDENCE can independently derive the identical (entity, case-set)
- * fact from the same edges — e.g. a phone appearing in the same 3 cases
- * produces both "เบอร์โทรศัพท์นี้ปรากฏในหลายคดี" and "พบข้อมูลรายการเดียวกัน...",
- * which is the same fact told twice. When both types resolve to the exact
- * same factual tuple, only the more specific CROSS_CASE_ENTITY observation
- * is kept — COMMON_EVIDENCE is only dropped for THAT specific duplicate
- * tuple, never disabled as a type. An entity with no CROSS_CASE_ENTITY
- * counterpart (not one of the 5 PERSON/PHONE/SIM/DEVICE/VEHICLE cross-case
- * types, or genuinely a different case set) keeps its COMMON_EVIDENCE card.
- * SHARED_CONNECTION and SAME_DAY_CASES are never deduplicated against
- * anything — they represent distinct relationship/temporal facts even when
- * their case sets overlap with a cross-case/common-evidence observation.
+ * Semantic deduplication — precedence CROSS_CASE_ENTITY > PATH_BRIDGE >
+ * COMMON_EVIDENCE (visual-review hotfix round 2). All three types can
+ * independently derive the identical (entity, case-set) fact from the same
+ * edges — e.g. a phone appearing in the same 3 cases can produce
+ * CROSS_CASE_ENTITY ("พบใน 3 คดี"), PATH_BRIDGE ("ปรากฏเป็นทางผ่านของ N
+ * เส้นทาง"), and COMMON_EVIDENCE ("ปรากฏใน N คดี") all for the exact same
+ * tuple — the same fact told three times. For any (entityId, sorted
+ * distinct case-id set) tuple, only the highest-precedence type present is
+ * kept; every lower-precedence insight for THAT exact tuple is dropped —
+ * never disabled as a type, and never suppressed for a genuinely different
+ * tuple (e.g. an entity that is a PATH_BRIDGE for a case pair it has no
+ * direct edge to, while ALSO having its own distinct CROSS_CASE_ENTITY
+ * tuple, keeps both — Section 6.R). SHARED_CONNECTION and SAME_DAY_CASES
+ * are never deduplicated against anything — distinct relationship/temporal
+ * facts even when their case sets overlap with another observation.
  */
+const DEDUP_PRECEDENCE: readonly NetworkGraphInsightType[] = ["CROSS_CASE_ENTITY", "PATH_BRIDGE", "COMMON_EVIDENCE"];
+
 function dedupeInsights(insights: readonly NetworkGraphInsight[]): NetworkGraphInsight[] {
-  const crossCaseKeys = new Set<string>();
+  // For each factual tuple, record the best (lowest precedence-index) type present.
+  const bestPrecedenceForKey = new Map<string, number>();
   for (const insight of insights) {
-    if (insight.type !== "CROSS_CASE_ENTITY") continue;
+    const idx = DEDUP_PRECEDENCE.indexOf(insight.type);
+    if (idx === -1) continue;
     const key = factualKey(insight.entityId, insight.cases.map((c) => c.caseId));
-    if (key) crossCaseKeys.add(key);
+    if (!key) continue;
+    const current = bestPrecedenceForKey.get(key);
+    if (current === undefined || idx < current) bestPrecedenceForKey.set(key, idx);
   }
   return insights.filter((insight) => {
-    if (insight.type !== "COMMON_EVIDENCE") return true;
+    const idx = DEDUP_PRECEDENCE.indexOf(insight.type);
+    if (idx === -1) return true; // SHARED_CONNECTION / SAME_DAY_CASES — never deduped.
     const key = factualKey(insight.entityId, insight.cases.map((c) => c.caseId));
     if (!key) return true;
-    return !crossCaseKeys.has(key);
+    const best = bestPrecedenceForKey.get(key);
+    return best === undefined || idx === best;
   });
 }
 
@@ -435,6 +529,7 @@ export function computeNetworkGraphInsights(
     ...computeSharedConnectionInsights(neighborhood, byId),
     ...computeCommonEvidenceInsights(neighborhood, byId),
     ...computeSameDayInsights(neighborhood),
+    ...computePathBridgeInsights(neighborhood, byId),
   ]);
 
   const typePriority: Record<NetworkGraphInsightType, number> = {
@@ -442,6 +537,7 @@ export function computeNetworkGraphInsights(
     SHARED_CONNECTION: 1,
     COMMON_EVIDENCE: 2,
     SAME_DAY_CASES: 3,
+    PATH_BRIDGE: 4,
   };
 
   all.sort((a, b) => {
@@ -465,4 +561,36 @@ export function insightsForEntity(
     if (insight.graphFocus.nodeIds.includes(entityId)) return true;
     return false;
   });
+}
+
+/**
+ * DI-8.7 V2 (visual hotfix round 3) — Inspector Drawer presentation-only
+ * suppression: when the Drawer is ALREADY showing a dedicated
+ * focus→selected-node path explanation (DI-8.4's explainFocusToSelectedPaths
+ * — "พบเส้นทางเชื่อมโยง N เส้นทาง" / "ทำไม ... จึงปรากฏในเครือข่ายนี้?" /
+ * "ข้อสรุปของเส้นทาง"), that narrative already tells the operator the exact
+ * same structural fact a PATH_BRIDGE card for THIS SAME entity would repeat
+ * under "ข้อสังเกตจากข้อมูล" — the entity sits on a connecting path. Showing
+ * both is the same finding told twice in one Drawer.
+ *
+ * Semantic identity used (never rendered text): the insight's own type
+ * ("PATH_BRIDGE") + its canonical entityId. The dedicated path explanation
+ * is inherently about `entityId` (it is the selected node's own Drawer), so
+ * no case-set comparison against the path explanation is needed or even
+ * possible — explainFocusToSelectedPaths and computePathBridgeObservations
+ * are two structurally different computations (focus→node vs. CASE×CASE)
+ * with no shared factual-key shape to compare. Suppression is therefore
+ * scoped to "this exact entity's own PATH_BRIDGE card(s)," never a case-set
+ * comparison, and never any other insight type or any other entity's card —
+ * satisfying "observation-specific, not hide-everything."
+ *
+ * Pure, no React, no side effects. Never mutates the input array.
+ */
+export function suppressPathBridgeDuplicateOfDrawerExplanation(
+  insights: readonly NetworkGraphInsight[],
+  entityId: string,
+  hasDedicatedPathExplanation: boolean,
+): NetworkGraphInsight[] {
+  if (!hasDedicatedPathExplanation) return insights.slice();
+  return insights.filter((insight) => !(insight.type === "PATH_BRIDGE" && insight.entityId === entityId));
 }

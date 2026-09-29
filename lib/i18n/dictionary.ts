@@ -3523,6 +3523,15 @@ export const DICTIONARY = {
   // Same-day recorded case observation (V1 #4)
   "di.network.insightSameDayCases": tr("คดีที่เกี่ยวข้องมีวันจับกุมตรงกัน", "The related cases share the same recorded arrest date"),
   "di.network.insightReasonSameDayCases": tr("ระบบพบวันจับกุมที่บันทึกไว้ตรงกัน", "The system found matching recorded arrest dates"),
+  // Path bridge — structural connector between case pairs (DI-8.7 V2 #5)
+  "di.network.insightPathBridge": tr("เป็นทางเชื่อมระหว่างคดี", "A path connecting cases"),
+  "di.network.insightReasonPathBridge": tr("ข้อมูลนี้อยู่บนเส้นทางเชื่อมระหว่างคดีมากกว่าหนึ่งคู่ภายในเครือข่ายที่กำลังแสดง", "This item sits on a connecting path between more than one pair of cases within the currently shown network"),
+  "di.network.insightPathBridgePairsMore": tr("อีก {count} เส้นทาง", "{count} more paths"),
+  "di.network.insightEvidencePathSequence": tr("ลำดับเส้นทาง", "Path sequence"),
+  // DI-8.7 V2 — Network Structure section heading
+  "di.network.bridgeSectionHeading": tr("จุดเชื่อมของเครือข่าย", "Network connectors"),
+  "di.network.bridgeSectionSubtitle": tr("วิเคราะห์จากโครงสร้างของข้อมูลที่กำลังแสดง ไม่ใช่การประเมินความผิดหรือความสำคัญของบุคคล", "Derived from the structure of the currently shown data — not an assessment of guilt or importance"),
+  "di.network.bridgeSectionEmpty": tr("ยังไม่พบจุดเชื่อมหลายคดีหรือหลายส่วนของเครือข่ายในข้อมูลที่กำลังแสดง", "No multi-case or multi-part network connectors were found in the currently shown data"),
 
   // Phase DI-5.3 — multi-layout network workspace (Sections 3-20).
   "di.network.layoutToolbarLabel": tr("รูปแบบผัง", "Layout"),
